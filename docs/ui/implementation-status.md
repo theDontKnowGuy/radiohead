@@ -113,6 +113,9 @@ flash (41.9%)**. **P5 is not accepted yet:** this revision has not been flashed,
 so Omny response compatibility, stale-request timing, pause/seek behavior on
 actual sources, display legibility and sustained audio require device checks.
 
+**Implementation:** complete through the supplied transport-icon integration.
+Hardware acceptance remains pending the recorded device checks above.
+
 ## 2026-09-19 — Light-finger XPT2046 acceptance pass
 
 The application now uses a narrow XPT2046 wrapper that accepts two mutually
