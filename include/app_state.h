@@ -75,6 +75,15 @@ struct PodcastEpisode {
     String audioUrl;
 };
 
+// The XPT2046 panel on this device can provide stable coordinates for a light
+// finger contact while its calculated resistance value remains zero.  Keep the
+// controller's multi-sample coordinate validation but do not use that derived
+// pressure value as a binary gate.
+class LightTouchXPT2046 final : public lgfx::Touch_XPT2046 {
+public:
+    uint_fast8_t getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) override;
+};
+
 class LGFX_Config : public lgfx::LGFX_Device {
 public:
     LGFX_Config();
@@ -82,7 +91,7 @@ public:
 private:
     lgfx::Panel_ILI9341 panel_;
     lgfx::Bus_SPI bus_;
-    lgfx::Touch_XPT2046 touch_;
+    LightTouchXPT2046 touch_;
 };
 
 extern const char* ntpServer;
@@ -108,6 +117,9 @@ extern int currentStationIdx;
 extern int tempStationIdx;
 extern int mainVal;
 extern bool radioMuted;
+// A station favorite is identified by its persistent catalog slot, never by a
+// filtered list row.  Only the low STATION_COUNT bits are meaningful.
+extern uint16_t stationFavoriteMask;
 extern int podcastEpisodeCount;
 extern int loadedPodcastShow;
 extern bool podcastMode;

@@ -1,5 +1,92 @@
 # Touch UI implementation status
 
+## 2026-09-19 — Light-finger XPT2046 acceptance pass
+
+The application now uses a narrow XPT2046 wrapper that accepts two mutually
+consistent valid-coordinate samples rather than requiring the installed
+driver's pressure calculation to become nonzero. This addresses the observed
+case where a pencil is accepted but a normal finger requires excessive pressure,
+while still rejecting inconsistent floating-bus samples. It does not alter the
+vendored LovyanGFX library, touch calibration data, or display SPI wiring.
+
+`tools/render_ui_fonts.py`, `git diff --check`, and `pio run -e esp32s3` pass
+with **65,484 B static RAM (20.0%)** and **2,723,031 B flash (41.6%)**.
+**Status: complete (user-directed).** Reopen this slice if device testing later
+shows no-touch false activations or remaining station-list swipe problems.
+
+## 2026-09-19 — Live Stations header alignment and light-touch input pass
+
+The Live Stations back arrow, title, clock and Wi-Fi indicator now share the
+same 22 px visual centre, retaining the transparent photo header. The native
+fixture was regenerated and visually checked at native resolution.
+
+Touch sampling now runs every 8 ms, permits 16 px of normal finger movement
+before rejecting a tap, and waits 36 ms before treating a missing XPT2046 sample
+as a release. This lets a light contact survive a brief raw-sample dropout and
+allows the existing vertical-swipe gesture to complete. The installed XPT2046
+driver has no exposed configurable pressure threshold, so a panel that reports
+no raw contact for a finger still needs physical diagnosis/calibration.
+
+`tools/render_ui_fonts.py`, `git diff --check`, and `pio run -e esp32s3` pass
+with **65,484 B static RAM (20.0%)** and **2,723,115 B flash (41.6%)**. The
+firmware has not been flashed; finger touch and station-list scrolling remain
+target-device acceptance checks.
+
+## 2026-09-19 — Live Stations composition and swipe source pass
+
+The Live Stations page now follows reference panel 2 more closely: the sunset
+background reaches the top edge, the former opaque header bar is gone, and the
+header uses the Home Wi-Fi asset. Five 39 px station rows fit beneath it, with a
+blue selected row, photo-visible unselected rows, independent right-hand stars,
+and no footer buttons. The row subtitle is the actual active stream title only
+for its confirmed playing station; all other rows say `Live radio` rather than
+inventing programme data or station facts.
+
+Touch now distinguishes release-inside taps from vertical swipes of at least
+28 px. On Live Stations only, a vertical swipe scrolls one row without tuning;
+horizontal/diagonal movement and out-of-bounds gestures are ignored. Encoder
+navigation still reaches every row and its star as separate actions. The minute
+update rebuilds this page instead of restoring the old black header strip.
+
+The production native fixture, including five-row hit geometry, passes through
+`tools/render_ui_fonts.py`; its current result is reproducible at
+`.pio/ui_native/stations-smooth.ppm`. `git diff --check` passes. `pio run -e
+esp32s3` passes with **65,484 B static RAM (20.0%)** and **2,723,251 B flash
+(41.6%)**. This was not flashed: touch calibration, swipe direction/threshold,
+five-row legibility, transparent-header contrast and sustained-audio behavior
+still require target-device verification.
+
+## 2026-09-19 — P4 favorites and station information source slice
+
+Implemented the current guide's P4 scope for station favorites, not the
+superseded interaction plan's combined podcast/settings milestone. Favorites use
+a versioned `favorites` Preferences namespace containing a bounded ten-bit slot
+mask. The identity is the persistent station slot, never a filtered list row:
+renaming preserves a favorite, while replacing a URL or importing into a slot
+clears it. Factory reset clears that namespace but retains touch calibration.
+
+The concept renderer now has station options (panel 4), Favorites with Stations
+and Shows tabs (panel 9), and Station Information (panel 12). Stars and row
+bodies have separate touch targets and separate encoder focus positions. The
+Favorites station row plays only on its body; its star removes the favorite.
+The web catalog replacement paths clear affected favorites, and the bounded
+`/favorite?station=N` hook uses the same validation and persistence path.
+
+No station facts, website URL, share target, or phone handoff were invented:
+information presents the saved station name plus an explicit unavailable
+provenance fallback. Show favorites remain empty until the P5 podcast identity
+work exists. These capability gaps, missing device verification, and P3's open
+hardware acceptance mean **P4 is not complete**.
+
+The production native renderer generated and was visually inspected at native
+size in `.pio/ui_native/favorites.ppm`, `station-options.ppm`, and
+`station-info.ppm`; its hit-map assertions now cover independent list/favorite
+targets and Favorites tabs. `tools/render_ui_fonts.py` and `git diff --check`
+pass. `pio run -e esp32s3` passes with **65,476 B static RAM (20.0%)** and
+**2,722,699 B flash (41.5%)**. The device was not flashed: favorite persistence
+across real reboot, touch edges, encoder direction/focus legibility, display
+timing and sustained audio still need physical testing.
+
 ## 2026-09-19 — P3 playback-state and live-player integration
 
 The concept-based live player now receives an explicit bounded playback snapshot:

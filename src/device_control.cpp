@@ -11,8 +11,10 @@ namespace {
 
 constexpr unsigned long kButtonDebounceMs = 25;
 constexpr unsigned long kButtonHoldMs = 700;
-constexpr unsigned long kTouchPollMs = 12;
-constexpr int16_t kTouchTapTolerance = 10;
+constexpr unsigned long kTouchPollMs = 8;
+constexpr unsigned long kTouchReleaseDebounceMs = 36;
+constexpr int16_t kTouchTapTolerance = 16;
+constexpr int16_t kTouchSwipeMinDistance = 28;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -68,6 +70,11 @@ void factoryReset() {
     tft.setTextColor(TFT_WHITE);
     tft.drawCenterString("FACTORY RESET", 160, 100, &fonts::FreeSansBold12pt7b);
     pref.begin("radio", false);
+    pref.clear();
+    pref.end();
+    // Favorites are separate from the legacy radio namespace, but factory
+    // reset must remove them while retaining touch calibration by design.
+    pref.begin("favorites", false);
     pref.clear();
     pref.end();
     delay(3000);
@@ -164,14 +171,18 @@ ButtonEvent pollEncoderButton(unsigned long now) {
     return ButtonEvent::None;
 }
 
-bool pollTouchTap(int16_t& x, int16_t& y, unsigned long now) {
+TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
     static bool touching = false;
     static int16_t startX = 0;
     static int16_t startY = 0;
+    static int16_t lastX = 0;
+    static int16_t lastY = 0;
     static bool cancelled = false;
+    static bool outside = false;
     static unsigned long lastPoll = 0;
+    static unsigned long lastTouchSampleAt = 0;
     if (now - lastPoll < kTouchPollMs) {
-        return false;
+        return TouchEvent::None;
     }
     lastPoll = now;
 
@@ -184,24 +195,42 @@ bool pollTouchTap(int16_t& x, int16_t& y, unsigned long now) {
         if (!touching) {
             touching = true;
             cancelled = pointX < 0 || pointX >= tft.width() || pointY < 0 || pointY >= tft.height();
+            outside = cancelled;
             startX = pointX;
             startY = pointY;
-        } else if (abs(pointX - startX) > kTouchTapTolerance || abs(pointY - startY) > kTouchTapTolerance) {
+            lastX = pointX;
+            lastY = pointY;
+        } else {
+            lastX = pointX;
+            lastY = pointY;
+            outside = outside || pointX < 0 || pointX >= tft.width() || pointY < 0 || pointY >= tft.height();
+        }
+        lastTouchSampleAt = now;
+        if (abs(pointX - startX) > kTouchTapTolerance || abs(pointY - startY) > kTouchTapTolerance) {
             cancelled = true;
         }
-        return false;
+        return TouchEvent::None;
     }
 
     if (!touching) {
-        return false;
+        return TouchEvent::None;
+    }
+    // A light finger touch can drop a single XPT2046 sample while the finger
+    // remains on the resistive panel.  Do not turn that short gap into a
+    // release; a real release is still reported within 36 ms.
+    if (now - lastTouchSampleAt < kTouchReleaseDebounceMs) {
+        return TouchEvent::None;
     }
     touching = false;
-    if (cancelled) {
-        return false;
+    const int16_t deltaX = lastX - startX;
+    const int16_t deltaY = lastY - startY;
+    if (!outside && abs(deltaY) >= kTouchSwipeMinDistance && abs(deltaY) > abs(deltaX) * 2) {
+        return deltaY < 0 ? TouchEvent::SwipeUp : TouchEvent::SwipeDown;
     }
+    if (cancelled) return TouchEvent::None;
     x = startX;
     y = startY;
-    return true;
+    return TouchEvent::Tap;
 }
 
 #if TOUCH_DEBUG_ENABLED

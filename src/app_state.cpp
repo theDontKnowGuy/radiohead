@@ -1,5 +1,81 @@
 #include "app_state.h"
 
+#include <climits>
+#include <cstring>
+
+namespace {
+
+constexpr int kMinimumLightTouchSamples = 2;
+constexpr int kMaximumLightTouchPairDelta = 300;
+
+struct RawTouchSample {
+    uint16_t x;
+    uint16_t y;
+};
+
+}  // namespace
+
+uint_fast8_t LightTouchXPT2046::getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) {
+    if (!point || count == 0 || !_inited) return 0;
+    point->size = 0;
+
+    uint8_t data[57];
+    memset(data, 0, 8);
+    data[0] = 0x91;
+    data[2] = 0xB1;
+    data[4] = 0xD1;
+    data[6] = 0xC1;
+    data[56] = 0x80;
+    memcpy(&data[8], data, 8);
+    memcpy(&data[16], data, 16);
+    memcpy(&data[32], data, 24);
+
+    lgfx::spi::beginTransaction(_cfg.spi_host, _cfg.freq, 0);
+    if (_cfg.pin_cs >= 0) lgfx::gpio_lo(_cfg.pin_cs);
+    lgfx::spi::readBytes(_cfg.spi_host, data, sizeof(data));
+    if (_cfg.pin_cs >= 0) lgfx::gpio_hi(_cfg.pin_cs);
+    lgfx::spi::endTransaction(_cfg.spi_host);
+
+    RawTouchSample samples[7];
+    size_t sampleCount = 0;
+    for (size_t sample = 0; sample < 7; ++sample) {
+        const uint8_t* values = &data[sample * 8];
+        const int x = (values[5] << 8 | values[6]) >> 3;
+        const int y = (values[1] << 8 | values[2]) >> 3;
+        if (x > 128 && x <= 3968 && y > 128 && y <= 3968) {
+            samples[sampleCount++] = {
+                static_cast<uint16_t>(x),
+                static_cast<uint16_t>(y),
+            };
+        }
+    }
+    // A light finger may produce only two valid readings.  Accept that pair
+    // only if both coordinates agree closely, which preserves a guard against
+    // floating-MISO noise while removing the stock pressure requirement.
+    if (sampleCount < kMinimumLightTouchSamples) return 0;
+
+    int bestPairDelta = INT_MAX;
+    size_t first = 0;
+    size_t second = 0;
+    for (size_t left = 0; left + 1 < sampleCount; ++left) {
+        for (size_t right = left + 1; right < sampleCount; ++right) {
+            const int delta = abs(static_cast<int>(samples[left].x) - samples[right].x) +
+                abs(static_cast<int>(samples[left].y) - samples[right].y);
+            if (delta < bestPairDelta) {
+                bestPairDelta = delta;
+                first = left;
+                second = right;
+            }
+        }
+    }
+    if (bestPairDelta > kMaximumLightTouchPairDelta) return 0;
+
+    point->x = (samples[first].x + samples[second].x) / 2;
+    point->y = (samples[first].y + samples[second].y) / 2;
+    point->size = 1;
+    return 1;
+}
+
 const char* ntpServer = "pool.ntp.org";
 
 RadioStation stations[STATION_COUNT] = {
@@ -89,6 +165,7 @@ int currentStationIdx = 0;
 int tempStationIdx = 0;
 int mainVal = 5;
 bool radioMuted = false;
+uint16_t stationFavoriteMask = 0;
 int podcastEpisodeCount = 0;
 int loadedPodcastShow = -1;
 bool podcastMode = false;

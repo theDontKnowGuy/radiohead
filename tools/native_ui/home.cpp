@@ -41,10 +41,13 @@ bool isAP = false, alarmActive = true;
 int mainVal = 12, alarmH = 7, alarmM = 30;
 String songTitle = "פרק 15 - 15 בספטמבר 2025";
 bool isStationMuted() { return false; }
+bool stationFavorites[] = {true, false, false};
+bool isStationFavorite(int slot) { return slot >= 0 && slot < 3 && stationFavorites[slot]; }
 int playableStationCount() { return 3; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 3 ? i : -1; }
-struct Station { String name; };
-Station stations[] = {{"GALATZ"}, {"תחנה 101 FM"}, {"A very long station title"}};
+constexpr int STATION_COUNT = 10;
+struct Station { String name; String url; };
+Station stations[] = {{"GALATZ", "https://example.test/galatz"}, {"תחנה 101 FM", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
@@ -110,6 +113,19 @@ int main(int argc, char** argv) {
     assert(uiHitTest(playerHitState, 160, 164) == UiTarget::PlayerStopOrPlay);
     assert(uiHitTest(playerHitState, 244, 164) == UiTarget::PlayerNext);
     assert(uiHitTest(playerHitState, 156, 218) == UiTarget::ListeningVolume);
+    UiRenderState stationHitState;
+    stationHitState.page = UiPage::Stations;
+    assert(uiHitTest(stationHitState, 150, 68) == UiTarget::ListRow0);
+    assert(uiHitTest(stationHitState, 290, 68) == UiTarget::ListRowFavorite0);
+    assert(uiHitTest(stationHitState, 150, 214) == UiTarget::ListRow4);
+    assert(uiHitTest(stationHitState, 286, 214) == UiTarget::ListRowFavorite4);
+    assert(uiHitTest(stationHitState, 160, 238) == UiTarget::None);
+    UiRenderState favoritesHitState;
+    favoritesHitState.page = UiPage::Favorites;
+    assert(uiHitTest(favoritesHitState, 82, 65) == UiTarget::FavoritesStationsTab);
+    assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
+    assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
+    assert(uiHitTest(favoritesHitState, 290, 108) == UiTarget::FavoritesRowFavorite0);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -171,7 +187,7 @@ int main(int argc, char** argv) {
     renderHome(homeFocused(3), "", false);
     save((dir + "/home-unavailable.ppm").c_str());
     renderStations({}, "09:59", true);
-    drawHeaderClock("10:00", true);
+    renderStations({}, "10:00", true);
     save((dir + "/header-updated.ppm").c_str());
     renderStations({}, "10:00", true);
     save((dir + "/header-fresh.ppm").c_str());
@@ -179,6 +195,15 @@ int main(int argc, char** argv) {
     save((dir + "/stations-smooth.ppm").c_str());
     renderListening({}, "15:01", true);
     save((dir + "/player-smooth.ppm").c_str());
+    UiRenderState options;
+    options.page = UiPage::StationOptions;
+    options.optionStation = 0;
+    renderStationOptions(options, "15:01", true);
+    save((dir + "/station-options.ppm").c_str());
+    renderStationInfo(options, "15:01", true);
+    save((dir + "/station-info.ppm").c_str());
+    renderFavorites(favoritesHitState, "15:01", true);
+    save((dir + "/favorites.ppm").c_str());
     UiRenderState overlay;
     overlay.volumeOverlay = true;
     renderListening(overlay, "15:01", true);

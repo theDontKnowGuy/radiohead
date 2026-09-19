@@ -160,7 +160,8 @@ void loop() {
     const ButtonEvent buttonEvent = pollEncoderButton(now);
     int16_t touchX = 0;
     int16_t touchY = 0;
-    const bool touchTap = pollTouchTap(touchX, touchY, now);
+    const TouchEvent touchEvent = pollTouchEvent(touchX, touchY, now);
+    const bool touchTap = touchEvent == TouchEvent::Tap;
     struct tm timeInfo = {};
     const time_t wallClock = time(nullptr);
     const bool timeValid =
@@ -187,9 +188,11 @@ void loop() {
         if (touchTap) {
             const UiRenderState state = uiControllerRenderState();
             uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, displayWasDimmed);
+        } else if (touchEvent == TouchEvent::SwipeUp || touchEvent == TouchEvent::SwipeDown) {
+            uiControllerSwipe(touchEvent == TouchEvent::SwipeUp ? 1 : -1, now, displayWasDimmed);
         }
     }
-    if (buttonEvent != ButtonEvent::None || touchTap) {
+    if (buttonEvent != ButtonEvent::None || touchEvent != TouchEvent::None) {
         lastInteraction = now;
     }
 
@@ -232,6 +235,17 @@ void loop() {
                 playStation(currentStationIdx);
             }
             break;
+        case UiCommandKind::ToggleStationFavorite:
+            if (command.value >= 0 && command.value < STATION_COUNT) {
+                const bool wasFavorite = isStationFavorite(command.value);
+                if (!toggleStationFavorite(command.value)) break;
+                if (!saveFavorites()) {
+                    Serial.println("Unable to save station favorite");
+                    setStationFavorite(command.value, wasFavorite);
+                }
+                forceRedraw = true;
+            }
+            break;
         case UiCommandKind::EnterStandby:
             goToSleep();
             break;
@@ -260,8 +274,8 @@ void loop() {
     } else if (lastRenderedTimeValid != timeValid || strcmp(lastRenderedTime, currentTime) != 0) {
         // Home's large clock sits over the photographic background. Rebuild that
         // composition once per minute rather than painting a flat rectangle over
-        // it; other pages retain the small header-only refresh.
-        if (state.page == UiPage::Home) {
+        // it.  Live Stations has the same transparent-header requirement.
+        if (state.page == UiPage::Home || state.page == UiPage::Stations) {
             renderRadioUi(state, currentTime, timeValid);
         } else {
             renderRadioUiClock(currentTime, timeValid);

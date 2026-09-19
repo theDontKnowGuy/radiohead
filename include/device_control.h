@@ -18,8 +18,15 @@ enum class ButtonEvent : uint8_t {
     Hold,
 };
 
+enum class TouchEvent : uint8_t {
+    None,
+    Tap,
+    SwipeUp,
+    SwipeDown,
+};
+
 ButtonEvent pollEncoderButton(unsigned long now);
-bool pollTouchTap(int16_t& x, int16_t& y, unsigned long now);
+TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now);
 #if TOUCH_DEBUG_ENABLED
 void updateTouchTest(unsigned long now);
 #endif

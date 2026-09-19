@@ -8,6 +8,8 @@
 namespace {
 
 constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
+constexpr uint8_t FAVORITES_VERSION = 1;
+constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 
 bool isHexColor(const String& value) {
     if (value.length() != 7 || value[0] != '#') {
@@ -55,6 +57,49 @@ bool isValidTouchCalibration(const TouchCalibration& calibration) {
 }
 
 }  // namespace
+
+bool saveFavorites() {
+    if (!pref.begin("favorites", false)) {
+        return false;
+    }
+    const uint16_t normalizedMask = stationFavoriteMask & STATION_FAVORITE_BITS;
+    // Write the version last so an interrupted write is treated as absent on
+    // the next boot rather than as a partially migrated favorite set.
+    pref.putUChar("version", 0);
+    const bool maskSaved = pref.putUShort("stations", normalizedMask) == sizeof(uint16_t);
+    const bool versionSaved = maskSaved &&
+        pref.putUChar("version", FAVORITES_VERSION) == sizeof(uint8_t);
+    pref.end();
+    return maskSaved && versionSaved;
+}
+
+bool isStationFavorite(int stationIndex) {
+    return stationIndex >= 0 && stationIndex < STATION_COUNT &&
+        (stationFavoriteMask & (1U << stationIndex)) != 0;
+}
+
+bool setStationFavorite(int stationIndex, bool favorite) {
+    if (stationIndex < 0 || stationIndex >= STATION_COUNT) {
+        return false;
+    }
+    const uint16_t bit = 1U << stationIndex;
+    const uint16_t updatedMask = favorite
+        ? static_cast<uint16_t>(stationFavoriteMask | bit)
+        : static_cast<uint16_t>(stationFavoriteMask & ~bit);
+    if (updatedMask == stationFavoriteMask) {
+        return false;
+    }
+    stationFavoriteMask = updatedMask;
+    return true;
+}
+
+bool toggleStationFavorite(int stationIndex) {
+    return setStationFavorite(stationIndex, !isStationFavorite(stationIndex));
+}
+
+bool clearStationFavorite(int stationIndex) {
+    return setStationFavorite(stationIndex, false);
+}
 
 bool loadTouchCalibration(TouchCalibration& calibration) {
     if (!pref.begin("touch", true)) {
@@ -195,4 +240,12 @@ void loadSettings() {
     alarmH = constrain(alarmH, 0, 23);
     alarmM = constrain(alarmM, 0, 59);
     tempStationIdx = currentStationIdx;
+
+    stationFavoriteMask = 0;
+    if (pref.begin("favorites", true)) {
+        if (pref.getUChar("version", 0) == FAVORITES_VERSION) {
+            stationFavoriteMask = pref.getUShort("stations", 0) & STATION_FAVORITE_BITS;
+        }
+        pref.end();
+    }
 }

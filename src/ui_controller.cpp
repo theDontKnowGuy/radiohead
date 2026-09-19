@@ -1,10 +1,13 @@
 #include "ui_controller.h"
 
 #include "media.h"
+#include "app_state.h"
+#include "settings.h"
 
 namespace {
 
-constexpr int kRowsPerPage = 3;
+constexpr int kRowsPerPage = 5;
+constexpr int kFavoriteRowsPerPage = 2;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 
 UiRenderState state;
@@ -42,7 +45,44 @@ void openStations() {
     if (count > 0 && state.stationFocus >= count) {
         state.stationFocus = count - 1;
     }
-    state.stationOffset = (state.stationFocus / kRowsPerPage) * kRowsPerPage;
+    state.stationOffset = 0;
+    if (count > kRowsPerPage) {
+        state.stationOffset = constrain(state.stationFocus - (kRowsPerPage - 1), 0, count - kRowsPerPage);
+    }
+    state.stationFavoriteFocus = false;
+    markDirty();
+}
+
+int favoriteStationCount() {
+    int count = 0;
+    for (int visibleIndex = 0; visibleIndex < playableStationCount(); ++visibleIndex) {
+        const int slot = playableStationSlotAt(visibleIndex);
+        if (isStationFavorite(slot)) ++count;
+    }
+    return count;
+}
+
+int favoriteStationSlotAt(int favoriteIndex) {
+    if (favoriteIndex < 0) return -1;
+    for (int visibleIndex = 0; visibleIndex < playableStationCount(); ++visibleIndex) {
+        const int slot = playableStationSlotAt(visibleIndex);
+        if (isStationFavorite(slot) && favoriteIndex-- == 0) return slot;
+    }
+    return -1;
+}
+
+void openFavorites() {
+    state.page = UiPage::Favorites;
+    state.favoriteShowsTab = false;
+    state.favoriteTabFocus = true;
+    state.favoriteFocus = 0;
+    for (int index = 0; index < favoriteStationCount(); ++index) {
+        if (favoriteStationSlotAt(index) == currentStationIdx) {
+            state.favoriteFocus = index * 2;
+            break;
+        }
+    }
+    state.favoriteOffset = (state.favoriteFocus / 2 / kFavoriteRowsPerPage) * kFavoriteRowsPerPage;
     markDirty();
 }
 
@@ -50,6 +90,20 @@ void openPlayer() {
     state.page = UiPage::Listening;
     state.playerControlFocus = false;
     state.playerFocus = 3;
+    markDirty();
+}
+
+void openStationOptions() {
+    state.page = UiPage::StationOptions;
+    state.optionStation = currentStationIdx >= 0 && currentStationIdx < STATION_COUNT
+        ? currentStationIdx
+        : -1;
+    state.optionsFocus = 0;
+    markDirty();
+}
+
+void openStationInfo() {
+    state.page = UiPage::StationInfo;
     markDirty();
 }
 
@@ -81,13 +135,53 @@ void selectFocusedStation() {
     }
 }
 
-void moveStationFocus(int detents) {
+void moveStationActionFocus(int detents) {
     const int count = playableStationCount();
-    if (count <= 0 || detents == 0) {
+    if (count <= 0 || detents == 0) return;
+    const int direction = detents > 0 ? 1 : -1;
+    for (int step = 0; step < abs(detents); ++step) {
+        if (direction > 0) {
+            if (!state.stationFavoriteFocus) {
+                state.stationFavoriteFocus = true;
+            } else if (state.stationFocus < count - 1) {
+                ++state.stationFocus;
+                state.stationFavoriteFocus = false;
+            }
+        } else if (state.stationFavoriteFocus) {
+            state.stationFavoriteFocus = false;
+        } else if (state.stationFocus > 0) {
+            --state.stationFocus;
+            state.stationFavoriteFocus = true;
+        }
+    }
+    const int maxOffset = max(0, count - kRowsPerPage);
+    if (state.stationFocus < state.stationOffset) {
+        state.stationOffset = state.stationFocus;
+    } else if (state.stationFocus >= state.stationOffset + kRowsPerPage) {
+        state.stationOffset = state.stationFocus - (kRowsPerPage - 1);
+    }
+    state.stationOffset = constrain(state.stationOffset, 0, maxOffset);
+    markDirty();
+}
+
+void moveFavoriteActionFocus(int detents) {
+    if (state.favoriteTabFocus) {
+        if (detents != 0) {
+            state.favoriteShowsTab = detents > 0;
+            markDirty();
+        }
         return;
     }
-    state.stationFocus = constrain(state.stationFocus + detents, 0, count - 1);
-    state.stationOffset = (state.stationFocus / kRowsPerPage) * kRowsPerPage;
+    const int actionCount = state.favoriteShowsTab ? 0 : favoriteStationCount() * 2;
+    if (detents == 0) return;
+    if (actionCount <= 0 || (state.favoriteFocus == 0 && detents < 0)) {
+        state.favoriteTabFocus = true;
+        state.favoriteShowsTab = false;
+        markDirty();
+        return;
+    }
+    state.favoriteFocus = constrain(state.favoriteFocus + detents, 0, actionCount - 1);
+    state.favoriteOffset = (state.favoriteFocus / 2 / kFavoriteRowsPerPage) * kFavoriteRowsPerPage;
     markDirty();
 }
 
@@ -98,12 +192,12 @@ void handleTarget(UiTarget target, int value = 0) {
             openStations();
         } else if (target == UiTarget::HomeNowPlaying) {
             openPlayer();
-        } else if (target == UiTarget::HomeRecordedShows || target == UiTarget::HomeFavorites ||
-                   target == UiTarget::HomeSettings) {
+        } else if (target == UiTarget::HomeFavorites) {
+            openFavorites();
+        } else if (target == UiTarget::HomeRecordedShows || target == UiTarget::HomeSettings) {
             const UnavailableDestination destination = target == UiTarget::HomeRecordedShows
                 ? UnavailableDestination::RecordedShows
-                : target == UiTarget::HomeFavorites ? UnavailableDestination::Favorites
-                                                     : UnavailableDestination::Settings;
+                : UnavailableDestination::Settings;
             openUnavailable(destination);
         }
         break;
@@ -128,7 +222,7 @@ void handleTarget(UiTarget target, int value = 0) {
             state.playerControlFocus = false;
             closeToHome();
         } else if (target == UiTarget::PlayerOptions) {
-            openUnavailable(UnavailableDestination::StationOptions);
+            openStationOptions();
         } else if (target == UiTarget::PlayerPrevious) {
             queue(UiCommandKind::PreviousStation);
         } else if (target == UiTarget::PlayerNext) {
@@ -147,16 +241,65 @@ void handleTarget(UiTarget target, int value = 0) {
         if (target == UiTarget::ListBack) {
             closeToHome();
         } else if (target == UiTarget::ListPrevious) {
-            moveStationFocus(-kRowsPerPage);
+            moveStationActionFocus(-kRowsPerPage * 2);
         } else if (target == UiTarget::ListNext) {
-            moveStationFocus(kRowsPerPage);
-        } else if (target >= UiTarget::ListRow0 && target <= UiTarget::ListRow2) {
+            moveStationActionFocus(kRowsPerPage * 2);
+        } else if (target >= UiTarget::ListRow0 && target <= UiTarget::ListRow4) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ListRow0);
             const int visibleIndex = state.stationOffset + row;
             if (visibleIndex < playableStationCount()) {
                 state.stationFocus = visibleIndex;
                 selectFocusedStation();
             }
+        } else if (target >= UiTarget::ListRowFavorite0 && target <= UiTarget::ListRowFavorite4) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ListRowFavorite0);
+            const int slot = playableStationSlotAt(state.stationOffset + row);
+            if (slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);
+        }
+        break;
+    case UiPage::StationOptions:
+        if (target == UiTarget::OptionsFavorite && state.optionStation >= 0) {
+            queue(UiCommandKind::ToggleStationFavorite, state.optionStation);
+            markDirty();
+        } else if (target == UiTarget::OptionsInfo) {
+            openStationInfo();
+        } else if (target == UiTarget::OptionsBack) {
+            openPlayer();
+        }
+        break;
+    case UiPage::StationInfo:
+        if (target == UiTarget::InfoBack) openStationOptions();
+        break;
+    case UiPage::Favorites:
+        if (target == UiTarget::FavoritesStationsTab) {
+            state.favoriteShowsTab = false;
+            state.favoriteTabFocus = false;
+            state.favoriteFocus = 0;
+            state.favoriteOffset = 0;
+            markDirty();
+        } else if (target == UiTarget::FavoritesShowsTab) {
+            state.favoriteShowsTab = true;
+            state.favoriteTabFocus = true;
+            state.favoriteFocus = 0;
+            state.favoriteOffset = 0;
+            markDirty();
+        } else if (target == UiTarget::FavoritesBack) {
+            closeToHome();
+        } else if (target == UiTarget::FavoritesPrevious) {
+            moveFavoriteActionFocus(-kFavoriteRowsPerPage * 2);
+        } else if (target == UiTarget::FavoritesNext) {
+            moveFavoriteActionFocus(kFavoriteRowsPerPage * 2);
+        } else if (target >= UiTarget::FavoritesRow0 && target <= UiTarget::FavoritesRow1) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRow0);
+            const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
+            if (!state.favoriteShowsTab && slot >= 0) {
+                queue(UiCommandKind::SelectStation, slot);
+                openPlayer();
+            }
+        } else if (target >= UiTarget::FavoritesRowFavorite0 && target <= UiTarget::FavoritesRowFavorite1) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRowFavorite0);
+            const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
+            if (!state.favoriteShowsTab && slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);
         }
         break;
     case UiPage::StandbyConfirm:
@@ -202,7 +345,12 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
         }
         markDirty();
     } else if (state.page == UiPage::Stations) {
-        moveStationFocus(detents);
+        moveStationActionFocus(detents);
+    } else if (state.page == UiPage::StationOptions) {
+        state.optionsFocus = constrain(static_cast<int>(state.optionsFocus) + detents, 0, 2);
+        markDirty();
+    } else if (state.page == UiPage::Favorites) {
+        moveFavoriteActionFocus(detents);
     } else if (state.page == UiPage::StandbyConfirm) {
         state.confirmAcceptFocused = detents > 0;
         markDirty();
@@ -241,7 +389,35 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
             handleTarget(playerTargets[state.playerFocus], 155);
         }
     } else if (state.page == UiPage::Stations) {
-        selectFocusedStation();
+        if (state.stationFavoriteFocus) {
+            const int slot = playableStationSlotAt(state.stationFocus);
+            if (slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);
+        } else {
+            selectFocusedStation();
+        }
+    } else if (state.page == UiPage::StationOptions) {
+        const UiTarget options[] = {UiTarget::OptionsFavorite, UiTarget::OptionsInfo, UiTarget::OptionsBack};
+        handleTarget(options[state.optionsFocus]);
+    } else if (state.page == UiPage::StationInfo) {
+        handleTarget(UiTarget::InfoBack);
+    } else if (state.page == UiPage::Favorites) {
+        if (!state.favoriteShowsTab) {
+            if (state.favoriteTabFocus) {
+                state.favoriteTabFocus = false;
+                markDirty();
+                return;
+            }
+            const int favoriteIndex = state.favoriteFocus / 2;
+            const int slot = favoriteStationSlotAt(favoriteIndex);
+            if (slot >= 0) {
+                if ((state.favoriteFocus & 1) == 0) {
+                    queue(UiCommandKind::SelectStation, slot);
+                    openPlayer();
+                } else {
+                    queue(UiCommandKind::ToggleStationFavorite, slot);
+                }
+            }
+        }
     } else if (state.page == UiPage::StandbyConfirm) {
         handleTarget(state.confirmAcceptFocused ? UiTarget::ConfirmStandby : UiTarget::ConfirmCancel);
     }
@@ -261,6 +437,10 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
         state.standbyConfirm = true;
         state.confirmAcceptFocused = false;
         markDirty();
+    } else if (state.page == UiPage::StationOptions || state.page == UiPage::Favorites) {
+        closeToHome();
+    } else if (state.page == UiPage::StationInfo) {
+        openStationOptions();
     } else {
         closeToHome();
     }
@@ -273,6 +453,25 @@ void uiControllerTap(UiTarget target, int value, unsigned long now, bool display
         return;
     }
     handleTarget(target, value);
+}
+
+void uiControllerSwipe(int direction, unsigned long now, bool displayWasDimmed) {
+    (void)now;
+    if (alarmIsActive || displayWasDimmed || state.page != UiPage::Stations || direction == 0) {
+        return;
+    }
+    const int count = playableStationCount();
+    const int maxOffset = max(0, count - kRowsPerPage);
+    const int nextOffset = constrain(state.stationOffset + (direction > 0 ? 1 : -1), 0, maxOffset);
+    if (nextOffset == state.stationOffset) return;
+    state.stationOffset = nextOffset;
+    state.stationFavoriteFocus = false;
+    if (state.stationFocus < state.stationOffset) {
+        state.stationFocus = state.stationOffset;
+    } else if (state.stationFocus >= state.stationOffset + kRowsPerPage) {
+        state.stationFocus = state.stationOffset + kRowsPerPage - 1;
+    }
+    markDirty();
 }
 
 void uiControllerSetAlarmActive(bool active) {

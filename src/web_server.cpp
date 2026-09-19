@@ -549,6 +549,9 @@ void startWebServer() {
         }
         stations[stationIndex].name = name;
         stations[stationIndex].url = url;
+        if (clearStationFavorite(stationIndex)) {
+            saveFavorites();
+        }
         saveSettings();
         forceRedraw = true;
         redirectTo("/stations");
@@ -567,8 +570,12 @@ void startWebServer() {
             sendBadRequest("Invalid station");
             return;
         }
+        const bool replaced = stations[stationIndex].url != url;
         stations[stationIndex].url = url;
         stations[stationIndex].name = name;
+        if (replaced && clearStationFavorite(stationIndex)) {
+            saveFavorites();
+        }
         saveSettings();
         forceRedraw = true;
         redirectTo("/stations");
@@ -617,6 +624,22 @@ void startWebServer() {
             saveSettings();
         }
         redirectTo("/");
+    });
+    server.on("/favorite", [] {
+        int stationIndex = 0;
+        if (!parseIntegerArg("station", 0, STATION_COUNT - 1, stationIndex) ||
+            stations[stationIndex].url.isEmpty()) {
+            sendBadRequest("Invalid station");
+            return;
+        }
+        const bool wasFavorite = isStationFavorite(stationIndex);
+        if (toggleStationFavorite(stationIndex) && !saveFavorites()) {
+            setStationFavorite(stationIndex, wasFavorite);
+            server.send(500, "text/plain", "Unable to save favorite");
+            return;
+        }
+        forceRedraw = true;
+        server.send(200, "text/plain", isStationFavorite(stationIndex) ? "favorited" : "unfavorited");
     });
     server.on("/update", HTTP_POST, [] {
         if (!otaUploadSucceeded || Update.hasError()) {

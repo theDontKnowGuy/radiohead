@@ -12,6 +12,7 @@
 #include "app_state.h"
 #include "display_fonts.h"
 #include "media.h"
+#include "settings.h"
 #include "ui_controller.h"
 #include "ui_text.h"
 #include "ui_background_asset.h"
@@ -396,6 +397,9 @@ constexpr int16_t kHomePlayerY = 36;
 constexpr int16_t kHomePlayerWidth = 110;
 constexpr int16_t kHomePlayerHeight = 70;
 constexpr int kStationSlotCount = 10;
+constexpr int16_t kStationListTop = 43;
+constexpr int16_t kStationListRowHeight = 39;
+constexpr int kStationRowsPerPage = 5;
 
 const lgfx::IFont* homeLabelFont() {
     return uiFrameReady ? display_fonts::label() : &fonts::Font0;
@@ -684,6 +688,25 @@ void drawTransport(int16_t x, int16_t y, const char* glyph, bool primary) {
     canvas().drawString(glyph, x, y - 1, uiFont(&fonts::FreeSansBold12pt7b));
 }
 
+void drawStationsHeader(const char* currentTime, bool timeValid) {
+    // Unlike the older generic header, this preserves the sunset photo all the
+    // way to the top edge, matching the live-stations reference composition.
+    canvas().drawLine(30, 14, 20, 22, kWhite);
+    canvas().drawLine(20, 22, 30, 30, kWhite);
+    canvas().setTextDatum(ML_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Live Radio", 42, 22, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextDatum(MR_DATUM);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, 22, uiFont(&fonts::FreeSansBold12pt7b));
+    if (uiFrameReady) {
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, 12);
+    } else {
+        canvas().drawArc(294, 20, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(294, 20, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(294, 26, 2, kWhite);
+    }
+}
+
 void drawSlider(int16_t y) {
     canvas().fillRoundRect(48, y, 214, 8, 4, kSurfaceRaised);
     canvas().fillRoundRect(48, y, mainVal * 214 / 21, 8, 4, kBlue);
@@ -768,38 +791,145 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
 
 void renderStations(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Live Stations");
+    drawStationsHeader(currentTime, timeValid);
     const int count = playableStationCount();
     if (count == 0) {
-        canvas().fillRoundRect(12, 60, 296, 105, 8, kSurface);
-        text("No stations saved", 28, 86, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
-        text("Add one at the phone setup page.", 28, 124, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 260);
+        text("No stations saved", 28, 88, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Add one at the phone setup page.", 28, 120, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 260);
     }
-    for (int row = 0; row < 3; ++row) {
+    for (int row = 0; row < kStationRowsPerPage; ++row) {
         const int visibleIndex = state.stationOffset + row;
-        const int y = 44 + row * 48;
+        const int y = kStationListTop + row * kStationListRowHeight;
         const int slot = playableStationSlotAt(visibleIndex);
         if (slot < 0) {
             continue;
         }
         const bool focused = visibleIndex == state.stationFocus;
-        canvas().fillRoundRect(8, y + 3, 304, 42, 6, focused ? kBlue : kSurface);
-        drawArtwork(stations[slot].name, 14, y + 7, 34, focused ? kBlueDark : kSlate);
-        text(stations[slot].name, 58, y + 10, uiFont(&fonts::FreeSans9pt7b), kWhite, 185);
-        if (slot == state.playingStation && state.playback == PlaybackState::Playing) {
-            canvas().setTextDatum(TR_DATUM);
-            canvas().setTextColor(kWhite);
-            canvas().drawString("LIVE", 272, y + 16, uiFont(&fonts::Font0));
-        } else if (slot == state.requestedStation && state.playback == PlaybackState::Connecting) {
-            canvas().setTextDatum(TR_DATUM);
-            canvas().setTextColor(kWhite);
-            canvas().drawString("CONNECT", 272, y + 16, uiFont(&fonts::Font0));
+        if (focused) {
+            canvas().fillRoundRect(8, y + 1, 304, kStationListRowHeight - 2, 7, kBlue);
+            canvas().drawRoundRect(8, y + 1, 304, kStationListRowHeight - 2, 7, kBlueFocus);
+        } else {
+            canvas().drawFastHLine(18, y + kStationListRowHeight - 1, 280, kSurfaceRaised);
         }
-        drawStar(292, y + 24);
+        drawArtwork(stations[slot].name, 22, y + 3, 32, focused ? kBlueDark : kSlate);
+        text(stations[slot].name, 66, y + 5, uiFont(&fonts::FreeSans9pt7b), kWhite, 185);
+        const String detail = slot == state.playingStation && !songTitle.isEmpty()
+            ? songTitle
+            : String("Live radio");
+        text(detail, 66, y + 25, uiFont(&fonts::Font0), kWhite, 185);
+        drawStar(286, y + 19, isStationFavorite(slot));
+        if (focused && state.stationFavoriteFocus) {
+            canvas().drawCircle(286, y + 19, 16, kWhite);
+        }
+    }
+}
+
+int favoriteStationCount() {
+    int count = 0;
+    for (int visibleIndex = 0; visibleIndex < playableStationCount(); ++visibleIndex) {
+        if (isStationFavorite(playableStationSlotAt(visibleIndex))) ++count;
+    }
+    return count;
+}
+
+int favoriteStationSlotAt(int favoriteIndex) {
+    if (favoriteIndex < 0) return -1;
+    for (int visibleIndex = 0; visibleIndex < playableStationCount(); ++visibleIndex) {
+        const int slot = playableStationSlotAt(visibleIndex);
+        if (isStationFavorite(slot) && favoriteIndex-- == 0) return slot;
+    }
+    return -1;
+}
+
+void drawListRow(int16_t y, const String& name, bool focused, bool favorite, bool favoriteFocused) {
+    canvas().fillRoundRect(8, y + 3, 304, 42, 6, focused ? kBlue : kSurface);
+    drawArtwork(name, 14, y + 7, 34, focused ? kBlueDark : kSlate);
+    text(name, 58, y + 10, uiFont(&fonts::FreeSans9pt7b), kWhite, 175);
+    drawStar(290, y + 24, favorite);
+    if (favoriteFocused) canvas().drawCircle(290, y + 24, 16, kWhite);
+}
+
+void renderFavorites(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Favorites");
+    const uint16_t stationTabColor = state.favoriteShowsTab ? kSurfaceRaised : kBlue;
+    const uint16_t showTabColor = state.favoriteShowsTab ? kBlue : kSurfaceRaised;
+    canvas().fillRoundRect(8, 48, 148, 34, 6, stationTabColor);
+    canvas().fillRoundRect(164, 48, 148, 34, 6, showTabColor);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Stations", 82, 65, uiFont(&fonts::Font0));
+    canvas().drawString("Shows", 238, 65, uiFont(&fonts::Font0));
+    if (state.favoriteTabFocus) {
+        const int16_t x = state.favoriteShowsTab ? 164 : 8;
+        canvas().drawRoundRect(x - 1, 47, 150, 36, 7, kWhite);
+    }
+
+    if (state.favoriteShowsTab) {
+        text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Show favorites are unavailable.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        footerButton(0, 320, "Back");
+        return;
+    }
+
+    const int count = favoriteStationCount();
+    if (count == 0) {
+        text("No favorite stations", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Use a station star to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+    }
+    for (int row = 0; row < 2; ++row) {
+        const int favoriteIndex = state.favoriteOffset + row;
+        const int slot = favoriteStationSlotAt(favoriteIndex);
+        if (slot < 0) continue;
+        const bool bodyFocused = state.favoriteFocus == favoriteIndex * 2;
+        const bool starFocused = state.favoriteFocus == favoriteIndex * 2 + 1;
+        drawListRow(88 + row * 48, stations[slot].name, bodyFocused || starFocused, true, starFocused);
     }
     footerButton(0, 106, "Back");
-    footerButton(106, 107, "Previous", state.stationOffset > 0);
-    footerButton(213, 107, "Next", state.stationOffset + 3 < count);
+    footerButton(106, 107, "Previous", state.favoriteOffset > 0);
+    footerButton(213, 107, "Next", state.favoriteOffset + 2 < count);
+}
+
+void renderStationOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Station Options");
+    const int slot = state.optionStation;
+    if (slot < 0 || slot >= STATION_COUNT || stations[slot].url.isEmpty()) {
+        text("No station selected", 28, 92, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        footerButton(0, 320, "Back");
+        return;
+    }
+    const char* labels[] = {
+        isStationFavorite(slot) ? "Remove Favorite" : "Add Favorite",
+        "Station Information",
+        "Back",
+    };
+    for (int row = 0; row < 3; ++row) {
+        const int y = 44 + row * 48;
+        const bool focused = state.optionsFocus == row;
+        canvas().fillRoundRect(8, y + 3, 304, 42, 6, focused ? kBlue : kSurface);
+        text(labels[row], 28, y + 14, uiFont(&fonts::FreeSans9pt7b), kWhite, 238);
+        if (row == 0) drawStar(290, y + 24, isStationFavorite(slot));
+        else if (row == 1) {
+            canvas().drawCircle(290, y + 24, 11, kWhite);
+            text("i", 287, y + 16, uiFont(&fonts::FreeSans9pt7b), kWhite, 10);
+        }
+    }
+}
+
+void renderStationInfo(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Station Information");
+    const int slot = state.optionStation;
+    if (slot >= 0 && slot < STATION_COUNT && !stations[slot].url.isEmpty()) {
+        drawArtwork(stations[slot].name, 16, 58, 64);
+        text(stations[slot].name, 94, 66, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 200);
+        text("No verified catalog information", 20, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 280);
+        text("is available for this station.", 20, 164, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 280);
+    } else {
+        text("No station selected", 28, 92, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+    }
+    footerButton(0, 320, "Back");
 }
 
 void renderConfirm(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -954,12 +1084,35 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 0, 188, 48, 52)) return UiTarget::ListeningMute;
         if (contains(x, y, 48, 188, 214, 52)) return UiTarget::ListeningVolume;
     } else if (state.page == UiPage::Stations) {
-        if (contains(x, y, 0, 188, 106, 52)) return UiTarget::ListBack;
-        if (contains(x, y, 106, 188, 107, 52)) return UiTarget::ListPrevious;
-        if (contains(x, y, 213, 188, 107, 52)) return UiTarget::ListNext;
-        if (y >= 44 && y < 188) {
-            return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRow0) + (y - 44) / 48);
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ListBack;
+        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight && x >= 264) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRowFavorite0) +
+                (y - kStationListTop) / kStationListRowHeight);
         }
+        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRow0) +
+                (y - kStationListTop) / kStationListRowHeight);
+        }
+    } else if (state.page == UiPage::StationOptions) {
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::OptionsBack;
+        if (contains(x, y, 0, 44, 320, 48)) return UiTarget::OptionsFavorite;
+        if (contains(x, y, 0, 92, 320, 48)) return UiTarget::OptionsInfo;
+        if (contains(x, y, 0, 140, 320, 48)) return UiTarget::OptionsBack;
+    } else if (state.page == UiPage::StationInfo) {
+        if (contains(x, y, 0, 188, 320, 52) || contains(x, y, 0, 0, 44, 44)) return UiTarget::InfoBack;
+    } else if (state.page == UiPage::Favorites) {
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::FavoritesBack;
+        if (contains(x, y, 8, 48, 148, 34)) return UiTarget::FavoritesStationsTab;
+        if (contains(x, y, 164, 48, 148, 34)) return UiTarget::FavoritesShowsTab;
+        if (!state.favoriteShowsTab && y >= 88 && y < 184 && x >= 268) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRowFavorite0) + (y - 88) / 48);
+        }
+        if (!state.favoriteShowsTab && y >= 88 && y < 184) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRow0) + (y - 88) / 48);
+        }
+        if (contains(x, y, 0, 188, 106, 52)) return UiTarget::FavoritesBack;
+        if (!state.favoriteShowsTab && contains(x, y, 106, 188, 107, 52)) return UiTarget::FavoritesPrevious;
+        if (!state.favoriteShowsTab && contains(x, y, 213, 188, 107, 52)) return UiTarget::FavoritesNext;
     } else if (state.page == UiPage::StandbyConfirm) {
         if (contains(x, y, 38, 124, 110, 44)) return UiTarget::ConfirmCancel;
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
@@ -983,6 +1136,15 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::Stations:
         renderStations(state, currentTime, timeValid);
+        break;
+    case UiPage::StationOptions:
+        renderStationOptions(state, currentTime, timeValid);
+        break;
+    case UiPage::StationInfo:
+        renderStationInfo(state, currentTime, timeValid);
+        break;
+    case UiPage::Favorites:
+        renderFavorites(state, currentTime, timeValid);
         break;
     case UiPage::StandbyConfirm:
         renderConfirm(state, currentTime, timeValid);
