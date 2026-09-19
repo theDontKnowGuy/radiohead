@@ -9,26 +9,12 @@
 #include <lgfx/v1/LGFX_Sprite.hpp>
 #include "display_fonts.h"
 #include "ui_controller.h"
+#include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
 
-// Only Arduino's text container and device state are adapted. Rendering,
-// layout, glyph metrics, PNG decoding and RGB565 blending are production code.
-class String : public std::string {
-public:
-    using std::string::string;
-    String(const std::string& s) : std::string(s) {}
-    String(int value) : std::string(std::to_string(value)) {}
-    bool isEmpty() const { return empty(); }
-    void remove(size_t offset) { erase(offset); }
-    int indexOf(char c) const { auto p = find(c); return p == npos ? -1 : static_cast<int>(p); }
-    String substring(size_t a, size_t b) const { return substr(a, b-a); }
-    void trim() {
-        auto first = find_first_not_of(" \t\r\n");
-        if (first == npos) { clear(); return; }
-        *this = substr(first, find_last_not_of(" \t\r\n") - first + 1);
-    }
-};
+// Only device state is adapted. Rendering, layout, glyph metrics, PNG decoding
+// and RGB565 blending are production code.
 namespace lgfx { inline namespace v1 {
 unsigned long millis() { return 0; }
 unsigned long micros() { return 0; }
@@ -53,12 +39,12 @@ UiRenderState homeFocused(uint8_t index) {
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false, alarmActive = true;
 int mainVal = 12, alarmH = 7, alarmM = 30;
-String songTitle = "Morning music on the coast";
+String songTitle = "פרק 15 - 15 בספטמבר 2025";
 bool isStationMuted() { return false; }
 int playableStationCount() { return 3; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 3 ? i : -1; }
 struct Station { String name; };
-Station stations[] = {{"GALATZ"}, {"Kan Bet"}, {"A very long station title"}};
+Station stations[] = {{"GALATZ"}, {"תחנה 101 FM"}, {"A very long station title"}};
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
@@ -89,6 +75,11 @@ int main(int argc, char** argv) {
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    const UiTextLayout mixed = uiTextLayout("פרק 15 - 15 בספטמבר 2025");
+    assert(mixed.rightToLeft);
+    assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
+    const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
+    assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
     // Fit the actual Home labels into their 70 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
         assert(frame.textWidth(label, display_fonts::label()) <= 64);

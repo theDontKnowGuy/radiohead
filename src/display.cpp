@@ -13,6 +13,7 @@
 #include "display_fonts.h"
 #include "media.h"
 #include "ui_controller.h"
+#include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
 
@@ -424,11 +425,36 @@ String ellipsize(const String& source, int16_t width) {
     return "...";
 }
 
+String ellipsizeRightToLeft(const String& source, int16_t width) {
+    if (canvas().textWidth(source.c_str()) <= width) {
+        return source;
+    }
+    // The visual-order string starts with the logical tail. Keep its suffix so
+    // an RTL reader retains the title's logical beginning at the right edge.
+    String result = source;
+    while (!result.isEmpty()) {
+        size_t end = 1;
+        while (end < result.length() && (static_cast<uint8_t>(result[end]) & 0xC0U) == 0x80U) ++end;
+        result.remove(0, end);
+        const String candidate = String("...") + result;
+        if (canvas().textWidth(candidate.c_str()) <= width) {
+            return candidate;
+        }
+    }
+    return "...";
+}
+
 void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font, uint16_t color, int16_t width = 0) {
     canvas().setFont(font);
     canvas().setTextColor(color);
     canvas().setTextDatum(TL_DATUM);
-    const String rendered = width > 0 ? ellipsize(value, width) : value;
+    const UiTextLayout layout = uiTextLayout(value);
+    const String rendered = width > 0
+        ? (layout.rightToLeft ? ellipsizeRightToLeft(layout.visual, width) : ellipsize(layout.visual, width))
+        : layout.visual;
+    if (layout.rightToLeft && width > 0) {
+        x += std::max<int16_t>(0, width - canvas().textWidth(rendered.c_str()));
+    }
     canvas().drawString(rendered.c_str(), x, y);
 }
 

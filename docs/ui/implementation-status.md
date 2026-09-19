@@ -1,5 +1,33 @@
 # Touch UI implementation status
 
+## 2026-09-19 — Hebrew/mixed-text Phase 2 completion pass
+
+The production renderer now applies a bounded visual-order adapter before it
+measures, ellipsizes, aligns or draws text. It handles the UI's Hebrew and
+Latin/digit runs without reversing UTF-8 bytes, keeps combining marks with their
+base glyph, preserves embedded Latin/numeric run order, right-aligns RTL fields,
+and puts an RTL ellipsis on the logical tail rather than hiding the beginning of
+a title. The adapter accepts at most 160 grapheme-like clusters per field, so a
+remote title cannot make the display work unbounded.
+
+The native fixture uses a Hebrew/mixed station (`תחנה 101 FM`) and long metadata
+(`פרק 15 - 15 בספטמבר 2025`). The production C++/LovyanGFX path passed its
+ordering assertions and was inspected at native size: [Stations](evidence/2026-09-19-bidi/stations-mixed.png)
+and [Live Player](evidence/2026-09-19-bidi/player-mixed.png). `tools/render_ui_fonts.py`
+also rechecks font coverage, target geometry, restoration and RGB565 transfer.
+
+`pio run -e esp32s3` passes with **65,420 B static RAM (20.0%)** and
+**2,712,667 B flash (41.4%)**; RAM is unchanged and flash increased by 1,524 B
+from the prior Phase 2 build. `git diff --check` passes. This is a Hebrew
+adapter for the bundled Hebrew/Latin assets, not a claim of full Unicode bidi or
+niqqud coverage.
+
+**Visual:** native fixtures inspected. **Functional:** compiler and native
+renderer checks pass. **Hardware:** the target device was not connected, so the
+required TFT legibility, repaint timing and sustained-audio observations remain
+unverified. Per the visual contract, those device checks are the only remaining
+Phase 2 acceptance gate; P3 must not be treated as accepted until they pass.
+
 ## 2026-09-19 — Bold clock and aligned Home header
 
 The clock now uses **Roboto Bold at 34 px**, retaining its size and position.

@@ -21,7 +21,7 @@ hit_end = source.index('void renderRadioUi(', hit_start)
 includes = [f'-I{path}' for path in [lgfx, root / 'include', root / 'tools/native_ui', root / '.pio/ui_assets', out]]
 cpp = [lgfx / f'lgfx/v1/{name}.cpp' for name in ['LGFXBase', 'LGFX_Sprite', 'lgfx_fonts']]
 cpp += list((lgfx / 'lgfx/v1/misc').glob('*.cpp'))
-cpp += [lgfx / 'lgfx/v1/panel/Panel_Device.cpp', root / 'src/display_fonts.cpp', root / 'tools/native_ui/home.cpp']
+cpp += [lgfx / 'lgfx/v1/panel/Panel_Device.cpp', root / 'src/display_fonts.cpp', root / 'src/ui_text.cpp', root / 'tools/native_ui/home.cpp']
 c = list((lgfx / 'lgfx/utility').glob('*.c'))
 # lgfx_fonts.cpp's font definitions reference these tables even without a panel.
 c += list((lgfx / 'lgfx/Fonts').rglob('*.c'))
@@ -30,7 +30,7 @@ objects = []
 for index, path in enumerate(c + cpp):
     obj = out / f'{index}-{path.stem}.o'
     objects.append(str(obj))
-    deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / '.pio/ui_assets/ui_font_assets.h']
+    deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / 'include/ui_text.h', root / '.pio/ui_assets/ui_font_assets.h']
     if path.name == 'home.cpp':
         deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_home_assets.h']
     if obj.exists() and all(obj.stat().st_mtime > dep.stat().st_mtime for dep in deps):
