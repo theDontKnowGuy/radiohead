@@ -69,6 +69,13 @@ weather, OTA flow, and sleep behavior as parts of one product.
 
 ## Change workflow
 
+For implementation of the touchscreen concept in `docs/ui/uiconcept.png`, read
+[the UI agent implementation guide](docs/ui/agent-implementation-guide.md) first.
+It defines the current visual reference, screen/capability scope, module contracts,
+work packages, TFT/ESP32 budgets, and acceptance checks. The older
+`docs/ui/interaction-plan.md` is a different visual proposal; do not substitute it
+for the concept reference.
+
 1. Identify the behavior requested and the module that owns it.
 2. Read the relevant header and implementation plus their direct callers.
 3. Distinguish observed facts from assumptions. Verify unstable library or API behavior

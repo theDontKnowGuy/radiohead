@@ -9,6 +9,19 @@
 
 #include "app_state.h"
 
+bool drawPngAsset(
+    const uint8_t* pngData,
+    size_t pngLength,
+    int32_t x,
+    int32_t y,
+    int32_t maxWidth,
+    int32_t maxHeight) {
+    if (pngData == nullptr || pngLength == 0 || x >= tft.width() || y >= tft.height()) {
+        return false;
+    }
+    return tft.drawPng(pngData, pngLength, x, y, maxWidth, maxHeight);
+}
+
 namespace {
 
 volatile bool weatherFetchInProgress = false;
