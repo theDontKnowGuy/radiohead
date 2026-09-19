@@ -161,7 +161,6 @@ void loop() {
     int16_t touchX = 0;
     int16_t touchY = 0;
     const TouchEvent touchEvent = pollTouchEvent(touchX, touchY, now);
-    const bool touchTap = touchEvent == TouchEvent::Tap;
     struct tm timeInfo = {};
     const time_t wallClock = time(nullptr);
     const bool timeValid =
@@ -177,6 +176,20 @@ void loop() {
     updateAlarm(timeInfo, timeValid, buttonEvent == ButtonEvent::Push, now);
     uiControllerSetAlarmActive(isAlarming);
 
+    // Capture ownership at contact-down. Waking the display consumes the whole
+    // gesture, including later live scroll events and the release.
+    static UiPage touchPage = UiPage::Home;
+    static UiTarget touchTarget = UiTarget::None;
+    static bool touchConsumed = true;
+    const UiRenderState touchState = uiControllerRenderState();
+    if (touchEvent == TouchEvent::Begin) {
+        touchPage = touchState.page;
+        touchTarget = uiHitTest(touchState, touchX, touchY);
+        touchConsumed = displayWasDimmed || alarmWasActive || isAlarming;
+    } else if (touchState.page != touchPage || alarmWasActive || isAlarming || displayWasDimmed) {
+        touchConsumed = true;
+    }
+
     const int detents = consumeEncoderDetents();
     if (!alarmWasActive) {
         uiControllerTurn(detents, now, displayWasDimmed);
@@ -185,11 +198,24 @@ void loop() {
         } else if (buttonEvent == ButtonEvent::Hold) {
             uiControllerHold(now, displayWasDimmed);
         }
-        if (touchTap) {
-            const UiRenderState state = uiControllerRenderState();
-            uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, displayWasDimmed);
-        } else if (touchEvent == TouchEvent::SwipeUp || touchEvent == TouchEvent::SwipeDown) {
-            uiControllerSwipe(touchEvent == TouchEvent::SwipeUp ? 1 : -1, now, displayWasDimmed);
+        const UiRenderState state = uiControllerRenderState();
+        if (state.page != touchPage) touchConsumed = true;
+        if (!touchConsumed) {
+            const UiTarget releasedTarget = uiHitTest(state, touchX, touchY);
+            if (touchEvent == TouchEvent::Tap && releasedTarget == touchTarget) {
+                uiControllerTap(touchTarget, touchX, now, displayWasDimmed);
+            } else if (touchEvent == TouchEvent::HorizontalDrag &&
+                       touchTarget == UiTarget::PodcastProgress && releasedTarget == touchTarget) {
+                uiControllerTap(touchTarget, touchX, now, displayWasDimmed);
+            } else if (touchEvent == TouchEvent::SwipeUp || touchEvent == TouchEvent::SwipeDown) {
+                const bool startedOnList =
+                    (touchTarget >= UiTarget::ListRow0 && touchTarget <= UiTarget::ListRowFavorite4) ||
+                    (touchTarget >= UiTarget::ShowRow0 && touchTarget <= UiTarget::ShowRow4) ||
+                    (touchTarget >= UiTarget::EpisodeRow0 && touchTarget <= UiTarget::EpisodeRow4);
+                if (startedOnList) {
+                    uiControllerSwipe(touchEvent == TouchEvent::SwipeUp ? 1 : -1, now, displayWasDimmed);
+                }
+            }
         }
     }
     if (buttonEvent != ButtonEvent::None || touchEvent != TouchEvent::None) {
@@ -246,6 +272,29 @@ void loop() {
                 forceRedraw = true;
             }
             break;
+        case UiCommandKind::RequestPodcastEpisodes:
+            requestPodcastEpisodes(command.value);
+            break;
+        case UiCommandKind::PlayPodcastEpisode: {
+            const int show = command.value / MAX_EPISODES;
+            const int episode = command.value % MAX_EPISODES;
+            playPodcastEpisode(show, episode);
+            break;
+        }
+        case UiCommandKind::TogglePodcastPause:
+            if (!togglePodcastPause()) Serial.println("Podcast pause unavailable");
+            break;
+        case UiCommandKind::SeekPodcast:
+            if (!seekPodcastBySeconds(command.value)) Serial.println("Podcast seek unavailable");
+            break;
+        case UiCommandKind::TogglePodcastShowFavorite:
+            if (togglePodcastShowFavorite(command.value) && !saveFavorites()) {
+                // A failed save must not show a favorite that will disappear on reboot.
+                togglePodcastShowFavorite(command.value);
+                Serial.println("Unable to save show favorite");
+            }
+            forceRedraw = true;
+            break;
         case UiCommandKind::EnterStandby:
             goToSleep();
             break;
@@ -263,11 +312,16 @@ void loop() {
     uiControllerTick(now);
     static char lastRenderedTime[10] = "";
     static bool lastRenderedTimeValid = false;
+    static unsigned long lastPodcastProgressRenderAt = 0;
     const UiRenderState state = uiControllerRenderState();
-    if (state.dirty || forceRedraw) {
+    const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
+    const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
+        !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
+    if (state.dirty || forceRedraw || podcastProgressDue) {
         renderRadioUi(state, currentTime, timeValid);
         forceRedraw = false;
         uiControllerMarkRendered();
+        if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
         strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
         lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
         lastRenderedTimeValid = timeValid;
@@ -275,8 +329,10 @@ void loop() {
         // Home's large clock sits over the photographic background. Rebuild that
         // composition once per minute rather than painting a flat rectangle over
         // it.  Live Stations has the same transparent-header requirement.
-        if (state.page == UiPage::Home || state.page == UiPage::Stations) {
+        if (state.page == UiPage::Home || state.page == UiPage::Stations ||
+            state.page == UiPage::PodcastPlayer) {
             renderRadioUi(state, currentTime, timeValid);
+            if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
         } else {
             renderRadioUiClock(currentTime, timeValid);
         }

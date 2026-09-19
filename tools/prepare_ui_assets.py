@@ -71,3 +71,38 @@ content = "\n".join(arrays)
 home_header = output / "ui_home_assets.h"
 if not home_header.exists() or home_header.read_text() != content:
     home_header.write_text(content, encoding="utf-8")
+
+# Recorded-player transport artwork is user supplied as SVG. LovyanGFX decodes
+# the rasterized native-size PNG into the readable UI canvas; it never needs an
+# SVG renderer on the ESP32.
+player_sources = {
+    "rewind_15": ("rewind-15.svg", 64),
+    "pause": ("pause.svg", 72),
+    "play": ("play.svg", 72),
+    "forward_30": ("forward-30.svg", 64),
+}
+player_source_dir = project / "docs" / "ui" / "icons"
+player_output_dir = output / "player_icons"
+player_output_dir.mkdir(exist_ok=True)
+player_header = output / "ui_player_assets.h"
+asset_script = project / "tools" / "prepare_ui_assets.py"
+player_arrays = ["#pragma once\n#include <stdint.h>\n"]
+for symbol, (filename, size) in player_sources.items():
+    source_svg = player_source_dir / filename
+    if not source_svg.is_file():
+        raise RuntimeError(f"Missing recorded-player icon: {source_svg}")
+    native_png = player_output_dir / f"{symbol}_{size}.png"
+    if (not native_png.exists() or native_png.stat().st_mtime < source_svg.stat().st_mtime or
+            native_png.stat().st_mtime < asset_script.stat().st_mtime):
+        # AppKit preserves the SVG's alpha; Quick Look thumbnails flatten it to
+        # white and would leave square blocks over the photographic background.
+        run(["/usr/bin/swift", str(project / "tools" / "rasterize_svg.swift"),
+             str(source_svg), str(native_png), str(size)], check=True)
+    data = native_png.read_bytes()
+    lines = [", ".join(f"0x{byte:02x}" for byte in data[i:i+16])
+             for i in range(0, len(data), 16)]
+    player_arrays.append(
+        f"const uint8_t ui_player_{symbol}[] = {{\n" + ",\n".join(lines) + "\n};\n")
+player_content = "\n".join(player_arrays)
+if not player_header.exists() or player_header.read_text() != player_content:
+    player_header.write_text(player_content, encoding="utf-8")

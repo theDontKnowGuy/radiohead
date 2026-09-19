@@ -1,5 +1,118 @@
 # Touch UI implementation status
 
+## 2026-09-19 — Same-axis acquisition for weak finger contact
+
+Device feedback after the preceding pass: scrolling works partially, but finger
+pad sensitivity remains unacceptable; a light fingernail tap is much easier.
+That is consistent with a mechanical pressure/contact contribution and does not
+establish how much software can recover. Sensitivity acceptance remains **fail**
+for the preceding build and **not verified** for this revision.
+
+The reader no longer alternates Y/Z1/X/Z2 on every conversion. It holds Y active
+for ten conversions, then X for ten, discards the first three after each switch,
+and selects a consistent pair independently from the seven remaining readings
+on each axis. At 250 kHz the discarded conversions provide about 192 microseconds
+of additional driven settling time per axis. The 41-byte burst takes roughly
+1.31 ms of wire time, down from 1.82 ms. No delay, allocation, retry loop, pressure
+threshold, pin change or persisted-calibration change is introduced.
+
+This follows the repeated-conversion/PD0 guidance in the related
+[ADS7846 datasheet, Touch Screen Settling](https://www.ti.com/document-viewer/ADS7846/datasheet).
+Its benefit on this XPT2046 panel is a hypothesis requiring physical verification.
+ADC rails remain excluded (128 < value <= 3968), and each axis needs two readings
+within 150 counts. This retains coordinate validation without requiring the
+same pair of conversions to be good on both axes.
+
+`tools/check_touch_input.py` passes the production frame construction/decoding,
+settling exclusion, independently timed valid pairs, inconsistent/insufficient
+readings and all-zero/all-one rejection, plus the existing gesture/list tests.
+These synthetic cases do not establish idle false-touch behavior on hardware.
+The native renderer checks and `git diff --check` pass. `pio run -e esp32s3`
+passes: **66,332 B RAM (20.2%)**, **2,736,411 B flash (41.8%)** (unchanged RAM,
++64 B flash versus the preceding pass).
+
+**Hardware:** not flashed in this task. Check light finger-pad taps, idle false
+activations, coordinate accuracy with saved calibration, scrolling and audio
+continuity before accepting this revision. The existing gesture thresholds,
+page ownership and screen appearance are unchanged by this follow-up.
+
+## 2026-09-19 — Finger sensitivity and recorded-list scrolling correction
+
+Reopens the earlier light-finger acceptance: the user reports that taps still
+require excessive force/holding and episode swipes do not work. A confirmed
+software defect was that `uiControllerSwipe()` accepted only Live Stations;
+Recorded Shows and Show Episodes ignored every swipe event.
+
+- All three lists now scroll one row as vertical movement crosses 24 px, then
+  another row per 39 px of movement, with reversal and endpoint clamping. This
+  is discrete row scrolling, not animated/inertial scrolling. A scrolling
+  gesture cannot activate a row on release. Loading/empty episode lists ignore it.
+- Touch-only SPI frequency changes from 1 MHz to 250 kHz to increase acquisition
+  time for light/high-resistance contact. The existing bounded 57-byte transfer
+  takes approximately 1.82 ms of wire time, every 8 ms at most. Display frequency,
+  pin assignments, raw-coordinate consistency checks and calibration are retained.
+  This is a hardware tuning hypothesis, not a measured pressure improvement.
+  Slower acquisition is motivated by the settling guidance in
+  [TI's ADS7846 controller datasheet](https://www.ti.com/document-viewer/ADS7846/datasheet);
+  effectiveness on this XPT2046 panel remains unverified.
+- A three-sample median once available rejects isolated coordinate spikes;
+  off-panel readings become missing samples rather than cancelling the entire
+  gesture. Release debounce is 28 ms and tap movement tolerance is 18 px, with
+  no minimum hold duration. Actual latency depends on loop/render time.
+- Contact-down captures page/target and wakes the dim display. The whole wake
+  gesture is consumed. Taps must release on their original target; horizontal
+  drags can operate the recorded progress track only, never select a list row.
+
+**Functional:** `python3 tools/check_touch_input.py` passes using the production
+recognizer and controller with host hardware/state substitutes: quick tap,
+brief dropout, noise, held contact, directional gestures/reversal, last-episode
+selection, bounds, loading/short lists, alarm/dim guards and millisecond rollover.
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and `git diff --check`
+pass. Build uses **66,332 B static RAM (20.2%)**, **2,736,347 B flash (41.8%)**
+(+80 B RAM / +664 B flash over the preceding recorded-shows build).
+
+**Visual:** layout/assets unchanged; native rendering and hit checks pass.
+**Hardware:** not flashed or measured in this task. Acceptance remains open:
+check light quick taps at center/edges, no idle false activations, swipes through
+all episodes in both directions, wake without selection, progress scrubbing,
+and uninterrupted playback while repeatedly scrolling. The host tests do not
+establish electrical sensitivity, full-loop input latency or audio timing.
+
+## 2026-09-19 — P5 recorded shows and playback implementation
+
+Recorded Shows now opens panel 5, retrieves the selected show's episodes for
+panel 6 through one bounded background HTTPS job, and publishes the result only
+from `mediaTick()` on the existing main/audio owner. A newer request generation
+invalidates an older result, so Back or selecting another show cannot replace the
+visible list or start playback from a stale response. The worker never calls
+`audio.loop()`, TFT, Preferences, or the Audio object.
+
+Episode identity is Omny's documented `Id`, never the fetched-array index or a
+temporary audio URL. The parser retains bounded title/date/audio fields and the
+documented `DurationSeconds` only when supplied. Panels 7 and 8 expose
+pause/seek only when the installed Audio library reports a usable duration and
+the source is a seekable HTTP file with byte-range support; unavailable seek and all download actions
+are explicit. Show favorites are persisted in the existing versioned
+`favorites` namespace using a fixed program/playlist identity slot, rather than
+a filtered row position. Existing station favorites migrate from version 1.
+
+Native production fixtures were generated and inspected at 320 × 240 in
+`.pio/ui_native/recorded-shows.ppm`, `show-episodes.ppm`,
+`podcast-player.ppm`, and `podcast-options.ppm`; their hit assertions cover
+Back, list-row, recorded transport and the full progress-track target. The
+recorded header has one transparent renderer on a common vertical centerline;
+the clock tick rebuilds that page instead of painting the generic opaque clock
+over it. Progress repaints once per second while playing, and the track accepts
+tap and horizontal-drag scrubbing. Transport artwork now comes directly from the
+user-supplied SVGs. The build rasterizes them with alpha at native 64×64 replay
+and 72×72 play/pause dimensions, then embeds the PNG bytes; no font, primitive,
+or runtime SVG path substitutes for their geometry. The native player fixture
+was inspected with transparent icon corners over the photo. `tools/render_ui_fonts.py`
+and `pio run -e esp32s3` pass with **66,332 B RAM (20.2%)** and **2,745,071 B
+flash (41.9%)**. **P5 is not accepted yet:** this revision has not been flashed,
+so Omny response compatibility, stale-request timing, pause/seek behavior on
+actual sources, display legibility and sustained audio require device checks.
+
 ## 2026-09-19 — Light-finger XPT2046 acceptance pass
 
 The application now uses a narrow XPT2046 wrapper that accepts two mutually

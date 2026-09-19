@@ -17,3 +17,5 @@ bool isStationFavorite(int stationIndex);
 bool setStationFavorite(int stationIndex, bool favorite);
 bool toggleStationFavorite(int stationIndex);
 bool clearStationFavorite(int stationIndex);
+bool isPodcastShowFavorite(int showIndex);
+bool togglePodcastShowFavorite(int showIndex);

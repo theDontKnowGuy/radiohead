@@ -111,6 +111,10 @@ void redirectTo(const char* location) {
     server.send(303);
 }
 
+void redirectTo(const String& location) {
+    redirectTo(location.c_str());
+}
+
 String pageStart(const String& title, const String& accent = "orange") {
     return "<html><head><meta charset='utf-8'>"
            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -319,8 +323,16 @@ void handleEpisodes() {
 
     String html = pageStart(podcastShows[showIndex].webName, "orange");
     html += "<div dir='rtl'><a class='btn' href='/programs'>חזרה לתוכניות</a>";
-    if (!loadPodcastEpisodes(showIndex)) {
-        html += "<h3>לא ניתן לטעון פרקים</h3>";
+    const bool ready = podcastEpisodesReadyFor(showIndex);
+    if (!ready && (podcastRequestedShow() != showIndex ||
+                   server.hasArg("retry") || podcastLoadState() == PodcastLoadState::Idle)) {
+        requestPodcastEpisodes(showIndex);
+    }
+    if (podcastLoadState() == PodcastLoadState::Loading && podcastRequestedShow() == showIndex) {
+        html += "<h3>טוען פרקים…</h3><meta http-equiv='refresh' content='2'>";
+    } else if (!podcastEpisodesReadyFor(showIndex)) {
+        html += "<h3>לא ניתן לטעון פרקים</h3><a class='btn' href='/episodes?show=" +
+            String(showIndex) + "&retry=1'>נסה שוב</a>";
     } else {
         for (int i = 0; i < podcastEpisodeCount; ++i) {
             PodcastEpisode& episode = podcastEpisodes[i];
@@ -706,15 +718,19 @@ void startWebServer() {
             sendBadRequest("Invalid episode");
             return;
         }
-        if (loadedPodcastShow != showIndex && !loadPodcastEpisodes(showIndex)) {
-            server.send(500, "text/plain", "Unable to load podcast");
+        if (!podcastEpisodesReadyFor(showIndex)) {
+            requestPodcastEpisodes(showIndex);
+            redirectTo("/episodes?show=" + String(showIndex));
             return;
         }
         if (episodeIndex >= podcastEpisodeCount) {
             sendBadRequest("Invalid episode");
             return;
         }
-        playPodcastEpisode(showIndex, episodeIndex);
+        if (!playPodcastEpisode(showIndex, episodeIndex)) {
+            server.send(409, "text/plain", "Episode is no longer playable");
+            return;
+        }
         redirectTo("/");
     });
 

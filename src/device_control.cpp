@@ -12,9 +12,6 @@ namespace {
 constexpr unsigned long kButtonDebounceMs = 25;
 constexpr unsigned long kButtonHoldMs = 700;
 constexpr unsigned long kTouchPollMs = 8;
-constexpr unsigned long kTouchReleaseDebounceMs = 36;
-constexpr int16_t kTouchTapTolerance = 16;
-constexpr int16_t kTouchSwipeMinDistance = 28;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -172,65 +169,22 @@ ButtonEvent pollEncoderButton(unsigned long now) {
 }
 
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
-    static bool touching = false;
-    static int16_t startX = 0;
-    static int16_t startY = 0;
-    static int16_t lastX = 0;
-    static int16_t lastY = 0;
-    static bool cancelled = false;
-    static bool outside = false;
+    static TouchGesture gesture;
     static unsigned long lastPoll = 0;
-    static unsigned long lastTouchSampleAt = 0;
-    if (now - lastPoll < kTouchPollMs) {
-        return TouchEvent::None;
-    }
+    if (now - lastPoll < kTouchPollMs) return TouchEvent::None;
     lastPoll = now;
 
-    lgfx::touch_point_t rawPoint;
-    const bool touched = tft.getTouchRaw(&rawPoint);
+    lgfx::touch_point_t point = {};
+    bool touched = tft.getTouchRaw(&point);
     if (touched) {
-        tft.convertRawXY(&rawPoint);
-        const int16_t pointX = static_cast<int16_t>(rawPoint.x);
-        const int16_t pointY = static_cast<int16_t>(rawPoint.y);
-        if (!touching) {
-            touching = true;
-            cancelled = pointX < 0 || pointX >= tft.width() || pointY < 0 || pointY >= tft.height();
-            outside = cancelled;
-            startX = pointX;
-            startY = pointY;
-            lastX = pointX;
-            lastY = pointY;
-        } else {
-            lastX = pointX;
-            lastY = pointY;
-            outside = outside || pointX < 0 || pointX >= tft.width() || pointY < 0 || pointY >= tft.height();
-        }
-        lastTouchSampleAt = now;
-        if (abs(pointX - startX) > kTouchTapTolerance || abs(pointY - startY) > kTouchTapTolerance) {
-            cancelled = true;
-        }
-        return TouchEvent::None;
+        tft.convertRawXY(&point);
+        // A spurious off-panel sample is a dropout, not a permanent veto of
+        // the whole gesture. The recognizer bridges brief missing samples.
+        touched = point.x >= 0 && point.x < tft.width() &&
+                  point.y >= 0 && point.y < tft.height();
     }
-
-    if (!touching) {
-        return TouchEvent::None;
-    }
-    // A light finger touch can drop a single XPT2046 sample while the finger
-    // remains on the resistive panel.  Do not turn that short gap into a
-    // release; a real release is still reported within 36 ms.
-    if (now - lastTouchSampleAt < kTouchReleaseDebounceMs) {
-        return TouchEvent::None;
-    }
-    touching = false;
-    const int16_t deltaX = lastX - startX;
-    const int16_t deltaY = lastY - startY;
-    if (!outside && abs(deltaY) >= kTouchSwipeMinDistance && abs(deltaY) > abs(deltaX) * 2) {
-        return deltaY < 0 ? TouchEvent::SwipeUp : TouchEvent::SwipeDown;
-    }
-    if (cancelled) return TouchEvent::None;
-    x = startX;
-    y = startY;
-    return TouchEvent::Tap;
+    return gesture.sample(touched, static_cast<int16_t>(point.x),
+                          static_cast<int16_t>(point.y), now, x, y);
 }
 
 #if TOUCH_DEBUG_ENABLED

@@ -11,12 +11,44 @@ enum class PlaybackState : uint8_t {
     Failed,
 };
 
+enum class PodcastLoadState : uint8_t {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+};
+
+struct PodcastPlaybackSnapshot {
+    bool active = false;
+    bool paused = false;
+    int showIndex = -1;
+    int episodeIndex = -1;
+    uint32_t elapsedSeconds = 0;
+    uint32_t durationSeconds = 0;
+    bool canPause = false;
+    bool canSeek = false;
+    bool controlError = false;
+};
+
+struct PodcastEpisode;
+
 void mediaBegin();
 void mediaTick(unsigned long now);
 void parseM3UPro(const String& playlistUrl);
 String parseM3U(const String& url);
-bool loadPodcastEpisodes(int showIndex);
-void playPodcastEpisode(int showIndex, int episodeIndex);
+// Starts a single bounded HTTPS job. Completion is published by mediaTick();
+// callers must not mutate the fetched collection or call Audio from a worker.
+bool requestPodcastEpisodes(int showIndex);
+PodcastLoadState podcastLoadState();
+int podcastRequestedShow();
+bool podcastEpisodesReadyFor(int showIndex);
+bool playPodcastEpisode(int showIndex, int episodeIndex);
+bool togglePodcastPause();
+bool seekPodcastBySeconds(int seconds);
+PodcastPlaybackSnapshot podcastPlaybackSnapshot();
+// Playback keeps its own copy because the browse cache is replaced whenever a
+// different show is opened.
+const PodcastEpisode* podcastActiveEpisode();
 void playStation(int stationIndex);
 void stopStationPlayback();
 void setRadioVolumeIndex(int volumeIndex);

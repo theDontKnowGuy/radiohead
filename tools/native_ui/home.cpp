@@ -12,6 +12,7 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_player_assets.h"
 
 // Only device state is adapted. Rendering, layout, glyph metrics, PNG decoding
 // and RGB565 blending are production code.
@@ -51,6 +52,35 @@ Station stations[] = {{"GALATZ", "https://example.test/galatz"}, {"תחנה 101 
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
+constexpr int PODCAST_SHOW_COUNT = 10;
+constexpr int MAX_EPISODES = 8;
+struct FixturePodcastShow { const char* webName; const char* tftName; };
+FixturePodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
+    {"אילנה דיין", "Ilana Dayan"}, {"יהיה בסדר", "Yihye Beseder"},
+    {"ארבע אחרי הצהריים", "Arba"}, {"חמש בערב", "Hamesh"},
+    {"רינו צרור", "Rino"}, {"בוקר טוב ישראל", "Boker"},
+    {"יומן הצהריים", "Yoman"}, {"גל עברי ירוק", "Gal"},
+    {"לילה ישראלי", "Laila"}, {"גילוי דעת", "Giluy"},
+};
+struct PodcastEpisode { String title; String publishedUtc; uint32_t durationSeconds; };
+PodcastEpisode podcastEpisodes[MAX_EPISODES] = {
+    {"פרק 15 - 15 בספטמבר 2025", "2025-09-15", 1697},
+    {"A very long mixed Hebrew/Latin episode title 101 FM", "2025-09-08", 1925},
+};
+int podcastEpisodeCount = 2;
+bool isPodcastShowFavorite(int show) { return show == 0; }
+PodcastLoadState fixturePodcastLoad = PodcastLoadState::Ready;
+int podcastRequestedShow() { return 0; }
+PodcastLoadState podcastLoadState() { return fixturePodcastLoad; }
+bool podcastEpisodesReadyFor(int show) { return show == 0; }
+PodcastPlaybackSnapshot podcastPlaybackSnapshot() {
+    PodcastPlaybackSnapshot snapshot;
+    snapshot.active = true; snapshot.showIndex = 0; snapshot.episodeIndex = 0;
+    snapshot.elapsedSeconds = 742; snapshot.durationSeconds = 1697;
+    snapshot.canPause = true; snapshot.canSeek = true;
+    return snapshot;
+}
+const PodcastEpisode* podcastActiveEpisode() { return &podcastEpisodes[0]; }
 float tempC = 30;
 int weatherID = 801, weatherStateMux = 0;
 #define portENTER_CRITICAL(mux) ((void)0)
@@ -126,6 +156,20 @@ int main(int argc, char** argv) {
     assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
     assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
     assert(uiHitTest(favoritesHitState, 290, 108) == UiTarget::FavoritesRowFavorite0);
+    UiRenderState showsHitState;
+    showsHitState.page = UiPage::RecordedShows;
+    assert(uiHitTest(showsHitState, 22, 22) == UiTarget::ShowsBack);
+    assert(uiHitTest(showsHitState, 150, 68) == UiTarget::ShowRow0);
+    UiRenderState episodesHitState;
+    episodesHitState.page = UiPage::ShowEpisodes;
+    episodesHitState.episodeShow = 0;
+    assert(uiHitTest(episodesHitState, 150, 68) == UiTarget::EpisodeRow0);
+    UiRenderState podcastHitState;
+    podcastHitState.page = UiPage::PodcastPlayer;
+    assert(uiHitTest(podcastHitState, 128, 122) == UiTarget::PodcastProgress);
+    assert(uiHitTest(podcastHitState, 294, 137) == UiTarget::PodcastProgress);
+    assert(uiHitTest(podcastHitState, 310, 70) == UiTarget::PodcastOptions);
+    assert(uiHitTest(podcastHitState, 160, 190) == UiTarget::PodcastPause);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -204,6 +248,17 @@ int main(int argc, char** argv) {
     save((dir + "/station-info.ppm").c_str());
     renderFavorites(favoritesHitState, "15:01", true);
     save((dir + "/favorites.ppm").c_str());
+    renderRecordedShows(showsHitState, "15:01", true);
+    save((dir + "/recorded-shows.ppm").c_str());
+    renderShowEpisodes(episodesHitState, "15:01", true);
+    save((dir + "/show-episodes.ppm").c_str());
+    renderPodcastPlayer(podcastHitState, "15:01", true);
+    save((dir + "/podcast-player.ppm").c_str());
+    UiRenderState podcastOptions;
+    podcastOptions.page = UiPage::PodcastOptions;
+    podcastOptions.episodeShow = 0;
+    renderPodcastOptions(podcastOptions, "15:01", true);
+    save((dir + "/podcast-options.ppm").c_str());
     UiRenderState overlay;
     overlay.volumeOverlay = true;
     renderListening(overlay, "15:01", true);

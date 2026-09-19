@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "touch_gesture.h"
 
 #ifndef TOUCH_DEBUG_ENABLED
 #define TOUCH_DEBUG_ENABLED 0
@@ -16,13 +17,6 @@ enum class ButtonEvent : uint8_t {
     None,
     Push,
     Hold,
-};
-
-enum class TouchEvent : uint8_t {
-    None,
-    Tap,
-    SwipeUp,
-    SwipeDown,
 };
 
 ButtonEvent pollEncoderButton(unsigned long now);

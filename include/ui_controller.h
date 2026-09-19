@@ -12,6 +12,10 @@ enum class UiPage : uint8_t {
     StationOptions,
     StationInfo,
     Favorites,
+    RecordedShows,
+    ShowEpisodes,
+    PodcastPlayer,
+    PodcastOptions,
     StandbyConfirm,
     Unavailable,
 };
@@ -57,6 +61,26 @@ enum class UiTarget : uint8_t {
     FavoritesBack,
     FavoritesPrevious,
     FavoritesNext,
+    ShowsBack,
+    ShowRow0,
+    ShowRow1,
+    ShowRow2,
+    ShowRow3,
+    ShowRow4,
+    EpisodesBack,
+    EpisodeRow0,
+    EpisodeRow1,
+    EpisodeRow2,
+    EpisodeRow3,
+    EpisodeRow4,
+    PodcastBack,
+    PodcastPause,
+    PodcastSeekBack,
+    PodcastSeekForward,
+    PodcastProgress,
+    PodcastOptions,
+    PodcastOptionFavorite,
+    PodcastOptionsBack,
     ConfirmCancel,
     ConfirmStandby,
 };
@@ -72,6 +96,11 @@ enum class UiCommandKind : uint8_t {
     StopPlayback,
     RejoinStation,
     ToggleStationFavorite,
+    RequestPodcastEpisodes,
+    PlayPodcastEpisode,
+    TogglePodcastPause,
+    SeekPodcast,
+    TogglePodcastShowFavorite,
     EnterStandby,
 };
 
@@ -91,6 +120,14 @@ struct UiRenderState {
     bool favoriteTabFocus = true;
     int optionStation = -1;
     uint8_t optionsFocus = 0;
+    int showFocus = 0;
+    int showOffset = 0;
+    bool showFavoritesOnly = false;
+    int episodeShow = -1;
+    int episodeFocus = 0;
+    int episodeOffset = 0;
+    uint8_t podcastPlayerFocus = 1;
+    uint8_t podcastOptionsFocus = 0;
     bool standbyConfirm = false;
     bool confirmAcceptFocused = false;
     bool volumeOverlay = false;

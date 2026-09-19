@@ -63,6 +63,10 @@ struct Skin {
 };
 
 struct PodcastShow {
+    // This is a stable catalog identity, not a current list position. It is
+    // deliberately separate from the display name used by the UI.
+    const char* favoriteId;
+    uint8_t favoriteSlot;
     const char* webName;
     const char* tftName;
     const char* program;
@@ -70,15 +74,17 @@ struct PodcastShow {
 };
 
 struct PodcastEpisode {
+    String id;
     String title;
     String publishedUtc;
     String audioUrl;
+    uint32_t durationSeconds = 0;
 };
 
 // The XPT2046 panel on this device can provide stable coordinates for a light
 // finger contact while its calculated resistance value remains zero.  Keep the
-// controller's multi-sample coordinate validation but do not use that derived
-// pressure value as a binary gate.
+// drivers on for consecutive same-axis readings, discard settling conversions,
+// and validate coordinates without using derived pressure as a binary gate.
 class LightTouchXPT2046 final : public lgfx::Touch_XPT2046 {
 public:
     uint_fast8_t getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) override;
@@ -120,6 +126,7 @@ extern bool radioMuted;
 // A station favorite is identified by its persistent catalog slot, never by a
 // filtered list row.  Only the low STATION_COUNT bits are meaningful.
 extern uint16_t stationFavoriteMask;
+extern uint16_t podcastShowFavoriteMask;
 extern int podcastEpisodeCount;
 extern int loadedPodcastShow;
 extern bool podcastMode;

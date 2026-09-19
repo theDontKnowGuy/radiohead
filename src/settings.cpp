@@ -8,8 +8,9 @@
 namespace {
 
 constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
-constexpr uint8_t FAVORITES_VERSION = 1;
+constexpr uint8_t FAVORITES_VERSION = 2;
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
+constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
 
 bool isHexColor(const String& value) {
     if (value.length() != 7 || value[0] != '#') {
@@ -63,14 +64,17 @@ bool saveFavorites() {
         return false;
     }
     const uint16_t normalizedMask = stationFavoriteMask & STATION_FAVORITE_BITS;
+    const uint16_t normalizedShowMask = podcastShowFavoriteMask & PODCAST_SHOW_FAVORITE_BITS;
     // Write the version last so an interrupted write is treated as absent on
     // the next boot rather than as a partially migrated favorite set.
     pref.putUChar("version", 0);
     const bool maskSaved = pref.putUShort("stations", normalizedMask) == sizeof(uint16_t);
-    const bool versionSaved = maskSaved &&
+    const bool showsSaved = maskSaved &&
+        pref.putUShort("shows", normalizedShowMask) == sizeof(uint16_t);
+    const bool versionSaved = showsSaved &&
         pref.putUChar("version", FAVORITES_VERSION) == sizeof(uint8_t);
     pref.end();
-    return maskSaved && versionSaved;
+    return showsSaved && versionSaved;
 }
 
 bool isStationFavorite(int stationIndex) {
@@ -99,6 +103,21 @@ bool toggleStationFavorite(int stationIndex) {
 
 bool clearStationFavorite(int stationIndex) {
     return setStationFavorite(stationIndex, false);
+}
+
+bool isPodcastShowFavorite(int showIndex) {
+    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    const uint8_t slot = podcastShows[showIndex].favoriteSlot;
+    return slot < PODCAST_SHOW_COUNT && (podcastShowFavoriteMask & (1U << slot)) != 0;
+}
+
+bool togglePodcastShowFavorite(int showIndex) {
+    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    const uint8_t slot = podcastShows[showIndex].favoriteSlot;
+    if (slot >= PODCAST_SHOW_COUNT || podcastShows[showIndex].favoriteId == nullptr ||
+        podcastShows[showIndex].favoriteId[0] == '\0') return false;
+    podcastShowFavoriteMask ^= static_cast<uint16_t>(1U << slot);
+    return true;
 }
 
 bool loadTouchCalibration(TouchCalibration& calibration) {
@@ -242,9 +261,14 @@ void loadSettings() {
     tempStationIdx = currentStationIdx;
 
     stationFavoriteMask = 0;
+    podcastShowFavoriteMask = 0;
     if (pref.begin("favorites", true)) {
-        if (pref.getUChar("version", 0) == FAVORITES_VERSION) {
+        const uint8_t favoritesVersion = pref.getUChar("version", 0);
+        if (favoritesVersion == 1 || favoritesVersion == FAVORITES_VERSION) {
             stationFavoriteMask = pref.getUShort("stations", 0) & STATION_FAVORITE_BITS;
+            if (favoritesVersion == FAVORITES_VERSION) {
+                podcastShowFavoriteMask = pref.getUShort("shows", 0) & PODCAST_SHOW_FAVORITE_BITS;
+            }
         }
         pref.end();
     }

@@ -20,15 +20,54 @@ bool isPlayableStation(const RadioStation& station) {
 }
 
 constexpr unsigned long kConnectionTimeoutMs = 12000;
+constexpr size_t kPodcastTitleBytes = 160;
+constexpr size_t kPodcastIdBytes = 48;
+constexpr size_t kPodcastDateBytes = 32;
+constexpr size_t kPodcastUrlBytes = 512;
 PlaybackState playbackState = PlaybackState::Stopped;
 int requestedStation = -1;
 int playingStation = -1;
 unsigned long requestStartedAt = 0;
 
+PodcastLoadState podcastState = PodcastLoadState::Idle;
+int requestedPodcastShow = -1;
+uint32_t podcastRequestGeneration = 0;
+TaskHandle_t podcastFetchTask = nullptr;
+portMUX_TYPE podcastFetchMux = portMUX_INITIALIZER_UNLOCKED;
+PodcastEpisode fetchedPodcastEpisodes[MAX_EPISODES];
+int fetchedPodcastEpisodeCount = 0;
+int fetchedPodcastShow = -1;
+uint32_t fetchedPodcastGeneration = 0;
+bool podcastFetchResultReady = false;
+bool podcastFetchSucceeded = false;
+int activePodcastShow = -1;
+int activePodcastEpisode = -1;
+PodcastEpisode activePodcastEpisodeData;
+bool hasActivePodcastEpisode = false;
+bool podcastPaused = false;
+bool podcastControlError = false;
+
+uint32_t activePodcastDurationSeconds() {
+    const uint32_t decodedDuration = audio.getAudioFileDuration();
+    if (decodedDuration > 0) return decodedDuration;
+    if (hasActivePodcastEpisode) {
+        return activePodcastEpisodeData.durationSeconds;
+    }
+    return 0;
+}
+
+void truncate(String& value, size_t limit) {
+    if (value.length() > limit) value.remove(limit);
+}
+
 void updatePlaybackFromAudioInfo(Audio::msg_t message) {
     // `stream ready` is emitted by the installed audio library after a decoder
     // is initialized. A successful TCP connect alone is not shown as Playing.
     if (message.e == Audio::evt_info && message.msg != nullptr &&
+        strcmp(message.msg, "stream ready") == 0 && podcastMode) {
+        playbackState = PlaybackState::Playing;
+        forceRedraw = true;
+    } else if (message.e == Audio::evt_info && message.msg != nullptr &&
         strcmp(message.msg, "stream ready") == 0 && requestedStation >= 0) {
         playbackState = PlaybackState::Playing;
         playingStation = requestedStation;
@@ -36,6 +75,102 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
     } else if (message.e == Audio::evt_eof && playbackState != PlaybackState::Stopped) {
         playbackState = PlaybackState::Failed;
         playingStation = -1;
+        forceRedraw = true;
+    }
+}
+
+bool fetchPodcastEpisodes(
+    int showIndex,
+    PodcastEpisode (&result)[MAX_EPISODES],
+    int& resultCount) {
+    resultCount = 0;
+    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT || WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+
+    const PodcastShow& show = podcastShows[showIndex];
+    const String url = "https://api.omny.fm/programs/" + String(show.program) +
+        "/playlists/" + String(show.playlist) + "/clips?pageSize=" + String(MAX_EPISODES);
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.useHTTP10(true);
+    http.setTimeout(10000);
+    if (!http.begin(client, url)) return false;
+    const int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        http.end();
+        return false;
+    }
+
+    // Omny's documented consumer Clip model supplies Id, Title, PublishedUtc,
+    // AudioUrl/MediaUrls.AudioUrl, ImageUrl and DurationSeconds. Only the
+    // bounded fields below are retained; artwork is not downloaded on-device.
+    JsonDocument filter;
+    filter["Clips"][0]["Id"] = true;
+    filter["Clips"][0]["Title"] = true;
+    filter["Clips"][0]["PublishedUtc"] = true;
+    filter["Clips"][0]["AudioUrl"] = true;
+    filter["Clips"][0]["MediaUrls"]["AudioUrl"] = true;
+    filter["Clips"][0]["DurationSeconds"] = true;
+    JsonDocument document;
+    const DeserializationError error = deserializeJson(
+        document, http.getStream(), DeserializationOption::Filter(filter));
+    http.end();
+    if (error || !document["Clips"].is<JsonArray>()) return false;
+
+    for (JsonObject clip : document["Clips"].as<JsonArray>()) {
+        if (resultCount >= MAX_EPISODES) break;
+        PodcastEpisode episode;
+        episode.id = String(clip["Id"] | "");
+        episode.title = String(clip["Title"] | "");
+        episode.publishedUtc = String(clip["PublishedUtc"] | "");
+        episode.audioUrl = String(clip["AudioUrl"] | "");
+        if (episode.audioUrl.isEmpty()) episode.audioUrl = String(clip["MediaUrls"]["AudioUrl"] | "");
+        const JsonVariantConst duration = clip["DurationSeconds"];
+        episode.durationSeconds = duration.is<uint32_t>() ? duration.as<uint32_t>() : 0;
+        truncate(episode.id, kPodcastIdBytes);
+        truncate(episode.title, kPodcastTitleBytes);
+        truncate(episode.publishedUtc, kPodcastDateBytes);
+        truncate(episode.audioUrl, kPodcastUrlBytes);
+        // A temporary audio URL or array index is never used as identity.
+        if (episode.id.isEmpty() || !isHttpUrl(episode.audioUrl)) continue;
+        result[resultCount++] = episode;
+    }
+    return resultCount > 0;
+}
+
+struct PodcastFetchRequest {
+    int showIndex;
+    uint32_t generation;
+};
+
+void podcastFetchWorker(void* parameter) {
+    const PodcastFetchRequest request = *static_cast<PodcastFetchRequest*>(parameter);
+    delete static_cast<PodcastFetchRequest*>(parameter);
+    PodcastEpisode result[MAX_EPISODES];
+    int count = 0;
+    const bool succeeded = fetchPodcastEpisodes(request.showIndex, result, count);
+    // This worker is the only writer. Publish completion only after all bounded
+    // values are written; the main-loop owner copies them after taking the flag.
+    for (int index = 0; index < count; ++index) fetchedPodcastEpisodes[index] = result[index];
+    fetchedPodcastEpisodeCount = count;
+    fetchedPodcastShow = request.showIndex;
+    fetchedPodcastGeneration = request.generation;
+    podcastFetchSucceeded = succeeded;
+    portENTER_CRITICAL(&podcastFetchMux);
+    podcastFetchResultReady = true;
+    podcastFetchTask = nullptr;
+    portEXIT_CRITICAL(&podcastFetchMux);
+    vTaskDelete(nullptr);
+}
+
+void startPendingPodcastFetch() {
+    if (podcastFetchTask != nullptr || requestedPodcastShow < 0) return;
+    auto* request = new PodcastFetchRequest{requestedPodcastShow, podcastRequestGeneration};
+    if (request == nullptr || xTaskCreate(podcastFetchWorker, "podcast-fetch", 6144, request, 1, &podcastFetchTask) != pdPASS) {
+        delete request;
+        podcastState = PodcastLoadState::Failed;
         forceRedraw = true;
     }
 }
@@ -92,10 +227,40 @@ void mediaBegin() {
 }
 
 void mediaTick(unsigned long now) {
+    bool hasResult = false;
+    int resultShow = -1;
+    int resultCount = 0;
+    uint32_t resultGeneration = 0;
+    bool resultSucceeded = false;
+    portENTER_CRITICAL(&podcastFetchMux);
+    if (podcastFetchResultReady) {
+        podcastFetchResultReady = false;
+        hasResult = true;
+        resultShow = fetchedPodcastShow;
+        resultCount = fetchedPodcastEpisodeCount;
+        resultGeneration = fetchedPodcastGeneration;
+        resultSucceeded = podcastFetchSucceeded;
+    }
+    portEXIT_CRITICAL(&podcastFetchMux);
+    if (hasResult && resultGeneration == podcastRequestGeneration && resultShow == requestedPodcastShow) {
+        if (resultSucceeded) {
+            for (int index = 0; index < resultCount; ++index) podcastEpisodes[index] = fetchedPodcastEpisodes[index];
+            podcastEpisodeCount = resultCount;
+            loadedPodcastShow = resultShow;
+            podcastState = PodcastLoadState::Ready;
+        } else {
+            podcastEpisodeCount = 0;
+            loadedPodcastShow = -1;
+            podcastState = PodcastLoadState::Failed;
+        }
+        forceRedraw = true;
+    }
+    if (podcastState == PodcastLoadState::Loading && podcastFetchTask == nullptr) startPendingPodcastFetch();
+
     if (playbackState == PlaybackState::Connecting && now - requestStartedAt >= kConnectionTimeoutMs) {
         playbackState = PlaybackState::Failed;
         forceRedraw = true;
-    } else if (playbackState == PlaybackState::Playing && !audio.isRunning()) {
+    } else if (playbackState == PlaybackState::Playing && !podcastPaused && !audio.isRunning()) {
         playbackState = PlaybackState::Failed;
         playingStation = -1;
         forceRedraw = true;
@@ -238,112 +403,52 @@ String parseM3U(const String& url) {
     return streamUrl.isEmpty() ? url : streamUrl;
 }
 
-bool loadPodcastEpisodes(int showIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT || WiFi.status() != WL_CONNECTED) {
-        return false;
+bool requestPodcastEpisodes(int showIndex) {
+    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    // Reopening the current show must not invalidate its cache or enqueue a
+    // duplicate fetch while the user is returning from the player screen.
+    if (podcastEpisodesReadyFor(showIndex) ||
+        (podcastState == PodcastLoadState::Loading && requestedPodcastShow == showIndex)) {
+        return true;
     }
-
-    podcastEpisodeCount = 0;
-    loadedPodcastShow = -1;
-    const PodcastShow& show = podcastShows[showIndex];
-    const String url =
-        "https://api.omny.fm/programs/" + String(show.program) + "/playlists/" +
-        String(show.playlist) + "/clips?pageSize=" + String(MAX_EPISODES);
-
-    Serial.print("Omny API: ");
-    Serial.println(url);
-
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
-    http.useHTTP10(true);
-    http.setTimeout(10000);
-
-    if (!http.begin(client, url)) {
-        Serial.println("Omny: http.begin failed");
-        return false;
-    }
-
-    const int code = http.GET();
-    if (code != HTTP_CODE_OK) {
-        Serial.printf("Omny HTTP error: %d\n", code);
-        http.end();
-        return false;
-    }
-
-    JsonDocument filter;
-    filter["Clips"][0]["Title"] = true;
-    filter["Clips"][0]["PublishedUtc"] = true;
-    filter["Clips"][0]["AudioUrl"] = true;
-    filter["Clips"][0]["MediaUrls"]["AudioUrl"] = true;
-
-    JsonDocument document;
-    const DeserializationError error = deserializeJson(
-        document, http.getStream(), DeserializationOption::Filter(filter));
-
-    if (error) {
-        Serial.print("Omny JSON error: ");
-        Serial.println(error.c_str());
-        http.end();
-        return false;
-    }
-
-    for (JsonObject clip : document["Clips"].as<JsonArray>()) {
-        if (podcastEpisodeCount >= MAX_EPISODES) {
-            break;
-        }
-
-        String title = clip["Title"] | "";
-        String published = clip["PublishedUtc"] | "";
-        String audioUrl = clip["AudioUrl"] | "";
-        if (audioUrl.isEmpty()) {
-            audioUrl = clip["MediaUrls"]["AudioUrl"] | "";
-        }
-        if (!isHttpUrl(audioUrl)) {
-            continue;
-        }
-        if (title.length() > 160) {
-            title.remove(160);
-        }
-        if (published.length() > 32) {
-            published.remove(32);
-        }
-
-        PodcastEpisode& episode = podcastEpisodes[podcastEpisodeCount++];
-        episode.title = title;
-        episode.publishedUtc = published;
-        episode.audioUrl = audioUrl;
-    }
-
-    http.end();
-    Serial.printf("Loaded %d podcast episodes\n", podcastEpisodeCount);
-    if (podcastEpisodeCount > 0) {
-        loadedPodcastShow = showIndex;
-    }
-    return podcastEpisodeCount > 0;
+    ++podcastRequestGeneration;
+    requestedPodcastShow = showIndex;
+    podcastState = PodcastLoadState::Loading;
+    if (podcastFetchTask == nullptr) startPendingPodcastFetch();
+    forceRedraw = true;
+    return true;
 }
 
-void playPodcastEpisode(int showIndex, int episodeIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) {
-        return;
-    }
-    if (loadedPodcastShow != showIndex && !loadPodcastEpisodes(showIndex)) {
-        return;
-    }
-    if (episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) {
-        return;
-    }
+PodcastLoadState podcastLoadState() { return podcastState; }
+int podcastRequestedShow() { return requestedPodcastShow; }
+bool podcastEpisodesReadyFor(int showIndex) {
+    return podcastState == PodcastLoadState::Ready && loadedPodcastShow == showIndex;
+}
+
+bool playPodcastEpisode(int showIndex, int episodeIndex) {
+    if (!podcastEpisodesReadyFor(showIndex) || episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) return false;
 
     const PodcastShow& show = podcastShows[showIndex];
     PodcastEpisode& episode = podcastEpisodes[episodeIndex];
     if (!isHttpUrl(episode.audioUrl)) {
-        return;
+        return false;
     }
     Serial.println("Playing podcast");
 
     audio.stopSong();
     podcastMode = true;
+    radioMuted = false;
     podcastShowTft = show.tftName;
+    activePodcastShow = showIndex;
+    activePodcastEpisode = episodeIndex;
+    activePodcastEpisodeData = episode;
+    hasActivePodcastEpisode = true;
+    podcastPaused = false;
+    podcastControlError = false;
+    requestedStation = -1;
+    playingStation = -1;
+    playbackState = PlaybackState::Connecting;
+    requestStartedAt = millis();
 
     String date = episode.publishedUtc;
     if (date.length() >= 10) {
@@ -351,7 +456,81 @@ void playPodcastEpisode(int showIndex, int episodeIndex) {
     }
     songTitle = "Recorded: " + date;
     forceRedraw = true;
-    audio.connecttohost(episode.audioUrl.c_str());
+    if (!audio.connecttohost(episode.audioUrl.c_str())) {
+        playbackState = PlaybackState::Failed;
+        forceRedraw = true;
+        return false;
+    }
+    return true;
+}
+
+bool togglePodcastPause() {
+    if (!podcastMode || activePodcastEpisode < 0 || playbackState != PlaybackState::Playing) {
+        podcastControlError = true;
+        forceRedraw = true;
+        return false;
+    }
+    if (!audio.pauseResume()) {
+        podcastControlError = true;
+        forceRedraw = true;
+        return false;
+    }
+    podcastPaused = !podcastPaused;
+    podcastControlError = false;
+    forceRedraw = true;
+    return true;
+}
+
+bool seekPodcastBySeconds(int seconds) {
+    if (!podcastMode || podcastPaused || playbackState != PlaybackState::Playing || seconds == 0) {
+        podcastControlError = true;
+        forceRedraw = true;
+        return false;
+    }
+    const uint32_t duration = activePodcastDurationSeconds();
+    if (duration == 0) {
+        podcastControlError = true;
+        forceRedraw = true;
+        return false;
+    }
+    const int64_t target = static_cast<int64_t>(audio.getAudioCurrentTime()) + seconds;
+    if (target < 0 || target >= static_cast<int64_t>(duration)) {
+        podcastControlError = true;
+        forceRedraw = true;
+        return false;
+    }
+    // setTimeOffset() only checks that the source is a web file.  Seeking by
+    // byte position additionally checks the library's observed Accept-Ranges
+    // response, so a CDN that ignores Range cannot leave the player pretending
+    // that it skipped.
+    const uint32_t currentByte = audio.getAudioFilePosition();
+    const uint32_t bitRate = audio.getBitRate();
+    const int64_t byteDelta = (static_cast<int64_t>(bitRate) * seconds) / 8;
+    const int64_t targetByte = static_cast<int64_t>(currentByte) + byteDelta;
+    const bool success = currentByte > 0 && bitRate > 0 && targetByte > 0 &&
+        audio.setAudioFilePosition(static_cast<uint32_t>(targetByte));
+    podcastControlError = !success;
+    forceRedraw = true;
+    return success;
+}
+
+PodcastPlaybackSnapshot podcastPlaybackSnapshot() {
+    PodcastPlaybackSnapshot snapshot;
+    snapshot.active = podcastMode && hasActivePodcastEpisode && activePodcastShow >= 0 && activePodcastEpisode >= 0;
+    snapshot.paused = podcastPaused;
+    snapshot.showIndex = activePodcastShow;
+    snapshot.episodeIndex = activePodcastEpisode;
+    snapshot.elapsedSeconds = snapshot.active ? audio.getAudioCurrentTime() : 0;
+    snapshot.durationSeconds = snapshot.active ? activePodcastDurationSeconds() : 0;
+    snapshot.canPause = snapshot.active && playbackState == PlaybackState::Playing;
+    snapshot.canSeek = snapshot.canPause && !podcastPaused && snapshot.durationSeconds > 0 &&
+        audio.getBitRate() > 0 && audio.getAudioFilePosition() > 0 && !podcastControlError;
+    snapshot.controlError = podcastControlError;
+    return snapshot;
+}
+
+const PodcastEpisode* podcastActiveEpisode() {
+    return hasActivePodcastEpisode ? &activePodcastEpisodeData : nullptr;
 }
 
 void playStation(int stationIndex) {
@@ -364,6 +543,9 @@ void playStation(int stationIndex) {
     }
 
     podcastMode = false;
+    hasActivePodcastEpisode = false;
+    activePodcastShow = -1;
+    activePodcastEpisode = -1;
     radioMuted = false;
     audio.setVolume(volCurve[mainVal]);
     podcastShowTft = "";
@@ -397,6 +579,11 @@ void playStation(int stationIndex) {
 
 void stopStationPlayback() {
     audio.stopSong();
+    podcastMode = false;
+    hasActivePodcastEpisode = false;
+    activePodcastShow = -1;
+    activePodcastEpisode = -1;
+    podcastPaused = false;
     playbackState = PlaybackState::Stopped;
     requestedStation = -1;
     playingStation = -1;

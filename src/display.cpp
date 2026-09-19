@@ -17,6 +17,7 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_player_assets.h"
 
 bool drawPngAsset(
     const uint8_t* pngData,
@@ -707,6 +708,90 @@ void drawStationsHeader(const char* currentTime, bool timeValid) {
     }
 }
 
+// Recorded playback uses the same transparent photo header as the reference
+// panel. It must not inherit drawHeader's opaque navy strip.
+void drawRecordedHeader(const char* currentTime, bool timeValid) {
+    constexpr int16_t kHeaderCenterY = 22;
+    canvas().drawLine(30, kHeaderCenterY - 8, 20, kHeaderCenterY, kWhite);
+    canvas().drawLine(20, kHeaderCenterY, 30, kHeaderCenterY + 8, kWhite);
+    canvas().setTextDatum(ML_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Recorded Show", 42, kHeaderCenterY, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextDatum(MR_DATUM);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, kHeaderCenterY, uiFont(&fonts::FreeSansBold12pt7b));
+    if (uiFrameReady) {
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, kHeaderCenterY - 10);
+    } else {
+        canvas().drawArc(294, kHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(294, kHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(294, kHeaderCenterY + 4, 2, kWhite);
+    }
+}
+
+void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
+    const int16_t fill = duration == 0 ? 0 : std::min<int16_t>(width,
+        static_cast<int16_t>((static_cast<uint64_t>(elapsed) * width) / duration));
+    canvas().fillRoundRect(x, y, width, 8, 4, kSurfaceRaised);
+    if (fill > 0) canvas().fillRoundRect(x, y, fill, 8, 4, kBlue);
+    canvas().fillCircle(x + fill, y + 4, 7, kWhite);
+}
+
+void drawSkipControl(int16_t x, int16_t y, int seconds, bool forward, bool enabled) {
+    const uint16_t color = enabled ? kWhite : kTextMuted;
+    // Reference-style replay control: one heavy, open circular arrow wrapped
+    // around the number.  The arrowhead shares both endpoints with the curve;
+    // keeping it as a single silhouette avoids the detached-looking glyph from
+    // the earlier thin-arc version on the physical TFT.
+    // Outer/inner points form a filled 5px annular stroke.  Filled quads are
+    // more stable than overlapping circles on LovyanGFX's RGB565 sprite path.
+    constexpr int8_t outer[][2] = {
+        {-7, -26}, {5, -23}, {14, -18}, {21, -9}, {24, 1},
+        {22, 12}, {16, 21}, {7, 26}, {-4, 27}, {-14, 23},
+        {-22, 15}, {-25, 5}, {-24, -5}, {-19, -13}, {-10, -15},
+    };
+    constexpr int8_t inner[][2] = {
+        {-6, -21}, {4, -18}, {11, -14}, {17, -7}, {19, 1},
+        {18, 10}, {13, 17}, {6, 21}, {-3, 22}, {-11, 18},
+        {-17, 12}, {-20, 4}, {-19, -4}, {-15, -10}, {-8, -11},
+    };
+    const int8_t direction = forward ? -1 : 1;
+    for (size_t index = 1; index < sizeof(outer) / sizeof(outer[0]); ++index) {
+        const int16_t outerX0 = x + direction * outer[index - 1][0];
+        const int16_t outerY0 = y + outer[index - 1][1];
+        const int16_t outerX1 = x + direction * outer[index][0];
+        const int16_t outerY1 = y + outer[index][1];
+        const int16_t innerX0 = x + direction * inner[index - 1][0];
+        const int16_t innerY0 = y + inner[index - 1][1];
+        const int16_t innerX1 = x + direction * inner[index][0];
+        const int16_t innerY1 = y + inner[index][1];
+        canvas().fillTriangle(outerX0, outerY0, outerX1, outerY1, innerX1, innerY1, color);
+        canvas().fillTriangle(outerX0, outerY0, innerX1, innerY1, innerX0, innerY0, color);
+    }
+    canvas().fillTriangle(x + direction * -23, y - 18,
+                          x + direction * -6, y - 25,
+                          x + direction * -6, y - 11, color);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(color);
+    canvas().drawString(String(seconds).c_str(), x, y + 9, uiFont(&fonts::FreeSansBold12pt7b));
+}
+
+void drawPauseOrPlayControl(int16_t x, int16_t y, bool paused) {
+    canvas().fillCircle(x, y, 31, kNavy);
+    canvas().drawCircle(x, y, 31, kBlue);
+    canvas().drawCircle(x, y, 30, kBlue);
+    if (paused) {
+        canvas().fillTriangle(x - 8, y - 13, x - 8, y + 13, x + 14, y, kWhite);
+    } else {
+        canvas().fillRoundRect(x - 14, y - 13, 10, 26, 2, kWhite);
+        canvas().fillRoundRect(x + 4, y - 13, 10, 26, 2, kWhite);
+    }
+}
+
+template<size_t N>
+void drawPlayerIcon(const uint8_t (&asset)[N], int16_t x, int16_t y) {
+    canvas().drawPng(asset, N, x, y);
+}
+
 void drawSlider(int16_t y) {
     canvas().fillRoundRect(48, y, 214, 8, 4, kSurfaceRaised);
     canvas().fillRoundRect(48, y, mainVal * 214 / 21, 8, 4, kBlue);
@@ -866,8 +951,19 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
     }
 
     if (state.favoriteShowsTab) {
-        text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
-        text("Show favorites are unavailable.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        int count = 0;
+        for (int show = 0; show < PODCAST_SHOW_COUNT; ++show) {
+            if (!isPodcastShowFavorite(show)) continue;
+            if (count >= state.favoriteOffset && count < state.favoriteOffset + 2) {
+                const int row = count - state.favoriteOffset;
+                drawListRow(88 + row * 48, podcastShows[show].webName, false, true, false);
+            }
+            ++count;
+        }
+        if (count == 0) {
+            text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+            text("Use show options to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        }
         footerButton(0, 320, "Back");
         return;
     }
@@ -888,6 +984,128 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
     footerButton(0, 106, "Back");
     footerButton(106, 107, "Previous", state.favoriteOffset > 0);
     footerButton(213, 107, "Next", state.favoriteOffset + 2 < count);
+}
+
+String durationLabel(uint32_t seconds) {
+    if (seconds == 0) return "--:--";
+    char value[12];
+    snprintf(value, sizeof(value), "%lu:%02lu", static_cast<unsigned long>(seconds / 60),
+             static_cast<unsigned long>(seconds % 60));
+    return String(value);
+}
+
+void renderRecordedShows(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, state.showFavoritesOnly ? "Favorite Shows" : "Recorded Shows");
+    int drawn = 0;
+    for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
+        if (state.showFavoritesOnly && !isPodcastShowFavorite(index)) continue;
+        if (drawn < state.showOffset) { ++drawn; continue; }
+        const int row = drawn - state.showOffset;
+        if (row >= kStationRowsPerPage) break;
+        const bool focused = drawn == state.showFocus;
+        const int y = kStationListTop + row * kStationListRowHeight;
+        canvas().fillRoundRect(8, y + 1, 304, kStationListRowHeight - 2, 7, focused ? kBlue : kSurface);
+        drawArtwork(podcastShows[index].tftName, 18, y + 3, 32, focused ? kBlueDark : kGreen);
+        text(podcastShows[index].webName, 62, y + 6, uiFont(&fonts::FreeSans9pt7b), kWhite, 205);
+        text("Recorded show", 62, y + 25, uiFont(&fonts::Font0), kTextMuted, 205);
+        canvas().drawLine(294, y + 13, 302, y + 20, kWhite);
+        canvas().drawLine(302, y + 20, 294, y + 27, kWhite);
+        ++drawn;
+    }
+    if (state.showFavoritesOnly && drawn == 0) {
+        text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Use a show's options to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+    }
+}
+
+void renderShowEpisodes(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    const bool validShow = state.episodeShow >= 0 && state.episodeShow < PODCAST_SHOW_COUNT;
+    drawHeader(currentTime, timeValid, validShow ? podcastShows[state.episodeShow].tftName : "Episodes");
+    if (!validShow) return;
+    if (podcastRequestedShow() == state.episodeShow && podcastLoadState() == PodcastLoadState::Loading) {
+        text("Loading episodes…", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Back remains available.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        return;
+    }
+    if (!podcastEpisodesReadyFor(state.episodeShow)) {
+        text("Episodes unavailable", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text("Go back, then select the show to retry.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        return;
+    }
+    for (int row = 0; row < kStationRowsPerPage; ++row) {
+        const int index = state.episodeOffset + row;
+        if (index >= podcastEpisodeCount) break;
+        const int y = kStationListTop + row * kStationListRowHeight;
+        const bool focused = index == state.episodeFocus;
+        canvas().fillRoundRect(8, y + 1, 304, kStationListRowHeight - 2, 7, focused ? kBlue : kSurface);
+        canvas().drawCircle(29, y + 20, 11, kWhite);
+        canvas().fillTriangle(26, y + 15, 26, y + 25, 34, y + 20, kWhite);
+        text(podcastEpisodes[index].title, 48, y + 5, uiFont(&fonts::FreeSans9pt7b), kWhite, 184);
+        String detail = podcastEpisodes[index].publishedUtc.length() >= 10
+            ? podcastEpisodes[index].publishedUtc.substring(0, 10) : String("Unknown date");
+        text(detail, 48, y + 25, uiFont(&fonts::Font0), kTextMuted, 150);
+        text(durationLabel(podcastEpisodes[index].durationSeconds), 238, y + 25, uiFont(&fonts::Font0), kWhite, 54);
+    }
+}
+
+void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawRecordedHeader(currentTime, timeValid);
+    const PodcastPlaybackSnapshot playback = podcastPlaybackSnapshot();
+    const PodcastEpisode* episode = podcastActiveEpisode();
+    if (!playback.active || playback.showIndex < 0 || episode == nullptr) {
+        text("Episode unavailable", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        return;
+    }
+    // Match the reference's two-column stack: a substantial artwork anchor at
+    // left and title, episode, progress and timing aligned on one right edge.
+    drawArtwork(podcastShows[playback.showIndex].tftName, 16, 49, 102, kGreen);
+    text(podcastShows[playback.showIndex].webName, 128, 56, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 176);
+    text(episode->title, 128, 87, uiFont(&fonts::FreeSans9pt7b), kWhite, 176);
+    const uint32_t duration = playback.durationSeconds;
+    drawRecordedProgress(128, 122, 166, playback.elapsedSeconds, duration);
+    text(durationLabel(playback.elapsedSeconds), 128, 137, uiFont(&fonts::Font0), kWhite, 66);
+    const String remainder = duration == 0 ? String("--:--") : durationLabel(duration - std::min(duration, playback.elapsedSeconds));
+    text("-" + remainder, 238, 137, uiFont(&fonts::Font0), kWhite, 56);
+    if (uiFrameReady) {
+        drawPlayerIcon(ui_player_rewind_15, 46, 158);
+        if (playback.paused) {
+            drawPlayerIcon(ui_player_play, 124, 154);
+        } else {
+            drawPlayerIcon(ui_player_pause, 124, 154);
+        }
+        drawPlayerIcon(ui_player_forward_30, 210, 158);
+    } else {
+        // A visible primitive fallback is retained for the no-canvas path;
+        // normal rendering always uses the supplied artwork above.
+        drawSkipControl(78, 190, 15, false, playback.canSeek);
+        drawPauseOrPlayControl(160, 190, playback.paused);
+        drawSkipControl(242, 190, 30, true, playback.canSeek);
+    }
+    // Transport focus is deliberately not an extra white outline: the mockup
+    // uses the replay loop and blue primary ring as the visual anchors.
+}
+
+void renderPodcastOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Show Options");
+    const int show = state.episodeShow;
+    if (show < 0 || show >= PODCAST_SHOW_COUNT) return;
+    const char* labels[] = {
+        isPodcastShowFavorite(show) ? "Remove Favorite" : "Add to Favorites",
+        "Downloads unavailable",
+        "Back",
+    };
+    for (int row = 0; row < 3; ++row) {
+        const int y = 44 + row * 48;
+        const bool focused = (row == 0 && state.podcastOptionsFocus == 0) ||
+            (row == 2 && state.podcastOptionsFocus == 1);
+        canvas().fillRoundRect(8, y + 3, 304, 42, 6, focused ? kBlue : kSurface);
+        text(labels[row], 28, y + 14, uiFont(&fonts::FreeSans9pt7b), row == 1 ? kTextMuted : kWhite, 238);
+        if (row == 0) drawStar(290, y + 24, isPodcastShowFavorite(show));
+    }
 }
 
 void renderStationOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -1107,12 +1325,36 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (!state.favoriteShowsTab && y >= 88 && y < 184 && x >= 268) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRowFavorite0) + (y - 88) / 48);
         }
-        if (!state.favoriteShowsTab && y >= 88 && y < 184) {
+        if (y >= 88 && y < 184) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRow0) + (y - 88) / 48);
         }
         if (contains(x, y, 0, 188, 106, 52)) return UiTarget::FavoritesBack;
         if (!state.favoriteShowsTab && contains(x, y, 106, 188, 107, 52)) return UiTarget::FavoritesPrevious;
         if (!state.favoriteShowsTab && contains(x, y, 213, 188, 107, 52)) return UiTarget::FavoritesNext;
+    } else if (state.page == UiPage::RecordedShows) {
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ShowsBack;
+        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::ShowRow0) +
+                (y - kStationListTop) / kStationListRowHeight);
+        }
+    } else if (state.page == UiPage::ShowEpisodes) {
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::EpisodesBack;
+        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::EpisodeRow0) +
+                (y - kStationListTop) / kStationListRowHeight);
+        }
+    } else if (state.page == UiPage::PodcastPlayer) {
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PodcastBack;
+        // The wider target makes the 8px track comfortable to scrub without
+        // stealing the header/back affordance.
+        if (contains(x, y, 120, 104, 184, 50)) return UiTarget::PodcastProgress;
+        if (contains(x, y, 0, 44, 112, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PodcastOptions;
+        if (contains(x, y, 52, 166, 48, 48)) return UiTarget::PodcastSeekBack;
+        if (contains(x, y, 136, 166, 48, 48)) return UiTarget::PodcastPause;
+        if (contains(x, y, 220, 166, 48, 48)) return UiTarget::PodcastSeekForward;
+    } else if (state.page == UiPage::PodcastOptions) {
+        if (contains(x, y, 0, 0, 44, 44) || contains(x, y, 0, 140, 320, 48)) return UiTarget::PodcastOptionsBack;
+        if (contains(x, y, 0, 44, 320, 48)) return UiTarget::PodcastOptionFavorite;
     } else if (state.page == UiPage::StandbyConfirm) {
         if (contains(x, y, 38, 124, 110, 44)) return UiTarget::ConfirmCancel;
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
@@ -1145,6 +1387,18 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::Favorites:
         renderFavorites(state, currentTime, timeValid);
+        break;
+    case UiPage::RecordedShows:
+        renderRecordedShows(state, currentTime, timeValid);
+        break;
+    case UiPage::ShowEpisodes:
+        renderShowEpisodes(state, currentTime, timeValid);
+        break;
+    case UiPage::PodcastPlayer:
+        renderPodcastPlayer(state, currentTime, timeValid);
+        break;
+    case UiPage::PodcastOptions:
+        renderPodcastOptions(state, currentTime, timeValid);
         break;
     case UiPage::StandbyConfirm:
         renderConfirm(state, currentTime, timeValid);
