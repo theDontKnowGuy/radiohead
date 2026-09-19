@@ -310,5 +310,7 @@ void loop() {
     updateEncoder(switchPressed, now);
     updateVisualizers();
     updateDisplay(switchPressed, currentTime, now);
+#if TOUCH_DEBUG_ENABLED
     updateTouchTest(now);
+#endif
 }

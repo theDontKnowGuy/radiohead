@@ -44,6 +44,6 @@ corner marker. The raw coordinates are printed at 115200 baud and saved in NVS, 
 loaded automatically on later boots. Hold the encoder switch while booting to run the
 calibration again after replacing or rotating the screen.
 
-During normal operation, touching the screen prints raw coordinates, mapped screen
-coordinates, and pressure, and draws a cyan/white marker at the mapped location. This
-provides a quick test of both the controller connection and the saved calibration.
+The normal firmware does not poll or draw diagnostic touches. To restore the serial
+coordinate output and cyan/white touch markers while testing another panel, uncomment
+`-DTOUCH_DEBUG_ENABLED=1` in `platformio.ini`, rebuild, and flash the firmware.

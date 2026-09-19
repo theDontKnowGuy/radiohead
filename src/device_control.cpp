@@ -104,13 +104,14 @@ void initializeTouchCalibration() {
         95,
         &fonts::FreeSansBold12pt7b);
     tft.drawCenterString(
-        "Touch the screen to test",
+        "Hold encoder at boot to redo",
         tft.width() / 2,
         135,
         &fonts::FreeSans9pt7b);
     delay(1500);
 }
 
+#if TOUCH_DEBUG_ENABLED
 void updateTouchTest(unsigned long now) {
     static bool wasTouched = false;
     static unsigned long lastPoll = 0;
@@ -153,6 +154,7 @@ void updateTouchTest(unsigned long now) {
     }
     wasTouched = true;
 }
+#endif
 
 void taskControl(void* parameter) {
     (void)parameter;
