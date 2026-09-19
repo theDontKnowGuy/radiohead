@@ -6,15 +6,23 @@ of 16 screens. This is the file referred to as `ui-concept.png` in the request.
 Target: the project's **2.8-inch ILI9341 TFT, 320 × 240 landscape**, XPT2046 touch,
 and rotary encoder with push. Plan prepared against the September 2026 worktree.
 
+**Correction, 2026-09-19:** read the [visual contract](visual-contract.md) first.
+The user requires a visually similar implementation of this image. The current
+cream/olive Listening/Stations slice is partial functional groundwork, not completed
+P1–P3. Background, artwork, Hebrew and screen composition belong in P2; P3 must
+use them with real state. They are not deferred polish. The user has offered a
+clean background image; asset delivery and visual acceptance remain pending.
+
 ## 1. Instructions for every implementing agent
 
 1. Read [AGENTS.md](../../AGENTS.md), the local `radiohead-firmware` and
    `typesafe-ai` skills, this guide, and the relevant module headers, source, and
    direct callers. Inspect `git status --short` and the overlapping diff first.
-2. Use the contact sheet as the **visual and navigation reference**. The earlier
+2. Inspect the image itself and use it as the **visual and navigation reference**,
+   with the [visual contract](visual-contract.md) as the acceptance checklist. The earlier
    [interaction-plan.md](interaction-plan.md) and `radio-ui.html` are a different
    visual direction. Do not silently substitute their paper/olive design for this
-   sunset/blue concept. This guide supersedes their conflicting visual choices.
+   sunset/blue concept. Both earlier artifacts are superseded and historical only.
 3. Implement one bounded work package from section 10. State its inputs, files,
    acceptance checks, and dependencies before editing. Leave the next package a
    buildable result; do not implement all sixteen screens as one change.
@@ -29,6 +37,9 @@ and rotary encoder with push. Plan prepared against the September 2026 worktree.
    firmware. No AI SDK, credential, paid call, or runtime dependency is needed.
 7. Build after code/config changes, check RAM/flash, inspect the diff, and report
    exactly what was tested on hardware. Do not edit vendored audio code.
+8. Track visual, functional and hardware acceptance separately. Preserve reusable
+   code from the existing slice, but reopen any package whose required appearance
+   or checks are missing. A build or working encoder does not prove visual fidelity.
 
 There is no static-image presentation firmware. Keep the reference images as source
 material and use native C++ render fixtures when validating layouts. The display
@@ -104,10 +115,10 @@ state where needed; a decorative working-looking download/seek button is not don
 | Pins | I2S 15/16/17; encoder A/B 4/5, push `PIN_SW` 7; K0 6; backlight 3; TFT SCLK/MOSI/MISO 12/11/13, DC/CS/RST 9/8/10; touch CS 14. |
 | Separate K0 input | Current deep-sleep external wake uses GPIO 6, not touch or encoder push. Confirm physical wiring before promising wake from those controls. |
 | Current calibration | Preferences namespace `touch`, keys `version`/`data`; hold encoder at boot requests recalibration. Preserve it. |
-| Existing encoder | Quadrature task publishes volatile `encoderPos`; main divides by four. Preserve detent direction/count during migration; test both slow and fast turns. |
+| Existing encoder | Quadrature task publishes volatile `encoderPos`; `device_control` consumes ticks under a critical section and converts four ticks per detent. Preserve direction/count; test both slow and fast turns. |
 | Existing radio state | Ten slots; volume index 0…21 into `volCurve`; saved station index is a slot index. |
 | Existing podcast state | Ten shows, up to eight episodes; index validity changes whenever another show is fetched. |
-| Rendering today | Main still draws the old UI; display owns helpers plus weather fetching. Move responsibilities explicitly rather than leaving two renderers active. |
+| Rendering today | `main` dispatches input/commands through `ui_controller` and calls `display`'s `renderRadioUi`. Its Listening/Stations/confirmation slice still uses the superseded cream/olive design. Reuse sound ownership/contracts while replacing that presentation. Legacy helpers and weather fetching also remain in `display`; migrate explicitly. |
 
 The skill architecture reference currently lists backlight GPIO 1; the actual
 header uses **GPIO 3**. Source/configuration are authoritative. Do not change pins
@@ -209,9 +220,11 @@ migration costs. Do not introduce LVGL just to reproduce sixteen screenshots.
 
 ### Generate assets, not whole-screen screenshots with live text baked in
 
-1. Obtain a clean background matching the sunset/coast reference. If unavailable,
-   create a clean background asset or use a documented placeholder. Do not crop a
-   UI panel and reuse text/buttons baked into it as background.
+1. Obtain the clean background the user has offered, matching the sunset/coast
+   reference. Follow the [asset handoff requirements](visual-contract.md#clean-background-handoff).
+   While it is pending, a documented navy development placeholder is allowed;
+   visual acceptance remains open. Do not substitute a different aesthetic,
+   generate an unrelated scene, or reuse a panel with text/buttons baked into it.
 2. Prepare one 320 × 240 background, a darkened version if needed, and an optional
    preblurred dialog background **off-device**. No live blur or photographic
    resizing in the audio loop. Match the reference while reducing text interference.
@@ -577,26 +590,34 @@ Keep Back and volume/recovery paths usable where safe.
 
 ## 10. Work packages for agents
 
+**Recovery order for the current worktree:** audit and retain P0/P1 groundwork,
+complete P2's concept-derived native fixtures, then finish P3 using those same
+components. Do not advance to P4 on the assumption that P2/P3 are complete. See the
+[corrected status](implementation-status.md) and
+[visual evidence requirements](visual-contract.md#corrected-implementation-sequence-and-evidence).
+
 Each package should be a focused reviewable change. Dependencies describe order;
 they are not permission to start concurrent edits to shared files. If multiple
 agents are explicitly assigned, agree interfaces first and give each a disjoint
 file scope. The integrator owns changes to `main`, `app_state`, configuration and
 cross-module headers; contributors propose interface edits before overlapping.
 
-### P0 — Baseline and measurement fixture
+### P0 — Baseline and fixture specification
 
 **Depends on:** none. **Owner:** integration/display.
 
 - Record current build sizes, runtime heap/PSRAM/largest blocks, audio service gaps,
   actual TFT clock and input behavior under normal radio use.
-- Create individually selectable 320 × 240 native render fixtures without
-  downsampling the entire contact sheet into one screenshot.
+- Inspect reference panels 1–3, 11 and 16; specify the native render fixture inputs
+  and evidence to be produced in P2. Inventory background, artwork and font assets.
+  Do not downsample the contact sheet and treat it as native UI validation.
 - Record device observations and agreed layout adaptations in
   `docs/ui/implementation-status.md` when implementation starts.
 
-**Done:** one radio page, one dense Hebrew list, and one modal inspected on the
-physical TFT; targets/contrast assessed; baseline measurements recorded. Firmware
-is restored or left in the explicitly requested test mode, with that state stated.
+**Done:** baseline build/device measurements and asset gaps recorded, reference
+panels inspected, fixture scope and physical checks specified. Actual concept
+fixture rendering/inspection belongs to P2, after its assets and text path exist;
+P0 must not depend on that future work. Missing device measurements remain open.
 
 ### P1 — Shared contracts and input/navigation foundation
 
@@ -608,6 +629,10 @@ is restored or left in the explicitly requested test mode, with that state state
   dim-wake consumption and input priority. Preserve calibration.
 - Add deterministic transition tests independent of TFT/network; use stub actions
   only inside a fixture, never fake live production success.
+- Provide Home, list and live-player navigation contracts required by the concept.
+  The current three-page controller is a partial starting point, not evidence of
+  complete product navigation. This package may use development render fixtures;
+  it does not choose or approve a replacement visual design.
 
 **Done:** every navigation/input transition has an unambiguous owner; no duplicate
 short+hold or release fall-through; encoder counts/direction preserved; overflow,
@@ -619,31 +644,51 @@ empty-list and end-of-list cases pass. Normal audio/web still function.
 layout/assets/text helpers; conversion scripts and asset manifest.
 
 - Prepare background/artwork/icons at native dimensions; establish palette/font
-  tokens; implement Hebrew/mixed-text adapter and UTF-8-safe limits.
+  tokens from the concept; implement Hebrew/mixed-text adapter and UTF-8-safe limits.
 - Implement Header, HomeTile, ListRow, Artwork, StatusBadge, TransportButton,
   Slider, VolumeOverlay, ConfirmDialog and Empty/Error content.
 - Add shared hit maps, dirty-region restoration and reusable stripe buffers.
+- Compose Home, Live Stations and Live Player fixtures plus Volume and Confirmation
+  from these reusable components. Use the production C++ render path with sample
+  state, including mixed Hebrew/Latin and missing/long content. Do this before
+  wiring all screen capabilities, so visual drift is corrected at the component level.
+- Record side-by-side evidence against the corresponding reference panels at native
+  320 × 240 and inspect on the physical TFT. Follow the visual contract's checklist;
+  background alone behind the old cream/olive composition does not pass.
 
 **Done:** native C++ fixtures match the reference's hierarchy and visual character;
 Hebrew/Latin fixtures pass; no clipped targets/text, background scars or allocation
 churn; repaint timings and memory are measured with audio active. Preview PNG
-success alone does not close this package.
+success alone does not close this package. Missing final background, deferred
+Hebrew/artwork/layout, or absent physical checks leave P2 incomplete; record partial
+progress explicitly. P7 is not a destination for these unfinished P2 requirements.
 
 ### P3 — Functional Home, radio list and live player
 
 **Depends on:** P1–P2. **Files:** controller/display, `media`, shared state and
 web playback/volume adapters.
 
-- Implement panels 1–3 and 11 with real clock, station and metadata snapshots.
+- Implement panels 1–3 and 11 with real clock, station and metadata snapshots,
+  using P2's visually validated compositions and the same render path. Include
+  real weather when available and an honest unavailable state otherwise.
+- Keep all four Home tiles in the reference composition. Until P4–P6 land, unfinished
+  destinations may give an explicit unavailable message; do not replace Home with
+  Listening or make unrelated destinations silently open Stations.
 - Separate focus/requested/playing state; wire stop/rejoin, valid-slot previous/next,
   mute and volume. Add player return from Home and artwork-to-options navigation.
 - Route web/device state changes through shared validation; implement connecting,
   failure and AP/empty states. Remove calls to old overlapping renderer/visualizers
   when the new UI is active; retain explicit legacy mode until migration is proven.
+- Repeat native visual comparisons with real data: long station/programme text,
+  focus movement, volume changes and connecting/error states must preserve the
+  approved composition. Keep status/controls dynamic rather than baking them into
+  the background image.
 
 **Done:** sustained audio while touching/turning/browsing; browsing does not retune;
 web changes appear on TFT; failed tuning never reports Playing; no persistence
-or route regressions. This is the first usable product slice.
+or route regressions. Home/list/player/volume satisfy the visual contract on the
+device, with evidence and deviations recorded. A functioning cream/olive player
+does not close P3. This is the first usable concept-based product slice.
 
 ### P4 — Favorites and station information/options
 
@@ -693,6 +738,9 @@ delays do not freeze controls/audio; old web settings remain effective.
 ### P7 — Polish and release integration
 
 **Depends on:** P3–P6. **Files:** focused fixes and test/status documentation.
+
+P2/P3 already deliver the concept's background, typography, artwork and compositions.
+This package refines them; it must not be the first implementation of that design.
 
 - Add modest level feedback and transitions only within measured headroom.
 - Confirm all sixteen panels are either working, explicitly capability-gated, or

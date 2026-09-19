@@ -14,6 +14,10 @@ bool isHttpUrl(const String& url) {
         (url.startsWith("http://") || url.startsWith("https://"));
 }
 
+bool isPlayableStation(const RadioStation& station) {
+    return !station.name.isEmpty() && isHttpUrl(station.url);
+}
+
 template <typename LineHandler>
 void readHttpLines(HTTPClient& http, LineHandler handleLine) {
     WiFiClient* stream = http.getStreamPtr();
@@ -60,6 +64,63 @@ void readHttpLines(HTTPClient& http, LineHandler handleLine) {
 }
 
 }  // namespace
+
+void setRadioVolumeIndex(int volumeIndex) {
+    mainVal = constrain(volumeIndex, 0, 21);
+    radioMuted = false;
+    audio.setVolume(volCurve[mainVal]);
+    lastVolChange = millis();
+    forceRedraw = true;
+}
+
+void toggleRadioMute() {
+    radioMuted = !radioMuted;
+    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    forceRedraw = true;
+}
+
+bool isStationMuted() {
+    return radioMuted;
+}
+
+int playableStationCount() {
+    int count = 0;
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        if (isPlayableStation(stations[slot])) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int playableStationSlotAt(int visibleIndex) {
+    if (visibleIndex < 0) {
+        return -1;
+    }
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        if (!isPlayableStation(stations[slot])) {
+            continue;
+        }
+        if (visibleIndex-- == 0) {
+            return slot;
+        }
+    }
+    return -1;
+}
+
+int selectedPlayableStationIndex() {
+    int visibleIndex = 0;
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        if (!isPlayableStation(stations[slot])) {
+            continue;
+        }
+        if (slot == currentStationIdx) {
+            return visibleIndex;
+        }
+        ++visibleIndex;
+    }
+    return -1;
+}
 
 void parseM3UPro(const String& playlistUrl) {
     m3uTempList.clear();
@@ -244,6 +305,8 @@ void playStation(int stationIndex) {
     }
 
     podcastMode = false;
+    radioMuted = false;
+    audio.setVolume(volCurve[mainVal]);
     podcastShowTft = "";
     songTitle = "";
     if (!isHttpUrl(stations[stationIndex].url)) {

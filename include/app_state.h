@@ -107,6 +107,7 @@ extern bool useCelsius;
 extern int currentStationIdx;
 extern int tempStationIdx;
 extern int mainVal;
+extern bool radioMuted;
 extern int podcastEpisodeCount;
 extern int loadedPodcastShow;
 extern bool podcastMode;

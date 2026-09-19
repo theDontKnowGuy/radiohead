@@ -446,9 +446,7 @@ void startWebServer() {
             sendBadRequest("Invalid volume");
             return;
         }
-        mainVal = volume;
-        audio.setVolume(volCurve[mainVal]);
-        lastVolChange = millis();
+        setRadioVolumeIndex(volume);
         saveSettings();
         redirectTo("/");
     });

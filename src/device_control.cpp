@@ -7,6 +7,17 @@
 #include "app_state.h"
 #include "settings.h"
 
+namespace {
+
+constexpr unsigned long kButtonDebounceMs = 25;
+constexpr unsigned long kButtonHoldMs = 700;
+constexpr unsigned long kTouchPollMs = 12;
+constexpr int16_t kTouchTapTolerance = 10;
+
+portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+
+}  // namespace
+
 void goToSleep() {
     saveSettings();
     audio.stopSong();
@@ -111,6 +122,88 @@ void initializeTouchCalibration() {
     delay(1500);
 }
 
+int consumeEncoderDetents() {
+    static int residualTicks = 0;
+    int ticks = 0;
+    portENTER_CRITICAL(&encoderMux);
+    ticks = encoderPos;
+    encoderPos = 0;
+    portEXIT_CRITICAL(&encoderMux);
+
+    residualTicks += ticks;
+    const int detents = residualTicks / 4;
+    residualTicks -= detents * 4;
+    return detents;
+}
+
+ButtonEvent pollEncoderButton(unsigned long now) {
+    static bool rawPressed = false;
+    static bool stablePressed = false;
+    static bool holdSent = false;
+    static unsigned long rawChangedAt = 0;
+    static unsigned long pressedAt = 0;
+
+    const bool rawNow = digitalRead(PIN_SW) == LOW;
+    if (rawNow != rawPressed) {
+        rawPressed = rawNow;
+        rawChangedAt = now;
+    }
+    if (rawPressed != stablePressed && now - rawChangedAt >= kButtonDebounceMs) {
+        stablePressed = rawPressed;
+        if (stablePressed) {
+            pressedAt = now;
+            holdSent = false;
+        } else if (!holdSent) {
+            return ButtonEvent::Push;
+        }
+    }
+    if (stablePressed && !holdSent && now - pressedAt >= kButtonHoldMs) {
+        holdSent = true;
+        return ButtonEvent::Hold;
+    }
+    return ButtonEvent::None;
+}
+
+bool pollTouchTap(int16_t& x, int16_t& y, unsigned long now) {
+    static bool touching = false;
+    static int16_t startX = 0;
+    static int16_t startY = 0;
+    static bool cancelled = false;
+    static unsigned long lastPoll = 0;
+    if (now - lastPoll < kTouchPollMs) {
+        return false;
+    }
+    lastPoll = now;
+
+    lgfx::touch_point_t rawPoint;
+    const bool touched = tft.getTouchRaw(&rawPoint);
+    if (touched) {
+        tft.convertRawXY(&rawPoint);
+        const int16_t pointX = static_cast<int16_t>(rawPoint.x);
+        const int16_t pointY = static_cast<int16_t>(rawPoint.y);
+        if (!touching) {
+            touching = true;
+            cancelled = pointX < 0 || pointX >= tft.width() || pointY < 0 || pointY >= tft.height();
+            startX = pointX;
+            startY = pointY;
+        } else if (abs(pointX - startX) > kTouchTapTolerance || abs(pointY - startY) > kTouchTapTolerance) {
+            cancelled = true;
+        }
+        return false;
+    }
+
+    if (!touching) {
+        return false;
+    }
+    touching = false;
+    if (cancelled) {
+        return false;
+    }
+    x = startX;
+    y = startY;
+    return true;
+}
+
 #if TOUCH_DEBUG_ENABLED
 void updateTouchTest(unsigned long now) {
     static bool wasTouched = false;
@@ -172,7 +265,9 @@ void taskControl(void* parameter) {
         oldAB |= (digitalRead(PIN_A) << 1) | digitalRead(PIN_B);
         const int8_t difference = transitions[oldAB & 0x0F];
         if (difference != 0) {
+            portENTER_CRITICAL(&encoderMux);
             encoderPos += difference;
+            portEXIT_CRITICAL(&encoderMux);
             lastInteraction = millis();
         }
         vTaskDelay(1);

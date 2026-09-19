@@ -11,6 +11,7 @@
 #include "display.h"
 #include "media.h"
 #include "settings.h"
+#include "ui_controller.h"
 #include "web_server.h"
 
 namespace {
@@ -109,151 +110,6 @@ void updatePowerState(unsigned long now) {
     }
 }
 
-void updateEncoder(bool switchPressed, unsigned long now) {
-    const int currentRotation = encoderPos / 4;
-    static int lastRotation = 0;
-    static bool volumeSavePending = false;
-    const int difference = currentRotation - lastRotation;
-    lastRotation = currentRotation;
-
-    if (difference != 0) {
-        if (!switchPressed) {
-            mainVal = constrain(mainVal + difference, 0, 21);
-            audio.setVolume(volCurve[mainVal]);
-            lastVolChange = now;
-            volumeSavePending = true;
-        } else {
-            tempStationIdx = (tempStationIdx + difference) % STATION_COUNT;
-            if (tempStationIdx < 0) {
-                tempStationIdx += STATION_COUNT;
-            }
-        }
-        lastInteraction = now;
-        forceRedraw = true;
-    }
-
-    static bool previousSwitchState = false;
-    if (!switchPressed && previousSwitchState) {
-        if (!isAP && tempStationIdx != currentStationIdx) {
-            currentStationIdx = tempStationIdx;
-            playStation(currentStationIdx);
-            saveSettings();
-            volumeSavePending = false;
-        }
-        forceRedraw = true;
-    }
-    previousSwitchState = switchPressed;
-
-    if (volumeSavePending && now - lastVolChange >= 1000) {
-        saveSettings();
-        volumeSavePending = false;
-    }
-}
-
-void updateVisualizers() {
-    if (isAP || !showSpectrum) {
-        return;
-    }
-
-    tft.startWrite();
-    if (visualMode == 1 || visualMode == 3) {
-        drawSpectrum();
-    }
-    if (visualMode == 2 || visualMode == 3) {
-        drawAnalogVU();
-    }
-    tft.endWrite();
-}
-
-void updateDisplay(bool switchPressed, const char* currentTime, unsigned long now) {
-    static uint32_t lastUiUpdate = 0;
-    if (now - lastUiUpdate <= 200 && !forceRedraw) {
-        return;
-    }
-    lastUiUpdate = now;
-
-    tft.startWrite();
-    const int displayVolume = isAlarming ? alarmVolume : mainVal;
-    const bool headerChanged =
-        displayVolume != lastMain || switchPressed != lastDrawnMode ||
-        tempStationIdx != lastDrawnStationIdx || String(currentTime) != lastDrawnTime ||
-        forceRedraw || now - lastVolChange < 3200;
-
-    if (headerChanged) {
-        const uint16_t headerBackground = switchPressed
-            ? currentSkin.selMode
-            : isAlarming ? currentSkin.almWarn : isAP ? 0x001F : currentSkin.bgTop;
-        tft.fillRect(0, 0, 320, 35, headerBackground);
-        tft.setFont(&fonts::Font0);
-        tft.setTextColor(currentSkin.hInfo);
-        tft.setTextDatum(TL_DATUM);
-        updateWeatherUI();
-        tft.drawString(
-            ("V:" + String(displayVolume < 10 ? "0" : "") + String(displayVolume) +
-             " | S:" + String(tempStationIdx + 1)).c_str(),
-            8,
-            12);
-
-        if (alarmActive) {
-            tft.setTextColor(currentSkin.almWarn);
-            char alarmText[15];
-            snprintf(alarmText, sizeof(alarmText), "Alarm %02d:%02d", alarmH, alarmM);
-            tft.drawString(alarmText, 200, 12);
-        }
-
-        drawWifiSignal(285, 10);
-        tft.setTextDatum(TC_DATUM);
-        tft.setFont(&fonts::FreeSansBold12pt7b);
-        tft.setTextColor(currentSkin.clk);
-        tft.drawCenterString(isAP ? "SETUP MODE" : currentTime, 160, 8);
-
-        if (!isAP && (isAlarming || now - lastVolChange < 3000)) {
-            const int volumeWidth = displayVolume * 320 / 21;
-            tft.fillRect(0, 33, volumeWidth, 2, currentSkin.volBar);
-            tft.fillRect(volumeWidth, 33, 320 - volumeWidth, 2, currentSkin.bgBottom);
-        }
-
-        lastMain = displayVolume;
-        lastDrawnMode = switchPressed;
-        lastDrawnStationIdx = tempStationIdx;
-        lastDrawnTime = currentTime;
-    }
-
-    String stationName;
-    if (switchPressed) {
-        stationName = stations[tempStationIdx].name;
-    } else if (podcastMode) {
-        stationName = podcastShowTft;
-    } else {
-        stationName = stations[currentStationIdx].name;
-    }
-
-    if (stationName != lastDrawnStationName || songTitle != lastDrawnSong || forceRedraw) {
-        tft.fillRect(0, 36, 320, 105, currentSkin.bgBottom);
-        if (isAP) {
-            tft.setTextColor(currentSkin.textAccent);
-            tft.drawCenterString("Radio_Setup / 192.168.4.1", 160, 80, &fonts::FreeSans9pt7b);
-        } else {
-            tft.setTextColor(currentSkin.textMain);
-            tft.drawCenterString(stationName.c_str(), 160, 60, &fonts::FreeSansBold12pt7b);
-            tft.setTextColor(currentSkin.textAccent);
-            tft.drawCenterString(songTitle.c_str(), 160, 115, &fonts::FreeSans9pt7b);
-        }
-        lastDrawnStationName = stationName;
-        lastDrawnSong = songTitle;
-    }
-
-    tft.setTextColor(currentSkin.textAccent);
-    tft.setTextDatum(BR_DATUM);
-    tft.drawString(
-        isAP ? "192.168.4.1" : WiFi.localIP().toString().c_str(),
-        315,
-        235,
-        &fonts::Font0);
-    forceRedraw = false;
-    tft.endWrite();
-}
-
 }  // namespace
 
 void setup() {
@@ -279,21 +135,31 @@ void setup() {
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);
+    if (playableStationCount() > 0 && selectedPlayableStationIndex() < 0) {
+        currentStationIdx = playableStationSlotAt(0);
+        tempStationIdx = currentStationIdx;
+    }
     if (!isAP) {
         playStation(currentStationIdx);
     }
 
     xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0);
     lastInteraction = millis();
-    tft.fillScreen(currentSkin.bgBottom);
+    uiControllerBegin();
+    forceRedraw = true;
 }
 
 void loop() {
     audio.loop();
     server.handleClient();
+    updateWeatherData();
 
-    const bool switchPressed = digitalRead(PIN_SW) == LOW;
     const unsigned long now = millis();
+    const bool displayWasDimmed = isDimmed;
+    const ButtonEvent buttonEvent = pollEncoderButton(now);
+    int16_t touchX = 0;
+    int16_t touchY = 0;
+    const bool touchTap = pollTouchTap(touchX, touchY, now);
     struct tm timeInfo = {};
     const time_t wallClock = time(nullptr);
     const bool timeValid =
@@ -305,12 +171,81 @@ void loop() {
         strcpy(currentTime, "00:00");
     }
 
-    updateAlarm(timeInfo, timeValid, switchPressed, now);
+    const bool alarmWasActive = isAlarming;
+    updateAlarm(timeInfo, timeValid, buttonEvent == ButtonEvent::Push, now);
+    uiControllerSetAlarmActive(isAlarming);
+
+    const int detents = consumeEncoderDetents();
+    if (!alarmWasActive) {
+        uiControllerTurn(detents, now, displayWasDimmed);
+        if (buttonEvent == ButtonEvent::Push) {
+            uiControllerPush(now, displayWasDimmed);
+        } else if (buttonEvent == ButtonEvent::Hold) {
+            uiControllerHold(now, displayWasDimmed);
+        }
+        if (touchTap) {
+            const UiRenderState state = uiControllerRenderState();
+            uiControllerTap(uiHitTest(state, touchX, touchY), now, displayWasDimmed);
+        }
+    }
+    if (buttonEvent != ButtonEvent::None || touchTap) {
+        lastInteraction = now;
+    }
+
+    static bool volumeSavePending = false;
+    UiCommand command;
+    while (uiControllerTakeCommand(command)) {
+        switch (command.kind) {
+        case UiCommandKind::ChangeVolume:
+            setRadioVolumeIndex(mainVal + command.value);
+            volumeSavePending = true;
+            break;
+        case UiCommandKind::ToggleMute:
+            toggleRadioMute();
+            break;
+        case UiCommandKind::SelectStation:
+            if (!isAP && command.value >= 0 && command.value < STATION_COUNT) {
+                currentStationIdx = command.value;
+                tempStationIdx = currentStationIdx;
+                playStation(currentStationIdx);
+                saveSettings();
+            }
+            break;
+        case UiCommandKind::EnterStandby:
+            goToSleep();
+            break;
+        case UiCommandKind::None:
+            break;
+        }
+    }
+    if (volumeSavePending && now - lastVolChange >= 1000) {
+        saveSettings();
+        volumeSavePending = false;
+    }
+
     updatePowerState(now);
-    updateEncoder(switchPressed, now);
-    updateVisualizers();
-    updateDisplay(switchPressed, currentTime, now);
-#if TOUCH_DEBUG_ENABLED
-    updateTouchTest(now);
-#endif
+    uiControllerTick(now);
+    static char lastRenderedTime[10] = "";
+    static bool lastRenderedTimeValid = false;
+    const UiRenderState state = uiControllerRenderState();
+    if (state.dirty || forceRedraw) {
+        renderRadioUi(state, currentTime, timeValid);
+        forceRedraw = false;
+        uiControllerMarkRendered();
+        strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
+        lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
+        lastRenderedTimeValid = timeValid;
+    } else if (lastRenderedTimeValid != timeValid || strcmp(lastRenderedTime, currentTime) != 0) {
+        // Home's large clock sits over the photographic background. Rebuild that
+        // composition once per minute rather than painting a flat rectangle over
+        // it; other pages retain the small header-only refresh.
+        if (state.page == UiPage::Home) {
+            renderRadioUi(state, currentTime, timeValid);
+        } else {
+            renderRadioUiClock(currentTime, timeValid);
+        }
+        strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
+        lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
+        lastRenderedTimeValid = timeValid;
+    }
 }

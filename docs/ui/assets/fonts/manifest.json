@@ -1,0 +1,84 @@
+{
+  "family": "Roboto 2.001101 (2014)",
+  "pillow": "12.3.0",
+  "freetype": "2.14.3",
+  "fonts": {
+    "small": {
+      "source": "Roboto-Medium.otf",
+      "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 11,
+      "weight": "Medium",
+      "space_width": 3,
+      "bytes": 9240,
+      "sha256": "9b6f5fa145d09b39f946d27a2d9aa4e5ceae505a7b2595468173451de9edb0c4"
+    },
+    "body": {
+      "source": "Roboto-Regular.otf",
+      "source_sha256": "c9556b475c2f0f0f566216b2158c191218206c016c522ef0537e46e03bca232f",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 16,
+      "weight": "Regular",
+      "space_width": 4,
+      "bytes": 15511,
+      "sha256": "12ea6201502c316479c140bd033147109b55696799a93c29cc8b0af4113dcbfc"
+    },
+    "title": {
+      "source": "Roboto-Medium.otf",
+      "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 22,
+      "weight": "Medium",
+      "space_width": 5,
+      "bytes": 25852,
+      "sha256": "2d41befce1fe0bb41d970223dd9fc068fb5df74405672e8fa798f9ddf339682b"
+    },
+    "temperature": {
+      "source": "Roboto-Regular.otf",
+      "source_sha256": "c9556b475c2f0f0f566216b2158c191218206c016c522ef0537e46e03bca232f",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 32,
+      "weight": "Regular",
+      "space_width": 8,
+      "bytes": 5247,
+      "sha256": "d94ba544ba2e62ea29860388d432db52eefdf718cfeea293b128aca52677efd0"
+    },
+    "clock": {
+      "source": "Roboto-Bold.otf",
+      "source_sha256": "60ea65e6c33297b61348629096dd6648e5912c04b52561a51ab73fce268decfc",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 34,
+      "weight": "Bold",
+      "space_width": 8,
+      "bytes": 5946,
+      "sha256": "c6214b7553da20a6053084dd91185ec34040b2b9bee0646ee8c265f8245f7f9f"
+    },
+    "label": {
+      "source": "Roboto-Medium.otf",
+      "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 13,
+      "weight": "Medium",
+      "space_width": 3,
+      "bytes": 11531,
+      "sha256": "4a39f25c6f14b13ab0874ea274ee1e96c05058adcf9397629e46e7878e972d2f"
+    },
+    "caption": {
+      "source": "Roboto-Regular.otf",
+      "source_sha256": "c9556b475c2f0f0f566216b2158c191218206c016c522ef0537e46e03bca232f",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 13,
+      "weight": "Regular",
+      "space_width": 3,
+      "bytes": 11455,
+      "sha256": "98040512443f1f4d168e43b1b85eea24b43f22f1c1d7bff139bf17fd138558ed"
+    }
+  }
+}

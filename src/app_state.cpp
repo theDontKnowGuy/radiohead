@@ -88,6 +88,7 @@ bool useCelsius = true;
 int currentStationIdx = 0;
 int tempStationIdx = 0;
 int mainVal = 5;
+bool radioMuted = false;
 int podcastEpisodeCount = 0;
 int loadedPodcastShow = -1;
 bool podcastMode = false;

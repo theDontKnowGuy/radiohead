@@ -1,10 +1,12 @@
-# Radiohead touch UI proposal
+# Superseded: earlier Radiohead touch UI proposal
 
-Status: design proposal, not implemented firmware. September 2026.
+Status: historical only. Do not implement this visual direction or use its
+`radio-ui.html` companion as the current product specification.
 
 This is the earlier paper/olive direction. For the later sixteen-screen
-`uiconcept.png` reference, use [the agent implementation guide](agent-implementation-guide.md).
-Its visual and screen requirements supersede conflicting choices in this proposal.
+`uiconcept.png` reference, read the [visual contract](visual-contract.md) and
+[agent implementation guide](agent-implementation-guide.md). They supersede this
+proposal. Retain interaction ideas only where they comply with those documents.
 
 ## Direction
 

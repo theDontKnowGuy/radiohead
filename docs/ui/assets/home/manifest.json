@@ -1,0 +1,141 @@
+{
+  "pillow": "12.3.0",
+  "background_source": "docs/bg1.png",
+  "source_sha256": "8702f2907f2d0bfd31438a38dc605a3ffbd1b22cf5501fcf5263c0a7b6952cd8",
+  "recipe": "320x240 Lanczos, saturation 0.84, navy RGB(8,17,37) veil smoothly 23/16/20%; original icons at 4x",
+  "assets": {
+    "background": {
+      "size": [
+        320,
+        240
+      ],
+      "sha256": "38d1bc99e9297e218886a67bb9539c1d3025f86a9942ac748a923d8e39eb7829"
+    },
+    "focus": {
+      "size": [
+        74,
+        74
+      ],
+      "sha256": "9dfed6a2f910ffd3ad5e0cf7a99b66f3ee2bfc4a75c3af5b7e6b22591de8c265"
+    },
+    "icon_favorites": {
+      "size": [
+        36,
+        36
+      ],
+      "sha256": "f5d2fc0d2a1371745f60f56e9dd524ec4fcedf66f918f0469d2872582d586ca3"
+    },
+    "icon_radio": {
+      "size": [
+        36,
+        36
+      ],
+      "sha256": "7f31e93354fd3b75165d6ad663af5d6023d3593620592493be93cfee51b4883c"
+    },
+    "icon_settings": {
+      "size": [
+        36,
+        36
+      ],
+      "sha256": "c673b0caeccd6cd5ca8377459c9fa8e6aad705f337921caf55a98da1aef30423"
+    },
+    "icon_shows": {
+      "size": [
+        36,
+        36
+      ],
+      "sha256": "808093566adf80ca4a4bdb8715e61ccc6182e15ec24763e7756a2ff8e3c9213e"
+    },
+    "tile_favorites": {
+      "size": [
+        70,
+        70
+      ],
+      "sha256": "31251c4f7d3a11f5c2231640918804d4279860e30bd1895df33d0564d687ccbc"
+    },
+    "tile_radio": {
+      "size": [
+        70,
+        70
+      ],
+      "sha256": "26e933720d9c1a63c26ebaee41fcbaa2c2d1cf92b4f3fe1d0589e9b0e9f06a2b"
+    },
+    "tile_settings": {
+      "size": [
+        70,
+        70
+      ],
+      "sha256": "d3339addd0af2ccc8975d04e4c5e159cc7fe80ea0116b5a85bcaa6edae4b929e"
+    },
+    "tile_shows": {
+      "size": [
+        70,
+        70
+      ],
+      "sha256": "1845c794236a59e94b56f4659b9cadaea4e5c9334370b5718b141edb91b9aa2f"
+    },
+    "weather_clear": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "0fcd6a9a0e1c6142ea85287c7be67938c5f1cf79bf7e018a631fbe8ae3bbedb5"
+    },
+    "weather_cloudy": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "714f3939f3d2ec60ecb1d80a2199d59ce4031b808ea420a9fc5ac2427391f70d"
+    },
+    "weather_mist": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "15a3f2d620d4f248c307c4f11e2de235d6f497f5b007ceed54fe3dafc5a8d7cf"
+    },
+    "weather_partly": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "dfb8054af5ee8c0709e899e43d49e2b5719dbae5c096432599acd67b4b27becc"
+    },
+    "weather_rain": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "ee81973bf0e1d57d3109107c7080fde97b7253aa01212e9eb0134f59f3c71a05"
+    },
+    "weather_snow": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "2af2fd2aba300fbca1c640f79d5bff7faa09d282e7f7c93ec716e31cf684914f"
+    },
+    "weather_storm": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "3dd312c958b9bce0150994f0c5dc03e6274de947758ef01031b2c52097b08fb0"
+    },
+    "weather_unknown": {
+      "size": [
+        64,
+        56
+      ],
+      "sha256": "dcffbbb84d30cc297f8971be6ee859b062d19686d72e37e439c0f38c27718f93"
+    },
+    "wifi": {
+      "size": [
+        24,
+        19
+      ],
+      "sha256": "ba9dc93b2ca1a9f536ceb48190c4eb4fabbfb8643df7b2fafa1cff205d872df2"
+    }
+  }
+}
