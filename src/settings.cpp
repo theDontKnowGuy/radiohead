@@ -7,6 +7,8 @@
 
 namespace {
 
+constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
+
 bool isHexColor(const String& value) {
     if (value.length() != 7 || value[0] != '#') {
         return false;
@@ -31,7 +33,58 @@ void truncate(String& value, size_t maximumLength) {
     }
 }
 
+bool isValidTouchCalibration(const TouchCalibration& calibration) {
+    uint16_t minimumX = 4095;
+    uint16_t maximumX = 0;
+    uint16_t minimumY = 4095;
+    uint16_t maximumY = 0;
+
+    for (size_t i = 0; i < calibration.size(); i += 2) {
+        const uint16_t x = calibration[i];
+        const uint16_t y = calibration[i + 1];
+        if (x <= 128 || x > 3968 || y <= 128 || y > 3968) {
+            return false;
+        }
+        minimumX = min(minimumX, x);
+        maximumX = max(maximumX, x);
+        minimumY = min(minimumY, y);
+        maximumY = max(maximumY, y);
+    }
+
+    return maximumX - minimumX >= 1000 && maximumY - minimumY >= 1000;
+}
+
 }  // namespace
+
+bool loadTouchCalibration(TouchCalibration& calibration) {
+    if (!pref.begin("touch", true)) {
+        return false;
+    }
+
+    const bool hasCurrentVersion =
+        pref.getUChar("version", 0) == TOUCH_CALIBRATION_VERSION;
+    const bool hasExpectedSize = pref.getBytesLength("data") == sizeof(calibration);
+    const size_t bytesRead = hasCurrentVersion && hasExpectedSize
+        ? pref.getBytes("data", calibration.data(), sizeof(calibration))
+        : 0;
+    pref.end();
+
+    return bytesRead == sizeof(calibration) && isValidTouchCalibration(calibration);
+}
+
+bool saveTouchCalibration(const TouchCalibration& calibration) {
+    if (!isValidTouchCalibration(calibration) || !pref.begin("touch", false)) {
+        return false;
+    }
+
+    pref.putUChar("version", 0);
+    const bool dataSaved =
+        pref.putBytes("data", calibration.data(), sizeof(calibration)) == sizeof(calibration);
+    const bool versionSaved =
+        dataSaved && pref.putUChar("version", TOUCH_CALIBRATION_VERSION) == sizeof(uint8_t);
+    pref.end();
+    return dataSaved && versionSaved;
+}
 
 void saveSettings() {
     pref.begin("radio", false);

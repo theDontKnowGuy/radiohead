@@ -22,3 +22,28 @@ separate from the application modules.
 ```sh
 pio run -e esp32s3
 ```
+
+## XPT2046 touch test wiring
+
+The current touch test assumes the ILI9341 module has an XPT2046 resistive-touch
+controller with pins labelled `T_CLK`, `T_CS`, `T_DIN`, and `T_DO`. Connect it to the
+ESP32-S3 as follows:
+
+| Touch pin | ESP32-S3 GPIO | Notes |
+| --- | ---: | --- |
+| `T_CLK` | 12 | Shared with TFT SCLK |
+| `T_DIN` | 11 | Shared with TFT MOSI |
+| `T_DO` | 13 | Touch MISO |
+| `T_CS` | 14 | Touch chip select |
+| `T_IRQ` | Not connected | Polling is used for the first test |
+| `VCC` | 3.3 V | Do not connect directly to 5 V |
+| `GND` | GND | Common ground |
+
+On the first boot, the firmware starts a four-point calibration. Tap and release each
+corner marker. The raw coordinates are printed at 115200 baud and saved in NVS, then
+loaded automatically on later boots. Hold the encoder switch while booting to run the
+calibration again after replacing or rotating the screen.
+
+During normal operation, touching the screen prints raw coordinates, mapped screen
+coordinates, and pressure, and draws a cyan/white marker at the mapped location. This
+provides a quick test of both the controller connection and the saved calibration.

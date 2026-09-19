@@ -257,7 +257,7 @@ void updateDisplay(bool switchPressed, const char* currentTime, unsigned long no
 }  // namespace
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(115200);
     delay(2000);
 
     rtc_gpio_hold_dis(static_cast<gpio_num_t>(TFT_BLK));
@@ -271,6 +271,7 @@ void setup() {
     tft.init();
     tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
+    initializeTouchCalibration();
     loadSettings();
     connectToNetwork();
     startWebServer();
@@ -309,4 +310,5 @@ void loop() {
     updateEncoder(switchPressed, now);
     updateVisualizers();
     updateDisplay(switchPressed, currentTime, now);
+    updateTouchTest(now);
 }

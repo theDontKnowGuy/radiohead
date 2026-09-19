@@ -63,6 +63,97 @@ void factoryReset() {
     ESP.restart();
 }
 
+void initializeTouchCalibration() {
+    pinMode(PIN_SW, INPUT_PULLUP);
+
+    TouchCalibration calibration = {};
+    const bool recalibrationRequested = digitalRead(PIN_SW) == LOW;
+    if (!recalibrationRequested && loadTouchCalibration(calibration)) {
+        tft.setTouchCalibrate(calibration.data());
+        Serial.println("Loaded saved touch calibration");
+        return;
+    }
+
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawCenterString("TOUCH CALIBRATION", tft.width() / 2, 72, &fonts::FreeSansBold12pt7b);
+    tft.drawCenterString("Tap each corner marker", tft.width() / 2, 112, &fonts::FreeSans9pt7b);
+    tft.drawCenterString("then release", tft.width() / 2, 140, &fonts::FreeSans9pt7b);
+    delay(1500);
+    tft.fillScreen(TFT_BLACK);
+
+    tft.calibrateTouch(calibration.data(), TFT_WHITE, TFT_BLACK, 16);
+
+    Serial.println("Touch calibration coordinates:");
+    for (size_t i = 0; i < calibration.size(); i += 2) {
+        Serial.printf(
+            "  point %u: raw=(%u,%u)\n",
+            static_cast<unsigned int>(i / 2 + 1),
+            static_cast<unsigned int>(calibration[i]),
+            static_cast<unsigned int>(calibration[i + 1]));
+    }
+
+    const bool saved = saveTouchCalibration(calibration);
+    tft.fillScreen(saved ? TFT_DARKGREEN : TFT_RED);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawCenterString(
+        saved ? "CALIBRATION SAVED" : "CALIBRATION SAVE FAILED",
+        tft.width() / 2,
+        95,
+        &fonts::FreeSansBold12pt7b);
+    tft.drawCenterString(
+        "Touch the screen to test",
+        tft.width() / 2,
+        135,
+        &fonts::FreeSans9pt7b);
+    delay(1500);
+}
+
+void updateTouchTest(unsigned long now) {
+    static bool wasTouched = false;
+    static unsigned long lastPoll = 0;
+    static unsigned long lastReport = 0;
+
+    if (now - lastPoll < 10) {
+        return;
+    }
+    lastPoll = now;
+
+    lgfx::touch_point_t rawPoint;
+    if (!tft.getTouchRaw(&rawPoint)) {
+        if (wasTouched) {
+            Serial.println("Touch released");
+            forceRedraw = true;
+        }
+        wasTouched = false;
+        return;
+    }
+
+    lgfx::touch_point_t screenPoint = rawPoint;
+    tft.convertRawXY(&screenPoint);
+    lastInteraction = now;
+
+    if (!wasTouched || now - lastReport >= 100) {
+        Serial.printf(
+            "Touch raw=(%ld,%ld) screen=(%ld,%ld) pressure=%u\n",
+            static_cast<long>(rawPoint.x),
+            static_cast<long>(rawPoint.y),
+            static_cast<long>(screenPoint.x),
+            static_cast<long>(screenPoint.y),
+            static_cast<unsigned int>(rawPoint.size));
+        lastReport = now;
+    }
+
+    if (screenPoint.x >= 0 && screenPoint.x < tft.width() &&
+        screenPoint.y >= 0 && screenPoint.y < tft.height()) {
+        tft.fillCircle(screenPoint.x, screenPoint.y, 4, TFT_CYAN);
+        tft.drawCircle(screenPoint.x, screenPoint.y, 8, TFT_WHITE);
+    }
+    wasTouched = true;
+}
+
 void taskControl(void* parameter) {
     (void)parameter;
     pinMode(PIN_A, INPUT_PULLUP);

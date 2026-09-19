@@ -39,19 +39,38 @@ const uint8_t volCurve[22] = {
 LGFX_Config::LGFX_Config() {
     auto busConfig = bus_.config();
     busConfig.spi_host = SPI2_HOST;
-    busConfig.pin_sclk = 12;
-    busConfig.pin_mosi = 11;
-    busConfig.pin_dc = 9;
+    busConfig.pin_sclk = TFT_SCLK;
+    busConfig.pin_mosi = TFT_MOSI;
+    busConfig.pin_miso = TFT_MISO;
+    busConfig.pin_dc = TFT_DC;
     bus_.config(busConfig);
     panel_.setBus(&bus_);
 
     auto panelConfig = panel_.config();
-    panelConfig.pin_cs = 8;
-    panelConfig.pin_rst = 10;
+    panelConfig.pin_cs = TFT_CS;
+    panelConfig.pin_rst = TFT_RST;
     panelConfig.panel_width = 240;
     panelConfig.panel_height = 320;
     panelConfig.bus_shared = true;
     panel_.config(panelConfig);
+
+    auto touchConfig = touch_.config();
+    touchConfig.spi_host = SPI2_HOST;
+    touchConfig.pin_sclk = TFT_SCLK;
+    touchConfig.pin_mosi = TFT_MOSI;
+    touchConfig.pin_miso = TFT_MISO;
+    touchConfig.pin_cs = TOUCH_CS;
+    touchConfig.pin_int = -1;
+    touchConfig.freq = 1000000;
+    touchConfig.x_min = 300;
+    touchConfig.x_max = 3900;
+    touchConfig.y_min = 400;
+    touchConfig.y_max = 3900;
+    touchConfig.bus_shared = true;
+    touchConfig.offset_rotation = 0;
+    touch_.config(touchConfig);
+    panel_.setTouch(&touch_);
+
     setPanel(&panel_);
 }
 

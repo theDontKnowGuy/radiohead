@@ -15,7 +15,14 @@ constexpr int PIN_A = 4;
 constexpr int PIN_B = 5;
 constexpr int PIN_K0 = 6;
 constexpr int PIN_SW = 7;
-constexpr int TFT_BLK = 1;
+constexpr int TFT_BLK = 3;
+constexpr int TFT_SCLK = 12;
+constexpr int TFT_MOSI = 11;
+constexpr int TFT_MISO = 13;
+constexpr int TFT_DC = 9;
+constexpr int TFT_CS = 8;
+constexpr int TFT_RST = 10;
+constexpr int TOUCH_CS = 14;
 
 constexpr int STATION_COUNT = 10;
 constexpr int PODCAST_SHOW_COUNT = 10;
@@ -75,6 +82,7 @@ public:
 private:
     lgfx::Panel_ILI9341 panel_;
     lgfx::Bus_SPI bus_;
+    lgfx::Touch_XPT2046 touch_;
 };
 
 extern const char* ntpServer;
