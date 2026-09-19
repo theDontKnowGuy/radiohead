@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <cstring>
 
 #include "app_state.h"
 
@@ -16,6 +17,27 @@ bool isHttpUrl(const String& url) {
 
 bool isPlayableStation(const RadioStation& station) {
     return !station.name.isEmpty() && isHttpUrl(station.url);
+}
+
+constexpr unsigned long kConnectionTimeoutMs = 12000;
+PlaybackState playbackState = PlaybackState::Stopped;
+int requestedStation = -1;
+int playingStation = -1;
+unsigned long requestStartedAt = 0;
+
+void updatePlaybackFromAudioInfo(Audio::msg_t message) {
+    // `stream ready` is emitted by the installed audio library after a decoder
+    // is initialized. A successful TCP connect alone is not shown as Playing.
+    if (message.e == Audio::evt_info && message.msg != nullptr &&
+        strcmp(message.msg, "stream ready") == 0 && requestedStation >= 0) {
+        playbackState = PlaybackState::Playing;
+        playingStation = requestedStation;
+        forceRedraw = true;
+    } else if (message.e == Audio::evt_eof && playbackState != PlaybackState::Stopped) {
+        playbackState = PlaybackState::Failed;
+        playingStation = -1;
+        forceRedraw = true;
+    }
 }
 
 template <typename LineHandler>
@@ -64,6 +86,21 @@ void readHttpLines(HTTPClient& http, LineHandler handleLine) {
 }
 
 }  // namespace
+
+void mediaBegin() {
+    Audio::audio_info_callback = updatePlaybackFromAudioInfo;
+}
+
+void mediaTick(unsigned long now) {
+    if (playbackState == PlaybackState::Connecting && now - requestStartedAt >= kConnectionTimeoutMs) {
+        playbackState = PlaybackState::Failed;
+        forceRedraw = true;
+    } else if (playbackState == PlaybackState::Playing && !audio.isRunning()) {
+        playbackState = PlaybackState::Failed;
+        playingStation = -1;
+        forceRedraw = true;
+    }
+}
 
 void setRadioVolumeIndex(int volumeIndex) {
     mainVal = constrain(volumeIndex, 0, 21);
@@ -120,6 +157,24 @@ int selectedPlayableStationIndex() {
         ++visibleIndex;
     }
     return -1;
+}
+
+int adjacentPlayableStationSlot(int stationIndex, int direction) {
+    const int count = playableStationCount();
+    if (count == 0 || direction == 0) {
+        return -1;
+    }
+    int visibleIndex = -1;
+    for (int index = 0; index < count; ++index) {
+        if (playableStationSlotAt(index) == stationIndex) {
+            visibleIndex = index;
+            break;
+        }
+    }
+    if (visibleIndex < 0) {
+        return playableStationSlotAt(direction > 0 ? 0 : count - 1);
+    }
+    return playableStationSlotAt((visibleIndex + (direction > 0 ? 1 : count - 1)) % count);
 }
 
 void parseM3UPro(const String& playlistUrl) {
@@ -301,6 +356,10 @@ void playPodcastEpisode(int showIndex, int episodeIndex) {
 
 void playStation(int stationIndex) {
     if (isAP || stationIndex < 0 || stationIndex >= STATION_COUNT) {
+        playbackState = PlaybackState::Failed;
+        requestedStation = -1;
+        playingStation = -1;
+        forceRedraw = true;
         return;
     }
 
@@ -311,14 +370,42 @@ void playStation(int stationIndex) {
     songTitle = "";
     if (!isHttpUrl(stations[stationIndex].url)) {
         audio.stopSong();
+        playbackState = PlaybackState::Failed;
+        requestedStation = stationIndex;
+        playingStation = -1;
         forceRedraw = true;
         return;
     }
+    currentStationIdx = stationIndex;
+    tempStationIdx = stationIndex;
+    requestedStation = stationIndex;
+    playingStation = -1;
+    playbackState = PlaybackState::Connecting;
+    requestStartedAt = millis();
+    forceRedraw = true;
     const String targetUrl = parseM3U(stations[stationIndex].url);
     if (isHttpUrl(targetUrl)) {
-        audio.connecttohost(targetUrl.c_str());
+        if (!audio.connecttohost(targetUrl.c_str())) {
+            playbackState = PlaybackState::Failed;
+            forceRedraw = true;
+        }
+    } else {
+        playbackState = PlaybackState::Failed;
+        forceRedraw = true;
     }
 }
+
+void stopStationPlayback() {
+    audio.stopSong();
+    playbackState = PlaybackState::Stopped;
+    requestedStation = -1;
+    playingStation = -1;
+    forceRedraw = true;
+}
+
+PlaybackState mediaPlaybackState() { return playbackState; }
+int mediaRequestedStation() { return requestedStation; }
+int mediaPlayingStation() { return playingStation; }
 
 void audio_showstreamtitle(const char* info) {
     if (podcastMode || info == nullptr) {
@@ -332,5 +419,6 @@ void audio_showstreamtitle(const char* info) {
     }
     if (!title.isEmpty()) {
         songTitle = title;
+        forceRedraw = true;
     }
 }

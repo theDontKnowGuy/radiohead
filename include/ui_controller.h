@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "media.h"
 
 // The controller deals only in semantic inputs and commands.  It deliberately
 // does not own the TFT, Audio, Preferences, or web server.
@@ -21,7 +22,12 @@ enum class UiTarget : uint8_t {
     HomeNowPlaying,
     ListeningStation,
     ListeningMute,
-    ListeningMenu,
+    ListeningVolume,
+    PlayerBack,
+    PlayerOptions,
+    PlayerPrevious,
+    PlayerStopOrPlay,
+    PlayerNext,
     ListBack,
     ListPrevious,
     ListNext,
@@ -35,8 +41,13 @@ enum class UiTarget : uint8_t {
 enum class UiCommandKind : uint8_t {
     None,
     ChangeVolume,
+    SetVolume,
     ToggleMute,
     SelectStation,
+    PreviousStation,
+    NextStation,
+    StopPlayback,
+    RejoinStation,
     EnterStandby,
 };
 
@@ -53,6 +64,12 @@ struct UiRenderState {
     bool confirmAcceptFocused = false;
     bool volumeOverlay = false;
     uint8_t homeFocus = 0;
+    PlaybackState playback = PlaybackState::Stopped;
+    int requestedStation = -1;
+    int playingStation = -1;
+    uint8_t unavailableDestination = 0;
+    bool playerControlFocus = false;
+    uint8_t playerFocus = 3;
     bool dirty = true;
 };
 
@@ -60,7 +77,7 @@ void uiControllerBegin();
 void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed);
 void uiControllerPush(unsigned long now, bool displayWasDimmed);
 void uiControllerHold(unsigned long now, bool displayWasDimmed);
-void uiControllerTap(UiTarget target, unsigned long now, bool displayWasDimmed);
+void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed);
 void uiControllerSetAlarmActive(bool active);
 void uiControllerTick(unsigned long now);
 bool uiControllerTakeCommand(UiCommand& command);

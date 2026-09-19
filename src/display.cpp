@@ -395,6 +395,7 @@ constexpr int16_t kHomePlayerX = 198;
 constexpr int16_t kHomePlayerY = 36;
 constexpr int16_t kHomePlayerWidth = 110;
 constexpr int16_t kHomePlayerHeight = 70;
+constexpr int kStationSlotCount = 10;
 
 const lgfx::IFont* homeLabelFont() {
     return uiFrameReady ? display_fonts::label() : &fonts::Font0;
@@ -690,6 +691,36 @@ void drawSlider(int16_t y) {
     text(isStationMuted() ? "Muted" : String(mainVal) + " / 21", 270, y - 4, uiFont(&fonts::Font0), kWhite, 46);
 }
 
+const char* playbackLabel(PlaybackState state) {
+    switch (state) {
+    case PlaybackState::Connecting: return "CONNECTING";
+    case PlaybackState::Playing: return "LIVE";
+    case PlaybackState::Failed: return "UNAVAILABLE";
+    case PlaybackState::Stopped: return "STOPPED";
+    }
+    return "";
+}
+
+uint16_t playbackColor(PlaybackState state) {
+    switch (state) {
+    case PlaybackState::Connecting: return kBlue;
+    case PlaybackState::Playing: return kRed;
+    case PlaybackState::Failed: return kRed;
+    case PlaybackState::Stopped: return kSlate;
+    }
+    return kSlate;
+}
+
+String activeStationName() {
+    if (podcastMode) {
+        return podcastShowTft;
+    }
+    if (currentStationIdx >= 0 && currentStationIdx < kStationSlotCount) {
+        return stations[currentStationIdx].name;
+    }
+    return "";
+}
+
 void renderListening(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     drawHeader(currentTime, timeValid, isAP ? "Setup" : "Live Radio");
@@ -699,18 +730,26 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
         text("Radio_Setup", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 250);
         text("192.168.4.1", 28, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted);
     } else {
-        const String station = podcastMode ? podcastShowTft : stations[currentStationIdx].name;
+        const String station = activeStationName();
         drawArtwork(station, 12, 54, 88);
         canvas().fillRoundRect(110, 54, 198, 103, 8, kSurface);
-        canvas().fillRoundRect(120, 63, 38, 17, 5, podcastMode ? kGreen : kRed);
-        text(podcastMode ? "SHOW" : "LIVE", 126, 67, uiFont(&fonts::Font0), kWhite);
+        canvas().fillRoundRect(120, 63, 76, 17, 5, podcastMode ? kGreen : playbackColor(state.playback));
+        text(podcastMode ? "SHOW" : playbackLabel(state.playback), 126, 67, uiFont(&fonts::Font0), kWhite, 68);
         text(station, 120, 89, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 164);
-        const String detail = songTitle.isEmpty() ? "Live radio" : songTitle;
+        const String detail = state.playback == PlaybackState::Failed
+            ? String("Station unavailable")
+            : songTitle.isEmpty() ? String("Live radio") : songTitle;
         text(detail, 120, 123, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 164);
         drawStar(286, 75);
         drawTransport(91, 181, "<", false);
-        drawTransport(160, 181, "[]", true);
+        drawTransport(160, 181,
+                      state.playback == PlaybackState::Stopped || state.playback == PlaybackState::Failed ? ">" : "[]",
+                      true);
         drawTransport(229, 181, ">", false);
+        if (state.playerControlFocus && state.playerFocus >= 2 && state.playerFocus <= 4) {
+            const int16_t focusX[] = {91, 160, 229};
+            canvas().drawCircle(focusX[state.playerFocus - 2], 181, 28, kWhite);
+        }
         drawSlider(218);
         if (alarmActive) {
             char alarmText[18];
@@ -747,10 +786,14 @@ void renderStations(const UiRenderState& state, const char* currentTime, bool ti
         canvas().fillRoundRect(8, y + 3, 304, 42, 6, focused ? kBlue : kSurface);
         drawArtwork(stations[slot].name, 14, y + 7, 34, focused ? kBlueDark : kSlate);
         text(stations[slot].name, 58, y + 10, uiFont(&fonts::FreeSans9pt7b), kWhite, 185);
-        if (slot == currentStationIdx) {
+        if (slot == state.playingStation && state.playback == PlaybackState::Playing) {
             canvas().setTextDatum(TR_DATUM);
             canvas().setTextColor(kWhite);
             canvas().drawString("LIVE", 272, y + 16, uiFont(&fonts::Font0));
+        } else if (slot == state.requestedStation && state.playback == PlaybackState::Connecting) {
+            canvas().setTextDatum(TR_DATUM);
+            canvas().setTextColor(kWhite);
+            canvas().drawString("CONNECT", 272, y + 16, uiFont(&fonts::Font0));
         }
         drawStar(292, y + 24);
     }
@@ -851,11 +894,19 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     }
 }
 
-void renderUnavailable(const char* currentTime, bool timeValid) {
+void renderUnavailable(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     drawHeader(currentTime, timeValid, "Not available");
     canvas().fillRoundRect(20, 76, 280, 88, 10, kSurface);
-    text("This destination is coming later.", 40, 100, uiFont(&fonts::FreeSans9pt7b), kWhite, 230);
+    const char* destination = "This destination is coming later.";
+    switch (state.unavailableDestination) {
+    case 1: destination = "Recorded Shows are coming later."; break;
+    case 2: destination = "Favorites are coming later."; break;
+    case 3: destination = "Settings are coming later."; break;
+    case 4: destination = "Station options are coming later."; break;
+    default: break;
+    }
+    text(destination, 40, 100, uiFont(&fonts::FreeSans9pt7b), kWhite, 230);
     text("Use Back to return home.", 40, 132, uiFont(&fonts::Font0), kTextMuted, 230);
 }
 
@@ -895,10 +946,13 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 164, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeFavorites;
         if (contains(x, y, 242, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeSettings;
     } else if (state.page == UiPage::Listening) {
-        if (contains(x, y, 0, 44, 320, 144)) return UiTarget::ListeningStation;
-        if (contains(x, y, 0, 188, 106, 52)) return UiTarget::ListeningStation;
-        if (contains(x, y, 106, 188, 107, 52)) return UiTarget::ListeningMute;
-        if (contains(x, y, 213, 188, 107, 52)) return UiTarget::ListeningMenu;
+        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PlayerBack;
+        if (contains(x, y, 0, 44, 110, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PlayerOptions;
+        if (contains(x, y, 52, 140, 48, 48)) return UiTarget::PlayerPrevious;
+        if (contains(x, y, 136, 140, 48, 48)) return UiTarget::PlayerStopOrPlay;
+        if (contains(x, y, 220, 140, 48, 48)) return UiTarget::PlayerNext;
+        if (contains(x, y, 0, 188, 48, 52)) return UiTarget::ListeningMute;
+        if (contains(x, y, 48, 188, 214, 52)) return UiTarget::ListeningVolume;
     } else if (state.page == UiPage::Stations) {
         if (contains(x, y, 0, 188, 106, 52)) return UiTarget::ListBack;
         if (contains(x, y, 106, 188, 107, 52)) return UiTarget::ListPrevious;
@@ -934,7 +988,7 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         renderConfirm(state, currentTime, timeValid);
         break;
     case UiPage::Unavailable:
-        renderUnavailable(currentTime, timeValid);
+        renderUnavailable(state, currentTime, timeValid);
         break;
     }
 #endif

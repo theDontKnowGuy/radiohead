@@ -550,6 +550,7 @@ void startWebServer() {
         stations[stationIndex].name = name;
         stations[stationIndex].url = url;
         saveSettings();
+        forceRedraw = true;
         redirectTo("/stations");
     });
     server.on("/clear_list", [] {
@@ -569,6 +570,7 @@ void startWebServer() {
         stations[stationIndex].url = url;
         stations[stationIndex].name = name;
         saveSettings();
+        forceRedraw = true;
         redirectTo("/stations");
     });
     server.on("/scan", [] { redirectTo("/?scan=1"); });
@@ -601,17 +603,19 @@ void startWebServer() {
         goToSleep();
     });
     server.on("/prev", [] {
-        currentStationIdx = (currentStationIdx - 1 + STATION_COUNT) % STATION_COUNT;
-        tempStationIdx = currentStationIdx;
-        playStation(currentStationIdx);
-        saveSettings();
+        const int station = adjacentPlayableStationSlot(currentStationIdx, -1);
+        if (station >= 0) {
+            playStation(station);
+            saveSettings();
+        }
         redirectTo("/");
     });
     server.on("/next", [] {
-        currentStationIdx = (currentStationIdx + 1) % STATION_COUNT;
-        tempStationIdx = currentStationIdx;
-        playStation(currentStationIdx);
-        saveSettings();
+        const int station = adjacentPlayableStationSlot(currentStationIdx, 1);
+        if (station >= 0) {
+            playStation(station);
+            saveSettings();
+        }
         redirectTo("/");
     });
     server.on("/update", HTTP_POST, [] {

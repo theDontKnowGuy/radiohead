@@ -48,11 +48,22 @@ void openStations() {
 
 void openPlayer() {
     state.page = UiPage::Listening;
+    state.playerControlFocus = false;
+    state.playerFocus = 3;
     markDirty();
 }
 
-void openUnavailable() {
+enum class UnavailableDestination : uint8_t {
+    Generic,
+    RecordedShows,
+    Favorites,
+    Settings,
+    StationOptions,
+};
+
+void openUnavailable(UnavailableDestination destination = UnavailableDestination::Generic) {
     state.page = UiPage::Unavailable;
+    state.unavailableDestination = static_cast<uint8_t>(destination);
     markDirty();
 }
 
@@ -80,7 +91,7 @@ void moveStationFocus(int detents) {
     markDirty();
 }
 
-void handleTarget(UiTarget target) {
+void handleTarget(UiTarget target, int value = 0) {
     switch (state.page) {
     case UiPage::Home:
         if (target == UiTarget::HomeLiveRadio) {
@@ -89,14 +100,46 @@ void handleTarget(UiTarget target) {
             openPlayer();
         } else if (target == UiTarget::HomeRecordedShows || target == UiTarget::HomeFavorites ||
                    target == UiTarget::HomeSettings) {
-            openUnavailable();
+            const UnavailableDestination destination = target == UiTarget::HomeRecordedShows
+                ? UnavailableDestination::RecordedShows
+                : target == UiTarget::HomeFavorites ? UnavailableDestination::Favorites
+                                                     : UnavailableDestination::Settings;
+            openUnavailable(destination);
         }
         break;
     case UiPage::Listening:
-        if (target == UiTarget::ListeningStation || target == UiTarget::ListeningMenu) {
+        if (target == UiTarget::ListeningStation) {
             openStations();
         } else if (target == UiTarget::ListeningMute) {
             queue(UiCommandKind::ToggleMute);
+            markDirty();
+        } else if (target == UiTarget::ListeningVolume) {
+            if (state.playerControlFocus) {
+                volumeOverlayUntil = millis() + kVolumeOverlayMs;
+                state.playerControlFocus = false;
+                markDirty();
+                break;
+            }
+            const int volume = constrain((value - 48) * 21 / 214, 0, 21);
+            queue(UiCommandKind::SetVolume, volume);
+            volumeOverlayUntil = millis() + kVolumeOverlayMs;
+            markDirty();
+        } else if (target == UiTarget::PlayerBack) {
+            state.playerControlFocus = false;
+            closeToHome();
+        } else if (target == UiTarget::PlayerOptions) {
+            openUnavailable(UnavailableDestination::StationOptions);
+        } else if (target == UiTarget::PlayerPrevious) {
+            queue(UiCommandKind::PreviousStation);
+        } else if (target == UiTarget::PlayerNext) {
+            queue(UiCommandKind::NextStation);
+        } else if (target == UiTarget::PlayerStopOrPlay) {
+            if (mediaPlaybackState() == PlaybackState::Stopped ||
+                mediaPlaybackState() == PlaybackState::Failed) {
+                queue(UiCommandKind::RejoinStation);
+            } else {
+                queue(UiCommandKind::StopPlayback);
+            }
             markDirty();
         }
         break;
@@ -151,8 +194,12 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
         state.homeFocus = constrain(static_cast<int>(state.homeFocus) + detents, 0, 3);
         markDirty();
     } else if (state.page == UiPage::Listening) {
-        queue(UiCommandKind::ChangeVolume, detents);
-        volumeOverlayUntil = now + kVolumeOverlayMs;
+        if (state.playerControlFocus) {
+            state.playerFocus = constrain(static_cast<int>(state.playerFocus) + detents, 0, 6);
+        } else {
+            queue(UiCommandKind::ChangeVolume, detents);
+            volumeOverlayUntil = now + kVolumeOverlayMs;
+        }
         markDirty();
     } else if (state.page == UiPage::Stations) {
         moveStationFocus(detents);
@@ -177,7 +224,22 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
         };
         handleTarget(homeTargets[state.homeFocus]);
     } else if (state.page == UiPage::Listening) {
-        openStations();
+        if (!state.playerControlFocus) {
+            state.playerControlFocus = true;
+            state.playerFocus = 3;  // Stop/Play starts selected.
+            markDirty();
+        } else {
+            const UiTarget playerTargets[] = {
+                UiTarget::PlayerBack,
+                UiTarget::PlayerOptions,
+                UiTarget::PlayerPrevious,
+                UiTarget::PlayerStopOrPlay,
+                UiTarget::PlayerNext,
+                UiTarget::ListeningMute,
+                UiTarget::ListeningVolume,
+            };
+            handleTarget(playerTargets[state.playerFocus], 155);
+        }
     } else if (state.page == UiPage::Stations) {
         selectFocusedStation();
     } else if (state.page == UiPage::StandbyConfirm) {
@@ -191,7 +253,10 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
         markDirty();
         return;
     }
-    if (state.page == UiPage::Home || state.page == UiPage::Listening) {
+    if (state.page == UiPage::Listening && state.playerControlFocus) {
+        state.playerControlFocus = false;
+        closeToHome();
+    } else if (state.page == UiPage::Home || state.page == UiPage::Listening) {
         state.page = UiPage::StandbyConfirm;
         state.standbyConfirm = true;
         state.confirmAcceptFocused = false;
@@ -201,13 +266,13 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
     }
 }
 
-void uiControllerTap(UiTarget target, unsigned long now, bool displayWasDimmed) {
+void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {
     (void)now;
     if (alarmIsActive || displayWasDimmed) {
         markDirty();
         return;
     }
-    handleTarget(target);
+    handleTarget(target, value);
 }
 
 void uiControllerSetAlarmActive(bool active) {
@@ -238,6 +303,9 @@ bool uiControllerTakeCommand(UiCommand& command) {
 UiRenderState uiControllerRenderState() {
     UiRenderState renderState = state;
     renderState.volumeOverlay = volumeOverlayUntil != 0;
+    renderState.playback = mediaPlaybackState();
+    renderState.requestedStation = mediaRequestedStation();
+    renderState.playingStation = mediaPlayingStation();
     return renderState;
 }
 

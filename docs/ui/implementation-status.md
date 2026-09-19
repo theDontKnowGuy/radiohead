@@ -1,5 +1,32 @@
 # Touch UI implementation status
 
+## 2026-09-19 — P3 playback-state and live-player integration
+
+The concept-based live player now receives an explicit bounded playback snapshot:
+**Stopped**, **Connecting**, **Playing** (only after the installed audio library
+reports `stream ready`), or **Failed**. Requested and confirmed-playing station
+slots are distinct, so the Stations list does not label a pending or failed tune
+as live. A connection that does not become ready within 12 seconds becomes an
+honest unavailable state.
+
+Player touch targets now implement Back, artwork/options handoff, valid-station
+previous/next, Stop/Rejoin, mute and direct 0…21 volume selection; the temporary
+volume overlay remains nonblocking. The encoder's short press enters visible
+player control focus, starting at Stop/Play; rotation then chooses a control,
+press activates it, and hold returns Home. Normal player rotation still changes
+the canonical volume setting. Web previous/next now follows the same nonempty
+station traversal, and web station edits invalidate the TFT. Destinations whose
+packages are still pending remain explicitly unavailable rather than silently
+routing to stations.
+
+`pio run -e esp32s3` passes with **65,460 B static RAM (20.0%)** and
+**2,716,551 B flash (41.5%)**. `tools/render_ui_fonts.py` passes its production
+native renderer checks, including the player transport and volume hit geometry;
+`git diff --check` passes. No device was flashed for this change. Sustained audio,
+touch-edge behavior, control-focus legibility, stream-ready/failure timing and
+web-to-TFT updates therefore remain hardware acceptance work; P3 is not marked
+complete.
+
 ## 2026-09-19 — Hebrew/mixed-text Phase 2 completion pass
 
 The production renderer now applies a bounded visual-order adapter before it
@@ -279,7 +306,7 @@ see the [visual contract](visual-contract.md). No visual acceptance is recorded.
 | P0 | Partial: build report below exists; runtime memory, actual TFT timing, audio service gaps and physical baseline checks remain unverified here. |
 | P1 | Partial: input/controller foundations exist. Audit navigation, transition coverage, dim/wake/priority and device behavior against the guide; the current Listening/Stations/StandbyConfirm pages do not cover the concept's Home/list/player navigation. |
 | P2 | Incomplete, reopened: concept background, artwork/icon/font assets, Hebrew/mixed text, reusable concept compositions, photo restoration/stripe rendering and native visual evidence are missing. These are P2 work, not later polish. |
-| P3 | Incomplete, reopened: some station/volume/input behavior exists, but concept Home/live player/volume overlay and visual acceptance are missing; connection-state confirmation and sustained hardware checks also remain open. |
+| P3 | Functional integration implemented; concept visual acceptance and all required sustained hardware checks remain open. |
 | P4–P8 | No completion claimed by this slice. Continue after the prerequisite packages satisfy their checks. |
 
 ### Reusable implementation already present

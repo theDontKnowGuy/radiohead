@@ -133,6 +133,7 @@ void setup() {
     startWebServer();
 
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
+    mediaBegin();
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);
     if (playableStationCount() > 0 && selectedPlayableStationIndex() < 0) {
@@ -185,7 +186,7 @@ void loop() {
         }
         if (touchTap) {
             const UiRenderState state = uiControllerRenderState();
-            uiControllerTap(uiHitTest(state, touchX, touchY), now, displayWasDimmed);
+            uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, displayWasDimmed);
         }
     }
     if (buttonEvent != ButtonEvent::None || touchTap) {
@@ -200,15 +201,35 @@ void loop() {
             setRadioVolumeIndex(mainVal + command.value);
             volumeSavePending = true;
             break;
+        case UiCommandKind::SetVolume:
+            setRadioVolumeIndex(command.value);
+            volumeSavePending = true;
+            break;
         case UiCommandKind::ToggleMute:
             toggleRadioMute();
             break;
         case UiCommandKind::SelectStation:
             if (!isAP && command.value >= 0 && command.value < STATION_COUNT) {
-                currentStationIdx = command.value;
-                tempStationIdx = currentStationIdx;
-                playStation(currentStationIdx);
+                playStation(command.value);
                 saveSettings();
+            }
+            break;
+        case UiCommandKind::PreviousStation:
+        case UiCommandKind::NextStation: {
+            const int direction = command.kind == UiCommandKind::PreviousStation ? -1 : 1;
+            const int station = adjacentPlayableStationSlot(currentStationIdx, direction);
+            if (!isAP && station >= 0) {
+                playStation(station);
+                saveSettings();
+            }
+            break;
+        }
+        case UiCommandKind::StopPlayback:
+            stopStationPlayback();
+            break;
+        case UiCommandKind::RejoinStation:
+            if (!isAP && currentStationIdx >= 0 && currentStationIdx < STATION_COUNT) {
+                playStation(currentStationIdx);
             }
             break;
         case UiCommandKind::EnterStandby:
@@ -223,6 +244,7 @@ void loop() {
         volumeSavePending = false;
     }
 
+    mediaTick(now);
     updatePowerState(now);
     uiControllerTick(now);
     static char lastRenderedTime[10] = "";

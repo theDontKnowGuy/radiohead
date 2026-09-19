@@ -103,6 +103,13 @@ int main(int argc, char** argv) {
         assert(uiHitTest({}, 8 + i*78, kHomeTileY) == target);
         assert(uiHitTest({}, 8 + i*78 + 69, kHomeTileY + 69) == target);
     }
+    UiRenderState playerHitState;
+    playerHitState.page = UiPage::Listening;
+    assert(uiHitTest(playerHitState, 22, 22) == UiTarget::PlayerBack);
+    assert(uiHitTest(playerHitState, 76, 164) == UiTarget::PlayerPrevious);
+    assert(uiHitTest(playerHitState, 160, 164) == UiTarget::PlayerStopOrPlay);
+    assert(uiHitTest(playerHitState, 244, 164) == UiTarget::PlayerNext);
+    assert(uiHitTest(playerHitState, 156, 218) == UiTarget::ListeningVolume);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
