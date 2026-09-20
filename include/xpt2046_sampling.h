@@ -32,20 +32,32 @@ inline bool readAxis(const uint8_t* data, uint16_t& coordinate) {
         if (value > 128 && value <= 3968) values[count++] = value;
     }
     if (count < 2) return false;
-    unsigned bestDelta = 4096;
-    uint16_t result = 0;
-    for (unsigned i = 0; i + 1 < count; ++i) {
-        for (unsigned j = i + 1; j < count; ++j) {
-            const unsigned delta = values[i] > values[j]
-                ? values[i] - values[j] : values[j] - values[i];
-            if (delta < bestDelta) {
-                bestDelta = delta;
-                result = (values[i] + values[j]) / 2;
-            }
+    // Prefer the largest consistent group, not the closest pair: two matching
+    // spikes must not beat five good readings. Seven entries at most; no heap.
+    for (unsigned i = 1; i < count; ++i) {
+        const uint16_t value = values[i];
+        unsigned j = i;
+        while (j > 0 && values[j - 1] > value) {
+            values[j] = values[j - 1];
+            --j;
+        }
+        values[j] = value;
+    }
+    unsigned bestStart = 0, bestCount = 0, bestSpan = 4096;
+    for (unsigned start = 0; start < count; ++start) {
+        unsigned end = start;
+        while (end + 1 < count && values[end + 1] - values[start] <= kMaximumPairDelta) ++end;
+        const unsigned groupCount = end - start + 1;
+        const unsigned span = values[end] - values[start];
+        if (groupCount > bestCount || (groupCount == bestCount && span < bestSpan)) {
+            bestStart = start;
+            bestCount = groupCount;
+            bestSpan = span;
         }
     }
-    if (bestDelta > kMaximumPairDelta) return false;
-    coordinate = result;
+    if (bestCount < 2) return false;
+    coordinate = (values[bestStart + (bestCount - 1) / 2] +
+                  values[bestStart + bestCount / 2]) / 2;
     return true;
 }
 }  // namespace xpt2046_sampling

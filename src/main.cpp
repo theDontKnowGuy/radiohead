@@ -176,19 +176,9 @@ void loop() {
     updateAlarm(timeInfo, timeValid, buttonEvent == ButtonEvent::Push, now);
     uiControllerSetAlarmActive(isAlarming);
 
-    // Capture ownership at contact-down. Waking the display consumes the whole
-    // gesture, including later live scroll events and the release.
-    static UiPage touchPage = UiPage::Home;
-    static UiTarget touchTarget = UiTarget::None;
-    static bool touchConsumed = true;
-    const UiRenderState touchState = uiControllerRenderState();
-    if (touchEvent == TouchEvent::Begin) {
-        touchPage = touchState.page;
-        touchTarget = uiHitTest(touchState, touchX, touchY);
-        touchConsumed = displayWasDimmed || alarmWasActive || isAlarming;
-    } else if (touchState.page != touchPage || alarmWasActive || isAlarming || displayWasDimmed) {
-        touchConsumed = true;
-    }
+    // The first accepted contact owns one action. TouchGesture stays latched
+    // across navigation until release, including consumed dim/alarm presses.
+    const UiPage touchPage = uiControllerRenderState().page;
 
     const int detents = consumeEncoderDetents();
     if (!alarmWasActive) {
@@ -199,23 +189,9 @@ void loop() {
             uiControllerHold(now, displayWasDimmed);
         }
         const UiRenderState state = uiControllerRenderState();
-        if (state.page != touchPage) touchConsumed = true;
-        if (!touchConsumed) {
-            const UiTarget releasedTarget = uiHitTest(state, touchX, touchY);
-            if (touchEvent == TouchEvent::Tap && releasedTarget == touchTarget) {
-                uiControllerTap(touchTarget, touchX, now, displayWasDimmed);
-            } else if (touchEvent == TouchEvent::HorizontalDrag &&
-                       touchTarget == UiTarget::PodcastProgress && releasedTarget == touchTarget) {
-                uiControllerTap(touchTarget, touchX, now, displayWasDimmed);
-            } else if (touchEvent == TouchEvent::SwipeUp || touchEvent == TouchEvent::SwipeDown) {
-                const bool startedOnList =
-                    (touchTarget >= UiTarget::ListRow0 && touchTarget <= UiTarget::ListRowFavorite4) ||
-                    (touchTarget >= UiTarget::ShowRow0 && touchTarget <= UiTarget::ShowRow4) ||
-                    (touchTarget >= UiTarget::EpisodeRow0 && touchTarget <= UiTarget::EpisodeRow4);
-                if (startedOnList) {
-                    uiControllerSwipe(touchEvent == TouchEvent::SwipeUp ? 1 : -1, now, displayWasDimmed);
-                }
-            }
+        if (touchEvent == TouchEvent::Begin && state.page == touchPage &&
+            !displayWasDimmed && !isAlarming) {
+            uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, false);
         }
     }
     if (buttonEvent != ButtonEvent::None || touchEvent != TouchEvent::None) {

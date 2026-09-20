@@ -72,6 +72,23 @@ home_header = output / "ui_home_assets.h"
 if not home_header.exists() or home_header.read_text() != content:
     home_header.write_text(content, encoding="utf-8")
 
+# List cards and the right-side up/down pager are alpha PNGs. They blend only
+# into the readable UI canvas; fallback drawing in display.cpp remains opaque.
+list_dir = project / "docs" / "ui" / "assets" / "lists"
+list_manifest = json.loads((list_dir / "manifest.json").read_text())
+list_arrays = ["#pragma once\n#include <stdint.h>\n"]
+for name, info in sorted(list_manifest["assets"].items()):
+    asset = list_dir / f"{name}.png"
+    data = asset.read_bytes()
+    if hashlib.sha256(data).hexdigest() != info["sha256"]:
+        raise RuntimeError(f"List asset hash mismatch: {name}; run tools/prepare_list_assets.py")
+    lines = [", ".join(f"0x{byte:02x}" for byte in data[i:i+16]) for i in range(0, len(data), 16)]
+    list_arrays.append(f"const uint8_t ui_list_{name}[] = {{\n" + ",\n".join(lines) + "\n};\n")
+list_content = "\n".join(list_arrays)
+list_header = output / "ui_list_assets.h"
+if not list_header.exists() or list_header.read_text() != list_content:
+    list_header.write_text(list_content, encoding="utf-8")
+
 # Recorded-player transport artwork is user supplied as SVG. LovyanGFX decodes
 # the rasterized native-size PNG into the readable UI canvas; it never needs an
 # SVG renderer on the ESP32.

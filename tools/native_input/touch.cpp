@@ -53,6 +53,11 @@ void checkRawSampling() {
     assert(!readAxis(data, y));
     put(0, 8, 2600);
     assert(!readAxis(data, y));
+    // A broad finger contact can have a good cluster plus a repeated spike.
+    // The old closest-pair rule incorrectly chose 900 instead of about 2000.
+    const uint16_t clustered[] = {900, 900, 2000, 2004, 1996, 2002, 1998};
+    for (unsigned i = 0; i < 7; ++i) put(0, i + kSettlingConversions, clustered[i]);
+    assert(readAxis(data, y) && y == 2000);
     for (auto& byte : data) byte = 0;
     assert(!readAxis(data, y) && !readAxis(data + kAxisBytes, x));
     for (auto& byte : data) byte = 255;
@@ -62,90 +67,92 @@ void checkRawSampling() {
 int main() {
     checkRawSampling();
     int16_t x = 0, y = 0;
-    TouchGesture tap;
-    assert(tap.sample(true, 100, 100, 0, x, y) == TouchEvent::Begin);
-    assert(tap.sample(false, 0, 0, 8, x, y) == TouchEvent::None);
-    assert(tap.sample(false, 0, 0, 32, x, y) == TouchEvent::Tap);
-    assert(tap.sample(false, 0, 0, 40, x, y) == TouchEvent::None);
-    // Light contact drops out briefly; coordinate noise must not cancel it.
-    TouchGesture noisy;
-    noisy.sample(true, 100, 100, 0, x, y);
-    noisy.sample(true, 101, 100, 8, x, y);
-    assert(noisy.sample(true, 210, 180, 16, x, y) == TouchEvent::None);
-    assert(noisy.sample(false, 0, 0, 32, x, y) == TouchEvent::None);
-    noisy.sample(true, 102, 100, 40, x, y);
-    assert(noisy.sample(false, 0, 0, 72, x, y) == TouchEvent::Tap);
-    assert(x >= 100 && x <= 102 && y == 100);
-
+    TouchPressLatch press;
+    // First accepted contact fires immediately, before release or more samples.
+    assert(press.sample(true, 100, 100, 0, x, y) == TouchEvent::Begin);
+    assert(x == 100 && y == 100);
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeRecordedShows, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::RecordedShows);
-    uiControllerSwipe(1, 0, false);
-    assert(uiControllerRenderState().showOffset == 1);
-    uiControllerSwipe(-1, 0, false);
-    uiControllerTap(UiTarget::ShowRow0, 0, 0, false);
+    // Holding, sliding and short weak-contact dropouts cannot activate the new
+    // page. Neither release nor a continuous hold emits another click.
+    for (int i = 1; i <= 300; ++i) {
+        assert(press.sample(i % 4 != 0, i % 320, i % 240, i * 8, x, y) == TouchEvent::None);
+    }
     UiCommand command;
+    assert(!uiControllerTakeCommand(command));
+    assert(press.sample(false, 0, 0, 2440, x, y) == TouchEvent::None);
+    assert(press.sample(false, 0, 0, 2480, x, y) == TouchEvent::Release);
+    assert(press.sample(false, 0, 0, 2488, x, y) == TouchEvent::None);
+    assert(press.sample(true, 120, 70, 2496, x, y) == TouchEvent::Begin);
+    assert(x == 120 && y == 70);
+
+    // Paging never starts playback; bounds and filtered collections are honored.
+    uiControllerTap(UiTarget::ListNext, 0, 0, false);
+    assert(uiControllerRenderState().showOffset == 4);
+    assert(uiControllerRenderState().showFocus == 0);
+    uiControllerTap(UiTarget::ListPrevious, 0, 0, false);
+    assert(uiControllerRenderState().showOffset == 0);
+    uiControllerTap(UiTarget::ShowRow0, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::RequestPodcastEpisodes);
     assert(!uiControllerTakeCommand(command));
-    // Feed an actual gesture to the episode controller: scroll before release,
-    // reverse while held, never start playback, and clamp at both list ends.
-    TouchGesture swipe;
-    swipe.sample(true, 100, 190, 0, x, y);
-    for (int i = 1; i <= 6; ++i) {
-        const auto event = swipe.sample(true, 100 + i * 3, 190 - i * 25, i * 8, x, y);
-        if (event == TouchEvent::SwipeUp) uiControllerSwipe(1, i * 8, false);
-        else assert(event == TouchEvent::None);
-    }
-    assert(uiControllerRenderState().episodeOffset > 0);
-    const int beforeReverse = uiControllerRenderState().episodeOffset;
-    for (int i = 1; i <= 5; ++i) {
-        const auto event = swipe.sample(true, 118, 40 + i * 28, 48 + i * 8, x, y);
-        if (event == TouchEvent::SwipeDown) uiControllerSwipe(-1, 0, false);
-        else assert(event == TouchEvent::None);
-    }
-    assert(uiControllerRenderState().episodeOffset < beforeReverse);
-    assert(swipe.sample(false, 0, 0, 120, x, y) == TouchEvent::None);
+    uiControllerTap(UiTarget::ListNext, 0, 0, false);
+    assert(uiControllerRenderState().episodeOffset == 4);
+    assert(uiControllerRenderState().episodeFocus == 0);
+    for (int i = 0; i < 20; ++i) uiControllerTap(UiTarget::ListNext, 0, 0, false);
+    assert(uiControllerRenderState().episodeOffset == 4);
     assert(!uiControllerTakeCommand(command));
-    for (int i = 0; i < 20; ++i) uiControllerSwipe(1, 0, false);
-    assert(uiControllerRenderState().episodeOffset == 3);
+    // The fourth row is visible; obsolete fifth-row commands remain inert.
     uiControllerTap(UiTarget::EpisodeRow4, 0, 0, false);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::EpisodeRow3, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PlayPodcastEpisode && command.value == 7);
     uiControllerTap(UiTarget::PodcastBack, 0, 0, false);
     assert(uiControllerTakeCommand(command));
-    for (int i = 0; i < 20; ++i) uiControllerSwipe(-1, 0, false);
+    for (int i = 0; i < 20; ++i) uiControllerTap(UiTarget::ListPrevious, 0, 0, false);
     assert(uiControllerRenderState().episodeOffset == 0);
-    uiControllerSwipe(1, 0, true);
+    uiControllerTap(UiTarget::ListNext, 0, 0, true);
     assert(uiControllerRenderState().episodeOffset == 0);
     uiControllerSetAlarmActive(true);
-    uiControllerSwipe(1, 0, false);
+    uiControllerTap(UiTarget::ListNext, 0, 0, false);
     assert(uiControllerRenderState().episodeOffset == 0);
     uiControllerSetAlarmActive(false);
     ready = false;
-    uiControllerSwipe(1, 0, false);
+    uiControllerTap(UiTarget::ListNext, 0, 0, false);
     assert(uiControllerRenderState().episodeOffset == 0);
     ready = true;
-    podcastEpisodeCount = 2;
-    uiControllerSwipe(1, 0, false);
-    assert(uiControllerRenderState().episodeOffset == 0);
-    // Horizontal scrubbing remains distinct from a tap or vertical scrolling.
-    TouchGesture horizontal;
-    horizontal.sample(true, 140, 115, 0, x, y);
-    horizontal.sample(true, 190, 116, 8, x, y);
-    assert(horizontal.sample(false, 0, 0, 40, x, y) == TouchEvent::HorizontalDrag);
-    assert(x == 190);
-    TouchGesture held;
-    held.sample(true, 100, 100, 0, x, y);
-    for (int i = 1; i <= 300; ++i) {
-        assert(held.sample(true, 100 + i % 3, 100, i * 8, x, y) == TouchEvent::None);
+    for (int count : {0, 2}) {
+        podcastEpisodeCount = count;
+        uiControllerTap(UiTarget::ListNext, 0, 0, false);
+        assert(uiControllerRenderState().episodeOffset == 0);
     }
-    assert(held.sample(false, 0, 0, 2440, x, y) == TouchEvent::Tap);
-    TouchGesture diagonal;
-    diagonal.sample(true, 100, 100, 0, x, y);
-    assert(diagonal.sample(true, 130, 130, 8, x, y) == TouchEvent::None);
-    assert(diagonal.sample(false, 0, 0, 40, x, y) == TouchEvent::None);
-    // Millisecond rollover must not create a stuck press.
-    TouchGesture wrap;
-    wrap.sample(true, 100, 100, UINT32_MAX - 10, x, y);
-    assert(wrap.sample(false, 0, 0, 20, x, y) == TouchEvent::Tap);
-    puts("Raw touch sampling, gestures and production list controller checks passed");
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeLiveRadio, 0, 0, false);
+    uiControllerTap(UiTarget::ListNext, 0, 0, false);
+    assert(uiControllerRenderState().stationOffset == 4);
+    assert(uiControllerRenderState().stationFocus == 0);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::ListPrevious, 0, 0, false);
+    assert(uiControllerRenderState().stationOffset == 0);
+    uiControllerTurn(20, 0, false);
+    assert(uiControllerRenderState().stationFocus == 9);
+    assert(uiControllerRenderState().stationOffset == 6);
+    assert(!uiControllerTakeCommand(command));
+
+    // A consumed wake press stays consumed after the display wakes.
+    uiControllerBegin();
+    TouchPressLatch wake;
+    assert(wake.sample(true, 100, 100, 0, x, y) == TouchEvent::Begin);
+    uiControllerTap(UiTarget::HomeRecordedShows, 0, 0, true);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    assert(wake.sample(true, 100, 100, 40, x, y) == TouchEvent::None);
+    assert(wake.sample(false, 0, 0, 120, x, y) == TouchEvent::Release);
+    assert(wake.sample(true, 100, 100, 128, x, y) == TouchEvent::Begin);
+    uiControllerTap(UiTarget::HomeRecordedShows, 0, 128, false);
+    assert(uiControllerRenderState().page == UiPage::RecordedShows);
+    TouchPressLatch wrap;
+    assert(wrap.sample(true, 100, 100, UINT32_MAX - 10, x, y) == TouchEvent::Begin);
+    assert(wrap.sample(false, 0, 0, 20, x, y) == TouchEvent::None);
+    assert(wrap.sample(false, 0, 0, 80, x, y) == TouchEvent::Release);
+    puts("Raw sampling, immediate press/re-arm and production paging checks passed");
 }

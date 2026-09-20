@@ -1,0 +1,75 @@
+{
+  "recipe": "4x RGBA rounded rectangles; Lanczos downsample; cards navy #10243C/44% and focused blue #087BEA/77%, with matched 82% cyan edges.",
+  "assets": {
+    "card": {
+      "size": [
+        248,
+        46
+      ],
+      "sha256": "869fbb9e5b3ed144ad4ed0c868f78ac2e8eec81e807f9243955aed1778b92648"
+    },
+    "card_focused": {
+      "size": [
+        248,
+        46
+      ],
+      "sha256": "5b70c9bab03bbada55bb7bb0755be60c332ff765c786407c18e78d9ddc50ca7b"
+    },
+    "card_wide": {
+      "size": [
+        304,
+        42
+      ],
+      "sha256": "59e2bf41688418badfd3b94813faf3d00ffd3b6c848592f72710556e55f2b987"
+    },
+    "card_wide_focused": {
+      "size": [
+        304,
+        42
+      ],
+      "sha256": "79cc3f7f0bc77e4301f9d0b4fa2e5b38c00dc6a997f9c9de3bcd4beb27c0ab62"
+    },
+    "pager": {
+      "size": [
+        50,
+        44
+      ],
+      "sha256": "2719b73d5d3f9eaa5b3372b77f0a81acd5bdc6b25f71fe8f7f906a73230c1f29"
+    },
+    "pager_active": {
+      "size": [
+        50,
+        44
+      ],
+      "sha256": "9c4f0d711c0b63dc2c8c4f4198a7798470807707c17aed919637716542354ef8"
+    },
+    "rail": {
+      "size": [
+        62,
+        196
+      ],
+      "sha256": "98a3806d57471c5a07979872919b77faffab09a2e4b36292ad56981dc6f8cdf3"
+    },
+    "pager_thumb_1": {
+      "size": [
+        44,
+        84
+      ],
+      "sha256": "bdec9aa260fa51c6eedf3d23b5dddeb23c01981783e479bea0cb0c000bb6bb73"
+    },
+    "pager_thumb_2": {
+      "size": [
+        44,
+        42
+      ],
+      "sha256": "a1fd1c9663972660acccfa9913ff4a4fb83027bb9befd706c4c4c3282eeefeff"
+    },
+    "pager_thumb_3": {
+      "size": [
+        44,
+        28
+      ],
+      "sha256": "3064bbc4115723bc3221388c1a110fc234b05f7e5acb122e2b89a736ae07c17f"
+    }
+  }
+}

@@ -1,5 +1,123 @@
 # Touch UI implementation status
 
+## 2026-09-20 — Four-row right-rail list refinement
+
+The latest physical-device photo showed that the first right-rail pass still
+left unused lower space and did not visually match the supplied concept. Live
+Stations, Recorded Shows and Episodes now render four 46 px photo-visible,
+rounded cards. Their previous bottom footer is removed. A 62 px translucent
+navy rail occupies the right side, with the corrected Up chevron at the top and
+Down chevron at the bottom. The numeric page count is replaced by a translucent
+thumb in the middle track: its 84/42/28 px height represents one/two/three
+pages, and paging moves it without selecting a row. The same
+surface component also updates Favorites and compact option rows. List artwork
+is a frameless 28 px mark vertically centered in its strip, and the favorite is
+a filled/outlined ten-point icon instead of the old crossed-line star.
+
+The thumb now maps the actual bounded viewport range (for example, offsets
+0 → 4 → 6 for ten items shown four at a time) onto the whole track, so the
+partial final page reaches its bottom position. List cards render edge-to-edge
+inside a shared 46 px card / 2 px gap grid. The focused and normal card edges
+now use the same opacity, and the normal translucent fill is slightly stronger,
+so the bright focused first row cannot make its following gap look wider.
+
+**Verification:** `pio run -e esp32s3`, `python3 tools/check_touch_input.py`,
+`python3 tools/render_ui_fonts.py`, and `git diff --check` pass. Native 320 ×
+240 production renders are retained as [Stations](evidence/2026-09-20-right-rail/stations.png),
+[Recorded Shows](evidence/2026-09-20-right-rail/recorded-shows.png), and
+[Recorded Shows page 2](evidence/2026-09-20-right-rail/recorded-shows-page-two.png), and
+[Recorded Shows page 3](evidence/2026-09-20-right-rail/recorded-shows-page-three.png).
+Static
+RAM remains **66,308 B (20.2%)**; flash is **2,775,447 B (42.3%)**. Device
+verification is still open: the physical image that prompted this work is
+evidence of the prior three-row build, not confirmation of this revision.
+
+## 2026-09-20 — Immediate button presses; swipe replaced with paging
+
+The user reports an improvement after the preceding upload, but finger-pad
+presses still need too long. They explicitly prioritize fast button response and
+authorize replacing swipe scrolling. This supersedes the preceding gesture
+refinement, rather than adding another movement/sensitivity threshold.
+
+- First accepted on-panel contact dispatches the button action immediately.
+  There is no release wait, multi-frame gesture decision or movement veto.
+- A held/sliding finger produces only one action across page changes. Release
+  re-arms after 80 ms without accepted contact, bridging short weak-contact gaps.
+  This interval affects re-arming only, not the first press. Wake/alarm guards
+  consume the first press as before; holding cannot click after the guard clears.
+- Live Stations, Recorded Shows and Episodes now use three 48 px rows, plus
+  Previous/Next buttons with disjoint 160 × 52 px targets. Paging is bounded and
+  never selects playback. Encoder browsing still traverses all entries. Volume
+  and recorded progress tracks accept position taps; dragging/swiping is disabled.
+- The ADC sampling/filter, calibration, pins and persisted keys are unchanged
+  from the preceding upload. Optional touch diagnostics now count presses and
+  releases; normal firmware leaves diagnostics disabled.
+
+**Verification:** `python3 tools/check_touch_input.py` passes immediate response,
+held/moving contact, intermittent contact, re-arming, page navigation without
+playback, last-episode access, old hidden-row rejection, loading/short/empty
+episodes, dim/alarm guards and rollover. `python3 tools/render_ui_fonts.py` passes
+the production renderer and footer boundary assertions. Native 320 × 240 renders
+were inspected: [stations](evidence/2026-09-20-buttons/stations.png),
+[shows](evidence/2026-09-20-buttons/shows.png),
+[episodes](evidence/2026-09-20-buttons/episodes.png). The sunset/blue design remains;
+the lower list density and paging controls are deliberate usability adaptations.
+
+`pio run -e esp32s3` passes: **66,308 B RAM (20.2%)**, **2,745,511 B flash
+(41.9%)**. Physical finger-pad response, false activation rate, rapid repeated
+taps, wake-only contact, edge targets and audio continuity still require the next
+device test. A successful press now uses the first coordinate; it cannot be
+cancelled by sliding away. This is the requested button-first interaction tradeoff.
+
+**Upload:** installed normal firmware on the identified ESP32-S3 at
+`/dev/cu.usbmodem2101`; flash hash verification and reset passed. Device
+finger-response acceptance remains pending user observation.
+
+## 2026-09-20 — Finger-contact noise and initial target capture
+
+The user still reports reliable fingernail input but frequent missed/delayed
+finger-pad presses. Finger usability remains **fail for the preceding firmware**;
+this revision is a software correction awaiting a physical finger test.
+
+Two reproducible filtering problems were corrected:
+
+- The ADC reducer chose the closest pair even when five other readings formed a
+  different consistent group. It now takes the median of the largest group within
+  the existing 150-count span. Rail rejection and the two-valid-reading minimum
+  remain unchanged. The same 41-byte/250 kHz acquisition is used.
+- Gesture target capture previously used the first raw screen coordinate, and
+  an unfiltered second sample could permanently mark a tap as moved. The first
+  three-sample median now refines the capture and movement origin. A Refine event
+  cannot change the owning page or reactivate a consumed wake/alarm gesture.
+  Three well-separated positions remain movement, so a quick swipe cannot turn
+  into a row tap. Single-frame quick taps still work; a two-frame drag still
+  cancels selection. No added hold time or pressure threshold is required.
+
+`TOUCH_DEBUG_ENABLED=1` now observes the normal production poll, rather than
+providing an unused second reader that draws on the display. Once per second it
+reports poll/raw-contact/on-panel counts, begins/taps/swipes, maximum polling gap
+and read duration. Output is skipped when USB is disconnected or lacks buffer
+space. This option remains **off in the normal firmware**. If finger misses
+persist, enable it and compare idle, nail and finger trials: zero raw contacts
+points below gesture recognition, raw without on-panel points at mapping/noise,
+and accepted contacts without taps points at gesture/release behavior. These
+counters do not measure physical pressure; the driver's `size=1` is not pressure.
+
+The production host checks cover the repeated-spike ADC regression, noise at
+each of the first three positions, brief contacts, two-frame drag cancellation,
+quick and sustained swipes, reverse scrolling, bounds, dim/alarm controller
+guards and timer rollover. They pass, as does `git diff --check`. Appearance,
+calibration, pins and persistence are unchanged; no new visual composition is
+introduced. Physical touch sensitivity, idle false activations, calibrated edge
+accuracy, wake consumption and audio continuity still need device observations.
+
+**Build/upload:** `pio run -e esp32s3 -t upload --upload-port
+/dev/cu.usbmodem2101` passed, including flash hash verification and reset. The
+connected device identified as ESP32-S3 with 16 MB flash/8 MB PSRAM. Normal
+firmware (diagnostics off) is installed. Static RAM is **66,332 B (20.2%)**;
+flash utilization is **41.9%**. Upload success is not finger-touch acceptance;
+no new physical touch or audio result has been observed in this task.
+
 ## 2026-09-19 — Same-axis acquisition for weak finger contact
 
 Device feedback after the preceding pass: scrolling works partially, but finger

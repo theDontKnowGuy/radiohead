@@ -21,6 +21,3 @@ enum class ButtonEvent : uint8_t {
 
 ButtonEvent pollEncoderButton(unsigned long now);
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now);
-#if TOUCH_DEBUG_ENABLED
-void updateTouchTest(unsigned long now);
-#endif

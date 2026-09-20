@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include "media.h"
 
+constexpr int UI_LIST_ROWS = 4;
+
 // The controller deals only in semantic inputs and commands.  It deliberately
 // does not own the TFT, Audio, Preferences, or web server.
 enum class UiPage : uint8_t {
@@ -146,7 +148,7 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed);
 void uiControllerPush(unsigned long now, bool displayWasDimmed);
 void uiControllerHold(unsigned long now, bool displayWasDimmed);
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed);
-void uiControllerSwipe(int direction, unsigned long now, bool displayWasDimmed);
+void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
 void uiControllerSetAlarmActive(bool active);
 void uiControllerTick(unsigned long now);
 bool uiControllerTakeCommand(UiCommand& command);

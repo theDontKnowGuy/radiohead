@@ -6,6 +6,7 @@
 | Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Lanczos resize, saturation 0.84, smooth 16–23% navy veil; original source retained. |
 | Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four 70×70 gradient tiles; 74×74 focus mask; four 36×36 icons; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
 | Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 64×64 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
+| List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
 
 The background has no UI text or controls. It is source material only; production
 labels, artwork placeholders, controls, and dark surfaces are drawn separately.
@@ -16,6 +17,20 @@ No generated header is committed. RGB565 ordering remains a physical-device chec
 ```sh
 python3 tools/prepare_home_assets.py
 ```
+
+### List surface regeneration
+
+```sh
+python3 tools/prepare_list_assets.py
+```
+
+The list recipe generates 248×46 cards for four-row paged lists, 304×42 cards for
+compact option lists, 50×44 right-side pager controls, a 62×196 translucent
+rail, and 44 px-wide page thumbs in 84/42/28 px heights for one/two/three
+pages. Normal and focused cards share the same edge opacity so the focused first
+row cannot visually widen its following gap. These assets contain
+only translucent surface/border pixels—labels, chevrons, artwork, and favorite
+state remain dynamic firmware drawing.
 
 Requires Pillow only for asset preparation. The checked-in PNG assets and their
 manifest are consumed by normal firmware builds without Pillow. The manifest

@@ -1,5 +1,17 @@
 # Radiohead UI concept: agent implementation guide
 
+**Input direction updated by the user, 2026-09-20:** quick finger-pad button
+response takes priority over swipe scrolling. Buttons now activate on the first
+valid contact, once per press; release only re-arms input. Live Stations, Recorded
+ Shows and Episodes use four 46 px rows, distributed across the full former
+ footer area, and a right-side Up/Down rail. The Up
+ control sits below the header and Down sits at the screen bottom; the former
+ Previous/Next footer is removed.
+Encoder browsing remains available. Volume/timeline tracks accept a position tap;
+swipe scrolling and drag scrubbing are disabled. This supersedes release-to-tap
+and gesture requirements below. A dim-wake/alarm-consumed press must remain
+consumed until release, even after changing pages or dismissing the alarm.
+
 Status: implementation plan, not a claim that these features exist.
 Reference inspected: **[uiconcept.png](uiconcept.png)**, 1448 × 1086, a contact sheet
 of 16 screens. This is the file referred to as `ui-concept.png` in the request.
@@ -64,9 +76,9 @@ Preserve these characteristics:
 
 Adapt details where physical usability requires it:
 
-- Use **three 48 px list rows**, not five tiny rows. Retain the visual hierarchy
-   with paging/scrolling. Four or five rows are an optional later density setting,
-   contingent on finger testing; they are not the initial implementation target.
+- Use **four 46 px list rows** plus a 50 px right-side Up/Down rail. Retain the
+  visual hierarchy with paging; the controls must not steal a fifth row or
+  reintroduce swipe scrolling.
 - Make the star's hit region 44 × 44 even if its drawing is 18–22 px. Keep its
    target disjoint from the row's play/open target.
 - Darken the image behind text. Use cached/precomposed dark surfaces instead of
@@ -135,7 +147,7 @@ No responsive browser units or raw coordinates copied from the contact sheet.
 | Component | Initial 320 × 240 geometry / rule |
 | --- | --- |
 | Page header | y=0…43, 44 px high; Back target x=0…43. Reserve a measured title box, time and Wi-Fi regions that never collide. |
-| Standard list | y=44…187; three rows, 48 px each. Footer y=188…239. Footer targets at least 44 px high. |
+| Standard list | y=44…239; four 46 px cards with 2 px gaps. Right rail x=258…319 runs y=44…239; Up is at its top, Down is at its bottom. |
 | Favorites variant | Header 44 px, Stations/Shows tabs 44 px, two 48 px rows, footer 56 px. Do not squeeze tabs into the standard three-row layout. |
 | Favorite on a row | Rightmost 44 px owns the star action; row body ends before it. Row touch never invokes both actions. |
 | Home destinations | Four 72 × 64 targets at x=8,86,164,242; y=168…231. Two-line labels for Recorded Shows. Header/weather occupy the area above. |

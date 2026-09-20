@@ -12,6 +12,7 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_list_assets.h"
 #include "ui_player_assets.h"
 
 // Only device state is adapted. Rendering, layout, glyph metrics, PNG decoding
@@ -146,16 +147,20 @@ int main(int argc, char** argv) {
     UiRenderState stationHitState;
     stationHitState.page = UiPage::Stations;
     assert(uiHitTest(stationHitState, 150, 68) == UiTarget::ListRow0);
-    assert(uiHitTest(stationHitState, 290, 68) == UiTarget::ListRowFavorite0);
-    assert(uiHitTest(stationHitState, 150, 214) == UiTarget::ListRow4);
-    assert(uiHitTest(stationHitState, 286, 214) == UiTarget::ListRowFavorite4);
-    assert(uiHitTest(stationHitState, 160, 238) == UiTarget::None);
+    assert(uiHitTest(stationHitState, 232, 68) == UiTarget::ListRowFavorite0);
+    assert(uiHitTest(stationHitState, 150, 212) == UiTarget::ListRow3);
+    assert(uiHitTest(stationHitState, 232, 212) == UiTarget::ListRowFavorite3);
+    assert(uiHitTest(stationHitState, 289, 70) == UiTarget::ListPrevious);
+    assert(uiHitTest(stationHitState, 289, 160) == UiTarget::ListNext);
+    assert(uiHitTest(stationHitState, 160, 214) == UiTarget::ListRow3);
     UiRenderState favoritesHitState;
     favoritesHitState.page = UiPage::Favorites;
     assert(uiHitTest(favoritesHitState, 82, 65) == UiTarget::FavoritesStationsTab);
     assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
     assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
-    assert(uiHitTest(favoritesHitState, 290, 108) == UiTarget::FavoritesRowFavorite0);
+    assert(uiHitTest(favoritesHitState, 232, 108) == UiTarget::FavoritesRowFavorite0);
+    assert(uiHitTest(favoritesHitState, 289, 100) == UiTarget::FavoritesPrevious);
+    assert(uiHitTest(favoritesHitState, 289, 160) == UiTarget::FavoritesNext);
     UiRenderState showsHitState;
     showsHitState.page = UiPage::RecordedShows;
     assert(uiHitTest(showsHitState, 22, 22) == UiTarget::ShowsBack);
@@ -164,6 +169,15 @@ int main(int argc, char** argv) {
     episodesHitState.page = UiPage::ShowEpisodes;
     episodesHitState.episodeShow = 0;
     assert(uiHitTest(episodesHitState, 150, 68) == UiTarget::EpisodeRow0);
+    for (const auto& page : {stationHitState, showsHitState, episodesHitState}) {
+        assert(uiHitTest(page, 289, 44) == UiTarget::ListPrevious);
+        assert(uiHitTest(page, 289, 141) == UiTarget::ListPrevious);
+        assert(uiHitTest(page, 289, 142) == UiTarget::ListNext);
+        assert(uiHitTest(page, 289, 239) == UiTarget::ListNext);
+        assert(uiHitTest(page, 160, 214) == UiTarget::ListRow3 ||
+               uiHitTest(page, 160, 214) == UiTarget::ShowRow3 ||
+               uiHitTest(page, 160, 214) == UiTarget::EpisodeRow3);
+    }
     UiRenderState podcastHitState;
     podcastHitState.page = UiPage::PodcastPlayer;
     assert(uiHitTest(podcastHitState, 128, 122) == UiTarget::PodcastProgress);
@@ -250,6 +264,16 @@ int main(int argc, char** argv) {
     save((dir + "/favorites.ppm").c_str());
     renderRecordedShows(showsHitState, "15:01", true);
     save((dir + "/recorded-shows.ppm").c_str());
+    UiRenderState showsPageTwo = showsHitState;
+    showsPageTwo.showOffset = 4;
+    // Paging only changes the viewport; it does not select a row on that page.
+    assert(showsPageTwo.showFocus == 0);
+    renderRecordedShows(showsPageTwo, "15:01", true);
+    save((dir + "/recorded-shows-page-two.ppm").c_str());
+    UiRenderState showsPageThree = showsHitState;
+    showsPageThree.showOffset = 6; // Partial final viewport: shows 7–10.
+    renderRecordedShows(showsPageThree, "15:01", true);
+    save((dir + "/recorded-shows-page-three.ppm").c_str());
     renderShowEpisodes(episodesHitState, "15:01", true);
     save((dir + "/show-episodes.ppm").c_str());
     renderPodcastPlayer(podcastHitState, "15:01", true);

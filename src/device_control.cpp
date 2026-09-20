@@ -15,6 +15,35 @@ constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 
+// Observe the production poll without another SPI read or drawing over the UI.
+// Skip output when USB is disconnected or lacks room for the complete report.
+void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
+                     unsigned long now, unsigned long gap, unsigned long readUs) {
+    static unsigned long reportedAt = 0;
+    static unsigned polls = 0, contacts = 0, panelContacts = 0;
+    static unsigned begins = 0, releases = 0;
+    static unsigned long maxGap = 0, maxReadUs = 0;
+    ++polls;
+    contacts += raw;
+    panelContacts += onPanel;
+    begins += event == TouchEvent::Begin;
+    releases += event == TouchEvent::Release;
+    if (gap > maxGap) maxGap = gap;
+    if (readUs > maxReadUs) maxReadUs = readUs;
+    if (now - reportedAt < 1000) return;
+    char report[192];
+    const int length = snprintf(report, sizeof(report),
+        "Touch polls=%u raw=%u panel=%u press=%u release=%u max_gap_ms=%lu read_us=%lu\n",
+        polls, contacts, panelContacts, begins, releases, maxGap, maxReadUs);
+    if (length > 0 && length < static_cast<int>(sizeof(report)) && Serial &&
+        Serial.availableForWrite() >= length) {
+        Serial.write(reinterpret_cast<const uint8_t*>(report), length);
+    }
+    reportedAt = now;
+    polls = contacts = panelContacts = begins = releases = 0;
+    maxGap = maxReadUs = 0;
+}
+
 }  // namespace
 
 void goToSleep() {
@@ -169,68 +198,28 @@ ButtonEvent pollEncoderButton(unsigned long now) {
 }
 
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
-    static TouchGesture gesture;
+    static TouchPressLatch pressLatch;
     static unsigned long lastPoll = 0;
     if (now - lastPoll < kTouchPollMs) return TouchEvent::None;
+    const unsigned long gap = lastPoll == 0 ? 0 : now - lastPoll;
     lastPoll = now;
 
+    const unsigned long readStarted = TOUCH_DEBUG_ENABLED ? micros() : 0;
     lgfx::touch_point_t point = {};
-    bool touched = tft.getTouchRaw(&point);
+    const bool rawContact = tft.getTouchRaw(&point);
+    bool touched = rawContact;
     if (touched) {
         tft.convertRawXY(&point);
         // A spurious off-panel sample is a dropout, not a permanent veto of
-        // the whole gesture. The recognizer bridges brief missing samples.
+        // the whole press. The latch bridges brief missing samples.
         touched = point.x >= 0 && point.x < tft.width() &&
                   point.y >= 0 && point.y < tft.height();
     }
-    return gesture.sample(touched, static_cast<int16_t>(point.x),
-                          static_cast<int16_t>(point.y), now, x, y);
+    const TouchEvent event = pressLatch.sample(touched, static_cast<int16_t>(point.x),
+                                               static_cast<int16_t>(point.y), now, x, y);
+    if (TOUCH_DEBUG_ENABLED) recordTouchPoll(rawContact, touched, event, now, gap, micros() - readStarted);
+    return event;
 }
-
-#if TOUCH_DEBUG_ENABLED
-void updateTouchTest(unsigned long now) {
-    static bool wasTouched = false;
-    static unsigned long lastPoll = 0;
-    static unsigned long lastReport = 0;
-
-    if (now - lastPoll < 10) {
-        return;
-    }
-    lastPoll = now;
-
-    lgfx::touch_point_t rawPoint;
-    if (!tft.getTouchRaw(&rawPoint)) {
-        if (wasTouched) {
-            Serial.println("Touch released");
-            forceRedraw = true;
-        }
-        wasTouched = false;
-        return;
-    }
-
-    lgfx::touch_point_t screenPoint = rawPoint;
-    tft.convertRawXY(&screenPoint);
-    lastInteraction = now;
-
-    if (!wasTouched || now - lastReport >= 100) {
-        Serial.printf(
-            "Touch raw=(%ld,%ld) screen=(%ld,%ld) pressure=%u\n",
-            static_cast<long>(rawPoint.x),
-            static_cast<long>(rawPoint.y),
-            static_cast<long>(screenPoint.x),
-            static_cast<long>(screenPoint.y),
-            static_cast<unsigned int>(rawPoint.size));
-        lastReport = now;
-    }
-
-    if (screenPoint.x >= 0 && screenPoint.x < tft.width() &&
-        screenPoint.y >= 0 && screenPoint.y < tft.height()) {
-        tft.fillCircle(screenPoint.x, screenPoint.y, 4, TFT_CYAN);
-        tft.drawCircle(screenPoint.x, screenPoint.y, 8, TFT_WHITE);
-    }
-    wasTouched = true;
-}
-#endif
 
 void taskControl(void* parameter) {
     (void)parameter;

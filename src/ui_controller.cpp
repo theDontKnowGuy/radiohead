@@ -8,7 +8,7 @@
 
 namespace {
 
-constexpr int kRowsPerPage = 5;
+constexpr int kRowsPerPage = UI_LIST_ROWS;
 constexpr int kFavoriteRowsPerPage = 2;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr int16_t kPodcastProgressX = 128;
@@ -304,17 +304,17 @@ void handleTarget(UiTarget target, int value = 0) {
         if (target == UiTarget::ListBack) {
             closeToHome();
         } else if (target == UiTarget::ListPrevious) {
-            moveStationActionFocus(-kRowsPerPage * 2);
+            uiControllerPage(-1, 0, false);
         } else if (target == UiTarget::ListNext) {
-            moveStationActionFocus(kRowsPerPage * 2);
-        } else if (target >= UiTarget::ListRow0 && target <= UiTarget::ListRow4) {
+            uiControllerPage(1, 0, false);
+        } else if (target >= UiTarget::ListRow0 && target <= UiTarget::ListRow3) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ListRow0);
             const int visibleIndex = state.stationOffset + row;
             if (visibleIndex < playableStationCount()) {
                 state.stationFocus = visibleIndex;
                 selectFocusedStation();
             }
-        } else if (target >= UiTarget::ListRowFavorite0 && target <= UiTarget::ListRowFavorite4) {
+        } else if (target >= UiTarget::ListRowFavorite0 && target <= UiTarget::ListRowFavorite3) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ListRowFavorite0);
             const int slot = playableStationSlotAt(state.stationOffset + row);
             if (slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);
@@ -349,9 +349,9 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target == UiTarget::FavoritesBack) {
             closeToHome();
         } else if (target == UiTarget::FavoritesPrevious) {
-            moveFavoriteActionFocus(-kFavoriteRowsPerPage * 2);
+            uiControllerPage(-1, 0, false);
         } else if (target == UiTarget::FavoritesNext) {
-            moveFavoriteActionFocus(kFavoriteRowsPerPage * 2);
+            uiControllerPage(1, 0, false);
         } else if (target >= UiTarget::FavoritesRow0 && target <= UiTarget::FavoritesRow1) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRow0);
             const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
@@ -371,7 +371,9 @@ void handleTarget(UiTarget target, int value = 0) {
     case UiPage::RecordedShows:
         if (target == UiTarget::ShowsBack) {
             state.showFavoritesOnly ? openFavorites() : closeToHome();
-        } else if (target >= UiTarget::ShowRow0 && target <= UiTarget::ShowRow4) {
+        } else if (target == UiTarget::ListPrevious || target == UiTarget::ListNext) {
+            uiControllerPage(target == UiTarget::ListNext ? 1 : -1, 0, false);
+        } else if (target >= UiTarget::ShowRow0 && target <= UiTarget::ShowRow3) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ShowRow0);
             const int show = podcastShowAt(state.showOffset + row, state.showFavoritesOnly);
             if (show >= 0) openEpisodes(show);
@@ -380,7 +382,9 @@ void handleTarget(UiTarget target, int value = 0) {
     case UiPage::ShowEpisodes:
         if (target == UiTarget::EpisodesBack) {
             openRecordedShows(state.showFavoritesOnly);
-        } else if (target >= UiTarget::EpisodeRow0 && target <= UiTarget::EpisodeRow4 &&
+        } else if (target == UiTarget::ListPrevious || target == UiTarget::ListNext) {
+            uiControllerPage(target == UiTarget::ListNext ? 1 : -1, 0, false);
+        } else if (target >= UiTarget::EpisodeRow0 && target <= UiTarget::EpisodeRow3 &&
                    podcastEpisodesReadyFor(state.episodeShow)) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::EpisodeRow0);
             const int episode = state.episodeOffset + row;
@@ -611,37 +615,40 @@ void uiControllerTap(UiTarget target, int value, unsigned long now, bool display
     handleTarget(target, value);
 }
 
-void uiControllerSwipe(int direction, unsigned long now, bool displayWasDimmed) {
+void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
     (void)now;
     if (alarmIsActive || displayWasDimmed || direction == 0) return;
     int* offset = nullptr;
-    int* focus = nullptr;
     int count = 0;
+    int rows = kRowsPerPage;
     switch (state.page) {
     case UiPage::Stations:
         offset = &state.stationOffset;
-        focus = &state.stationFocus;
         count = playableStationCount();
         break;
     case UiPage::RecordedShows:
         offset = &state.showOffset;
-        focus = &state.showFocus;
         count = podcastShowCount(state.showFavoritesOnly);
         break;
     case UiPage::ShowEpisodes:
         if (!podcastEpisodesReadyFor(state.episodeShow)) return;
         offset = &state.episodeOffset;
-        focus = &state.episodeFocus;
         count = podcastEpisodeCount;
+        break;
+    case UiPage::Favorites:
+        offset = &state.favoriteOffset;
+        count = state.favoriteShowsTab ? podcastShowCount(true) : favoriteStationCount();
+        rows = kFavoriteRowsPerPage;
         break;
     default:
         return;
     }
-    const int nextOffset = constrain(*offset + (direction > 0 ? 1 : -1),
-                                     0, max(0, count - kRowsPerPage));
+    const int nextOffset = constrain(*offset + (direction > 0 ? rows : -rows),
+                                     0, max(0, count - rows));
     if (nextOffset == *offset) return;
     *offset = nextOffset;
-    *focus = constrain(*focus, *offset, *offset + kRowsPerPage - 1);
+    // Paging is viewport-only. It never changes which station/show/episode is
+    // selected; selection remains an explicit row action.
     if (state.page == UiPage::Stations) state.stationFavoriteFocus = false;
     markDirty();
 }
