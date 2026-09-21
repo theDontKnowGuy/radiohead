@@ -16,6 +16,22 @@
 
 namespace {
 
+// NPR advertises 64 kb/s AAC. Keep several seconds of PSRAM-backed input
+// before live decoding so ordinary Wi-Fi jitter cannot immediately underrun.
+constexpr size_t kStreamPrebufferBytes = 64 * 1024;
+
+bool startSetupAccessPoint() {
+    WiFi.mode(WIFI_AP);
+    if (!WiFi.softAP("Radio_Setup")) {
+        Serial.println("[wifi] setup access point failed to start");
+        return false;
+    }
+    isAP = true;
+    Serial.print("[wifi] setup access point: ");
+    Serial.println(WiFi.softAPIP());
+    return true;
+}
+
 void connectToNetwork() {
     if (!st_ssid.isEmpty()) {
         WiFi.begin(st_ssid.c_str(), st_pass.c_str());
@@ -28,14 +44,12 @@ void connectToNetwork() {
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-        WiFi.softAP("Radio_Setup");
-        isAP = true;
+        startSetupAccessPoint();
         return;
     }
 
     configTime(0, 0, ntpServer);
-    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
-    tzset();
+    applyConfiguredTimeZone();
 }
 
 void updateAlarm(const tm& timeInfo, bool timeValid, bool switchPressed, unsigned long now) {
@@ -127,16 +141,28 @@ void setup() {
     tft.init();
     tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
+    // A held encoder requests browser-based Wi-Fi setup.  Start the AP before
+    // the potentially interactive calibration flow so it is already reachable
+    // as soon as calibration finishes; the held press still intentionally
+    // requests recalibration in initializeTouchCalibration().
+    pinMode(PIN_SW, INPUT_PULLUP);
+    const bool setupRequestedAtBoot = digitalRead(PIN_SW) == LOW;
+    if (setupRequestedAtBoot) {
+        startSetupAccessPoint();
+    }
     initializeTouchCalibration();
     loadSettings();
     // Initialize artwork storage once, including the user-authorized recovery
     // of the currently corrupt LittleFS partition, before web rendering can
     // ask for station thumbnails.
     stationArtworkBegin();
-    connectToNetwork();
+    if (!isAP) {
+        connectToNetwork();
+    }
     startWebServer();
 
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
+    audio.setStreamPrebuffer(kStreamPrebufferBytes);
     mediaBegin();
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);
@@ -157,6 +183,7 @@ void setup() {
 void loop() {
     audio.loop();
     server.handleClient();
+    serviceWebNetworkRequests(millis());
     updateWeatherData();
 
     const unsigned long now = millis();
@@ -169,11 +196,11 @@ void loop() {
     const time_t wallClock = time(nullptr);
     const bool timeValid =
         wallClock >= 1483228800 && localtime_r(&wallClock, &timeInfo) != nullptr;
-    char currentTime[10];
+    char currentTime[12];
     if (timeValid) {
-        strftime(currentTime, sizeof(currentTime), "%H:%M", &timeInfo);
+        formatConfiguredClock(currentTime, sizeof(currentTime), timeInfo);
     } else {
-        strcpy(currentTime, "00:00");
+        strcpy(currentTime, "--:--");
     }
 
     const bool alarmWasActive = isAlarming;

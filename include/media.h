@@ -58,6 +58,9 @@ void stopStationPlayback();
 void setRadioVolumeIndex(int volumeIndex);
 void toggleRadioMute();
 bool isStationMuted();
+// v4 delivers VU data through the audio callback; this is the latest combined
+// channel level normalized to the 0..255 range used by the renderer.
+uint8_t mediaVuLevel();
 int playableStationCount();
 int playableStationSlotAt(int visibleIndex);
 int selectedPlayableStationIndex();

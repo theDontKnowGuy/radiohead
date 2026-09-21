@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <atomic>
 #include <cstring>
 #include <esp_heap_caps.h>
 #include <new>
@@ -60,6 +61,7 @@ PodcastEpisode activePodcastEpisodeData;
 bool hasActivePodcastEpisode = false;
 bool podcastPaused = false;
 bool podcastControlError = false;
+std::atomic<uint8_t> latestVuLevel{0};
 
 uint32_t activePodcastDurationSeconds() {
     const uint32_t decodedDuration = audio.getAudioFileDuration();
@@ -110,6 +112,10 @@ void scheduleStationRecovery(const char* reason) {
 }
 
 void updatePlaybackFromAudioInfo(Audio::msg_t message) {
+    if (message.e == Audio::evt_vu && message.vec1.size() >= 2) {
+        const uint32_t level = message.vec1[0] > message.vec1[1] ? message.vec1[0] : message.vec1[1];
+        latestVuLevel.store(static_cast<uint8_t>(level > UINT8_MAX ? UINT8_MAX : level), std::memory_order_relaxed);
+    }
     if (message.e == Audio::evt_info && message.msg != nullptr &&
         (strcmp(message.msg, "slow stream") == 0 || strcmp(message.msg, "Stream lost") == 0)) {
         // The audio library has its own stream-loss reconnect path.  Record the
@@ -431,6 +437,10 @@ void toggleRadioMute() {
 
 bool isStationMuted() {
     return radioMuted;
+}
+
+uint8_t mediaVuLevel() {
+    return latestVuLevel.load(std::memory_order_relaxed);
 }
 
 int playableStationCount() {

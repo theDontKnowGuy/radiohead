@@ -1,7 +1,9 @@
 #include "settings.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
+#include <time.h>
 #include <LittleFS.h>
 
 #include "app_state.h"
@@ -11,6 +13,7 @@ namespace {
 
 constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
 constexpr uint8_t FAVORITES_VERSION = 2;
+constexpr uint8_t WEATHER_TIME_VERSION = 1;
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
 constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1000;
@@ -29,6 +32,25 @@ uint32_t artworkUploadRevision = 0;
 size_t artworkUploadBytes = 0;
 bool artworkUploadFailed = false;
 uint32_t artworkContentEpoch[STATION_COUNT] = {};
+
+constexpr TimeZoneOption TIME_ZONES[] = {
+    {"UTC", "UTC", "UTC0"},
+    // This is the historic rule already hard-coded by the firmware.  Keeping
+    // it as the default preserves users' stored behavior during migration.
+    {"Europe/Paris", "Europe · Paris", "CET-1CEST,M3.5.0,M10.5.0/3"},
+    {"Europe/London", "Europe · London", "GMT0BST,M3.5.0/1,M10.5.0/2"},
+    {"America/New_York", "America · New York", "EST5EDT,M3.2.0,M11.1.0"},
+    {"America/Los_Angeles", "America · Los Angeles", "PST8PDT,M3.2.0,M11.1.0"},
+    {"Asia/Tokyo", "Asia · Tokyo", "JST-9"},
+    {"Australia/Sydney", "Australia · Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+};
+
+const TimeZoneOption* findTimeZone(const String& id) {
+    for (const TimeZoneOption& option : TIME_ZONES) {
+        if (id == option.id) return &option;
+    }
+    return nullptr;
+}
 
 String artworkPath(int stationIndex, const char* suffix = "") {
     return "/rh-art-" + String(stationIndex) + suffix;
@@ -118,6 +140,76 @@ bool isValidTouchCalibration(const TouchCalibration& calibration) {
 }
 
 }  // namespace
+
+const TimeZoneOption* supportedTimeZones(size_t& count) {
+    count = sizeof(TIME_ZONES) / sizeof(TIME_ZONES[0]);
+    return TIME_ZONES;
+}
+
+bool isSupportedTimeZone(const String& id) {
+    return findTimeZone(id) != nullptr;
+}
+
+void applyConfiguredTimeZone() {
+    const TimeZoneOption* option = findTimeZone(timeZoneId);
+    if (option == nullptr) {
+        timeZoneId = "Europe/Paris";
+        option = findTimeZone(timeZoneId);
+    }
+    setenv("TZ", option->posixRule, 1);
+    tzset();
+}
+
+void formatConfiguredClock(char* destination, size_t destinationSize, const tm& value) {
+    if (destination == nullptr || destinationSize == 0) return;
+    const char* format = use24HourClock ? "%H:%M" : "%I:%M %p";
+    if (strftime(destination, destinationSize, format, &value) == 0) {
+        destination[0] = '\0';
+        return;
+    }
+    if (!use24HourClock && destination[0] == '0') {
+        memmove(destination, destination + 1, strlen(destination));
+    }
+}
+
+bool saveWiFiCredentials(const String& ssid, const String& password) {
+    if (ssid.isEmpty() || ssid.length() > 32 || password.length() > 63 || !pref.begin("radio", false)) {
+        return false;
+    }
+    const bool ssidSaved = pref.putString("ssid", ssid) == ssid.length();
+    const bool passwordSaved = ssidSaved && pref.putString("pass", password) == password.length();
+    pref.end();
+    return ssidSaved && passwordSaved;
+}
+
+bool clearWiFiCredentials() {
+    if (!pref.begin("radio", false)) return false;
+    const bool ssidCleared = pref.remove("ssid");
+    const bool passwordCleared = pref.remove("pass");
+    pref.end();
+    // Removing an already-absent key is a successful desired state.
+    return ssidCleared || passwordCleared || (st_ssid.isEmpty() && st_pass.isEmpty());
+}
+
+bool saveWeatherTimeSettings() {
+    if (owmCity.isEmpty() || owmCity.length() > 80 || owmKey.length() > 128 ||
+        !isSupportedTimeZone(timeZoneId) || !pref.begin("radio", false)) {
+        return false;
+    }
+    // Preferences does not provide a multi-key transaction.  Keep a version
+    // marker for future migration, while the web response only reports the
+    // completed local write; weather availability is still a separate result.
+    pref.putUChar("wtVer", 0);
+    const bool citySaved = pref.putString("owmCity", owmCity) == owmCity.length();
+    const bool keySaved = citySaved && pref.putString("owmKey", owmKey) == owmKey.length();
+    const bool unitSaved = keySaved && pref.putBool("useCelsius", useCelsius) == sizeof(bool);
+    const bool visibleSaved = unitSaved && pref.putBool("weatherHome", showWeatherOnHome) == sizeof(bool);
+    const bool formatSaved = visibleSaved && pref.putBool("clock24", use24HourClock) == sizeof(bool);
+    const bool zoneSaved = formatSaved && pref.putString("timezone", timeZoneId) == timeZoneId.length();
+    const bool versionSaved = zoneSaved && pref.putUChar("wtVer", WEATHER_TIME_VERSION) == sizeof(uint8_t);
+    pref.end();
+    return versionSaved;
+}
 
 bool saveFavorites() {
     if (!pref.begin("favorites", false)) {
@@ -399,6 +491,10 @@ void saveSettings() {
     pref.putString("owmCity", owmCity);
     pref.putString("owmKey", owmKey);
     pref.putBool("useCelsius", useCelsius);
+    pref.putBool("weatherHome", showWeatherOnHome);
+    pref.putBool("clock24", use24HourClock);
+    pref.putString("timezone", timeZoneId);
+    pref.putUChar("wtVer", WEATHER_TIME_VERSION);
     pref.putString("cSel", currentSkin.hexSel);
     pref.putString("cClk", currentSkin.hexClk);
     pref.putString("cHInf", currentSkin.hexHInfo);
@@ -442,6 +538,11 @@ void loadSettings() {
     owmCity = pref.getString("owmCity", "Budapest,HU");
     owmKey = pref.getString("owmKey", "");
     useCelsius = pref.getBool("useCelsius", true);
+    // Missing W6 keys deliberately retain the old behavior: weather visible,
+    // 24-hour clock, and the previous Central European DST rule.
+    showWeatherOnHome = pref.getBool("weatherHome", true);
+    use24HourClock = pref.getBool("clock24", true);
+    timeZoneId = pref.getString("timezone", "Europe/Paris");
 
     if (st_ssid.length() > 32) {
         st_ssid = "";
@@ -454,6 +555,9 @@ void loadSettings() {
     }
     if (owmKey.length() > 128) {
         owmKey = "";
+    }
+    if (!isSupportedTimeZone(timeZoneId)) {
+        timeZoneId = "Europe/Paris";
     }
     currentSkin.hexTop = pref.getString("cTop", "#000000");
     currentSkin.hexBottom = pref.getString("cBot", "#000000");
@@ -483,6 +587,7 @@ void loadSettings() {
     normalizeColor(currentSkin.hexVol, "#00FFFF");
     normalizeColor(currentSkin.hexAlm, "#FF0000");
     updateColors();
+    applyConfiguredTimeZone();
 
     for (int i = 0; i < STATION_COUNT; ++i) {
         stations[i].name = pref.getString(("n" + String(i)).c_str(), stations[i].name);

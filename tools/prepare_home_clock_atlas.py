@@ -1,4 +1,4 @@
-"""Build the native Home-clock alpha atlas from Inter SemiBold.
+"""Build the native Home-clock alpha atlas from Inter Bold.
 
 Each source glyph is rendered at 8×, cropped to actual ink, aligned to a common
 baseline and normalized into the requested tabular geometry before one final
@@ -49,7 +49,7 @@ def downsample_ink(crop, width, height):
 
 
 def strengthen_alpha(mask):
-    """Preserve one anti-aliased edge pixel while restoring an opaque stem core."""
+    """Preserve one anti-aliased edge while restoring an opaque stem core."""
     def strengthen(alpha):
         if alpha < 18:
             return 0
@@ -204,7 +204,7 @@ def main():
         },
         "bytes": len(alpha),
         "sha256": hashlib.sha256(alpha).hexdigest(),
-        "recipe": "Inter SemiBold is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core.",
+        "recipe": "Inter Bold is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core.",
     }
     (OUTPUT / "clock_atlas.json").write_text(json.dumps(manifest, indent=2) + "\n")
 

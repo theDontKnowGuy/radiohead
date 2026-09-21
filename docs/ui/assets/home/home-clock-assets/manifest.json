@@ -1,0 +1,259 @@
+{
+  "format_version": 1,
+  "purpose": "Dynamic Home-clock glyph package; compose glyphs at runtime. The full Home screen is intentionally not included.",
+  "canvas": {
+    "width": 320,
+    "height": 240,
+    "units": "pixels"
+  },
+  "clock_color": {
+    "rgb": [
+      245,
+      245,
+      245
+    ],
+    "hex": "#F5F5F5"
+  },
+  "rendering": {
+    "alpha": "8-bit straight alpha in RGBA PNGs; RGB is #F5F5F5 where alpha is non-zero.",
+    "antialiasing": "Render at 8x with FreeType, then downsample with Lanczos (Pillow LANCZOS) to native size.",
+    "font": {
+      "family": "Avenir Next Medium",
+      "source": "macOS system font: /System/Library/Fonts/Avenir Next.ttc, collection index 5",
+      "license": "Apple system font; not redistributed. Only the rasterized glyph masks are included.",
+      "nominal_size_px": 45
+    }
+  },
+  "glyph_cells": {
+    "width": 26,
+    "height": 30,
+    "baseline_y": 26,
+    "left_bearing_x": 1,
+    "source_baseline_y_before_vertical_condensing": 35,
+    "pngs": "glyphs/<character-name>.png",
+    "glyphs": {
+      "0": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "1": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          3,
+          0,
+          21,
+          29
+        ]
+      },
+      "2": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "3": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          0,
+          0,
+          26,
+          29
+        ]
+      },
+      "4": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          0,
+          0,
+          26,
+          29
+        ]
+      },
+      "5": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "6": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "7": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "8": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      "9": {
+        "advance": 21,
+        "ink_bounds_in_cell": [
+          1,
+          0,
+          26,
+          29
+        ]
+      },
+      ":": {
+        "advance": 11,
+        "ink_bounds_in_cell": [
+          2,
+          7,
+          13,
+          29
+        ]
+      },
+      "-": {
+        "advance": 16,
+        "ink_bounds_in_cell": [
+          0,
+          14,
+          16,
+          22
+        ]
+      }
+    }
+  },
+  "home_clock_anchor": {
+    "alignment": "right/top",
+    "right_x": 304,
+    "top_y": 41,
+    "placement_rule": "Place a reference PNG with its transparent top-left at (right_x - image_width, top_y).",
+    "approved_mockup_source": "ChatGPT Image Sep 21, 2026, 01_11_36 PM.png (1448x1086, 4:3); mapped to 320x240."
+  },
+  "reference_strings": {
+    "14:37": {
+      "file": "references/14_colon_37.png",
+      "canvas_size": [
+        95,
+        30
+      ],
+      "ink_bounds": [
+        3,
+        0,
+        95,
+        29
+      ],
+      "intended_ink_bounds_at_home_anchor": [
+        212,
+        41,
+        304,
+        70
+      ]
+    },
+    "00:00": {
+      "file": "references/00_colon_00.png",
+      "canvas_size": [
+        95,
+        30
+      ],
+      "ink_bounds": [
+        1,
+        0,
+        95,
+        29
+      ],
+      "intended_ink_bounds_at_home_anchor": [
+        210,
+        41,
+        304,
+        70
+      ]
+    },
+    "11:11": {
+      "file": "references/11_colon_11.png",
+      "canvas_size": [
+        95,
+        30
+      ],
+      "ink_bounds": [
+        3,
+        0,
+        95,
+        29
+      ],
+      "intended_ink_bounds_at_home_anchor": [
+        212,
+        41,
+        304,
+        70
+      ]
+    },
+    "23:59": {
+      "file": "references/23_colon_59.png",
+      "canvas_size": [
+        95,
+        30
+      ],
+      "ink_bounds": [
+        1,
+        0,
+        95,
+        29
+      ],
+      "intended_ink_bounds_at_home_anchor": [
+        210,
+        41,
+        304,
+        70
+      ]
+    },
+    "--:--": {
+      "file": "references/dashdash_colon_dashdash.png",
+      "canvas_size": [
+        75,
+        30
+      ],
+      "ink_bounds": [
+        0,
+        7,
+        75,
+        29
+      ],
+      "intended_ink_bounds_at_home_anchor": [
+        229,
+        48,
+        304,
+        70
+      ]
+    }
+  },
+  "acceptance": {
+    "overlay": "references/home-clock-overlay-14_37.png",
+    "overlay_ink_bounds": [
+      212,
+      41,
+      304,
+      70
+    ],
+    "validation": "The overlay is assembled from these same glyph assets; it contains no Home-screen background pixels."
+  }
+}

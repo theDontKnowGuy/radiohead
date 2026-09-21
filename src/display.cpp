@@ -40,9 +40,15 @@ namespace {
 
 volatile bool weatherFetchInProgress = false;
 volatile bool weatherDataValid = false;
+uint32_t weatherConfigurationGeneration = 1;
+uint32_t weatherFetchGeneration = 0;
+bool weatherRefreshRequested = false;
 portMUX_TYPE weatherStateMux = portMUX_INITIALIZER_UNLOCKED;
 String weatherCitySnapshot;
 String weatherKeySnapshot;
+time_t weatherLastSuccess = 0;
+unsigned long weatherLastSuccessAt = 0;
+constexpr unsigned long WEATHER_STALE_AFTER_MS = 30UL * 60UL * 1000UL;
 
 String urlEncode(const String& value) {
     static constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
@@ -98,9 +104,15 @@ void fetchWeatherTask(void* parameter) {
 
     if (fetchWeather(newTemperature, newWeatherId)) {
         portENTER_CRITICAL(&weatherStateMux);
-        tempC = newTemperature;
-        weatherID = newWeatherId;
-        weatherDataValid = true;
+        // A late task must never make data from a replaced location/key look
+        // current.  The next requested refresh will use the committed values.
+        if (weatherFetchGeneration == weatherConfigurationGeneration) {
+            tempC = newTemperature;
+            weatherID = newWeatherId;
+            weatherDataValid = true;
+            weatherLastSuccess = time(nullptr);
+            weatherLastSuccessAt = millis();
+        }
         portEXIT_CRITICAL(&weatherStateMux);
         forceRedraw = true;
     }
@@ -157,9 +169,9 @@ void drawAnalogVU() {
         lastVisualMode = visualMode;
     }
 
-    const uint32_t level = audio.getVUlevel();
+    const uint32_t level = mediaVuLevel();
     needlePosition +=
-        (map(constrain(level, 0, 70000), 0, 70000, 0, 100) - needlePosition) * 0.15F;
+        (map(level, 0, UINT8_MAX, 0, 100) - needlePosition) * 0.15F;
     constexpr int boxWidth = 70;
     constexpr int boxHeight = 70;
     constexpr int boxX = (320 - boxWidth) / 2;
@@ -236,11 +248,13 @@ void drawWeatherIcon(int x, int y, int weatherId) {
 void updateWeatherData() {
     static unsigned long lastWeatherUpdate = 0;
     if (!weatherFetchInProgress &&
-        (millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0)) {
+        (weatherRefreshRequested || millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0)) {
         if (WiFi.status() == WL_CONNECTED && !isAP && !owmKey.isEmpty()) {
             weatherCitySnapshot = owmCity;
             weatherKeySnapshot = owmKey;
+            weatherFetchGeneration = weatherConfigurationGeneration;
             weatherFetchInProgress = true;
+            weatherRefreshRequested = false;
             if (xTaskCreatePinnedToCore(
                     fetchWeatherTask,
                     "Weather",
@@ -253,8 +267,34 @@ void updateWeatherData() {
             } else {
                 lastWeatherUpdate = millis();
             }
+        } else if (weatherRefreshRequested && (isAP || owmKey.isEmpty())) {
+            // No request can run until Wi-Fi and provider access exist.  Keep
+            // the state unavailable without rechecking the same request on
+            // every audio-service pass.
+            weatherRefreshRequested = false;
         }
     }
+}
+
+void invalidateWeatherData() {
+    portENTER_CRITICAL(&weatherStateMux);
+    ++weatherConfigurationGeneration;
+    weatherDataValid = false;
+    weatherLastSuccess = 0;
+    weatherLastSuccessAt = 0;
+    portEXIT_CRITICAL(&weatherStateMux);
+    weatherRefreshRequested = true;
+    forceRedraw = true;
+}
+
+WeatherStatus weatherStatus() {
+    WeatherStatus status;
+    portENTER_CRITICAL(&weatherStateMux);
+    status.available = weatherDataValid && millis() - weatherLastSuccessAt <= WEATHER_STALE_AFTER_MS;
+    status.lastSuccess = weatherLastSuccess;
+    portEXIT_CRITICAL(&weatherStateMux);
+    status.refreshing = weatherFetchInProgress;
+    return status;
 }
 
 void updateWeatherUI() {
@@ -266,7 +306,7 @@ void updateWeatherUI() {
     portENTER_CRITICAL(&weatherStateMux);
     displayedTemperature = tempC;
     displayedWeatherId = weatherID;
-    hasWeatherData = weatherDataValid;
+    hasWeatherData = weatherDataValid && millis() - weatherLastSuccessAt <= WEATHER_STALE_AFTER_MS;
     portEXIT_CRITICAL(&weatherStateMux);
 
     if (hasWeatherData) {
@@ -313,9 +353,9 @@ void drawSpectrum() {
     }
     lastSpectrumUpdate = millis();
 
-    const uint32_t level = audio.getVUlevel();
+    const uint32_t level = mediaVuLevel();
     for (int i = 0; i < 2; ++i) {
-        const int targetHeight = constrain(map(level, 0, 70000, 0, 65), 0, 65);
+        const int targetHeight = map(level, 0, UINT8_MAX, 0, 65);
         barHeights[i] += barHeights[i] < targetHeight ? 4 : -3;
         const int height = constrain(barHeights[i], 0, 65);
         tft.fillRect(10 + i * 28, 160, 24, 65 - height, currentSkin.bgBottom);
@@ -1134,8 +1174,8 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
     if (isAP) {
         canvas().fillRoundRect(12, 55, 296, 120, 8, kSurface);
         text("Connect on your phone", 28, 78, uiFont(&fonts::FreeSans9pt7b), kWhite);
-        text("Radio_Setup", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 250);
-        text("192.168.4.1", 28, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted);
+        text(WiFi.softAPSSID(), 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 250);
+        text(WiFi.softAPIP().toString(), 28, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted);
     } else {
         const String station = activeStationName();
         drawArtwork(station, 12, 54, 88, kBlue, true, currentStationIdx);
@@ -1478,13 +1518,17 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     portENTER_CRITICAL(&weatherStateMux);
     temperature = tempC;
     condition = weatherID;
-    hasWeather = weatherDataValid;
+    hasWeather = weatherDataValid && millis() - weatherLastSuccessAt <= WEATHER_STALE_AFTER_MS;
     portEXIT_CRITICAL(&weatherStateMux);
 
     // Home deliberately leaves the supplied sunset visible.  It is the primary
     // composition layer; only dense pages receive opaque reading surfaces.
-    drawHomeWeatherIcon(9, 66, hasWeather, condition);
-    if (hasWeather) {
+    // Visibility is a committed setting shared with the web UI, not a browser-
+    // only preference.  Hidden weather leaves the photograph untouched.
+    if (showWeatherOnHome) {
+        drawHomeWeatherIcon(9, 66, hasWeather, condition);
+    }
+    if (showWeatherOnHome && hasWeather) {
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d", static_cast<int>(roundf(displayedTemperature)));
@@ -1497,13 +1541,13 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         }
         text(homeCityLabel(owmCity), 76, 86, homeCaptionFont(), kWhite, 106);
         text(homeWeatherDescription(condition), 76, 100, homeCaptionFont(), kWhite, 106);
-    } else {
+    } else if (showWeatherOnHome) {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
         text("Configure on phone", 90, 118, uiFont(&fonts::Font0), kTextMuted, 116);
     }
 
-    if (uiFrameReady) {
+    if (uiFrameReady && use24HourClock) {
         // The alpha atlas blends against the freshly drawn sunset pixels in the
         // readable canvas. This avoids color fringes from a precomposited mask.
         drawHomeClockAtlas(timeValid ? currentTime : "--:--");

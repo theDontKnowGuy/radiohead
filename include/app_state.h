@@ -119,6 +119,11 @@ extern String owmCity;
 extern float tempC;
 extern int weatherID;
 extern bool useCelsius;
+// Weather and clock settings are shared by the web and TFT renderers.  The
+// timezone ID is resolved through the bounded POSIX-rule table in settings.cpp.
+extern bool showWeatherOnHome;
+extern bool use24HourClock;
+extern String timeZoneId;
 extern int currentStationIdx;
 extern int tempStationIdx;
 extern int mainVal;

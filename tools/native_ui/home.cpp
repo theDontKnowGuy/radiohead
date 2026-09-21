@@ -54,6 +54,8 @@ struct Station { String name; String url; };
 Station stations[] = {{"NPR 24", "https://example.test/npr"}, {"תחנה 101 FM", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
+// Fixture defaults mirror the persisted Home configuration defaults.
+bool showWeatherOnHome = true, use24HourClock = true;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;

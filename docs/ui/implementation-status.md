@@ -1,5 +1,21 @@
 # Touch UI implementation status
 
+## 2026-09-21 — Home-clock weight increase
+
+The Home clock atlas moves one source weight from Inter SemiBold to Inter Bold,
+while retaining its 33 px digit height, 20 px maximum digit width, 21 px tabular
+advance, and x=306/y=37 anchor. This increases the large time digits' actual
+prepared glyph coverage without changing their layout, date, background, color,
+or compact page-header clocks.
+
+**Visual:** native production fixture refreshed; physical/reference final
+acceptance remains open. **Functional:** `tools/render_ui_fonts.py` and
+`pio run -e esp32s3` pass; the build reports 82,772 B RAM (25.3%) and
+3,239,667 B flash (49.4%). The scoped diff whitespace check passes; the full
+worktree check reports trailing whitespace in unrelated vendored audio-library
+changes. **Hardware:** not flashed; TFT appearance and sustained-audio behavior
+remain unverified.
+
 ## 2026-09-21 — Fixed Home-clock alpha atlas
 
 The Home clock no longer uses a VLW font. Its reproducible recipe rasterizes

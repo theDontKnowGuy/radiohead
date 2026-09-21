@@ -2,12 +2,15 @@
 
 #include "Arduino.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #ifndef PS_PTR_CLASS
     #define PS_PTR_CLASS 1
@@ -82,9 +85,12 @@ class ps_ptr {
   private:
     std::unique_ptr<T[], PsramDeleter> mem;
     size_t                             allocated_size = 0;
-    char*                              name = nullptr; // member for object name
-    static inline T                    dummy{};        // For invalid accesses
-    size_t                             length_ = 0;    // actual number of characters
+    char*                              name = nullptr;  // member for object name
+    static inline T                    dummy{};         // For invalid accesses
+    size_t                             length_ = 0;     // actual number of characters
+    size_t                             m_fifoWrite = 0; // fifo functionality for arrays
+    size_t                             m_fifoRead = 0;  // fifo functionality for arrays
+
   public:
     // Auxiliary function for setting the name
     void set_name(const char* new_name) {
@@ -380,25 +386,30 @@ class ps_ptr {
     // buf.get()[2] = 4.5;
     // printf("%f\n", buf.get()[2]);
 
-    void copy_from(const T* src, std::size_t count) {
-        std::size_t bytes = (count + 1) * sizeof(T); // +1 For zero terminator
-        alloc(bytes);
-        if (mem && src) {
-            std::memcpy(mem.get(), src, count * sizeof(T));
-            mem.get()[count] = '\0'; // Zero
+    template <typename U>
+        requires(sizeof(U) == sizeof(T))
+    void copy_from(const U* src, std::size_t count, bool zeroTerminate = true) {
+        if (!src) {
+            log_e("arg. is null");
+            return;
         }
+        std::size_t elements = count + (zeroTerminate ? 1 : 0);
+        alloc(elements * sizeof(T));
+        if (!mem) return;
+        std::memcpy(mem.get(), src, count * sizeof(T));
+        if (zeroTerminate) mem.get()[count] = T{};
     }
 
-    size_t copy_from(const T* src) { // for strings
-        if (src == nullptr) {
+    template <typename U>
+        requires(std::is_same_v<T, char> && (std::is_same_v<U, char> || std::is_same_v<U, uint8_t>))
+    size_t copy_from(const U* src) {
+        if (!src) {
             log_e("arg. is null");
             return 0;
         }
-        std::size_t count = std::strlen(src) + 1;
-        std::size_t bytes = count * sizeof(T);
-        alloc(bytes);
-        if (mem && src) { std::memcpy(mem.get(), src, bytes); }
-        return bytes;
+        std::size_t len = std::strlen(reinterpret_cast<const char*>(src));
+        copy_from(src, len);
+        return len + 1;
     }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  C O P Y _ F R O M _ U T F 1 6   📌📌📌
@@ -408,13 +419,10 @@ class ps_ptr {
     // is UTF-16LE and will converted to: "Little London Girl"
     // UTF-16LE and UTF-16BE is often found in ID3 header
 
-    #include <cstdint>
-    #include <cstring>
-    #include <stdexcept>
-    #include <vector>
-
     // convert UTF-16 to UTF-8 and stop at zero terminator
-    size_t copy_from_utf16(const uint8_t* src, bool is_big_endian = false) {
+    template <typename U>
+        requires(std::is_same_v<U, char> || std::is_same_v<U, uint8_t>)
+    size_t copy_from_utf16(const U* src, bool is_big_endian = false) {
         if (!src) {
             log_e("arg. is null");
             return 0;
@@ -491,13 +499,7 @@ class ps_ptr {
             }
         }
 
-        // Nullterminator hinzufügen
-        out.push_back('\0');
-
-        // Speicher allozieren und kopieren
-        std::size_t bytes = out.size();
-        alloc(bytes);
-        std::memcpy(mem.get(), out.data(), bytes);
+        assign_vector(out);
         return i;
     }
 
@@ -506,7 +508,9 @@ class ps_ptr {
     // convert ISO 8859-1 to UTF-8 and stop at zero terminator
     // 0x48 0x65 0x6C 0x6C 0x6F 0x20 0xC3 0xA4 0x62 0x63 0x00  -> "Hello äbc"
 
-    size_t copy_from_iso8859_1(const uint8_t* src) {
+    template <typename U>
+        requires(sizeof(U) == 1)
+    size_t copy_from_iso8859_1(const U* src) {
         if (!src) {
             log_e("arg. is null");
             return 0;
@@ -531,13 +535,7 @@ class ps_ptr {
             i++;
         }
 
-        // add zero terminator
-        out.push_back('\0');
-
-        // allocate and copy memory
-        std::size_t bytes = out.size();
-        alloc(bytes);
-        std::memcpy(mem.get(), out.data(), bytes);
+        assign_vector(out);
         return i;
     }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -550,6 +548,7 @@ class ps_ptr {
     //   url = "A+Test.mp3"; url.urldecode(); // → "A Test.mp3"
 
     void urldecode() {
+        if(strlen() == 0) return;
         static_assert(std::is_same_v<T, char>, "urldecode() is only valid for ps_ptr<char>");
         if (!mem || !get()) {
             log_e("urldecode: No valid string data");
@@ -746,6 +745,14 @@ class ps_ptr {
         mem.get()[length] = '\0';
     }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  A S S I G N _ V E C T O R  📌📌📌
+    // append individual characters
+    void assign_vector(std::vector<char>& out) {
+        out.push_back('\0');
+        alloc(out.size());
+        if (mem) std::memcpy(mem.get(), out.data(), out.size());
+    }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  L E N G T H   📌📌📌
     size_t length() const { return length_; }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -890,6 +897,28 @@ class ps_ptr {
         if (!myStr || !other) return false;
         return strcmp(myStr, other) == 0;
     }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  E Q U A L S _ I C A S E  📌📌📌
+
+    bool equals_icase(const char* other) const {
+        if (!this->valid()) return false;
+
+        const char* s1 = this->get();
+        const char* s2 = other;
+
+        if (!s1 || !s2) return false;
+
+        while (*s1 && *s2) {
+            if (tolower((uint8_t)*s1) != tolower((uint8_t)*s2)) return false;
+            ++s1;
+            ++s2;
+        }
+
+        return (*s1 == '\0' && *s2 == '\0');
+    }
+
+    bool equals_icase(const ps_ptr<T>& other) const { return equals_icase(other.get()); }
+
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  A S S I G N F   📌📌📌
 
@@ -1283,7 +1312,7 @@ class ps_ptr {
         if (!src) return ps_ptr<char>{};
 
         size_t len = std::strlen(src);
-        if (pos >= len) return ps_ptr<char>{}; // leer zurück
+        if (pos >= len) return ps_ptr<char>{}; // empty back
 
         size_t n = (count == std::string::npos || pos + count > len) ? (len - pos) : count;
 
@@ -1743,9 +1772,7 @@ class ps_ptr {
     // 📌📌📌   A T    📌📌📌
 
     // Special method for ps_ptr<ps_ptr<T>>
-    template <typename U = T> auto at(size_t index) -> typename std::enable_if<std::is_same<U, ps_ptr<typename U::element_type>>::value, ps_ptr<typename U::element_type>&>::type {
-        return static_cast<ps_ptr<typename U::element_type>*>(get())[index];
-    }
+    template <typename U = T> auto at(size_t index) -> typename std::enable_if<std::is_same<U, ps_ptr<typename U::element_type>>::value, ps_ptr<typename U::element_type>&>::type { return static_cast<ps_ptr<typename U::element_type>*>(get())[index]; }
     using element_type = T;
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  A S  📌📌📌
@@ -2233,6 +2260,48 @@ class ps_ptr {
     bool valid() const { return mem != nullptr; }
 
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  F I F O _ P U S H   📌📌📌
+
+    // ps_ptr<uint8_t> delay_line = {};
+    // delay_line.calloc(128);
+    // delay_line.fifo_reset();
+    // for(int i = 0; i < 128) delay_line.fifo_push(i);
+    // uint a = delay_line.fifo_pop();
+    // uint b = delay_line.fifo_pop();
+
+    template <typename U> void fifo_push(const U& value) {
+        if (!mem || !allocated_size) return;
+
+        mem[m_fifoWrite] = value;
+
+        if (++m_fifoWrite == allocated_size) m_fifoWrite = 0;
+    }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  F I F O _ P O P   📌📌📌
+    template <typename U = T> U fifo_pop() {
+        if (!mem || !allocated_size) return U{};
+
+        U value = mem[m_fifoRead];
+
+        if (++m_fifoRead == allocated_size) m_fifoRead = 0;
+
+        return value;
+    }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  F I F O  📌📌📌
+    // fifo_push() and fifo(pop) in one line
+    template <typename U = T> U fifo(const T& value) {
+        U out = fifo_pop<U>();
+        fifo_push(value);
+        return out;
+    }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+    // 📌📌📌  F I F O _ R E S E T  📌📌📌
+    void fifo_reset() {
+        m_fifoRead = 0;
+        m_fifoWrite = 0;
+    }
+    // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  R E S E T   📌📌📌
 
     void reset() {
@@ -2263,8 +2332,7 @@ class ps_ptr {
 
         uint8_t items_per_line = 30;
 
-        static const char* sym[32] = {"NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS ", "TAB", "LF ", "VT ", "FF ", "CR ", "SO ", "SI ",
-                                      "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM ", "SUB", "ESC", "FS ", "GS ", "RS ", "US "};
+        static const char* sym[32] = {"NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS ", "TAB", "LF ", "VT ", "FF ", "CR ", "SO ", "SI ", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM ", "SUB", "ESC", "FS ", "GS ", "RS ", "US "};
 
         const uint8_t* buff = reinterpret_cast<const uint8_t*>(get());
         if (!name)
@@ -2486,6 +2554,12 @@ class ps_ptr {
                     continue;
                 }
 
+                // Nur {} oder {:...} sind Platzhalter
+                if (fmt[1] != '}' && fmt[1] != ':') {
+                    out += *fmt++;
+                    continue;
+                }
+
                 // Ende suchen
                 const char* end = std::strchr(fmt, '}');
 
@@ -2668,20 +2742,23 @@ class ps_ptr {
                 fmt += 2;
                 continue;
             }
+
             // escaped }}
             if (fmt[0] == '}' && fmt[1] == '}') {
                 fmt += 2;
                 continue;
             }
 
-            // echtes {
+            // Nur wenn wirklich '{'
             if (*fmt == '{') {
-                const char* end = std::strchr(fmt, '}');
-
-                if (end) {
-                    ++count;
-                    fmt = end + 1;
-                    continue;
+                // Nur {} oder {:...} sind Platzhalter
+                if (fmt[1] == '}' || fmt[1] == ':') {
+                    const char* end = std::strchr(fmt, '}');
+                    if (end) {
+                        ++count;
+                        fmt = end + 1;
+                        continue;
+                    }
                 }
             }
             ++fmt;

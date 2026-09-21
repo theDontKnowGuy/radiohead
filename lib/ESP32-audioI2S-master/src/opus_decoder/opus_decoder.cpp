@@ -3,7 +3,7 @@
  * based on Xiph.Org Foundation celt decoder
  *
  *  Created on: 26.01.2023
- *  Updated on: 14.02.2026
+ *  Updated on: 17.02.2026
  */
 //----------------------------------------------------------------------------------------------------------------------
 //                                     O G G / O P U S     I M P L.
@@ -36,9 +36,6 @@ bool OpusDecoder::init() {
     ;
     celtdec->clear();
 
-    m_out16.alloc_array(4608 * 2, "m_out16");
-    if(!m_out16.valid()) return false;
-
     clear();
     // allocate CELT buffers after OPUS head (nr of channels is needed)
     m_opusError = celtdec->celt_decoder_init(2);
@@ -70,7 +67,6 @@ void OpusDecoder::reset() {
     m_opusSegmentTableRdPtr = -1;
     m_opusCountCode = 0;
     m_isValid = false;
-    m_out16.reset();
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 void OpusDecoder::clear() {
@@ -84,7 +80,6 @@ void OpusDecoder::clear() {
     m_opusCountCode = 0;
     m_opusCurrentFilePos = 0;
     m_comment.reset();
-    m_out16.clear();
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 bool OpusDecoder::isValid() {
@@ -131,10 +126,11 @@ void OpusDecoder::OPUSsetDefaults() {
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 int32_t OpusDecoder::decode(uint8_t* inbuf, int32_t* bytesLeft, int32_t* outbuf) {
 
-    int32_t ret = OPUS_NONE;
-    int32_t segmLen = 0;
-    int32_t bytesLeft_begin = *bytesLeft;
-    int32_t bytes_consumed = 0;
+    int32_t  ret = OPUS_NONE;
+    int32_t  segmLen = 0;
+    int32_t  bytesLeft_begin = *bytesLeft;
+    int32_t  bytes_consumed = 0;
+    int16_t* pcm16 = (int16_t*)outbuf;
 
     if (m_f_lastPage && m_opusSegmentTableSize == 0) {
         if (OPUS_specialIndexOf(inbuf, "OggS", 5) == 0) { // next round
@@ -145,7 +141,20 @@ int32_t OpusDecoder::decode(uint8_t* inbuf, int32_t* bytesLeft, int32_t* outbuf)
     }
 
     if (m_frameCount > 0) { // decode audio, next part
-        ret = opusDecodePage3(inbuf, bytesLeft, segmLen, m_out16.get());
+        ret = opusDecodePage3(inbuf, bytesLeft, segmLen, pcm16);
+
+        if (m_opusChannels == 1) {
+            for (int i = m_opusValidSamples - 1; i >= 0; i--) {
+                int32_t sample = ((int32_t)pcm16[i]) << 16;
+                outbuf[i * 2] = sample;
+                outbuf[i * 2 + 1] = sample;
+            }
+        }
+
+        if (m_opusChannels == 2) {
+            for (int i = m_opusValidSamples * 2 - 1; i >= 0; i--) { outbuf[i] = ((int32_t)pcm16[i]) << 16; }
+        }
+
         goto exit;
     }
 
@@ -188,7 +197,20 @@ int32_t OpusDecoder::decode(uint8_t* inbuf, int32_t* bytesLeft, int32_t* outbuf)
     }
 
     else if (m_opusPageNr == 3) {
-        ret = opusDecodePage3(inbuf, bytesLeft, segmLen, m_out16.get()); // decode audio
+        ret = opusDecodePage3(inbuf, bytesLeft, segmLen, pcm16); // decode audio
+
+        if (m_opusChannels == 1) {
+            for (int i = m_opusValidSamples - 1; i >= 0; i--) {
+                int32_t sample = ((int32_t)pcm16[i]) << 16;
+                outbuf[i * 2] = sample;
+                outbuf[i * 2 + 1] = sample;
+            }
+        }
+
+        if (m_opusChannels == 2) {
+            for (int i = m_opusValidSamples * 2 - 1; i >= 0; i--) { outbuf[i] = ((int32_t)pcm16[i]) << 16; }
+        }
+
         goto exit;
     }
 
@@ -201,21 +223,6 @@ exit:
     }
 
     if (ret >= 0) { m_opusCurrentFilePos += bytesLeft_begin - (*bytesLeft); }
-
-    if(ret == 0){
-
-        if (m_opusChannels == 1) {
-            for (int i = 0; i < m_opusValidSamples; i++) {
-                outbuf[i * 2] = m_out16[i] << 16;
-                outbuf[i * 2 + 1] = m_out16[i] << 16;
-            }
-        }
-
-        if (m_opusChannels == 2) {
-            for (int i = 0; i < m_opusValidSamples * 2; i++) { outbuf[i] = m_out16[i] << 16; }
-        }
-
-    }
 
     return ret;
 }
@@ -1086,7 +1093,7 @@ int32_t OpusDecoder::parseOpusComment(uint8_t* inbuf, int32_t nBytes, uint32_t c
             OPUS_LOG_DEBUG("Skipping embedded picture ({} bytes)", val.size());
             return;
         }
-       if (key.starts_with_icase("artist")) {
+        if (key.starts_with_icase("artist")) {
             if (!m_comment.stream_title.valid()) {
                 m_comment.stream_title.assign(val.c_get());
             } else {
@@ -1104,27 +1111,13 @@ int32_t OpusDecoder::parseOpusComment(uint8_t* inbuf, int32_t nBytes, uint32_t c
             }
             audio.info(audio, Audio::evt_id3data, "Title: {}", val.c_get());
         }
-        if (key.starts_with_icase("work")) {
-            audio.info(audio, Audio::evt_id3data, "Work: {}", val.c_get());
-        }
-        if (key.starts_with_icase("composer")) {
-            audio.info(audio, Audio::evt_id3data, "Composer: {}", val.c_get());
-        }
-        if (key.starts_with_icase("genre")) {
-            audio.info(audio, Audio::evt_id3data, "Genre: {}", val.c_get());
-        }
-        if (key.starts_with_icase("date")) {
-            audio.info(audio, Audio::evt_id3data, "Date: {}", val.c_get());
-        }
-        if (key.starts_with_icase("album")) {
-            audio.info(audio, Audio::evt_id3data, "Album: {}", val.c_get());
-        }
-        if (key.starts_with_icase("comment")) {
-            audio.info(audio, Audio::evt_id3data, "Comments: {}", val.c_get());
-        }
-        if (key.starts_with_icase("tracknumber")) {
-            audio.info(audio, Audio::evt_id3data, "Track number/Position in set: {}", val.c_get());
-        }
+        if (key.starts_with_icase("work")) { audio.info(audio, Audio::evt_id3data, "Work: {}", val.c_get()); }
+        if (key.starts_with_icase("composer")) { audio.info(audio, Audio::evt_id3data, "Composer: {}", val.c_get()); }
+        if (key.starts_with_icase("genre")) { audio.info(audio, Audio::evt_id3data, "Genre: {}", val.c_get()); }
+        if (key.starts_with_icase("date")) { audio.info(audio, Audio::evt_id3data, "Date: {}", val.c_get()); }
+        if (key.starts_with_icase("album")) { audio.info(audio, Audio::evt_id3data, "Album: {}", val.c_get()); }
+        if (key.starts_with_icase("comment")) { audio.info(audio, Audio::evt_id3data, "Comments: {}", val.c_get()); }
+        if (key.starts_with_icase("tracknumber")) { audio.info(audio, Audio::evt_id3data, "Track number/Position in set: {}", val.c_get()); }
         if (m_comment.stream_title.valid()) m_f_newSteamTitle = true;
         // comment.println(); // optional output
         m_comment.item_vec.clear();
@@ -1165,7 +1158,7 @@ int32_t OpusDecoder::parseOpusComment(uint8_t* inbuf, int32_t nBytes, uint32_t c
         int64_t tmp_to_read = (int64_t)m_comment.comment_size - (int64_t)m_comment.save_len;
         if (tmp_to_read < 0) tmp_to_read = 0;
         uint32_t to_read = (uint32_t)tmp_to_read;
-        if (available_bytes <= 0) {  // clamp to available_bytes (available_bytes ist signed int)
+        if (available_bytes <= 0) { // clamp to available_bytes (available_bytes ist signed int)
             // nothing to do
             if (m_comment.list_length == 0) return OPUS_COMMENT_DONE;
             return OPUS_COMMENT_NEED_MORE;
@@ -1212,9 +1205,7 @@ int32_t OpusDecoder::parseOpusComment(uint8_t* inbuf, int32_t nBytes, uint32_t c
         m_comment.pointer += 4;
         available_bytes -= 4;
         OPUS_LOG_DEBUG("VendorLen={}, CommentCount={}", vendorLength, m_comment.list_length);
-        if(m_comment.list_length == 0){
-            return OPUS_COMMENT_DONE;
-        }
+        if (m_comment.list_length == 0) { return OPUS_COMMENT_DONE; }
     }
 
     // 🔹 3. read comments
@@ -1378,6 +1369,7 @@ int32_t OpusDecoder::parseOGG(uint8_t* inbuf, int32_t* bytesLeft) { // reference
     m_opusSegmentLength = 0;
     segmentTableWrPtr = -1;
 
+    m_f_packetContinuesAfterPage = false;
     for (int32_t i = 0; i < pageSegments; i++) {
         int32_t n = *(inbuf + 27 + i);
         while (*(inbuf + 27 + i) == 255) {
@@ -1389,6 +1381,10 @@ int32_t OpusDecoder::parseOGG(uint8_t* inbuf, int32_t* bytesLeft) { // reference
         m_opusSegmentTable[segmentTableWrPtr] = n;
         m_opusSegmentLength += n;
     }
+
+    // The last lacing value determines whether the last packet continues
+    if (pageSegments > 0) { m_f_packetContinuesAfterPage = (*(inbuf + 27 + pageSegments - 1) == 255); }
+
     m_opusSegmentTableSize = segmentTableWrPtr + 1;
     m_opusCompressionRatio = (float)(960 * 2 * pageSegments) / m_opusSegmentLength; // const 960 validBytes out
 
@@ -1398,7 +1394,8 @@ int32_t OpusDecoder::parseOGG(uint8_t* inbuf, int32_t* bytesLeft) { // reference
 
     if (m_f_firstPage) { m_opusPageNr = 0; }
 
-    OPUS_LOG_DEBUG("firstPage {}, continuedPage {}, lastPage {}", m_f_firstPage, m_f_continuedPage, m_f_lastPage);
+    OPUS_LOG_DEBUG("firstPage {}, continuedPage {}, packetContinuesAfterPage {}, lastPage {}", m_f_firstPage, m_f_continuedPage, m_f_packetContinuesAfterPage, m_f_lastPage);
+    if (m_f_packetContinuesAfterPage)OPUS_LOG_WARN("packet continues after page"); // todo
 
     uint16_t headerSize = pageSegments + 27;
     *bytesLeft -= headerSize;

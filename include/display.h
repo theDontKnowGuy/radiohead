@@ -2,6 +2,12 @@
 
 #include <Arduino.h>
 
+struct WeatherStatus {
+    bool available = false;
+    bool refreshing = false;
+    time_t lastSuccess = 0;
+};
+
 enum class UiTarget : uint8_t;
 struct UiRenderState;
 
@@ -14,6 +20,10 @@ void drawWeatherIcon(int x, int y, int weatherId);
 // so the legacy weather painter cannot overwrite the native UI composition.
 void updateWeatherData();
 void updateWeatherUI();
+// A configuration save invalidates an older result and requests one bounded
+// refresh.  Starting the task is not treated as a successful weather fetch.
+void invalidateWeatherData();
+WeatherStatus weatherStatus();
 void drawWifiSignal(int x, int y);
 void drawSpectrum();
 bool drawPngAsset(

@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cctype>
 #include <cstdlib>
+#include <time.h>
 
 #include "app_state.h"
 #include "device_control.h"
@@ -26,6 +27,17 @@ bool otaUploadStarted = false;
 bool otaUploadSucceeded = false;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
+
+enum class NetworkTransition : uint8_t { Idle, Connecting, Recovering, Setup };
+
+NetworkTransition networkTransition = NetworkTransition::Idle;
+String pendingNetworkSsid;
+String pendingNetworkPassword;
+String networkMessage;
+unsigned long networkTransitionStartedAt = 0;
+uint32_t networkConfigurationEpoch = 1;
+uint32_t weatherConfigurationEpoch = 1;
+constexpr unsigned long NETWORK_CONNECT_TIMEOUT_MS = 20000;
 
 String htmlEscape(const String& value) {
     String escaped;
@@ -74,6 +86,15 @@ String jsonEscape(const String& value) {
 bool isHttpUrl(const String& value) {
     return value.length() <= MAX_URL_LENGTH &&
         (value.startsWith("http://") || value.startsWith("https://"));
+}
+
+bool isPrintableSettingText(const String& value, size_t maximumLength) {
+    if (value.isEmpty() || value.length() > maximumLength) return false;
+    for (size_t i = 0; i < value.length(); ++i) {
+        const uint8_t character = static_cast<uint8_t>(value[i]);
+        if (character < 0x20 || character == 0x7f) return false;
+    }
+    return true;
 }
 
 bool isHexColor(const String& value) {
@@ -191,6 +212,155 @@ String localAddress() {
     return isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 }
 
+uint32_t fnv1aString(const String& value, uint32_t hash = 2166136261UL);
+
+const char* networkTransitionName() {
+    switch (networkTransition) {
+    case NetworkTransition::Connecting: return "connecting";
+    case NetworkTransition::Recovering: return "recovering";
+    case NetworkTransition::Setup: return "setup";
+    case NetworkTransition::Idle:
+        if (isAP) return "setup";
+        return WiFi.status() == WL_CONNECTED ? "connected" : "disconnected";
+    }
+    return "disconnected";
+}
+
+uint32_t networkRevision() {
+    uint32_t revision = fnv1aString(st_ssid);
+    revision ^= networkConfigurationEpoch;
+    revision *= 16777619UL;
+    return revision & 0x7fffffffUL;
+}
+
+bool hasCurrentNetworkRevision() {
+    int revision = 0;
+    if (!parseIntegerArg("revision", 0, 2147483647, revision)) {
+        server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid network revision\"}");
+        return false;
+    }
+    if (static_cast<uint32_t>(revision) != networkRevision()) {
+        server.send(409, "application/json; charset=utf-8",
+                    "{\"error\":\"Network settings changed on the radio. Reload before connecting.\",\"revision\":" +
+                    String(networkRevision()) + "}");
+        return false;
+    }
+    return true;
+}
+
+String wifiSecurityLabel(wifi_auth_mode_t security) {
+    switch (security) {
+    case WIFI_AUTH_OPEN: return "Open";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "Enterprise";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    case WIFI_AUTH_WAPI_PSK: return "WAPI";
+    default: return "Secured";
+    }
+}
+
+String networkStateJson() {
+    String json;
+    json.reserve(520);
+    const bool connected = WiFi.status() == WL_CONNECTED && !isAP;
+    const String displaySsid = connected ? WiFi.SSID() :
+        (!pendingNetworkSsid.isEmpty() ? pendingNetworkSsid : st_ssid);
+    json = "{\"revision\":" + String(networkRevision()) +
+        ",\"state\":\"" + String(networkTransitionName()) +
+        "\",\"ssid\":\"" + jsonEscape(displaySsid) +
+        "\",\"configuredSsid\":\"" + jsonEscape(st_ssid) +
+        "\",\"hasSavedPassword\":" + String(st_pass.isEmpty() ? "false" : "true") +
+        ",\"address\":\"" + jsonEscape(localAddress()) +
+        "\",\"rssi\":" + String(connected ? WiFi.RSSI() : 0) +
+        ",\"message\":\"" + jsonEscape(networkMessage) + "\"";
+    if (isAP) {
+        json += ",\"setupSsid\":\"" + jsonEscape(WiFi.softAPSSID()) + "\"";
+    }
+    return json + "}";
+}
+
+void sendNetworkState(int status = 200) {
+    server.send(status, "application/json; charset=utf-8", networkStateJson());
+}
+
+void startNetworkAttempt(const String& ssid, const String& password, bool recovering = false) {
+    pendingNetworkSsid = ssid;
+    pendingNetworkPassword = password;
+    networkTransition = recovering ? NetworkTransition::Recovering : NetworkTransition::Connecting;
+    networkTransitionStartedAt = millis();
+    networkMessage = recovering ? "Reconnecting to the previous network." : "Credentials received; attempting connection.";
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, false);
+    WiFi.begin(pendingNetworkSsid.c_str(), pendingNetworkPassword.c_str());
+    isAP = false;
+    forceRedraw = true;
+}
+
+void enterSetupRecovery(const char* message) {
+    WiFi.disconnect(false, false);
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("Radio_Setup");
+    isAP = true;
+    networkTransition = NetworkTransition::Setup;
+    pendingNetworkSsid = "";
+    pendingNetworkPassword = "";
+    networkMessage = message;
+    forceRedraw = true;
+}
+
+uint32_t weatherSettingsRevision() {
+    uint32_t revision = fnv1aString(owmCity);
+    revision = fnv1aString(timeZoneId, revision);
+    revision ^= useCelsius ? 0x51U : 0x52U;
+    revision ^= showWeatherOnHome ? 0x6100U : 0x6200U;
+    revision ^= use24HourClock ? 0x710000U : 0x720000U;
+    revision ^= weatherConfigurationEpoch;
+    return (revision * 16777619UL) & 0x7fffffffUL;
+}
+
+bool hasCurrentWeatherRevision() {
+    int revision = 0;
+    if (!parseIntegerArg("revision", 0, 2147483647, revision)) {
+        server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid weather revision\"}");
+        return false;
+    }
+    if (static_cast<uint32_t>(revision) != weatherSettingsRevision()) {
+        server.send(409, "application/json; charset=utf-8",
+                    "{\"error\":\"Weather and time settings changed on the radio. Reload before saving.\",\"revision\":" +
+                    String(weatherSettingsRevision()) + "}");
+        return false;
+    }
+    return true;
+}
+
+String weatherStateJson() {
+    const WeatherStatus status = weatherStatus();
+    const bool clockSynchronized = time(nullptr) >= 1483228800;
+    String json;
+    json.reserve(440);
+    json = "{\"revision\":" + String(weatherSettingsRevision()) +
+        ",\"location\":\"" + jsonEscape(owmCity) +
+        "\",\"units\":\"" + String(useCelsius ? "C" : "F") +
+        "\",\"visible\":" + String(showWeatherOnHome ? "true" : "false") +
+        ",\"clock24\":" + String(use24HourClock ? "true" : "false") +
+        ",\"timezone\":\"" + jsonEscape(timeZoneId) +
+        "\",\"provider\":\"OpenWeather\""
+        ",\"keyConfigured\":" + String(owmKey.isEmpty() ? "false" : "true") +
+        ",\"refreshing\":" + String(status.refreshing ? "true" : "false") +
+        ",\"available\":" + String(status.available ? "true" : "false") +
+        ",\"lastSuccess\":" + String(static_cast<unsigned long>(status.lastSuccess)) +
+        ",\"clockSynchronized\":" + String(clockSynchronized ? "true" : "false") + "}";
+    return json;
+}
+
+void sendWeatherState(int status = 200) {
+    server.send(status, "application/json; charset=utf-8", weatherStateJson());
+}
+
 String currentPlaybackName() {
     if (mediaTestActive()) return mediaTestName();
     if (podcastMode) {
@@ -204,7 +374,7 @@ String currentPlaybackName() {
     return "Nothing playing";
 }
 
-uint32_t fnv1aString(const String& value, uint32_t hash = 2166136261UL) {
+uint32_t fnv1aString(const String& value, uint32_t hash) {
     for (size_t i = 0; i < value.length(); ++i) {
         hash ^= static_cast<uint8_t>(value[i]);
         hash *= 16777619UL;
@@ -397,6 +567,16 @@ void appendNavigation(String& html, WebSection selected) {
     html += "</nav>";
 }
 
+void appendTimeZoneOptions(String& html) {
+    size_t count = 0;
+    const TimeZoneOption* options = supportedTimeZones(count);
+    for (size_t index = 0; index < count; ++index) {
+        html += "<option value='" + htmlEscape(options[index].id) + "'" +
+            String(timeZoneId == options[index].id ? " selected" : "") + ">" +
+            htmlEscape(options[index].label) + "</option>";
+    }
+}
+
 void appendSectionContent(String& html, WebSection section) {
     switch (section) {
     case WebSection::Stations: {
@@ -466,18 +646,47 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
         break;
     }
     case WebSection::Network:
-        html += "<div class='rh-pagehead'><div><h1>Network</h1><p>Keep your radio connected.</p></div></div>"
-            "<section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>"
-            "<dt>Status</dt><dd>" + htmlEscape(connectionState()) + "</dd><dt>Network</dt><dd><bdi>" +
-            htmlEscape(WiFi.status() == WL_CONNECTED ? WiFi.SSID() : st_ssid) +
-            "</bdi></dd><dt>Address</dt><dd dir='ltr'>" + htmlEscape(localAddress()) +
-            "</dd></dl></section>";
+        html += R"HTML(<div class='rh-pagehead'><div><h1>Network</h1><p>Keep your radio connected.</p></div></div>
+<section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>
+<dt>Status</dt><dd id='network-state'>Loading…</dd><dt>Network</dt><dd id='network-name'><bdi>—</bdi></dd><dt>Signal</dt><dd id='network-signal'>Not available</dd><dt>Address</dt><dd id='network-address' dir='ltr'>—</dd></dl>
+<div class='rh-row'><button class='rh-button' type='button' id='network-retry'>Retry connection</button><button class='rh-button rh-danger' type='button' id='network-forget'>Forget network</button></div><p class='rh-note rh-warning' id='network-recovery' hidden></p></section>
+<section class='rh-box' aria-labelledby='change-network'><h2 id='change-network'>Change Wi-Fi</h2><p>Scan results report the radio's observed security. Scanning does not replace your draft.</p>
+<div class='rh-row'><button class='rh-button' type='button' id='network-scan'>Scan again</button><button class='rh-button rh-quiet' type='button' id='network-hidden'>Hidden network…</button></div><div id='network-results' class='rh-results' aria-live='polite'></div>
+<label class='rh-field'><span>Network name</span><input id='network-ssid' maxlength='32' autocomplete='off' required></label>
+<label class='rh-field'><span>Security</span><select id='network-security'><option value='secured'>Password protected</option><option value='open'>Open network</option></select></label>
+<label class='rh-field' id='network-password-field'><span>Password <small id='network-password-help'>Enter a password for this network.</small></span><input id='network-password' type='password' maxlength='63' autocomplete='new-password'></label>
+<label class='rh-inlinecheck'><input id='network-show-password' type='checkbox'>Show password</label><label class='rh-inlinecheck'><input id='network-clear-password' type='checkbox'>Clear the saved password for this network</label>
+<p class='rh-note rh-warning'>Changing Wi-Fi may disconnect this page. If it does, join the new network and reopen the radio’s address. A lost browser connection is not proof that the connection succeeded.</p>
+<div class='rh-footer'><span class='rh-formstatus' id='network-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='network-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='network-connect'>Connect</button></div></section>
+<script>)HTML";
+        html += R"JS((()=>{const $=id=>document.getElementById(id),api=(path,body={})=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});let state=null,selectedOpen=false,scanTimer=0;
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function statusText(s){return ({connected:'Connected',connecting:'Attempting connection…',recovering:'Recovering previous connection…',setup:'Setup mode',disconnected:'Disconnected'})[s.state]||'Unknown';}
+function passwordControls(){const open=$('network-security').value==='open';$('network-password-field').hidden=open;$('network-show-password').parentElement.hidden=open;$('network-clear-password').parentElement.hidden=open;$('network-password-help').textContent=$('network-ssid').value===state?.configuredSsid&&state?.hasSavedPassword?'Leave blank to keep the stored password.':'Enter a password for this network.';}
+function render(s){state=s;$('network-state').textContent=statusText(s);$('network-name').textContent=s.ssid||'Not configured';$('network-signal').textContent=s.state==='connected'?s.rssi+' dBm':'Not available';$('network-address').textContent=s.address||'—';const recovery=$('network-recovery');if(s.state==='setup'){recovery.hidden=false;recovery.textContent=`Setup recovery is available on ${s.setupSsid||'the radio setup network'} at ${s.address}.`;}else if(s.message){recovery.hidden=false;recovery.textContent=s.message;}else recovery.hidden=true;}
+async function refresh(){try{render(await fetch('/api/network',{cache:'no-store'}).then(r=>r.json()));passwordControls();}catch(_){$('network-form-status').textContent='Radio connection lost. Reopen the radio after joining its network.';}}
+function selectNetwork(ssid,open){$('network-ssid').value=ssid;$('network-security').value=open?'open':'secured';selectedOpen=open;$('network-password').value='';$('network-clear-password').checked=false;passwordControls();$('network-form-status').textContent=open?'Open network selected.':'Password-protected network selected.';}
+function renderScan(data){const out=$('network-results');if(data.state==='scanning'){out.innerHTML='<p class="rh-note">Scanning nearby networks…</p>';clearTimeout(scanTimer);scanTimer=setTimeout(loadScan,700);return;}if(data.state==='failed'){out.innerHTML='<p class="rh-note rh-error">Wi-Fi scan failed. Try again.</p>';return;}out.innerHTML=data.networks?.length?data.networks.map(n=>`<button type="button" class="rh-result" data-ssid="${esc(n.ssid)}" data-open="${n.open}"><span><bdi>${esc(n.ssid)}</bdi><small>${esc(n.security)} · ${n.rssi} dBm</small></span></button>`).join(''):'<p class="rh-note">No visible networks found. Enter a hidden network name instead.</p>';out.querySelectorAll('[data-ssid]').forEach(b=>b.onclick=()=>selectNetwork(b.dataset.ssid,b.dataset.open==='true'));}
+async function loadScan(){try{renderScan(await fetch('/api/network/scan',{cache:'no-store'}).then(r=>r.json()))}catch(_){$('network-results').innerHTML='<p class="rh-note rh-error">The scan response was unavailable.</p>';}}
+async function scan(){try{await api('/api/network/scan/start');await loadScan();}catch(error){$('network-form-status').textContent=error.message;}}
+async function connect(){const ssid=$('network-ssid').value.trim(),open=$('network-security').value==='open',password=$('network-password').value;if(!ssid){$('network-form-status').textContent='Enter the exact network name.';$('network-ssid').focus();return;}let passwordAction=open||$('network-clear-password').checked?'clear':password?'replace':ssid===state.configuredSsid&&state.hasSavedPassword?'keep':'';if(!open&&!passwordAction){$('network-form-status').textContent='Enter a password, or explicitly select an open network.';$('network-password').focus();return;}try{const result=await api('/api/network/connect',{revision:state.revision,ssid,password,passwordAction});render(result);$('network-form-status').textContent='Credentials received. Attempting connection…';setTimeout(refresh,800);}catch(error){$('network-form-status').textContent=error.message;}}
+$('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid').focus();$('network-form-status').textContent='Enter the exact hidden network name and its security.';};$('network-security').onchange=passwordControls;$('network-show-password').onchange=e=>$('network-password').type=e.target.checked?'text':'password';$('network-clear-password').onchange=passwordControls;$('network-cancel').onclick=()=>{if(state){$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-clear-password').checked=false;$('network-security').value='secured';passwordControls();$('network-form-status').textContent='Draft discarded.';}};$('network-connect').onclick=connect;$('network-retry').onclick=async()=>{try{render(await api('/api/network/retry',{revision:state.revision}));$('network-form-status').textContent='Retrying connection…';}catch(error){$('network-form-status').textContent=error.message;}};$('network-forget').onclick=async()=>{if(!state.configuredSsid||!confirm(`Forget ${state.configuredSsid}? The radio will disconnect and return to its setup network.`))return;try{render(await api('/api/network/forget',{revision:state.revision}));$('network-form-status').textContent='Network forgotten. Join the setup network shown above.';}catch(error){$('network-form-status').textContent=error.message;}};refresh();setInterval(()=>{if(!document.hidden)refresh();},2500);})();</script>)JS";
         break;
     case WebSection::Weather:
         html += "<div class='rh-pagehead'><div><h1>Weather &amp; time</h1><p>A little local context for your radio.</p></div></div>"
-            "<section class='rh-box' aria-labelledby='weather-status'><h2 id='weather-status'>Weather on your radio</h2><dl class='rh-data'>"
-            "<dt>Location</dt><dd><bdi>" + htmlEscape(owmCity) + "</bdi></dd><dt>Units</dt><dd>" +
-            String(useCelsius ? "Celsius" : "Fahrenheit") + "</dd></dl></section>";
+            "<section class='rh-box' aria-labelledby='weather-settings'><h2 id='weather-settings'>Weather on your radio</h2>"
+            "<label class='rh-field'><span>Location</span><input id='weather-location' maxlength='80' required></label>"
+            "<div class='rh-grid2'><label class='rh-field'><span>Units</span><select id='weather-units'><option value='C'>Celsius</option><option value='F'>Fahrenheit</option></select></label>"
+            "<label class='rh-inlinecheck'><input id='weather-visible' type='checkbox'>Show weather on the radio’s Home screen</label></div>"
+            "<details><summary>Provider access</summary><p class='rh-muted'>OpenWeather is the supported provider.</p><label class='rh-field'><span>API key <small id='weather-key-help'></small></span><input id='weather-key' type='password' maxlength='128' autocomplete='new-password'></label><label class='rh-inlinecheck'><input id='weather-clear-key' type='checkbox'>Clear the stored API key</label></details></section>"
+            "<section class='rh-box' aria-labelledby='clock-settings'><h2 id='clock-settings'>Clock</h2><label class='rh-field'><span>Time zone</span><select id='weather-timezone'>";
+        appendTimeZoneOptions(html);
+        html += "</select></label><label class='rh-field'><span>Clock format</span><select id='weather-clock'><option value='24'>24-hour · 14:37</option><option value='12'>12-hour · 2:37 PM</option></select></label><p class='rh-note'>Used for weather only. The time zone is set separately.</p><div class='rh-footer'><span class='rh-formstatus' id='weather-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='weather-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='weather-save'>Save changes</button></div></section><script>";
+        html += R"JS((()=>{const $=id=>document.getElementById(id),api=(path,body)=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});let state=null;
+function apply(s){state=s;$('weather-location').value=s.location;$('weather-units').value=s.units;$('weather-visible').checked=s.visible;$('weather-timezone').value=s.timezone;$('weather-clock').value=s.clock24?'24':'12';$('weather-key').value='';$('weather-clear-key').checked=false;$('weather-key-help').textContent=s.keyConfigured?'Configured · enter a new key to replace':'Enter an OpenWeather API key.';}
+async function refresh(){try{apply(await fetch('/api/weather',{cache:'no-store'}).then(r=>r.json()))}catch(_){$('weather-form-status').textContent='Radio connection lost.';}}
+async function save(){const location=$('weather-location').value.trim(),key=$('weather-key').value;if(!location){$('weather-form-status').textContent='Enter a city or city,country location.';$('weather-location').focus();return;}const keyAction=$('weather-clear-key').checked?'clear':key?'replace':'keep';try{const data=await api('/api/weather/save',{revision:state.revision,location,units:$('weather-units').value,visible:$('weather-visible').checked?'1':'0',timezone:$('weather-timezone').value,clock:$('weather-clock').value,key,keyAction});apply(data);$('weather-form-status').textContent=data.refreshing?'Settings saved. Weather refresh is in progress.':'Settings saved. Weather refresh was requested; availability is reported separately.';}catch(error){$('weather-form-status').textContent=error.message;}}
+$('weather-save').onclick=save;$('weather-cancel').onclick=()=>{if(state){apply(state);$('weather-form-status').textContent='Draft discarded.';}};refresh();setInterval(async()=>{if(document.hidden)return;try{const next=await fetch('/api/weather',{cache:'no-store'}).then(r=>r.json());if(state&&next.revision===state.revision){state=next;if(next.refreshing)$('weather-form-status').textContent='Weather refresh is in progress.';else if(!next.available)$('weather-form-status').textContent='Settings are saved; weather is currently unavailable.';}}catch(_){}},3500);})();</script>)JS";
         break;
     case WebSection::Appearance:
         html += "<div class='rh-pagehead'><div><h1>Appearance</h1><p>Keep the radio readable, day and night.</p></div></div>"
@@ -756,7 +965,69 @@ void sendStationArtworkThumbnail() {
     }
 }
 
+String networkScanJson() {
+    const int scan = WiFi.scanComplete();
+    if (scan == WIFI_SCAN_RUNNING) return "{\"state\":\"scanning\"}";
+    if (scan < 0) return "{\"state\":\"failed\"}";
+    String json = "{\"state\":\"complete\",\"networks\":[";
+    int emitted = 0;
+    for (int index = 0; index < scan && emitted < 20; ++index) {
+        const String ssid = WiFi.SSID(index);
+        if (ssid.isEmpty()) continue;
+        if (emitted++) json += ',';
+        const wifi_auth_mode_t security = WiFi.encryptionType(index);
+        json += "{\"ssid\":\"" + jsonEscape(ssid) +
+            "\",\"security\":\"" + wifiSecurityLabel(security) +
+            "\",\"open\":" + String(security == WIFI_AUTH_OPEN ? "true" : "false") +
+            ",\"rssi\":" + String(WiFi.RSSI(index)) + "}";
+    }
+    WiFi.scanDelete();
+    return json + "]}";
+}
+
 }  // namespace
+
+void serviceWebNetworkRequests(unsigned long now) {
+    if (networkTransition != NetworkTransition::Connecting &&
+        networkTransition != NetworkTransition::Recovering) return;
+
+    if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == pendingNetworkSsid) {
+        if (networkTransition == NetworkTransition::Connecting) {
+            if (!saveWiFiCredentials(pendingNetworkSsid, pendingNetworkPassword)) {
+                networkMessage = "Connected, but saving Wi-Fi credentials failed. Keep this page open and retry.";
+                pendingNetworkSsid = "";
+                pendingNetworkPassword = "";
+                networkTransition = NetworkTransition::Idle;
+                return;
+            }
+            st_ssid = pendingNetworkSsid;
+            st_pass = pendingNetworkPassword;
+            ++networkConfigurationEpoch;
+            WiFi.softAPdisconnect(true);
+            isAP = false;
+            configTime(0, 0, ntpServer);
+            applyConfiguredTimeZone();
+            networkMessage = "Connected. Reopen the radio at this network address if this page disconnected.";
+        } else {
+            networkMessage = "Reconnected to the saved network.";
+        }
+        pendingNetworkSsid = "";
+        pendingNetworkPassword = "";
+        networkTransition = NetworkTransition::Idle;
+        forceRedraw = true;
+        return;
+    }
+
+    if (now - networkTransitionStartedAt < NETWORK_CONNECT_TIMEOUT_MS) return;
+    if (networkTransition == NetworkTransition::Connecting && !st_ssid.isEmpty()) {
+        networkMessage = "The new network did not connect. Restoring the previously saved network.";
+        startNetworkAttempt(st_ssid, st_pass, true);
+        return;
+    }
+    enterSetupRecovery(networkTransition == NetworkTransition::Connecting
+        ? "Connection failed. Join this setup network and try again."
+        : "The saved network is unavailable. Join this setup network to configure Wi-Fi.");
+}
 
 void startWebServer() {
     server.on("/", handleRoot);
@@ -777,6 +1048,121 @@ void startWebServer() {
         server.sendHeader("Cache-Control", "public, max-age=86400");
         server.send_P(200, "image/jpeg",
             reinterpret_cast<const char*>(ui_web_configuration_coast_jpg), ui_web_configuration_coast_jpg_len);
+    });
+    server.on("/api/network", HTTP_GET, [] { sendNetworkState(); });
+    server.on("/api/network/scan/start", HTTP_POST, [] {
+        if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"A Wi-Fi scan is already in progress.\"}");
+            return;
+        }
+        WiFi.scanDelete();
+        if (WiFi.scanNetworks(true, true) == WIFI_SCAN_FAILED) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Wi-Fi scan could not start.\"}");
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"state\":\"scanning\"}");
+    });
+    server.on("/api/network/scan", HTTP_GET, [] {
+        server.send(200, "application/json; charset=utf-8", networkScanJson());
+    });
+    server.on("/api/network/connect", HTTP_POST, [] {
+        if (!hasCurrentNetworkRevision()) return;
+        if (networkTransition == NetworkTransition::Connecting || networkTransition == NetworkTransition::Recovering) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"A network connection attempt is already in progress.\"}");
+            return;
+        }
+        const String ssid = server.arg("ssid");
+        const String password = server.arg("password");
+        const String passwordAction = server.arg("passwordAction");
+        if (!isPrintableSettingText(ssid, 32) || password.length() > 63 ||
+            (passwordAction != "keep" && passwordAction != "replace" && passwordAction != "clear")) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid Wi-Fi settings.\"}");
+            return;
+        }
+        String candidatePassword;
+        if (passwordAction == "keep") {
+            if (ssid != st_ssid || st_pass.isEmpty()) {
+                server.send(400, "application/json; charset=utf-8", "{\"error\":\"There is no saved password for that network.\"}");
+                return;
+            }
+            candidatePassword = st_pass;
+        } else if (passwordAction == "replace") {
+            if (password.isEmpty()) {
+                server.send(400, "application/json; charset=utf-8", "{\"error\":\"Enter a password or choose an open network.\"}");
+                return;
+            }
+            candidatePassword = password;
+        }
+        startNetworkAttempt(ssid, candidatePassword);
+        sendNetworkState(202);
+    });
+    server.on("/api/network/retry", HTTP_POST, [] {
+        if (!hasCurrentNetworkRevision()) return;
+        if (st_ssid.isEmpty()) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"No saved network is available to retry.\"}");
+            return;
+        }
+        startNetworkAttempt(st_ssid, st_pass, true);
+        sendNetworkState(202);
+    });
+    server.on("/api/network/forget", HTTP_POST, [] {
+        if (!hasCurrentNetworkRevision()) return;
+        if (!clearWiFiCredentials()) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"The saved network could not be cleared.\"}");
+            return;
+        }
+        st_ssid = "";
+        st_pass = "";
+        ++networkConfigurationEpoch;
+        enterSetupRecovery("Saved network forgotten. Join this setup network to configure Wi-Fi.");
+        sendNetworkState();
+    });
+    server.on("/api/weather", HTTP_GET, [] { sendWeatherState(); });
+    server.on("/api/weather/save", HTTP_POST, [] {
+        if (!hasCurrentWeatherRevision()) return;
+        String location = server.arg("location");
+        location.trim();
+        const String units = server.arg("units");
+        const String visible = server.arg("visible");
+        const String timezone = server.arg("timezone");
+        const String clock = server.arg("clock");
+        const String key = server.arg("key");
+        const String keyAction = server.arg("keyAction");
+        if (!isPrintableSettingText(location, 80) || (units != "C" && units != "F") ||
+            (visible != "0" && visible != "1") || (clock != "12" && clock != "24") ||
+            !isSupportedTimeZone(timezone) || key.length() > 128 ||
+            (keyAction != "keep" && keyAction != "replace" && keyAction != "clear")) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid weather or clock settings.\"}");
+            return;
+        }
+        const String oldLocation = owmCity;
+        const String oldKey = owmKey;
+        const bool oldCelsius = useCelsius;
+        const bool oldVisible = showWeatherOnHome;
+        const bool oldClock24 = use24HourClock;
+        const String oldTimezone = timeZoneId;
+        owmCity = location;
+        useCelsius = units == "C";
+        showWeatherOnHome = visible == "1";
+        use24HourClock = clock == "24";
+        timeZoneId = timezone;
+        if (keyAction == "clear") owmKey = "";
+        else if (keyAction == "replace") owmKey = key;
+        if (!saveWeatherTimeSettings()) {
+            owmCity = oldLocation;
+            owmKey = oldKey;
+            useCelsius = oldCelsius;
+            showWeatherOnHome = oldVisible;
+            use24HourClock = oldClock24;
+            timeZoneId = oldTimezone;
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Weather settings could not be saved.\"}");
+            return;
+        }
+        ++weatherConfigurationEpoch;
+        applyConfiguredTimeZone();
+        invalidateWeatherData();
+        forceRedraw = true;
+        sendWeatherState();
     });
     server.on("/api/player", HTTP_GET, [] { sendPlayerState(); });
     server.on("/api/player/volume", HTTP_POST, [] {
@@ -1029,14 +1415,18 @@ void startWebServer() {
         redirectTo("/audio");
     });
     server.on("/setweather", HTTP_POST, [] {
-        const String city = server.arg("city");
+        String city = server.arg("city");
+        city.trim();
         const String key = server.arg("key");
         const String unit = server.arg("u");
-        if (city.isEmpty() || city.length() > 80 || key.length() > 128 ||
+        if (!isPrintableSettingText(city, 80) || key.length() > 128 ||
             (unit != "C" && unit != "F")) {
             sendBadRequest("Invalid weather settings");
             return;
         }
+        const String oldCity = owmCity;
+        const String oldKey = owmKey;
+        const bool oldUnits = useCelsius;
         owmCity = city;
         if (server.hasArg("clear_key")) {
             owmKey = "";
@@ -1044,33 +1434,38 @@ void startWebServer() {
             owmKey = key;
         }
         useCelsius = unit == "C";
-        saveSettings();
-        server.send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5;url=/'></head>"
-            "<body><h1>Settings saved!</h1><p>Restarting...</p></body></html>");
-        delay(1000);
-        ESP.restart();
+        if (!saveWeatherTimeSettings()) {
+            owmCity = oldCity;
+            owmKey = oldKey;
+            useCelsius = oldUnits;
+            server.send(500, "text/plain", "Weather settings could not be saved");
+            return;
+        }
+        ++weatherConfigurationEpoch;
+        invalidateWeatherData();
+        redirectTo("/weather");
     });
     server.on("/setwifi", HTTP_POST, [] {
         const String newSsid = server.arg("s");
         const String newPassword = server.arg("p");
-        if (newSsid.isEmpty() || newSsid.length() > 32 || newPassword.length() > 63) {
+        if (!isPrintableSettingText(newSsid, 32) || newPassword.length() > 63 ||
+            networkTransition == NetworkTransition::Connecting || networkTransition == NetworkTransition::Recovering) {
             sendBadRequest("Invalid Wi-Fi settings");
             return;
         }
-        const bool networkChanged = newSsid != st_ssid;
-        st_ssid = newSsid;
-        if (server.hasArg("clear_pass") || (networkChanged && newPassword.isEmpty())) {
-            st_pass = "";
+        String candidatePassword;
+        if (server.hasArg("clear_pass")) {
+            candidatePassword = "";
         } else if (!newPassword.isEmpty()) {
-            st_pass = newPassword;
+            candidatePassword = newPassword;
+        } else if (newSsid == st_ssid && !st_pass.isEmpty()) {
+            candidatePassword = st_pass;
+        } else {
+            sendBadRequest("Enter a password or explicitly clear it for an open network");
+            return;
         }
-        pref.begin("radio", false);
-        pref.putString("ssid", st_ssid);
-        pref.putString("pass", st_pass);
-        pref.end();
-        server.send(200, "text/html", "Restarting...");
-        delay(2000);
-        ESP.restart();
+        startNetworkAttempt(newSsid, candidatePassword);
+        redirectTo("/network");
     });
     server.on("/scan_m3u", [] {
         const String url = server.arg("m3u_url");
@@ -1127,13 +1522,11 @@ void startWebServer() {
     });
     server.on("/scan", [] { redirectTo("/?scan=1"); });
     server.on("/scan_data", [] {
-        const int networkCount = WiFi.scanNetworks();
-        String json = "[";
-        for (int i = 0; i < networkCount; ++i) {
-            json += "\"" + jsonEscape(WiFi.SSID(i)) + "\"" + (i == networkCount - 1 ? "" : ",");
+        if (WiFi.scanComplete() != WIFI_SCAN_RUNNING) {
+            WiFi.scanDelete();
+            WiFi.scanNetworks(true, true);
         }
-        json += "]";
-        server.send(200, "application/json", json);
+        server.send(202, "application/json; charset=utf-8", networkScanJson());
     });
     server.on("/setalarm", [] {
         int hour = 0;
