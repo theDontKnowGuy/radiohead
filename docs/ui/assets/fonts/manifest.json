@@ -11,8 +11,8 @@
       "pixels": 11,
       "weight": "Medium",
       "space_width": 3,
-      "bytes": 9240,
-      "sha256": "9b6f5fa145d09b39f946d27a2d9aa4e5ceae505a7b2595468173451de9edb0c4"
+      "bytes": 9292,
+      "sha256": "cc83358cc6ac47132268cd89dc4a15535604407c30dc824d4f7d0881d1fba80a"
     },
     "body": {
       "source": "Roboto-Regular.otf",
@@ -22,8 +22,8 @@
       "pixels": 16,
       "weight": "Regular",
       "space_width": 4,
-      "bytes": 15511,
-      "sha256": "12ea6201502c316479c140bd033147109b55696799a93c29cc8b0af4113dcbfc"
+      "bytes": 15579,
+      "sha256": "ac1bf568b6e8ee6012f02176b8ac07ceecc09fcff63cdeaa8378ec8618ca33ff"
     },
     "home_title": {
       "source": "Roboto-Regular.otf",
@@ -33,8 +33,8 @@
       "pixels": 15,
       "weight": "Regular",
       "space_width": 4,
-      "bytes": 13912,
-      "sha256": "7e77a836ebe940fbce34c753c2ce78cf3fdfe83bdc76a573229d76f96a51e108"
+      "bytes": 13980,
+      "sha256": "cc0863eb548a062edad84d9505ca57c4a2f8df2b6f7339676b77c523b905ea07"
     },
     "recorded_header": {
       "source": "Roboto-Regular.otf",
@@ -44,8 +44,8 @@
       "pixels": 20,
       "weight": "Regular",
       "space_width": 5,
-      "bytes": 21996,
-      "sha256": "36181f2c12d8c5c31d246cf21abe75da25dded699d34ace892d98028131bd970"
+      "bytes": 22094,
+      "sha256": "de34294eab4d56260e38a60df68913f3b4ba42444d3bdf892bc9ad103a748dc3"
     },
     "title": {
       "source": "Roboto-Medium.otf",
@@ -55,19 +55,19 @@
       "pixels": 22,
       "weight": "Medium",
       "space_width": 5,
-      "bytes": 25852,
-      "sha256": "67c857a66480928cd0f1f7f41a35e75d92516b2cf95954ebc5a8c45302cfbdaf"
+      "bytes": 25968,
+      "sha256": "9882a66cb16ddf12ca08e64585cc2b17d4cb89c292af279f50ddf1515db20f10"
     },
     "temperature": {
-      "source": "RobotoCondensed-Regular.otf",
-      "source_sha256": "c4e28b99832e1e39c170b25f9c798ed6f4b7dd7c4441ac712a18cc549a299faf",
+      "source": "Roboto-Medium.otf",
+      "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
       "fallback": "DejaVuSans.ttf",
       "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
-      "pixels": 27,
-      "weight": "Regular Condensed",
-      "space_width": 6,
-      "bytes": 3419,
-      "sha256": "299693ecb3f8fbb63be35c31f686eb9f6db800d2e96c8bc7921ba7724f5b61a3"
+      "pixels": 28,
+      "weight": "Medium",
+      "space_width": 7,
+      "bytes": 4204,
+      "sha256": "a2730ee10966d01df5e1b471c4a95c05d59d4f32e501a554ede225be6ad9d5e5"
     },
     "header_clock": {
       "source": "Roboto-Regular.otf",
@@ -77,19 +77,19 @@
       "pixels": 18,
       "weight": "Regular",
       "space_width": 4,
-      "bytes": 18368,
-      "sha256": "de6d45a6b9c8bee72c46fb9a7704efca03449e0ac780b7a360f59fb3ae537f71"
+      "bytes": 18450,
+      "sha256": "a63fa78268d695c36fa832833594fbfc9df64ea00834ec54e99e70829006d5b6"
     },
     "label": {
       "source": "Roboto-Medium.otf",
       "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
       "fallback": "DejaVuSans.ttf",
       "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
-      "pixels": 11,
+      "pixels": 10,
       "weight": "Medium",
-      "space_width": 3,
-      "bytes": 9240,
-      "sha256": "9b6f5fa145d09b39f946d27a2d9aa4e5ceae505a7b2595468173451de9edb0c4"
+      "space_width": 2,
+      "bytes": 8677,
+      "sha256": "d11715c8bbe288f3cca2c5f93a5c12be72beab9b0f22c4dc8ee137adf5bdb237"
     },
     "caption": {
       "source": "Roboto-Regular.otf",
@@ -99,8 +99,8 @@
       "pixels": 13,
       "weight": "Regular",
       "space_width": 3,
-      "bytes": 11455,
-      "sha256": "6c0050994241b4fd48a04bf16e075940f2bf658f8746fe5a1be86efeed8d2087"
+      "bytes": 11511,
+      "sha256": "c365b21f1d7ad8701ac73f0cc209f34c0992274efb9cd53e7f3e7e313690888c"
     }
   }
 }

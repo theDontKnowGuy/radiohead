@@ -18,16 +18,16 @@ OUTPUT = ROOT / "docs" / "ui" / "assets" / "home"
 GLYPHS = "0123456789:-"
 SCALE = 8
 SOURCE_SIZE = 48
-TARGET_DIGIT_HEIGHT = 31
-TARGET_DIGIT_ADVANCE = 22
-TARGET_DIGIT_INK_WIDTH = 19
+TARGET_DIGIT_HEIGHT = 33
+TARGET_DIGIT_ADVANCE = 21
+TARGET_DIGIT_INK_WIDTH = 20
 TARGET_COLON_ADVANCE = 10
 TARGET_COLON_INK_WIDTH = 4
 CELL_WIDTH = 22
 CELL_HEIGHT = 44
 BASELINE = 38
-RENDER_TOP = 33
-RENDER_RIGHT = 289
+RENDER_TOP = 37
+RENDER_RIGHT = 306
 
 
 def glyph_mask(font, glyph):
@@ -57,6 +57,28 @@ def strengthen_alpha(mask):
             return 255
         return min(255, round((alpha - 18) * 255 / 206))
     return mask.point(strengthen)
+
+
+def cap_narrow_opaque_runs(mask):
+    """Keep broad Semibold outlines while limiting thin stem cores to 3 px."""
+    result = mask.copy()
+    pixels = result.load()
+    for y in range(result.height):
+        x = 0
+        while x < result.width:
+            if pixels[x, y] != 255:
+                x += 1
+                continue
+            start = x
+            while x < result.width and pixels[x, y] == 255:
+                x += 1
+            length = x - start
+            # Vertical stems downsample to short 4–5 px opaque runs.  Leave
+            # wider horizontal spans intact and soften only the trailing pixel.
+            if 3 < length <= 5:
+                for trimmed in range(length - 3):
+                    pixels[x - 1 - trimmed, y] = 254
+    return result
 
 
 def ink_bounds(mask):
@@ -136,6 +158,8 @@ def main():
             target_width = TARGET_COLON_INK_WIDTH
         target_height = max(1, round(source.height * scale_y / SCALE))
         final = downsample_ink(source, target_width, target_height)
+        if glyph.isdigit():
+            final = cap_narrow_opaque_runs(final)
         advance = TARGET_COLON_ADVANCE if glyph == ":" else (
             TARGET_DIGIT_ADVANCE if glyph.isdigit() else max(1, round(target_width)))
         x_offset = (advance - target_width) // 2

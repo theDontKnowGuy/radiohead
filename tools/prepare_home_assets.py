@@ -12,9 +12,9 @@ from PIL import Image, ImageDraw, ImageEnhance, __version__
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/ui/assets/home'
 S = 4
-TILE_WIDTH = 68
+TILE_WIDTH = 66
 TILE_HEIGHT = 70
-ICON_SIZE = 40
+ICON_SIZE = 44
 OUT.mkdir(parents=True, exist_ok=True)
 
 
@@ -63,7 +63,7 @@ for name,top,bottom in [('radio',(17,99,160),(12,66,120)),('shows',(26,113,72),(
         t=y/(TILE_HEIGHT*S-1)
         # Bake a 22% dark layer into the restrained gradient, then leave a
         # little transparency for the supplied sunset to read through it.
-        color=tuple(round((a+(b-a)*t)*0.78) for a,b in zip(top,bottom))+(235,)
+        color=tuple(round((a+(b-a)*t)*0.73) for a,b in zip(top,bottom))+(235,)
         d.line((0,y,TILE_WIDTH*S,y),fill=color)
     image.putalpha(mask.point(lambda value: value * 235 // 255))
     d.rounded_rectangle(box((0.6,0.6,TILE_WIDTH-.9,TILE_HEIGHT-.9)),radius=7.5*S,outline=(210,225,235,58),width=S)
@@ -104,6 +104,14 @@ for kind in ['radio','shows','favorites','settings']:
         d.ellipse(box((12,12,24,24)),fill=(0,0,0,0))
     save('icon_'+kind,image.resize((ICON_SIZE,ICON_SIZE),Image.Resampling.LANCZOS))
 
+# Compact brand mark used only by the Home product header.  It shares the
+# Home icon's soft off-white and high-resolution edge treatment.
+image,d=drawing(16,16)
+d.rounded_rectangle(box((2.0,6.0,14.0,14.0)),radius=2.1*S,outline=icon,width=round(1.5*S))
+line(d,[(4.3,5.2),(12.0,1.7)],icon,1.5)
+for x in [5.2,10.8]: d.ellipse(box((x-1.25,9.0,x+1.25,11.5)),fill=icon)
+finish('brand_radio',image)
+
 image,d=drawing(24,19)
 for r in [11,7]: d.arc(box((12-r,15-r,12+r,15+r)),215,325,fill=white,width=round(2.2*S))
 d.ellipse(box((10.4,13.4,13.6,16.6)),fill=white)
@@ -133,7 +141,7 @@ for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
 
 manifest={'pillow':__version__,'background_source':'docs/bg1.png',
           'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.80, uniform 25% black veil; 68x70 tiles with 22% darkened, slightly translucent gradients; 40px icons from original geometry at 4x',
+          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.80, uniform 25% black veil; 66x70 tiles with restrained darkened, slightly translucent gradients; 44px icons and 16px Home brand radio mark from original geometry at 4x',
           'assets':{}}
 for p in sorted(OUT.glob('*.png')):
     with Image.open(p) as im: size=list(im.size)

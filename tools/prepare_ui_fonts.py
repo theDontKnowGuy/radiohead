@@ -40,15 +40,15 @@ def main():
     output = Path(__file__).resolve().parents[1] / 'docs/ui/assets/fonts'
     manifest = {'family': 'Roboto 2.001101 (2014)', 'pillow': __version__,
                 'freetype': features.version_module('freetype2'), 'fonts': {}}
-    alphabet = sorted(set(range(33, 127)) | set(range(0x5D0, 0x5EB)) | {0xB0, 0x2026, 0xFFFD})
+    alphabet = sorted(set(range(33, 127)) | set(range(0x5D0, 0x5EB)) | {0xB0, 0x2022, 0x2026, 0xFFFD})
     roles = [('small', 11, 'Roboto-Medium.otf', 'Medium'),
              ('body', 16, 'Roboto-Regular.otf', 'Regular'),
              ('home_title', 15, 'Roboto-Regular.otf', 'Regular'),
              ('recorded_header', 20, 'Roboto-Regular.otf', 'Regular'),
              ('title', 22, 'Roboto-Medium.otf', 'Medium'),
-             ('temperature', 27, 'RobotoCondensed-Regular.otf', 'Regular Condensed'),
+             ('temperature', 28, 'Roboto-Medium.otf', 'Medium'),
              ('header_clock', 18, 'Roboto-Regular.otf', 'Regular'),
-             ('label', 11, 'Roboto-Medium.otf', 'Medium'),
+             ('label', 10, 'Roboto-Medium.otf', 'Medium'),
              ('caption', 13, 'Roboto-Regular.otf', 'Regular')]
     for name, size, source_name, weight in roles:
         source = args.font_dir / source_name

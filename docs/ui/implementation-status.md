@@ -8,18 +8,17 @@ Lanczos-downsamples it into 8-bit alpha masks for 0–9, colon, and the
 unavailable-state dash, then modestly strengthens alpha for an opaque core.
 Runtime alpha-blends every glyph pixel over the freshly rendered readable RGB565
 Home canvas, avoiding an assumed-background fringe or any font/sprite scaling.
-The final trial measures 31 px digit ink, a 4 px opaque zero stem, 22 px tabular
-digit advances, an unchanged 10 px colon advance with its ink reduced to 4 px, and an
-89×31 px `14:37` ink box at x=197…286/y=40…71. Its #F5F5F5 clock color and date
-#D8DDE3 remain unchanged. The Home composition uses logical anchor x=289/y=33: 4 px
-right of the preceding version with unchanged vertical position. Compact opaque/list/Recorded Show clocks remain 18 px Roboto
+The final trial measures 33 px digit ink, a 3 px opaque zero stem, 21 px tabular
+digit advances, a 10 px colon advance with 4 px ink, and an 87×33 px `14:37` ink box
+at x=217…304/y=42…75. Its #F5F5F5 clock color and date #D8DDE3 remain unchanged. The
+Home composition uses logical anchor x=306/y=37. Compact opaque/list/Recorded Show clocks remain 18 px Roboto
 Regular VLW because this atlas is intentionally Home-specific.
 
 **Visual:** production native [14:37 fixture](../../.pio/ui_native/home-clock-1437.png)
-inspected against the stated 89×31 px target; physical/reference final acceptance
+inspected against the stated 87×33 px target; physical/reference final acceptance
 remains open. **Functional:** `tools/render_ui_fonts.py` (including anti-aliasing
 checks), `pio run -e esp32s3`, and `git diff --check` pass. The build reports
-82,268 B RAM (25.1%) and 3,215,795 B flash (49.1%). **Hardware:** not flashed;
+82,268 B RAM (25.1%) and 3,218,287 B flash (49.1%). **Hardware:** not flashed;
 physical TFT appearance, repaint timing, and sustained-audio behavior remain
 unverified.
 

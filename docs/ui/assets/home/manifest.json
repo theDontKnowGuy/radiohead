@@ -2,7 +2,7 @@
   "pillow": "12.3.0",
   "background_source": "docs/bg1.png",
   "source_sha256": "8702f2907f2d0bfd31438a38dc605a3ffbd1b22cf5501fcf5263c0a7b6952cd8",
-  "recipe": "direct 320x240 Lanczos (no crop), saturation 0.80, uniform 25% black veil; 68x70 tiles with 22% darkened, slightly translucent gradients; 40px icons from original geometry at 4x",
+  "recipe": "direct 320x240 Lanczos (no crop), saturation 0.80, uniform 25% black veil; 66x70 tiles with restrained darkened, slightly translucent gradients; 44px icons and 16px Home brand radio mark from original geometry at 4x",
   "assets": {
     "background": {
       "size": [
@@ -11,68 +11,75 @@
       ],
       "sha256": "7521121d78e2183dd0ec44cadb852130d1d3e0394849cd43698e710d7ba98669"
     },
+    "brand_radio": {
+      "size": [
+        16,
+        16
+      ],
+      "sha256": "44cf3c85d7ee90b34a705d497c04813cd7a25af7ccffab4e784530a77bb4ffe2"
+    },
     "focus": {
       "size": [
-        72,
+        70,
         74
       ],
-      "sha256": "f82bb0584bb4fe0637fa679f2b3f3be36563988557b373c53aa719c6a1d4ed53"
+      "sha256": "2ff0ffccd6afee19c8d4440bccf116f71c6b9a60e724fa011f001a8fb43b4afa"
     },
     "icon_favorites": {
       "size": [
-        40,
-        40
+        44,
+        44
       ],
-      "sha256": "c69ba26c774051f653d5dedcd98cf0b75802295f7f0e4819e2d928f7bf64f33c"
+      "sha256": "3e00b86bd808a510fbc3c07d9308e77d3a8d08de904c73fc1f3d0b1c3a22adda"
     },
     "icon_radio": {
       "size": [
-        40,
-        40
+        44,
+        44
       ],
-      "sha256": "6ba4a2684f5c7d4379838aad38aee18bab8694c375f767f1acf03ea804a203e6"
+      "sha256": "a3f327998bc8420371fff623951120042f4af23b4ee2e071a9415360c7e9bcf6"
     },
     "icon_settings": {
       "size": [
-        40,
-        40
+        44,
+        44
       ],
-      "sha256": "35dce0d2cf117d81beec05d213fe7dc8c0efb4a05bc38d931fa67205e938230c"
+      "sha256": "0068c9bb0da71e4856a9097368b266ec1f25f1ab01808b3ecb8ed21b820ca560"
     },
     "icon_shows": {
       "size": [
-        40,
-        40
+        44,
+        44
       ],
-      "sha256": "a6a77dbeb7ce381a393d4760f0f2ca8ea27534ed4721be96312ba99bfc589813"
+      "sha256": "79bdb579b8fa014029b9beaff2dc5ac65eca6beb5ef652d6b95fa3c0b9cf2e3c"
     },
     "tile_favorites": {
       "size": [
-        68,
+        66,
         70
       ],
-      "sha256": "122af8c5aa2720ddb41873a23c57eb6dcdb3523a25a032dea78769b56c089259"
+      "sha256": "f1117c2b82d4b6f1b085e811990009895443149ed712e3d4200cb4bedde210aa"
     },
     "tile_radio": {
       "size": [
-        68,
+        66,
         70
       ],
-      "sha256": "177aee06eb4e0e0d8ab679773717ced235dfe40ef7d4f64fccad6851cef3397b"
+      "sha256": "a4e7cb357843eb75d97457e9440083b4a74ea065a04d5f78bb2996178efff6ac"
     },
     "tile_settings": {
       "size": [
-        68,
+        66,
         70
       ],
-      "sha256": "1a705a4d85948ae9117ed3064dce9a64bcc0145dfdf9085a1a0978165704f495"
+      "sha256": "d49c69c05aa73f12af1a9a0218e8f0837fa0659de1b883cb2af2d4bf0ff5c187"
     },
     "tile_shows": {
       "size": [
-        68,
+        66,
         70
       ],
-      "sha256": "0575f4674a73b4668047f84f496864344e4c0e05532f406741a70eab06f6b4f3"
+      "sha256": "e90063245b651af0055211e5846922faacdd8a2d3b180c0e56c73774810705fa"
     },
     "weather_clear": {
       "size": [

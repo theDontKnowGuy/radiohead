@@ -153,3 +153,19 @@ on the physical TFT remains pending.
 | Reduce and space the colon. | Done: colon advance stays 10 px while its ink is reduced from 5 px to 4 px, giving a smaller mark and more surrounding whitespace. | Atlas bounds: pass. |
 | Shift right without changing vertical placement. | Done: only the horizontal Home anchor moves x=285 → x=289; y=33 is unchanged. | Source and fixture: pass. |
 | Test exact `14:37` against the mockup. | Done: [native fixture](../../.pio/ui_native/home-clock-1437.png) has final ink bounds x=197…286, y=40…71 (**89×31 px**). [Direct comparison](../../.pio/ui_native/home-clock-1437-comparison.png) is regenerated beside the normalized reference Home panel. | Native visual review complete; physical TFT pending. |
+
+## 2026-09-21 Home hierarchy and native-comparison pass
+
+| Requirement | Result | Acceptance state |
+| --- | --- | --- |
+| Clock geometry, mass and fixed-value evidence. | Done: current Inter SemiBold alpha atlas is 33 px high with 20 px widest digit body, a 3 px solid stem core and 87×33 px `14:37` ink bounds at x=217…304/y=42…75. The renderer is unchanged. | Native fixture: pass. Physical TFT pending. |
+| Clock association with the top-right block. | Done: logical anchor is x=306/y=37; date/Wi-Fi remain above it and its visible top is y=42. | Native fixture: pass. |
+| Product branding and current-station hierarchy. | Done: Home replaces `Radiohead>>` with a 16 px radio mark + regular `Radiohead`; dynamic station + `• Live Radio` is a dim subtitle. The competing center-right station label is removed. | Native fixture: pass. |
+| Weather composition and hierarchy. | Done: the dynamic icon/text unit moves left/down; its 28 px Roboto Medium temperature is stronger, while city/condition remain secondary and aligned beneath it. | Native fixture: pass. |
+| Equal, separated, restrained navigation tiles. | Done: all tiles use one 66×70 recipe, 13 px gaps, a common baseline/radius, 44 px higher icons, 10 px labels, and a further ~6% color-value reduction. | Native fixture: pass. Physical TFT pending. |
+| Preserve neutral white treatment. | Done: no global white/white-balance change was made; Home icons retain #E8EEF3 and clock text retains #F5F5F5. | Scoped source review: pass. |
+| Exact 320×240 test content and direct comparison. | Done: fixture fixes `Radiohead`, `NPR 24 • Live Radio`, `Mon, 21 Sep`, and `14:37`. [Side-by-side comparison](../../.pio/ui_native/home-polish-comparison.png) uses the native production renderer beside the normalized Home reference. | Native visual review: ready for user review. |
+
+`pio run -e esp32s3` passes at 82,268 B RAM (25.1%) and 3,218,287 B flash
+(49.1%); `tools/render_ui_fonts.py` and `git diff --check` pass. Hardware/physical
+TFT acceptance remains open.

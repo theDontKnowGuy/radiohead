@@ -405,9 +405,9 @@ constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 #endif
 
 constexpr int16_t kHomeTileY = 154;
-constexpr int16_t kHomeTileWidth = 68;
+constexpr int16_t kHomeTileWidth = 66;
 constexpr int16_t kHomeTileHeight = 70;
-constexpr int16_t kHomeTileIconSize = 40;
+constexpr int16_t kHomeTileIconSize = 44;
 constexpr int16_t kHomeTileX[] = {7, 86, 165, 244};
 // The visible chevron is small, but its target reaches into the title margin
 // and a little below the header so a normal finger press reliably returns.
@@ -656,13 +656,23 @@ void drawHeader(const char* currentTime, bool timeValid, const char* title, bool
     drawHeaderClock(currentTime, timeValid);
 }
 
-void drawHomeHeader(bool timeValid) {
+void drawHomeHeader(bool timeValid, const String& station) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages retain drawHeader.
     constexpr int16_t centerY = 22;
+    if (uiFrameReady) {
+        canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 14, 12);
+    } else {
+        canvas().drawRoundRect(16, 18, 12, 8, 2, kHomeText);
+        canvas().drawLine(18, 17, 26, 13, kHomeText);
+        canvas().fillCircle(19, 22, 1, kHomeText);
+        canvas().fillCircle(25, 22, 1, kHomeText);
+    }
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
-    canvas().drawString("Radiohead>>", 14, centerY, display_fonts::homeTitle());
+    canvas().drawString("Radiohead", 34, centerY, uiFont(&fonts::FreeSans9pt7b));
+    text((station.isEmpty() ? String("Live Radio") : station) + " • Live Radio",
+         34, 31, uiFont(&fonts::Font0), kTextMuted, 158);
     char date[16] = "";
     if (timeValid) {
         const time_t now = time(nullptr);
@@ -803,8 +813,8 @@ uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
 
 void drawHomeClockAtlas(const char* value) {
     // Align with Home's date/Wi-Fi composition, not the broader content area.
-    constexpr int16_t kRight = 289;
-    constexpr int16_t kTop = 33;
+    constexpr int16_t kRight = 306;
+    constexpr int16_t kTop = 37;
     int16_t width = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
@@ -1447,11 +1457,11 @@ void drawHomeTile(int16_t x, uint16_t color, const char* top, const char* bottom
     } else {
         canvas().fillRoundRect(x, kHomeTileY, kHomeTileWidth, kHomeTileHeight, 8, color);
     }
-    drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, kHomeTileY + 4, tile);
+    drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, kHomeTileY + 2, tile);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kHomeText);
-    canvas().drawString(top, x + kHomeTileWidth / 2, kHomeTileY + (bottom == nullptr ? 48 : 43), homeLabelFont());
-    if (bottom != nullptr) canvas().drawString(bottom, x + kHomeTileWidth / 2, kHomeTileY + 56, homeLabelFont());
+    canvas().drawString(top, x + kHomeTileWidth / 2, kHomeTileY + (bottom == nullptr ? 52 : 46), homeLabelFont());
+    if (bottom != nullptr) canvas().drawString(bottom, x + kHomeTileWidth / 2, kHomeTileY + 58, homeLabelFont());
     serviceUiAudio();
 }
 
@@ -1461,7 +1471,7 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     }
     serviceUiAudio();
     const String station = podcastMode ? podcastShowTft : stations[currentStationIdx].name;
-    drawHomeHeader(timeValid);
+    drawHomeHeader(timeValid, station);
     float temperature = 0.0F;
     int condition = 0;
     bool hasWeather = false;
@@ -1473,7 +1483,7 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
 
     // Home deliberately leaves the supplied sunset visible.  It is the primary
     // composition layer; only dense pages receive opaque reading surfaces.
-    drawHomeWeatherIcon(16, 58, hasWeather, condition);
+    drawHomeWeatherIcon(9, 66, hasWeather, condition);
     if (hasWeather) {
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
@@ -1481,12 +1491,12 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         // Align the smaller regular temperature's visible glyphs with the
         // weather artwork, rather than its nominal line box.
         text(uiFrameReady ? String(temperatureText) + "°" : String(temperatureText),
-             86, 52, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
+             76, 62, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
         if (!uiFrameReady) {
-            canvas().drawCircle(94 + canvas().textWidth(temperatureText), 71, 2, kWhite);
+            canvas().drawCircle(84 + canvas().textWidth(temperatureText), 81, 2, kWhite);
         }
-        text(homeCityLabel(owmCity), 86, 82, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 86, 96, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), 76, 86, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 76, 100, homeCaptionFont(), kWhite, 106);
     } else {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
@@ -1502,13 +1512,9 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         // when the PSRAM canvas is unavailable.
         canvas().setTextDatum(TR_DATUM);
         canvas().setTextColor(kClockText);
-        canvas().drawString(timeValid ? currentTime : "--:--", 280, 37, &fonts::FreeSansBold24pt7b);
+        canvas().drawString(timeValid ? currentTime : "--:--", 306, 40, &fonts::FreeSansBold24pt7b);
     }
-    // Home is the live-radio destination. Keep its active-station summary
-    // prominent instead of linking to a separate live-player page.
-    text(station.isEmpty() ? "Now playing" : station, 212, 84,
-         uiFont(&fonts::FreeSansBold12pt7b), kWhite, 91);
-    // A strict 4-column grid: 68 px tiles, 11 px gaps, one shared baseline.
+    // A strict 4-column grid: identical tiles, wider breathing gaps and one baseline.
     drawHomeTile(kHomeTileX[0], kHomeBlue, "Live Radio", nullptr, 0);
     drawHomeTile(kHomeTileX[1], kHomeGreen, "Recorded", "Shows", 1);
     drawHomeTile(kHomeTileX[2], kHomePurple, "Favorites", nullptr, 2);

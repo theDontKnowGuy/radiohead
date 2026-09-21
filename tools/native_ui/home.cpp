@@ -51,7 +51,7 @@ int playableStationCount() { return 3; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 3 ? i : -1; }
 constexpr int STATION_COUNT = 10;
 struct Station { String name; String url; };
-Station stations[] = {{"GALATZ", "https://example.test/galatz"}, {"תחנה 101 FM", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
+Station stations[] = {{"NPR 24", "https://example.test/npr"}, {"תחנה 101 FM", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
@@ -93,7 +93,7 @@ uint32_t stationArtworkContentRevision(int) { return 0; }
 bool loadStationArtwork(int, int, uint16_t*, size_t) { return false; }
 #define portENTER_CRITICAL(mux) ((void)0)
 #define portEXIT_CRITICAL(mux) ((void)0)
-time_t fixtureTime(time_t*) { return 1789819200; }
+time_t fixtureTime(time_t*) { return 1789992000; }  // Mon, 21 Sep 2026 UTC
 #define time fixtureTime
 #include "home_layout.inc"
 #undef time
@@ -121,9 +121,9 @@ int main(int argc, char** argv) {
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
     const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
     assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
-    // Fit the actual Home labels into their 68 px tiles with 3 px side insets.
+    // Fit the actual Home labels into their 66 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
-        assert(frame.textWidth(label, display_fonts::label()) <= 62);
+        assert(frame.textWidth(label, display_fonts::label()) <= 60);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));
-    assert(metrics.x_advance == 3); // source's space, not the VLW line-height guess
+    assert(metrics.x_advance == 2); // source's space, not the VLW line-height guess
     for (uint16_t code = 0x5D0; code <= 0x5EA; ++code) {
         assert(display_fonts::caption()->updateFontMetric(&metrics, code));
     }
