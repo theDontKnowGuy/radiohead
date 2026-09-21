@@ -35,3 +35,7 @@ bool drawPngAsset(
     int32_t maxHeight = 0);
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y);
 void renderRadioUi(const UiRenderState& state, const char* currentTime, bool timeValid);
+// OTA writes update this overlay from the web-server upload handler.  It is
+// intentionally status-only: image validation and flash writes remain in the
+// Update library and web_server ownership.
+void setFirmwareUpdateProgress(bool active, uint8_t percent);

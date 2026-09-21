@@ -6,6 +6,7 @@
 
 #include "app_state.h"
 #include "settings.h"
+#include "web_server.h"
 
 namespace {
 
@@ -47,6 +48,10 @@ void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
 }  // namespace
 
 void goToSleep() {
+    if (webUpdateInProgress()) {
+        Serial.println("Power transition deferred while firmware update is writing");
+        return;
+    }
     saveSettings();
     audio.stopSong();
     tft.fillScreen(TFT_BLACK);
@@ -91,20 +96,29 @@ void goToSleep() {
     esp_deep_sleep_start();
 }
 
-void factoryReset() {
+bool factoryReset() {
+    if (webUpdateInProgress()) {
+        Serial.println("Factory reset deferred while firmware update is writing");
+        return false;
+    }
     tft.fillScreen(TFT_RED);
     tft.setTextColor(TFT_WHITE);
     tft.drawCenterString("FACTORY RESET", 160, 100, &fonts::FreeSansBold12pt7b);
-    pref.begin("radio", false);
-    pref.clear();
+    if (!pref.begin("radio", false)) return false;
+    const bool radioCleared = pref.clear();
     pref.end();
     // Favorites are separate from the legacy radio namespace, but factory
     // reset must remove them while retaining touch calibration by design.
-    pref.begin("favorites", false);
-    pref.clear();
+    if (!pref.begin("favorites", false)) return false;
+    const bool favoritesCleared = pref.clear();
     pref.end();
+    // Station logos are independent LittleFS assets.  Clear every active,
+    // staging and recovery file along with the station records; touch
+    // calibration is intentionally in its own namespace and is untouched.
+    if (!radioCleared || !favoritesCleared || !clearAllStationArtwork()) return false;
     delay(3000);
     ESP.restart();
+    return true;
 }
 
 void initializeTouchCalibration() {

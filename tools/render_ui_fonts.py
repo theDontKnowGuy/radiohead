@@ -56,7 +56,7 @@ else:
     clock_glyphs = clock_manifest['glyphs']
     cell_width, cell_height = clock_manifest['cell_size']
     advances = clock_manifest['advances']
-    anchor = clock_manifest['anchor']
+    anchor = clock_manifest['ink_anchor']
     expected_sha256 = clock_manifest['measurements']['approved_overlay_14_37_sha256']
     import hashlib
     assert hashlib.sha256((clock_source / 'references/home-clock-overlay-14_37.png').read_bytes()).hexdigest() == expected_sha256
@@ -73,7 +73,10 @@ else:
         clock_string.alpha_composite(glyph_image, (pen, 0))
         pen += advances[glyph_index]
     clock_overlay = Image.new('RGBA', (320, 240))
-    clock_overlay.alpha_composite(clock_string, (anchor['right_x'] - clock_width, anchor['top_y']))
+    clock_ink_bounds = clock_string.getchannel('A').getbbox()
+    assert clock_ink_bounds is not None
+    clock_overlay.alpha_composite(clock_string, (anchor['right_x'] - clock_ink_bounds[2],
+                                                  anchor['top_y'] - clock_ink_bounds[1]))
     # PNG encoders may retain arbitrary RGB values under fully transparent
     # pixels. Compare alpha everywhere and RGB only where it is visible.
     assert clock_overlay.getchannel('A').tobytes() == clock_reference.getchannel('A').tobytes()

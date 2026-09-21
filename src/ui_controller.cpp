@@ -194,56 +194,6 @@ void selectFocusedStation() {
     }
 }
 
-void moveStationActionFocus(int detents) {
-    const int count = playableStationCount();
-    if (count <= 0 || detents == 0) return;
-    const int direction = detents > 0 ? 1 : -1;
-    for (int step = 0; step < abs(detents); ++step) {
-        if (direction > 0) {
-            if (!state.stationFavoriteFocus) {
-                state.stationFavoriteFocus = true;
-            } else if (state.stationFocus < count - 1) {
-                ++state.stationFocus;
-                state.stationFavoriteFocus = false;
-            }
-        } else if (state.stationFavoriteFocus) {
-            state.stationFavoriteFocus = false;
-        } else if (state.stationFocus > 0) {
-            --state.stationFocus;
-            state.stationFavoriteFocus = true;
-        }
-    }
-    const int maxOffset = max(0, count - kRowsPerPage);
-    if (state.stationFocus < state.stationOffset) {
-        state.stationOffset = state.stationFocus;
-    } else if (state.stationFocus >= state.stationOffset + kRowsPerPage) {
-        state.stationOffset = state.stationFocus - (kRowsPerPage - 1);
-    }
-    state.stationOffset = constrain(state.stationOffset, 0, maxOffset);
-    markDirty();
-}
-
-void moveFavoriteActionFocus(int detents) {
-    if (state.favoriteTabFocus) {
-        if (detents != 0) {
-            state.favoriteShowsTab = detents > 0;
-            markDirty();
-        }
-        return;
-    }
-    const int actionCount = state.favoriteShowsTab ? 0 : favoriteStationCount() * 2;
-    if (detents == 0) return;
-    if (actionCount <= 0 || (state.favoriteFocus == 0 && detents < 0)) {
-        state.favoriteTabFocus = true;
-        state.favoriteShowsTab = false;
-        markDirty();
-        return;
-    }
-    state.favoriteFocus = constrain(state.favoriteFocus + detents, 0, actionCount - 1);
-    state.favoriteOffset = (state.favoriteFocus / 2 / kFavoriteRowsPerPage) * kFavoriteRowsPerPage;
-    markDirty();
-}
-
 void handleTarget(UiTarget target, int value = 0) {
     switch (state.page) {
     case UiPage::Home:
@@ -428,159 +378,34 @@ void uiControllerBegin() {
 }
 
 void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
-    if (detents == 0 || alarmIsActive) {
-        return;
-    }
-    if (displayWasDimmed && state.page != UiPage::Listening) {
-        markDirty();
-        return;
-    }
-    if (state.page == UiPage::Home) {
-        state.homeFocus = constrain(static_cast<int>(state.homeFocus) + detents, 0, 3);
-        markDirty();
-    } else if (state.page == UiPage::Listening) {
-        if (state.playerControlFocus) {
-            state.playerFocus = constrain(static_cast<int>(state.playerFocus) + detents, 0, 6);
-        } else {
-            queue(UiCommandKind::ChangeVolume, detents);
-            volumeOverlayUntil = now + kVolumeOverlayMs;
-        }
-        markDirty();
-    } else if (state.page == UiPage::Stations) {
-        moveStationActionFocus(detents);
-    } else if (state.page == UiPage::StationOptions) {
-        state.optionsFocus = constrain(static_cast<int>(state.optionsFocus) + detents, 0, 2);
-        markDirty();
-    } else if (state.page == UiPage::Favorites) {
-        moveFavoriteActionFocus(detents);
-    } else if (state.page == UiPage::RecordedShows) {
-        const int count = podcastShowCount(state.showFavoritesOnly);
-        state.showFocus = constrain(state.showFocus + detents, 0, max(0, count - 1));
-        state.showOffset = constrain(state.showFocus - (kRowsPerPage - 1), 0, max(0, count - kRowsPerPage));
-        markDirty();
-    } else if (state.page == UiPage::ShowEpisodes) {
-        const int count = podcastEpisodesReadyFor(state.episodeShow) ? podcastEpisodeCount : 0;
-        state.episodeFocus = constrain(state.episodeFocus + detents, 0, max(0, count - 1));
-        state.episodeOffset = constrain(state.episodeFocus - (kRowsPerPage - 1), 0, max(0, count - kRowsPerPage));
-        markDirty();
-    } else if (state.page == UiPage::PodcastPlayer) {
-        state.podcastPlayerFocus = constrain(static_cast<int>(state.podcastPlayerFocus) + detents, 0, 2);
-        markDirty();
-    } else if (state.page == UiPage::StandbyConfirm) {
-        state.confirmAcceptFocused = detents > 0;
-        markDirty();
-    }
+    (void)displayWasDimmed;
+    if (detents == 0 || alarmIsActive) return;
+
+    // The encoder is deliberately device-wide. Touch owns navigation,
+    // selection and confirmation, so a turn cannot change the page or focus.
+    queue(UiCommandKind::ChangeVolume, detents);
+    volumeOverlayUntil = now + kVolumeOverlayMs;
+    markDirty();
 }
 
 void uiControllerPush(unsigned long now, bool displayWasDimmed) {
-    (void)now;
-    if (alarmIsActive || displayWasDimmed) {
-        markDirty();
-        return;
-    }
-    if (state.page == UiPage::Home) {
-        const UiTarget homeTargets[] = {
-            UiTarget::HomeLiveRadio,
-            UiTarget::HomeRecordedShows,
-            UiTarget::HomeFavorites,
-            UiTarget::HomeSettings,
-        };
-        handleTarget(homeTargets[state.homeFocus]);
-    } else if (state.page == UiPage::Listening) {
-        if (!state.playerControlFocus) {
-            state.playerControlFocus = true;
-            state.playerFocus = 3;  // Stop/Play starts selected.
-            markDirty();
-        } else {
-            const UiTarget playerTargets[] = {
-                UiTarget::PlayerBack,
-                UiTarget::PlayerOptions,
-                UiTarget::PlayerPrevious,
-                UiTarget::PlayerStopOrPlay,
-                UiTarget::PlayerNext,
-                UiTarget::ListeningMute,
-                UiTarget::ListeningVolume,
-            };
-            handleTarget(playerTargets[state.playerFocus], 155);
-        }
-    } else if (state.page == UiPage::Stations) {
-        if (state.stationFavoriteFocus) {
-            const int slot = playableStationSlotAt(state.stationFocus);
-            if (slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);
-        } else {
-            selectFocusedStation();
-        }
-    } else if (state.page == UiPage::StationOptions) {
-        const UiTarget options[] = {UiTarget::OptionsFavorite, UiTarget::OptionsInfo, UiTarget::OptionsBack};
-        handleTarget(options[state.optionsFocus]);
-    } else if (state.page == UiPage::StationInfo) {
-        handleTarget(UiTarget::InfoBack);
-    } else if (state.page == UiPage::Favorites) {
-        if (!state.favoriteShowsTab) {
-            if (state.favoriteTabFocus) {
-                state.favoriteTabFocus = false;
-                markDirty();
-                return;
-            }
-            const int favoriteIndex = state.favoriteFocus / 2;
-            const int slot = favoriteStationSlotAt(favoriteIndex);
-            if (slot >= 0) {
-                if ((state.favoriteFocus & 1) == 0) {
-                    queue(UiCommandKind::SelectStation, slot);
-                    closeToHome();
-                } else {
-                    queue(UiCommandKind::ToggleStationFavorite, slot);
-                }
-            }
-        } else if (state.favoriteTabFocus) {
-            state.favoriteTabFocus = false;
-            markDirty();
-        } else {
-            openRecordedShows(true);
-        }
-    } else if (state.page == UiPage::RecordedShows) {
-        const int count = podcastShowCount(state.showFavoritesOnly);
-        if (count > 0) openEpisodes(podcastShowAt(state.showFocus, state.showFavoritesOnly));
-    } else if (state.page == UiPage::ShowEpisodes) {
-        if (podcastEpisodesReadyFor(state.episodeShow) && state.episodeFocus < podcastEpisodeCount) {
-            queue(UiCommandKind::PlayPodcastEpisode, state.episodeShow * MAX_EPISODES + state.episodeFocus);
-            openPodcastPlayer(state.episodeShow, state.episodeFocus);
-        }
-    } else if (state.page == UiPage::PodcastPlayer) {
-        const UiTarget targets[] = {UiTarget::PodcastSeekBack, UiTarget::PodcastPause, UiTarget::PodcastSeekForward};
-        handleTarget(targets[state.podcastPlayerFocus]);
-    } else if (state.page == UiPage::StandbyConfirm) {
-        handleTarget(state.confirmAcceptFocused ? UiTarget::ConfirmStandby : UiTarget::ConfirmCancel);
-    }
+    (void)displayWasDimmed;
+    if (alarmIsActive) return;
+
+    // A press is mute only; it cannot activate the focused item or accept a
+    // dialog after navigation has changed the current page.
+    queue(UiCommandKind::ToggleMute);
+    volumeOverlayUntil = now + kVolumeOverlayMs;
+    markDirty();
 }
 
 void uiControllerHold(unsigned long now, bool displayWasDimmed) {
     (void)now;
-    if (alarmIsActive || displayWasDimmed) {
-        markDirty();
-        return;
-    }
-    if (state.page == UiPage::Listening && state.playerControlFocus) {
-        state.playerControlFocus = false;
-        closeToHome();
-    } else if (state.page == UiPage::Home || state.page == UiPage::Listening) {
-        state.page = UiPage::StandbyConfirm;
-        state.standbyConfirm = true;
-        state.confirmAcceptFocused = false;
-        markDirty();
-    } else if (state.page == UiPage::StationOptions || state.page == UiPage::Favorites) {
-        closeToHome();
-    } else if (state.page == UiPage::StationInfo) {
-        openStationOptions();
-    } else if (state.page == UiPage::RecordedShows) {
-        state.showFavoritesOnly ? openFavorites() : closeToHome();
-    } else if (state.page == UiPage::ShowEpisodes) {
-        openRecordedShows(state.showFavoritesOnly);
-    } else if (state.page == UiPage::PodcastPlayer) {
-        openEpisodes(state.episodeShow);
-    } else {
-        closeToHome();
-    }
+    (void)displayWasDimmed;
+    if (alarmIsActive) return;
+
+    // The button classifier fires Hold once and suppresses Push on release.
+    queue(UiCommandKind::EnterStandby);
 }
 
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {

@@ -306,6 +306,15 @@ bool stationArtworkBegin() {
     return true;
 }
 
+ArtworkStorageInfo artworkStorageInfo() {
+    ArtworkStorageInfo info;
+    if (!stationArtworkBegin()) return info;
+    info.available = true;
+    info.usedBytes = LittleFS.usedBytes();
+    info.totalBytes = LittleFS.totalBytes();
+    return info;
+}
+
 uint32_t stationArtworkRevision(int stationIndex) {
     return stationArtworkIdentity(stationIndex);
 }
@@ -410,6 +419,19 @@ bool removeStationArtwork(int stationIndex) {
     }
     if (removed) ++artworkContentEpoch[stationIndex];
     return removed;
+}
+
+bool clearAllStationArtwork() {
+    if (!stationArtworkBegin()) return false;
+    stationArtworkUploadAbort();
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        for (const char* suffix : {"", ".tmp", ".bak"}) {
+            const String path = artworkPath(slot, suffix);
+            if (LittleFS.exists(path) && !LittleFS.remove(path)) return false;
+            if (LittleFS.exists(path)) return false;
+        }
+    }
+    return true;
 }
 
 bool loadStationArtwork(int stationIndex, int size, uint16_t* pixels, size_t pixelCount) {

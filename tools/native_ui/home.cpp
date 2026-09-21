@@ -137,10 +137,10 @@ int main(int argc, char** argv) {
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
     assert(ui_home_clock_glyph_count == 12);
-    assert(ui_home_clock_cell_width == 26 && ui_home_clock_cell_height == 30);
-    assert(ui_home_clock_advances[0] == 21 && ui_home_clock_advances[9] == 21);
-    assert(ui_home_clock_advances[10] == 11);
-    assert(ui_home_clock_right == 304 && ui_home_clock_top == 41);
+    assert(ui_home_clock_cell_width == 26 && ui_home_clock_cell_height == 32);
+    assert(ui_home_clock_advances[0] == 24 && ui_home_clock_advances[9] == 25);
+    assert(ui_home_clock_advances[10] == 9);
+    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;

@@ -279,6 +279,17 @@ body.radiohead-page #rh-config {
   filter:brightness(1.12);
 }
 
+#rh-config .rh-button.rh-danger {
+  background:#a63b45;
+  border-color:#a63b45;
+  color:#fff;
+}
+
+#rh-config .rh-button.rh-danger:hover {
+  background:#c44a55;
+  border-color:#c44a55;
+}
+
 #rh-config .rh-primary {
   background:var(--rh-action);
   border-color:var(--rh-action);

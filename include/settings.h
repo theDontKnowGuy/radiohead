@@ -14,6 +14,12 @@ struct TimeZoneOption {
     const char* posixRule;
 };
 
+struct ArtworkStorageInfo {
+    bool available = false;
+    size_t usedBytes = 0;
+    size_t totalBytes = 0;
+};
+
 bool loadTouchCalibration(TouchCalibration& calibration);
 void loadSettings();
 bool saveTouchCalibration(const TouchCalibration& calibration);
@@ -58,4 +64,6 @@ bool stationArtworkUploadWrite(const uint8_t* data, size_t length);
 bool stationArtworkUploadFinish();
 void stationArtworkUploadAbort();
 bool removeStationArtwork(int stationIndex);
+bool clearAllStationArtwork();
 bool loadStationArtwork(int stationIndex, int size, uint16_t* pixels, size_t pixelCount);
+ArtworkStorageInfo artworkStorageInfo();

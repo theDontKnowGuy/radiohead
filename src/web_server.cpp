@@ -25,10 +25,14 @@ constexpr size_t MAX_M3U_TEXT_BYTES = 4 * 1024 * 1024;
 
 bool otaUploadStarted = false;
 bool otaUploadSucceeded = false;
+size_t otaUploadBytes = 0;
+size_t otaUploadExpectedBytes = 0;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
 
 String networkMessage;
+enum class WebRestartAction : uint8_t { None, Network, Restart, FirmwareUpdate, FactoryReset };
+WebRestartAction webRestartAction = WebRestartAction::None;
 bool webRestartScheduled = false;
 unsigned long webRestartAt = 0;
 uint32_t networkConfigurationEpoch = 1;
@@ -89,18 +93,6 @@ bool isPrintableSettingText(const String& value, size_t maximumLength) {
     for (size_t i = 0; i < value.length(); ++i) {
         const uint8_t character = static_cast<uint8_t>(value[i]);
         if (character < 0x20 || character == 0x7f) return false;
-    }
-    return true;
-}
-
-bool isHexColor(const String& value) {
-    if (value.length() != 7 || value[0] != '#') {
-        return false;
-    }
-    for (size_t i = 1; i < value.length(); ++i) {
-        if (!isxdigit(static_cast<unsigned char>(value[i]))) {
-            return false;
-        }
     }
     return true;
 }
@@ -208,6 +200,48 @@ String localAddress() {
     return isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 }
 
+bool webMaintenanceBusy() {
+    return otaUploadStarted || webRestartAction == WebRestartAction::FirmwareUpdate;
+}
+
+bool scheduleWebRestart(WebRestartAction action) {
+    if (webRestartScheduled || webMaintenanceBusy()) return false;
+    webRestartAction = action;
+    webRestartScheduled = true;
+    webRestartAt = millis() + WEB_RESTART_DELAY_MS;
+    forceRedraw = true;
+    return true;
+}
+
+void sendMaintenanceBusy() {
+    server.send(409, "application/json; charset=utf-8",
+                "{\"error\":\"Firmware maintenance is in progress. Wait for the radio to restart.\"}");
+}
+
+String deviceStateJson() {
+    const ArtworkStorageInfo artwork = artworkStorageInfo();
+    TouchCalibration calibration = {};
+    const bool calibrationSaved = loadTouchCalibration(calibration);
+    String json;
+    json.reserve(560);
+    json = "{\"name\":\"radiohead\",\"connection\":\"" + jsonEscape(connectionState()) +
+        "\",\"address\":\"" + jsonEscape(localAddress()) +
+        "\",\"firmwareBuild\":\"" + jsonEscape(String(__DATE__) + " " + __TIME__) +
+        "\",\"hardware\":\"" + jsonEscape(String(ESP.getChipModel())) +
+        "\",\"uptimeSeconds\":" + String(millis() / 1000UL) +
+        ",\"freeHeap\":" + String(ESP.getFreeHeap()) +
+        ",\"freePsram\":" + String(ESP.getFreePsram()) +
+        ",\"sketchBytes\":" + String(ESP.getSketchSize()) +
+        ",\"freeSketchBytes\":" + String(ESP.getFreeSketchSpace()) +
+        ",\"artworkStorageAvailable\":" + String(artwork.available ? "true" : "false") +
+        ",\"artworkStorageUsed\":" + String(artwork.usedBytes) +
+        ",\"artworkStorageTotal\":" + String(artwork.totalBytes) +
+        ",\"touchCalibrationSaved\":" + String(calibrationSaved ? "true" : "false") +
+        ",\"serviceTiming\":\"Not measured\",\"logs\":\"Not available\""
+        ",\"updateInProgress\":" + String(webMaintenanceBusy() ? "true" : "false") + "}";
+    return json;
+}
+
 uint32_t fnv1aString(const String& value, uint32_t hash = 2166136261UL);
 
 const char* networkTransitionName() {
@@ -276,15 +310,13 @@ void sendNetworkState(int status = 200) {
 }
 
 bool saveWiFiAndScheduleRestart(const String& ssid, const String& password) {
+    if (webRestartScheduled || webMaintenanceBusy()) return false;
     if (!saveWiFiCredentials(ssid, password)) return false;
     st_ssid = ssid;
     st_pass = password;
     ++networkConfigurationEpoch;
     networkMessage = "Wi-Fi settings saved. Restarting radio.";
-    webRestartScheduled = true;
-    webRestartAt = millis() + WEB_RESTART_DELAY_MS;
-    forceRedraw = true;
-    return true;
+    return scheduleWebRestart(WebRestartAction::Network);
 }
 
 void enterSetupRecovery(const char* message) {
@@ -678,9 +710,27 @@ $('weather-save').onclick=save;$('weather-cancel').onclick=()=>{if(state){apply(
         break;
     case WebSection::Device:
         html += "<div class='rh-pagehead'><div><h1>Device &amp; maintenance</h1><p>Device information and safe maintenance.</p></div></div>"
-            "<section class='rh-box'><h2>Radio</h2><dl class='rh-data'><dt>Connection</dt><dd>" +
-            htmlEscape(connectionState()) + "</dd><dt>Address</dt><dd dir='ltr'>" +
-            htmlEscape(localAddress()) + "</dd></dl></section>";
+            "<section class='rh-box'><h2>Radio</h2><dl class='rh-data' id='device-about'><dt>Status</dt><dd>Loading…</dd></dl></section>"
+            "<section class='rh-box'><details><summary>Open diagnostics</summary><p class='rh-muted'>Only measured device state is shown. Credentials are never included.</p><dl class='rh-data' id='device-diagnostics'></dl></details></section>"
+            "<section class='rh-box' aria-labelledby='firmware-update'><h2 id='firmware-update'>Firmware update</h2><p class='rh-muted'>Choose a firmware .bin, review it, then start the update. Keep power connected until the update is complete.</p>"
+            "<label class='rh-upload' for='firmware-file'><input id='firmware-file' type='file' accept='.bin,application/octet-stream'>Choose firmware .bin</label><p class='rh-note' id='firmware-review'>Choose a file to review its name and size.</p>"
+            "<div class='rh-footer'><span class='rh-formstatus' id='firmware-status' role='status'>No update selected.</span><button class='rh-button rh-primary' id='firmware-start' data-maintenance-action type='button' disabled>Review update</button></div></section>"
+            "<section class='rh-box'><h2>Restart</h2><p class='rh-muted'>Restarting stops playback. Your stations, Wi-Fi and settings are kept.</p><div class='rh-footer'><button class='rh-button' id='device-restart' data-maintenance-action type='button'>Restart radio</button></div></section>"
+            "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, favorites and station artwork. Touch calibration is kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
+            R"HTML(<div class='rh-overlay' id='device-dialog' hidden><section class='rh-dialog' role='dialog' aria-modal='true' aria-labelledby='device-dialog-title'><h2 id='device-dialog-title'></h2><p id='device-dialog-copy'></p><label class='rh-field' id='device-reset-label' hidden><span>Type RESET to continue</span><input id='device-reset-confirm' autocomplete='off'></label><div class='rh-footer'><button class='rh-button' id='device-dialog-cancel' type='button'>Cancel</button><button class='rh-button rh-primary' id='device-dialog-confirm' type='button'></button></div></section></div><script>)HTML";
+        html += R"JS((()=>{const $=id=>document.getElementById(id);let state=null,file=null,dialogAction=null,lastFocus=null;
+const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const bytes=n=>n===0?'0 B':['B','KiB','MiB','GiB'].reduce((text,u,i)=>n>=1024&&i<3?(n/=1024,`${n.toFixed(n<10?1:0)} ${['B','KiB','MiB','GiB'][i+1]}`):text,`${n} B`);
+const row=(name,value,ltr=false)=>`<dt>${esc(name)}</dt><dd${ltr?' dir="ltr"':''}>${esc(value)}</dd>`;
+function setBusy(busy){document.querySelectorAll('[data-maintenance-action]').forEach(button=>button.disabled=busy);$('firmware-file').disabled=busy;}
+function render(data){state=data;$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
+async function refresh(){try{render(await fetch('/api/device',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){$('firmware-status').textContent=error.message;}}
+function closeDialog(){const dialog=$('device-dialog');dialog.hidden=true;$('device-reset-confirm').value='';$('device-reset-label').hidden=true;if(lastFocus)lastFocus.focus();}
+function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Touch calibration remains. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':'The radio will validate and write the selected firmware, then restart. Keep power connected until it reconnects.';$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
+async function post(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
+function updateFile(){file=$('firmware-file').files[0]||null;if(!file){$('firmware-review').textContent='Choose a file to review its name and size.';$('firmware-start').disabled=true;return;}const enough=!state||!state.freeSketchBytes||file.size<=state.freeSketchBytes;$('firmware-review').textContent=`${file.name} · ${bytes(file.size)}. Compatibility is checked by the radio while writing.`;$('firmware-start').disabled=!enough;if(!enough)$('firmware-status').textContent='This file is larger than the currently reported free update space.';else $('firmware-status').textContent='Ready to review update.';}
+function upload(){if(!file)return;setBusy(true);$('firmware-status').textContent='Sending firmware to the radio…';const form=new FormData();form.set('firmware',file,file.name);const request=new XMLHttpRequest();request.open('POST','/api/device/ota');request.upload.onprogress=e=>{if(e.lengthComputable)$('firmware-status').textContent=`Sending firmware to the radio… ${Math.round(e.loaded*100/e.total)}%`;};request.onerror=()=>{$('firmware-status').textContent='The browser connection was lost. Reopen the radio after it restarts.';};request.onload=()=>{let data={};try{data=JSON.parse(request.responseText)}catch(_){data={error:'The radio returned an invalid response.'};}if(request.status>=200&&request.status<300){$('firmware-status').textContent='Firmware was written. The radio is restarting; reconnect, then confirm its firmware build.';}else{$('firmware-status').textContent=data.error||'Firmware update failed; the radio kept its current firmware.';setBusy(false);}};request.send(form);}
+$('firmware-file').onchange=updateFile;$('firmware-start').onclick=()=>file&&openDialog('update');$('device-restart').onclick=()=>openDialog('restart');$('device-reset').onclick=()=>openDialog('reset');$('device-dialog-cancel').onclick=closeDialog;$('device-dialog').onclick=e=>{if(e.target===$('device-dialog'))closeDialog();};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('device-dialog').hidden){e.preventDefault();closeDialog();}});$('device-dialog-confirm').onclick=async()=>{try{if(dialogAction==='reset'){if($('device-reset-confirm').value!=='RESET'){$('device-reset-confirm').focus();return;}$('firmware-status').textContent='Factory reset accepted. The radio is restarting.';await post('/api/device/factory-reset',{confirm:'RESET'});}else if(dialogAction==='restart'){$('firmware-status').textContent='Restart accepted. Waiting for the radio to reconnect.';await post('/api/device/restart');}else upload();closeDialog();setBusy(true);}catch(error){$('firmware-status').textContent=error.message;setBusy(false);closeDialog();}};refresh();})();</script>)JS";
         break;
     }
 }
@@ -739,7 +789,15 @@ void handleUpdateUpload() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
         otaUploadSucceeded = false;
+        otaUploadBytes = 0;
+        otaUploadExpectedBytes = upload.totalSize;
+        if (webRestartScheduled || webMaintenanceBusy()) {
+            otaUploadStarted = false;
+            setFirmwareUpdateProgress(false, 0);
+            return;
+        }
         otaUploadStarted = Update.begin(UPDATE_SIZE_UNKNOWN);
+        setFirmwareUpdateProgress(otaUploadStarted, 0);
         if (!otaUploadStarted) {
             Update.printError(Serial);
         }
@@ -751,13 +809,24 @@ void handleUpdateUpload() {
             Update.printError(Serial);
             Update.abort();
             otaUploadStarted = false;
+            setFirmwareUpdateProgress(false, 0);
+            return;
         }
+        otaUploadBytes += upload.currentSize;
+        if (upload.totalSize > 0) otaUploadExpectedBytes = upload.totalSize;
+        const size_t percentRaw = otaUploadExpectedBytes > 0
+            ? otaUploadBytes * 100UL / otaUploadExpectedBytes : 0;
+        const uint8_t percent = static_cast<uint8_t>(percentRaw > 100 ? 100 : percentRaw);
+        setFirmwareUpdateProgress(true, percent);
     } else if (upload.status == UPLOAD_FILE_END) {
         if (otaUploadStarted) {
             otaUploadSucceeded = Update.end(true);
             otaUploadStarted = false;
             if (!otaUploadSucceeded) {
                 Update.printError(Serial);
+                setFirmwareUpdateProgress(false, 0);
+            } else {
+                setFirmwareUpdateProgress(true, 100);
             }
         }
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -766,6 +835,7 @@ void handleUpdateUpload() {
         }
         otaUploadStarted = false;
         otaUploadSucceeded = false;
+        setFirmwareUpdateProgress(false, 0);
     }
 }
 
@@ -972,9 +1042,22 @@ String networkScanJson() {
 }  // namespace
 
 void serviceWebNetworkRequests(unsigned long now) {
-    if (webRestartScheduled && static_cast<long>(now - webRestartAt) >= 0) {
-        ESP.restart();
+    if (!webRestartScheduled || static_cast<long>(now - webRestartAt) < 0) return;
+    const WebRestartAction action = webRestartAction;
+    webRestartScheduled = false;
+    webRestartAction = WebRestartAction::None;
+    if (action == WebRestartAction::FactoryReset) {
+        if (!factoryReset()) {
+            Serial.println("Factory reset could not clear all persisted settings");
+            forceRedraw = true;
+        }
+        return;
     }
+    ESP.restart();
+}
+
+bool webUpdateInProgress() {
+    return webMaintenanceBusy();
 }
 
 void startWebServer() {
@@ -1015,7 +1098,7 @@ void startWebServer() {
     });
     server.on("/api/network/connect", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
-        if (webRestartScheduled) {
+        if (webRestartScheduled || webMaintenanceBusy()) {
             server.send(409, "application/json; charset=utf-8", "{\"error\":\"The radio is already restarting.\"}");
             return;
         }
@@ -1053,16 +1136,19 @@ void startWebServer() {
             server.send(409, "application/json; charset=utf-8", "{\"error\":\"No saved network is available to retry.\"}");
             return;
         }
-        if (webRestartScheduled) {
+        if (webRestartScheduled || webMaintenanceBusy()) {
             server.send(409, "application/json; charset=utf-8", "{\"error\":\"The radio is already restarting.\"}");
             return;
         }
-        webRestartScheduled = true;
-        webRestartAt = millis() + WEB_RESTART_DELAY_MS;
+        scheduleWebRestart(WebRestartAction::Network);
         server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
     });
     server.on("/api/network/forget", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
+        if (webMaintenanceBusy()) {
+            sendMaintenanceBusy();
+            return;
+        }
         if (!clearWiFiCredentials()) {
             server.send(500, "application/json; charset=utf-8", "{\"error\":\"The saved network could not be cleared.\"}");
             return;
@@ -1074,6 +1160,42 @@ void startWebServer() {
         sendNetworkState();
     });
     server.on("/api/weather", HTTP_GET, [] { sendWeatherState(); });
+    server.on("/api/device", HTTP_GET, [] {
+        server.send(200, "application/json; charset=utf-8", deviceStateJson());
+    });
+    server.on("/api/device/restart", HTTP_POST, [] {
+        if (!scheduleWebRestart(WebRestartAction::Restart)) {
+            sendMaintenanceBusy();
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
+    });
+    server.on("/api/device/factory-reset", HTTP_POST, [] {
+        if (server.arg("confirm") != "RESET") {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Type RESET to confirm factory reset.\"}");
+            return;
+        }
+        if (!scheduleWebRestart(WebRestartAction::FactoryReset)) {
+            sendMaintenanceBusy();
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
+    });
+    server.on("/api/device/ota", HTTP_POST, [] {
+        if (!otaUploadSucceeded || Update.hasError()) {
+            otaUploadSucceeded = false;
+            setFirmwareUpdateProgress(false, 0);
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Firmware validation or flash write failed; the radio kept its current firmware.\"}");
+            return;
+        }
+        otaUploadSucceeded = false;
+        if (!scheduleWebRestart(WebRestartAction::FirmwareUpdate)) {
+            setFirmwareUpdateProgress(false, 0);
+            sendMaintenanceBusy();
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"written\":true,\"restarting\":true}");
+    }, handleUpdateUpload);
     server.on("/api/weather/save", HTTP_POST, [] {
         if (!hasCurrentWeatherRevision()) return;
         String location = server.arg("location");
@@ -1309,21 +1431,10 @@ void startWebServer() {
     server.on("/episodes", handleEpisodes);
 
     server.on("/togglespec", [] {
-        showSpectrum = !showSpectrum;
-        tft.fillRect(0, 160, 320, 80, TFT_BLACK);
-        forceRedraw = true;
-        saveSettings();
-        server.send(200, "text/plain", "OK");
+        server.send(410, "text/plain", "Visualizer settings are retired");
     });
     server.on("/setVisual", HTTP_GET, [] {
-        int mode = 0;
-        if (!parseIntegerArg("mode", 1, 3, mode)) {
-            sendBadRequest("Invalid mode");
-            return;
-        }
-        visualMode = mode;
-        tft.fillRect(0, 160, 320, 80, TFT_BLACK);
-        server.send(200, "text/plain", "OK");
+        server.send(410, "text/plain", "Visualizer settings are retired");
     });
     server.on("/setvol", [] {
         int volume = 0;
@@ -1353,22 +1464,7 @@ void startWebServer() {
         redirectTo("/audio");
     });
     server.on("/setpreset", [] {
-        const String preset = server.arg("p");
-        if (preset == "rock") {
-            gB = 6; gM = -1; gT = 5;
-        } else if (preset == "pop") {
-            gB = 3; gM = 2; gT = 2;
-        } else if (preset == "jazz") {
-            gB = 4; gM = 0; gT = 3;
-        } else if (preset == "flat") {
-            gB = 0; gM = 0; gT = 0;
-        } else {
-            sendBadRequest("Invalid preset");
-            return;
-        }
-        audio.setTone(gB, gM, gT);
-        saveSettings();
-        redirectTo("/audio");
+        server.send(410, "text/plain", "Equalizer presets are retired; use custom tone controls");
     });
     server.on("/setweather", HTTP_POST, [] {
         String city = server.arg("city");
@@ -1404,7 +1500,7 @@ void startWebServer() {
     server.on("/setwifi", HTTP_POST, [] {
         const String newSsid = server.arg("s");
         const String newPassword = server.arg("p");
-        if (!isPrintableSettingText(newSsid, 32) || newPassword.length() > 63 || webRestartScheduled) {
+        if (!isPrintableSettingText(newSsid, 32) || newPassword.length() > 63 || webRestartScheduled || webMaintenanceBusy()) {
             sendBadRequest("Invalid Wi-Fi settings");
             return;
         }
@@ -1487,20 +1583,13 @@ void startWebServer() {
         server.send(202, "application/json; charset=utf-8", networkScanJson());
     });
     server.on("/setalarm", [] {
-        int hour = 0;
-        int minute = 0;
-        if (!parseIntegerArg("h", 0, 23, hour) || !parseIntegerArg("m", 0, 59, minute)) {
-            sendBadRequest("Invalid alarm time");
-            return;
-        }
-        alarmH = hour;
-        alarmM = minute;
-        alarmActive = server.hasArg("active");
-        saveSettings();
-        forceRedraw = true;
-        redirectTo("/");
+        server.send(410, "text/plain", "Alarm settings are retired");
     });
     server.on("/off", [] {
+        if (webMaintenanceBusy()) {
+            server.send(409, "text/plain", "Firmware maintenance is in progress");
+            return;
+        }
         server.send(200);
         delay(500);
         goToSleep();
@@ -1538,60 +1627,13 @@ void startWebServer() {
         server.send(200, "text/plain", isStationFavorite(stationIndex) ? "favorited" : "unfavorited");
     });
     server.on("/update", HTTP_POST, [] {
-        if (!otaUploadSucceeded || Update.hasError()) {
-            otaUploadSucceeded = false;
-            server.send(500, "text/plain", "Firmware update failed");
-            return;
-        }
-        otaUploadSucceeded = false;
-        server.send(200, "text/plain", "OK");
-        delay(1000);
-        ESP.restart();
-    }, handleUpdateUpload);
+        server.send(410, "text/plain", "Use the Device & maintenance firmware update flow");
+    });
     server.on("/setskin", [] {
-        const String top = server.arg("top");
-        const String bottom = server.arg("bot");
-        const String mainText = server.arg("txt");
-        const String accent = server.arg("acc");
-        const String wifi = server.arg("wifi");
-        const String selector = server.arg("sel");
-        const String clock = server.arg("clk");
-        const String headerInfo = server.arg("hinf");
-        if (!isHexColor(top) || !isHexColor(bottom) || !isHexColor(mainText) ||
-            !isHexColor(accent) || !isHexColor(wifi) || !isHexColor(selector) ||
-            !isHexColor(clock) || !isHexColor(headerInfo)) {
-            sendBadRequest("Invalid color");
-            return;
-        }
-        currentSkin.hexTop = top;
-        currentSkin.hexBottom = bottom;
-        currentSkin.hexMain = mainText;
-        currentSkin.hexAccent = accent;
-        currentSkin.hexWifi = wifi;
-        currentSkin.hexSel = selector;
-        currentSkin.hexClk = clock;
-        currentSkin.hexHInfo = headerInfo;
-        updateColors();
-        saveSettings();
-        redirectTo("/skin");
+        server.send(410, "text/plain", "Color customization is retired");
     });
     server.on("/defaultskin", [] {
-        currentSkin.hexTop = "#000000";
-        currentSkin.hexBottom = "#000000";
-        currentSkin.hexMain = "#FFFFFF";
-        currentSkin.hexAccent = "#00FFFF";
-        currentSkin.hexWifi = "#00FF00";
-        currentSkin.hexSel = "#0000FF";
-        currentSkin.hexClk = "#FFFFFF";
-        currentSkin.hexHInfo = "#FFFFFF";
-        currentSkin.hexBarL = "#00FF00";
-        currentSkin.hexBarM = "#FFFF00";
-        currentSkin.hexBarH = "#FF0000";
-        currentSkin.hexVol = "#00FFFF";
-        currentSkin.hexAlm = "#FF0000";
-        updateColors();
-        saveSettings();
-        redirectTo("/skin");
+        server.send(410, "text/plain", "Color customization is retired");
     });
     server.on("/upload_m3u", HTTP_POST, [] { redirectTo("/stations"); }, handleM3UUpload);
     server.on("/playepisode", [] {

@@ -49,7 +49,7 @@ def main():
     source_manifest_path = SOURCE / "manifest.json"
     require(source_manifest_path.is_file(), f"Missing approved Home-clock package: {source_manifest_path}")
     source_manifest = json.loads(source_manifest_path.read_text())
-    require(source_manifest.get("format_version") == 1, "Unsupported Home-clock package format")
+    require(source_manifest.get("format_version") == 2, "Unsupported Home-clock package format")
     require(source_manifest.get("canvas") == {"width": 320, "height": 240, "units": "pixels"},
             "Home-clock package must target exactly 320x240")
     require(source_manifest.get("clock_color", {}).get("hex") == "#F5F5F5",
@@ -58,9 +58,10 @@ def main():
     cells = source_manifest["glyph_cells"]
     cell_width, cell_height = cells["width"], cells["height"]
     require(isinstance(cell_width, int) and isinstance(cell_height, int), "Invalid glyph cell geometry")
-    anchor = source_manifest["home_clock_anchor"]
+    anchor = source_manifest["home_clock_ink_anchor"]
     right, top = anchor["right_x"], anchor["top_y"]
-    require(anchor.get("alignment") == "right/top" and 0 <= right <= 320 and 0 <= top <= 240,
+    require(anchor.get("anchor_rule", "").startswith("Compose glyphs first") and
+            0 <= right <= 320 and 0 <= top <= 240,
             "Invalid Home-clock anchor")
 
     images, alpha = {}, bytearray()
@@ -98,7 +99,10 @@ def main():
         reference_hashes[details["file"]] = sha256(reference)
 
     overlay_path = SOURCE / source_manifest["acceptance"]["overlay"]
-    _, overlay = compose("14:37", images, advances, cell_height, right, top)
+    composed_14_37, _ = compose("14:37", images, advances, cell_height, right, top)
+    ink_14_37 = alpha_bounds(composed_14_37)
+    overlay = Image.new("RGBA", (320, 240))
+    overlay.alpha_composite(composed_14_37, (right - ink_14_37[2], top - ink_14_37[1]))
     expected_overlay = Image.open(overlay_path).convert("RGBA")
     require(overlay.tobytes() == expected_overlay.tobytes(), "14:37 overlay differs from approved reference")
     reference_hashes[source_manifest["acceptance"]["overlay"]] = sha256(overlay_path)
@@ -118,14 +122,14 @@ def main():
         "cell_size": [cell_width, cell_height],
         "advances": advances,
         "ink_bounds": bounds,
-        "anchor": {"right_x": right, "top_y": top},
+        "ink_anchor": {"right_x": right, "top_y": top},
         "measurements": {
             "sample_14_37_bounds": source_manifest["reference_strings"]["14:37"]["intended_ink_bounds_at_home_anchor"],
             "approved_overlay_14_37_sha256": sha256(overlay_path),
         },
         "bytes": len(alpha),
         "sha256": hashlib.sha256(alpha).hexdigest(),
-        "recipe": "Approved Avenir Next Medium glyph masks are copied directly from the supplied native 320x240 Home-clock package; no font is loaded or scaled during conversion.",
+        "recipe": "Approved source-matched glyph masks are copied directly from the supplied native 320x240 Home-clock package; no font is loaded or scaled during conversion. Runtime placement uses the package's visible-ink anchor.",
     }
     (OUTPUT / "clock_atlas.json").write_text(json.dumps(generated, indent=2) + "\n")
 

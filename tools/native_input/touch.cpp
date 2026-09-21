@@ -135,20 +135,31 @@ int main() {
     assert(!uiControllerTakeCommand(command));
     uiControllerTap(UiTarget::ListPrevious, 0, 0, false);
     assert(uiControllerRenderState().stationOffset == 0);
+
+    // The encoder is global volume/mute/power control. It must not move a
+    // list focus, activate a selected item, or navigate away from this page.
     uiControllerTurn(20, 0, false);
-    assert(uiControllerRenderState().stationFocus == 9);
-    assert(uiControllerRenderState().stationOffset == 6);
+    assert(uiControllerRenderState().page == UiPage::Stations);
+    assert(uiControllerRenderState().stationFocus == 0);
+    assert(uiControllerRenderState().stationOffset == 0);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 20);
+    uiControllerPush(0, false);
+    assert(uiControllerRenderState().page == UiPage::Stations);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
+    uiControllerHold(0, false);
+    assert(uiControllerRenderState().page == UiPage::Stations);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::EnterStandby);
     assert(!uiControllerTakeCommand(command));
 
     // A live-station selection starts playback, then returns to the Home
     // summary rather than opening the separate Listening page.
     uiControllerTap(UiTarget::ListRow0, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Home);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 6);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
     assert(!uiControllerTakeCommand(command));
 
-    // Favorite-station touch and encoder selections take the same Home-first
-    // route as the regular station list.
+    // Favorite-station touch selections take the same Home-first route as the
+    // regular station list. Encoder input remains volume/mute/power only.
     favoriteEnabled = true;
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
@@ -157,10 +168,13 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
-    uiControllerPush(0, false);  // Move encoder focus from the Stations tab to its first row.
+    const UiPage favoritePage = uiControllerRenderState().page;
+    uiControllerTurn(-1, 0, false);
+    assert(uiControllerRenderState().page == favoritePage);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == -1);
     uiControllerPush(0, false);
-    assert(uiControllerRenderState().page == UiPage::Home);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
+    assert(uiControllerRenderState().page == favoritePage);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
     favoriteEnabled = false;
 
     // A consumed wake press stays consumed after the display wakes.

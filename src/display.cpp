@@ -49,6 +49,8 @@ String weatherKeySnapshot;
 time_t weatherLastSuccess = 0;
 unsigned long weatherLastSuccessAt = 0;
 constexpr unsigned long WEATHER_STALE_AFTER_MS = 30UL * 60UL * 1000UL;
+bool firmwareUpdateOverlayActive = false;
+uint8_t firmwareUpdatePercent = 0;
 
 String urlEncode(const String& value) {
     static constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
@@ -852,30 +854,72 @@ uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
 }
 
 void drawHomeClockAtlas(const char* value) {
-    // The approved glyph package owns this anchor and the per-glyph geometry.
+    // The approved glyph package aligns visible ink, rather than its
+    // transparent cell rectangle, to the design anchor. Its cells deliberately
+    // overlap, so compose their alpha first and blend the finished clock once.
+    constexpr int16_t kHomeClockMaxWidth = 128;
+    constexpr uint8_t kHomeClockMaxHeight = 32;
     int16_t width = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
         if (index >= 0) width += ui_home_clock_advances[index];
     }
-    int16_t penX = ui_home_clock_right - width;
+    if (width <= 0 || width > kHomeClockMaxWidth ||
+        ui_home_clock_cell_height > kHomeClockMaxHeight) return;
+
     constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
+    static uint8_t composedAlpha[kHomeClockMaxWidth * kHomeClockMaxHeight];
+    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+        for (int16_t x = 0; x < width; ++x) {
+            composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] = 0;
+        }
+    }
+
+    int16_t penX = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t glyph = homeClockGlyphIndex(*character);
         if (glyph < 0) continue;
         const uint8_t* alpha = ui_home_clock_alpha + static_cast<size_t>(glyph) * kCellBytes;
         for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-            for (uint8_t x = 0; x < ui_home_clock_cell_width; ++x) {
+            for (uint8_t x = 0; x < ui_home_clock_cell_width && penX + x < width; ++x) {
                 const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
                 if (coverage == 0) continue;
-                const int16_t pixelX = penX + x;
-                const int16_t pixelY = ui_home_clock_top + y;
-                canvas().drawPixel(pixelX, pixelY, blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+                uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + penX + x];
+                composed = static_cast<uint8_t>(coverage +
+                    (static_cast<uint16_t>(composed) * (255U - coverage) + 127U) / 255U);
             }
         }
         penX += ui_home_clock_advances[glyph];
-        // Keep the audio stream serviced between bounded 24×34 glyph blends.
         serviceUiAudio();
+    }
+
+    int16_t inkLeft = width;
+    int16_t inkTop = ui_home_clock_cell_height;
+    int16_t inkRight = 0;
+    int16_t inkBottom = 0;
+    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+        for (int16_t x = 0; x < width; ++x) {
+            if (composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] == 0) continue;
+            if (x < inkLeft) inkLeft = x;
+            if (y < inkTop) inkTop = y;
+            if (x + 1 > inkRight) inkRight = x + 1;
+            if (y + 1 > inkBottom) inkBottom = y + 1;
+        }
+    }
+    if (inkRight <= inkLeft || inkBottom <= inkTop) return;
+
+    const int16_t originX = ui_home_clock_ink_right - inkRight;
+    const int16_t originY = ui_home_clock_ink_top - inkTop;
+    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+        for (int16_t x = 0; x < width; ++x) {
+            const uint8_t coverage = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x];
+            if (coverage == 0) continue;
+            const int16_t pixelX = originX + x;
+            const int16_t pixelY = originY + y;
+            canvas().drawPixel(pixelX, pixelY, blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+        }
+        // Keep the audio stream serviced during the bounded final blend.
+        if ((y & 0x07U) == 0x07U) serviceUiAudio();
     }
 }
 
@@ -1136,6 +1180,13 @@ void drawSlider(int16_t y) {
     text(isStationMuted() ? "Muted" : String(mainVal) + " / 21", 270, y - 4, uiFont(&fonts::Font0), kWhite, 46);
 }
 
+void drawVolumeOverlay() {
+    canvas().fillRoundRect(48, 78, 224, 92, 12, kNavy);
+    canvas().drawRoundRect(48, 78, 224, 92, 12, kTextMuted);
+    text("Volume", 123, 100, uiFont(&fonts::FreeSans9pt7b), kWhite);
+    drawSlider(138);
+}
+
 const char* playbackLabel(PlaybackState state) {
     switch (state) {
     case PlaybackState::Connecting: return "CONNECTING";
@@ -1203,12 +1254,6 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
         }
     }
 
-    if (state.volumeOverlay) {
-        canvas().fillRoundRect(48, 78, 224, 92, 12, kNavy);
-        canvas().drawRoundRect(48, 78, 224, 92, 12, kTextMuted);
-        text("Volume", 123, 100, uiFont(&fonts::FreeSans9pt7b), kWhite);
-        drawSlider(138);
-    }
 }
 
 void renderStations(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -1743,5 +1788,30 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     }
 #endif
+    // Encoder feedback remains visible without changing focus, even when the
+    // user is browsing a list or a podcast screen. The OTA overlay below stays
+    // on top while firmware is being written.
+    if (state.volumeOverlay) drawVolumeOverlay();
+    if (firmwareUpdateOverlayActive) {
+        canvas().fillScreen(kNavy);
+        canvas().setTextDatum(MC_DATUM);
+        canvas().setTextColor(kWhite);
+        canvas().drawString("Firmware update", 160, 82, uiFont(&fonts::FreeSansBold12pt7b));
+        canvas().setTextColor(kTextMuted);
+        canvas().drawString("Keep power connected", 160, 112, uiFont(&fonts::FreeSans9pt7b));
+        canvas().drawRoundRect(40, 142, 240, 16, 8, kTextMuted);
+        const int width = static_cast<int>(236UL * firmwareUpdatePercent / 100UL);
+        if (width > 0) canvas().fillRoundRect(42, 144, width, 12, 6, kBlue);
+        char percent[8];
+        snprintf(percent, sizeof(percent), "%u%%", firmwareUpdatePercent);
+        canvas().setTextColor(kWhite);
+        canvas().drawString(percent, 160, 181, uiFont(&fonts::Font0));
+    }
     presentCanvas(0, 240);
+}
+
+void setFirmwareUpdateProgress(bool active, uint8_t percent) {
+    firmwareUpdateOverlayActive = active;
+    firmwareUpdatePercent = percent > 100 ? 100 : percent;
+    forceRedraw = true;
 }

@@ -1,20 +1,24 @@
 # Touch UI implementation status
 
-## 2026-09-21 — Approved Home-clock asset integration
+## 2026-09-21 — Source-matched Home-clock asset integration
 
-The Home clock now uses the supplied `home-clock-assets` package as its source
-of truth: native 26×30 Avenir Next Medium alpha masks, 21/11/16 px digit/colon/
-dash advances, and a `(304,41)` right/top anchor. The converter copies the
-approved masks directly into the firmware atlas with no local font dependency or
-scaling. It verifies all supplied reference strings and the transparent 320×240
-`14:37` overlay byte-for-byte; the required Home ink bounds are x=212…304 and
-y=41…70. Date, background, clock color, and compact page-header clocks remain
-unchanged.
+The Home clock now uses the supplied source-matched `home-clock-assets` package
+as its source of truth: native 26×32 alpha masks, per-glyph advances, and a
+visible-ink anchor `(301,40)`. The source-derived `1`, `3`, `4`, `7`, and colon
+retain their mockup tracing; the remaining supplied glyphs remain part of the
+same dynamic atlas. The converter copies the masks directly with no local font
+dependency or scaling. It verifies all supplied reference strings and the
+transparent 320×240 `14:37` overlay byte-for-byte; the required Home ink bounds
+are x=211…301 and y=40…70. Date, background, clock color, and compact
+page-header clocks remain unchanged. At runtime, the firmware first composes
+overlapping glyph-cell alpha into one bounded 128×32 mask, then blends each
+final clock pixel once over the fresh Home canvas; this follows the package's
+required composition rule and prevents doubled strokes at cell overlaps.
 
 **Visual:** the native fixture's approved overlay matches all alpha and visible
 pixel values exactly; physical/reference final acceptance remains open.
 **Functional:** `tools/render_ui_fonts.py` and `pio run -e esp32s3` pass; the
-build reports 82,772 B RAM (25.3%) and 3,265,779 B flash (49.8%). The scoped
+build reports 86,852 B RAM (26.5%) and 3,274,255 B flash (50.0%). The scoped
 diff whitespace check passes. **Hardware:** not flashed; TFT appearance and
 sustained-audio behavior remain unverified.
 

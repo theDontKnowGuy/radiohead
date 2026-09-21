@@ -1,5 +1,5 @@
-# Home clock assets
+# Source-matched Home clock assets
 
-These are native 320×240 dynamic-clock assets derived from the approved Radiohead mockup. Draw glyph PNGs in sequence using `manifest.json` advances, or use the supplied transparent references for fixture testing.
+Use `manifest.json`'s **ink-anchor rule**. It deliberately anchors visible ink, not the transparent cell rectangle.
 
-`references/home-clock-overlay-14_37.png` is the exact 320×240 acceptance overlay: only `14:37`, no background.
+`references/home-clock-overlay-14_37.png` is a native 320×240 transparent acceptance fixture traced from the approved mockup and reconstructed from dynamic glyph cells.

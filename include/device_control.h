@@ -7,7 +7,9 @@
 #define TOUCH_DEBUG_ENABLED 0
 #endif
 
-void factoryReset();
+// Clears the documented radio/favorites/artwork scope while retaining touch
+// calibration.  Returns false when a Preferences namespace cannot be cleared.
+bool factoryReset();
 void goToSleep();
 void initializeTouchCalibration();
 void taskControl(void* parameter);
