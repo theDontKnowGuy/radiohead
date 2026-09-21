@@ -2,7 +2,7 @@
   "pillow": "12.3.0",
   "background_source": "docs/bg1.png",
   "source_sha256": "8702f2907f2d0bfd31438a38dc605a3ffbd1b22cf5501fcf5263c0a7b6952cd8",
-  "recipe": "direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 72x70 category tiles with dense, slightly translucent gradients and visible borders; 40px icons and 20px Home brand radio mark from original geometry at 4x",
+  "recipe": "direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 72x70 category tiles with dense, slightly translucent gradients and visible borders; 34px icons and 20px Home brand radio mark from original geometry at 4x",
   "assets": {
     "background": {
       "size": [
@@ -27,31 +27,31 @@
     },
     "icon_favorites": {
       "size": [
-        40,
-        40
+        34,
+        34
       ],
-      "sha256": "c69ba26c774051f653d5dedcd98cf0b75802295f7f0e4819e2d928f7bf64f33c"
+      "sha256": "2b4d20616ee23362bc7ebd19f936f5307596180794c7c0f765d6abbdd64efd0d"
     },
     "icon_radio": {
       "size": [
-        40,
-        40
+        34,
+        34
       ],
-      "sha256": "6ba4a2684f5c7d4379838aad38aee18bab8694c375f767f1acf03ea804a203e6"
+      "sha256": "f937446658203252b6867548f3aa0da987bbce0e8cae22521debea3e1fd84df0"
     },
     "icon_settings": {
       "size": [
-        40,
-        40
+        34,
+        34
       ],
-      "sha256": "35dce0d2cf117d81beec05d213fe7dc8c0efb4a05bc38d931fa67205e938230c"
+      "sha256": "9a15615eeed7906c4783695aa0081fadd75227ea13e9f3268edb1a589a2cbcf0"
     },
     "icon_shows": {
       "size": [
-        40,
-        40
+        34,
+        34
       ],
-      "sha256": "a6a77dbeb7ce381a393d4760f0f2ca8ea27534ed4721be96312ba99bfc589813"
+      "sha256": "d399155a777d8649cd0676ca47a7c59986bbaf8ceed6480e97c1e3798caeb09c"
     },
     "tile_favorites": {
       "size": [

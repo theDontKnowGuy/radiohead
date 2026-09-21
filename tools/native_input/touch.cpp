@@ -3,6 +3,7 @@
 #include "ui_controller.h"
 #include <cassert>
 #include <cstdio>
+#include <climits>
 
 int currentStationIdx = 0;
 int gB = 0, gM = 0, gT = 0;
@@ -86,7 +87,9 @@ int main() {
     // Holding, sliding and short weak-contact dropouts cannot activate the new
     // page. Neither release nor a continuous hold emits another click.
     for (int i = 1; i <= 300; ++i) {
-        assert(press.sample(i % 4 != 0, i % 320, i % 240, i * 8, x, y) == TouchEvent::None);
+        assert(press.sample(i % 4 != 0, i % 320, i % 240, i * 8, x, y) ==
+               (i % 4 != 0 ? TouchEvent::Contact : TouchEvent::None));
+        uiControllerTouchContact(UiTarget::ShowRow0, i * 8);
     }
     UiCommand command;
     assert(!uiControllerTakeCommand(command));
@@ -185,7 +188,7 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
     favoriteEnabled = false;
 
-    // Settings are touch-owned. Editors keep drafts until Save, while the
+    // Settings are touch-owned. Tone previews leave committed values alone, while the
     // global encoder contract remains volume/mute/power on these pages.
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
@@ -193,11 +196,19 @@ int main() {
     uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsAudio);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
+           command.value == 1 && command.secondary == 0 && command.tertiary == 0);
+    assert(gB == 0 && gM == 0 && gT == 0);
     uiControllerTap(UiTarget::ToneTrebleDecrease, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
+           command.value == 1 && command.tertiary == -1);
     assert(uiControllerRenderState().toneBassDraft == 1);
     assert(uiControllerRenderState().toneTrebleDraft == -1);
+    assert(gB == 0 && gM == 0 && gT == 0);
     uiControllerTap(UiTarget::ToneCancel, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
+           command.value == 0 && command.secondary == 0 && command.tertiary == 0);
     assert(!uiControllerTakeCommand(command));
     uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, 0, false);
@@ -229,13 +240,101 @@ int main() {
     uiControllerTurn(1, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 1);
 
+    // Hold-to-repeat starts after 450 ms, steps every 120 ms, and stops on
+    // release or leaving the original target. It never catches up in a burst.
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::ToneBassIncrease, 0, 100, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone);
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 549);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 550);
+    assert(uiControllerTakeCommand(command) && command.value == 2);
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 669);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 670);
+    assert(uiControllerTakeCommand(command) && command.value == 3);
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 5000);
+    assert(uiControllerTakeCommand(command) && command.value == 4);
+    uiControllerTouchEnd();
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 6000);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::ToneBassIncrease, 0, 6100, false);
+    assert(uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneMidIncrease, 6500);
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 7000);
+    assert(!uiControllerTakeCommand(command));
+
+    // Bounds for all six buttons, coalesced preview, and encoder independence.
+    for (const auto target : {UiTarget::ToneBassDecrease, UiTarget::ToneBassIncrease,
+                             UiTarget::ToneMidDecrease, UiTarget::ToneMidIncrease,
+                             UiTarget::ToneTrebleDecrease, UiTarget::ToneTrebleIncrease}) {
+        uiControllerTap(target, 0, 0, false);
+        for (unsigned long step = 0; step < 40; ++step) {
+            uiControllerTouchContact(target, 450 + step * 120);
+        }
+        assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone);
+        const bool decrease = target == UiTarget::ToneBassDecrease ||
+                              target == UiTarget::ToneMidDecrease || target == UiTarget::ToneTrebleDecrease;
+        const int value = target <= UiTarget::ToneBassIncrease ? command.value :
+                          target <= UiTarget::ToneMidIncrease ? command.secondary : command.tertiary;
+        assert(value == (decrease ? -15 : 15));
+        uiControllerTouchContact(target, 10000);
+        assert(!uiControllerTakeCommand(command));
+    }
+    uiControllerPush(11000, false);
+    uiControllerTap(UiTarget::ToneMidDecrease, 0, 11000, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone && command.secondary == 14);
+    uiControllerTap(UiTarget::SettingsBack, 0, 12000, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
+           command.value == 0 && command.secondary == 0 && command.tertiary == 0);
+    uiControllerTouchContact(UiTarget::ToneMidDecrease, 13000);
+    assert(!uiControllerTakeCommand(command));
+
+    // A web commit supersedes the open draft, including a pending preview.
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
+    gB = 7; gM = -3; gT = 4;
+    uiControllerTick(500);
+    assert(uiControllerRenderState().toneBassDraft == 7);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 600);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::ToneCancel, 0, 700, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
+           command.value == 7 && command.secondary == -3 && command.tertiary == 4);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
+    gB = 8;
+    uiControllerTap(UiTarget::ToneSave, 0, 700, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone && command.value == 8);
+    assert(!uiControllerTakeCommand(command));
+
+    // Timer wrap and alarm suppression cannot manufacture another tap.
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::ToneMidIncrease, 0, ULONG_MAX - 200, false);
+    assert(uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneMidIncrease, 248);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTouchContact(UiTarget::ToneMidIncrease, 249);
+    assert(uiControllerTakeCommand(command) && command.secondary == -1);
+    uiControllerSetAlarmActive(true);
+    uiControllerSetAlarmActive(false);
+    uiControllerTouchContact(UiTarget::ToneMidIncrease, 900);
+    assert(!uiControllerTakeCommand(command));
+    gB = gM = gT = 0;
+
     // A consumed wake press stays consumed after the display wakes.
     uiControllerBegin();
     TouchPressLatch wake;
     assert(wake.sample(true, 100, 100, 0, x, y) == TouchEvent::Begin);
     uiControllerTap(UiTarget::HomeRecordedShows, 0, 0, true);
     assert(uiControllerRenderState().page == UiPage::Home);
-    assert(wake.sample(true, 100, 100, 40, x, y) == TouchEvent::None);
+    assert(wake.sample(true, 100, 100, 40, x, y) == TouchEvent::Contact);
+    uiControllerTouchContact(UiTarget::ToneBassIncrease, 600);
+    assert(!uiControllerTakeCommand(command));
     assert(wake.sample(false, 0, 0, 120, x, y) == TouchEvent::Release);
     assert(wake.sample(true, 100, 100, 128, x, y) == TouchEvent::Begin);
     uiControllerTap(UiTarget::HomeRecordedShows, 0, 128, false);

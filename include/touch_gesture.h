@@ -5,11 +5,13 @@
 enum class TouchEvent : uint8_t {
     None,
     Begin,
+    Contact,
     Release,
 };
 
 // Button-first input: activate on the first valid ADC contact, with no swipe
-// classification or release wait. Sliding/holding never repeats an action.
+// classification or release wait. Continued contacts let the controller opt
+// specific controls into repetition without emitting another Begin.
 // Debounce only re-arming, bridging weak-contact dropouts across page changes.
 class TouchPressLatch {
 public:
@@ -17,10 +19,10 @@ public:
                       int16_t& eventX, int16_t& eventY) {
         if (down) {
             lastContact_ = now;
-            if (active_) return TouchEvent::None;
-            active_ = true;
             eventX = x;
             eventY = y;
+            if (active_) return TouchEvent::Contact;
+            active_ = true;
             return TouchEvent::Begin;
         }
         if (!active_ || uint32_t(now - lastContact_) < kReleaseMs) return TouchEvent::None;

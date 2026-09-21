@@ -142,6 +142,7 @@ enum class UiCommandKind : uint8_t {
     SeekPodcast,
     TogglePodcastShowFavorite,
     EnterStandby,
+    PreviewTone,
     ApplyTone,
     ApplyAutoDim,
     StartTouchCalibration,
@@ -202,6 +203,9 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed);
 void uiControllerPush(unsigned long now, bool displayWasDimmed);
 void uiControllerHold(unsigned long now, bool displayWasDimmed);
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed);
+// Continued contact only repeats the same audio +/- target; release disarms it.
+void uiControllerTouchContact(UiTarget target, unsigned long now);
+void uiControllerTouchEnd();
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
 void uiControllerSetAlarmActive(bool active);
 void uiControllerReportDeviceActionFailure();

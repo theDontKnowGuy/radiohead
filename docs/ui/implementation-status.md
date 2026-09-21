@@ -1,25 +1,127 @@
 # Touch UI implementation status
 
+## 2026-09-21 — Settings Wi-Fi and Audio icon clarity
+
+The Settings Wi-Fi row now reuses the same prepared Wi-Fi asset as the page
+header. The Audio row now uses a conventional right-facing speaker with sound
+waves, replacing the reversed horn that was harder to recognize at TFT size.
+No Settings actions, hit regions, persistence, or audio behavior changed.
+
+**Visual:** inspected the production native 320×240 fixture at
+`.pio/ui_native/settings-smooth.png`. **Functional:**
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and `git diff --check`
+pass. The build uses 87,012 B RAM (26.6%) and 3,294,291 B flash (50.3%).
+**Hardware:** not flashed; physical TFT legibility remains unverified.
+
+## 2026-09-21 — Audio editor: centered rows, live preview and hold repeat
+
+The audio rows span 304 px with equal 8 px side margins and 44 px +/- targets.
+Changes preview immediately without updating committed tone or writing NVS.
+Save commits; Cancel and header Back restore committed tone. Newer web tone
+values refresh the draft and stop any captured repeat. Holding a tone button
+repeats after 450 ms, then every 120 ms on valid contact. Release, sliding off,
+dim-wake and alarm consumption disarm repetition; other buttons remain single
+activation per press.
+
+**Visual:** inspected the production 320×240 fixture at
+`.pio/ui_native/settings-audio-verified.png`, including -15/0/15 values.
+**Functional:** controller tests cover preview, Save/Cancel/Back, all six bounds,
+encoder independence, web conflicts, repeat timing, release, target departure
+and timer rollover. Native layout/hit tests, `pio run -e esp32s3` and
+`git diff --check` pass. The shared build uses 87,012 B RAM (26.6%) and
+3,294,191 B flash (50.3%); concurrent Home edits also contribute to its size.
+**Hardware:** not flashed; audible preview/reversion, held-finger comfort,
+reboot persistence and audio continuity remain unverified. TypeSafe's design
+guidance applies here as deterministic rules; live docs were inaccessible
+and no Jev/API integration was used.
+
+## 2026-09-21 — Audio editor width, live preview and held adjustment
+
+Bass, Mid and Treble now use full-width 304 px coastal/navy cards with equal
+8 px side margins. Values are centered in their column, including −15 and 15;
+the relocated minus/plus hit regions remain 44×46 px. This reuses the existing
+wide surface and retains the concept's photo, typography and blue controls.
+
+Each adjustment sends a bounded audio-only preview. Committed `gB/gM/gT`
+remain unchanged until Save, so unrelated volume/settings saves cannot persist
+an unfinished preview. Cancel and header Back restore committed tone. A changed
+web tone supersedes the open draft and stops its repeat, preventing stale Save
+or Cancel from replacing that newer value. Preview commands are coalesced
+separately from encoder commands.
+
+A fresh press changes one step immediately. Continued contact on that same
+plus/minus target repeats after 450 ms, then once per 120 ms, without catch-up
+bursts. Release, leaving the original target, page changes, dim-wake consumption
+or alarm consumption prevent further repeats. Other touch targets keep their
+single-action behavior. Values stay within −15…15; reaching a limit queues no
+more preview or redraw work.
+
+**Visual: pass (native fixture).** Inspected the production 320×240 renderer
+with minimum/zero/maximum values:
+[audio settings](evidence/2026-09-21-audio-settings/settings-audio.png).
+**Functional: pass (host/build).** `python3 tools/check_touch_input.py` covers
+preview/commit/cancel/back, all six bounds, repeat timing/release/slide, timer
+wrap, wake/alarm suppression, encoder coexistence and newer web edits.
+`python3 tools/render_ui_fonts.py` passes with relocated hit-region edges/gaps.
+`pio run -e esp32s3` and `git diff --check` pass: 87,012 B RAM (26.6%) and
+3,294,191 B flash (50.3%) for the shared worktree, which also contains concurrent
+Home/Display updates. No vendor changes or firmware binaries were added.
+**Hardware: not verified.** Not flashed in this task; audible preview/revert,
+held-finger comfort, reboot persistence and sustained playback during repeat
+still need physical-device checks. This does not close P2/P3 hardware acceptance.
+
+TypeSafe's deterministic/semantic separation was applied: explicit geometry,
+bounds, timing and state transitions belong in C++. Live documentation access
+failed; no live Jev call or firmware AI dependency was used.
+
+## 2026-09-21 — Display auto-dimming row width
+
+The Display editor's auto-dimming card now spans 304 px with equal 8 px side
+margins. The label and timeout share one line; the right-aligned minus/plus
+buttons have matching relocated 44×52 px touch targets. Timeout choices and
+Save/Cancel behavior are unchanged.
+
+**Visual:** inspected the production native 320×240 fixture at
+`.pio/ui_native/settings-display-smooth.png`, plus the longest 120-second label.
+**Functional:** native renderer checks and targeted dim-button hit checks pass;
+`pio run -e esp32s3` and `git diff --check` pass. **Hardware:** not flashed;
+physical TFT appearance and touch comfort remain unverified.
+
 ## 2026-09-21 — Home visual improvement round
 
 Home now uses a brighter, warmer 4:3 coast treatment (92% source saturation
 and a uniform 16% black veil) so the supplied sunset remains visible without
 losing text contrast. Its four navigation destinations are a 72×70 px row at
 `x=7/85/163/241`, `y=149`: dense blue, green, purple and slate gradients with
-visible borders, 40 px icons, 11 px medium labels and the same 72×70 px touch
+visible borders, 34 px icons, 11 px medium labels and the same 72×70 px touch
 regions. The header uses a 20 px radio mark and an 18 px title; its subtitle
 now says `Recorded Show` while recorded playback is active instead of always
-claiming Live Radio. The weather city and condition have separate baselines
-for easier scanning. The dynamic source-matched clock atlas was retained; its
+claiming Live Radio. Each condition artwork's visible top aligns with the
+temperature at `y=68`; city and condition use `y=94/112` baselines for easier
+scanning. The dynamic source-matched clock atlas was retained; its
 existing approved `14:37` alpha-overlay validation continues to cover its
 placement and compositing.
 
 **Visual:** inspected the native 320×240 production-path fixture at
 `.pio/ui_native/home-smooth.png`. **Functional:** `pio run -e esp32s3`,
 `python3 tools/render_ui_fonts.py`, and `git diff --check` pass. The build
-reports 86,972 B RAM (26.5%) and 3,294,127 B flash (50.3%). **Hardware:** not
+reports 87,012 B RAM (26.6%) and 3,294,191 B flash (50.3%). **Hardware:** not
 flashed; physical TFT color/legibility, touch target comfort and sustained
 audio repaint behavior remain unverified.
+
+## 2026-09-21 — Home tile icon alignment
+
+The Home renderer now anchors the visible top of Live Radio, Recorded Shows,
+Favorites, and Settings artwork at `y=157` (8 px below the tile top), rather
+than aligning their unequal transparent 34 px PNG canvases. This gives each
+icon the same top clearance and keeps the artwork centered in the open area
+above the labels. Tile sizes, label positions, touch regions, and navigation
+are unchanged.
+
+**Visual:** inspected refreshed native 320×240 PSRAM-canvas and direct-TFT
+fallback fixtures. **Functional:** `python3 tools/render_ui_fonts.py`,
+`pio run -e esp32s3`, and `git diff --check` pass. **Hardware:** not flashed;
+physical TFT alignment and legibility remain unverified.
 
 ## 2026-09-21 — Settings: concept-aligned paged list and local slice
 

@@ -29,10 +29,11 @@ source image.
 
 The physical-screen comparison reopened the following prior choices. Home now
 uses a 16% veil at 92% saturation, 72×70 tiles at `x=7/85/163/241`, `y=149`,
-40 px icons, and a dedicated 11 px Home label font so list typography remains
+34 px icons, and a dedicated 11 px Home label font so list typography remains
 unchanged. The tile gradients and borders are stronger category cues. The
 brand mark is 20 px and the title uses the dedicated 18 px Home title font.
-Weather city/condition baselines are `y=88/104`; the source-matched dynamic
+Weather city/condition baselines are `y=94/112`, while each weather asset's
+visible ink aligns with the temperature at `y=68`; the source-matched dynamic
 clock atlas is retained because its reference overlay already validates its
 ink placement and alpha composition.
 

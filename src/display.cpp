@@ -449,8 +449,16 @@ constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 constexpr int16_t kHomeTileY = 149;
 constexpr int16_t kHomeTileWidth = 72;
 constexpr int16_t kHomeTileHeight = 70;
-constexpr int16_t kHomeTileIconSize = 40;
+constexpr int16_t kHomeTileIconSize = 34;
 constexpr int16_t kHomeTileX[] = {7, 85, 163, 241};
+// The four 34 px PNG canvases have different transparent top padding.  Anchor
+// their visible artwork at one shared line, instead of making the radio aerial
+// look higher than the list, heart, and settings marks.
+constexpr int16_t kHomeTileIconVisibleTop = kHomeTileY + 8;
+constexpr int8_t kHomeTileIconTransparentTop[] = {0, 4, 4, 1};
+// The direct-TFT primitives are not the PNGs, so retain their equivalent
+// optical corrections when PSRAM is unavailable.
+constexpr int8_t kHomeTileIconFallbackYOffset[] = {-3, -4, 0, 1};
 // The visible chevron is small, but its target reaches into the title margin
 // and a little below the header so a normal finger press reliably returns.
 constexpr int16_t kHeaderBackHitWidth = 72;
@@ -763,7 +771,7 @@ void drawHomeWeatherIconFallback(int16_t x, int16_t y, bool hasWeather, int weat
 
 void drawHomeTileIconFallback(int16_t tileX, int16_t tileY, uint8_t tile) {
     // Keep the no-PSRAM primitive path optically consistent with the prepared
-    // 40 px icon assets. Its tile coordinates make the centering explicit.
+    // 34 px icon assets. Its tile coordinates make the centering explicit.
     const int16_t x = tileX + (kHomeTileWidth - kHomeTileIconSize) / 2;
     const int16_t y = tileY + 4;
     const uint16_t iconColor = kHomeText;
@@ -932,30 +940,36 @@ void drawHomeClockAtlas(const char* value) {
     }
 }
 
-void drawHomeWeatherIcon(int16_t x, int16_t y, bool valid, int id) {
+void drawHomeWeatherIcon(int16_t x, int16_t visibleTop, bool valid, int id) {
     if (!uiFrameReady) {
-        // Use a neutral primitive for unknown/obscured conditions in fallback.
+        // The fallback primitives and PNGs have different transparent geometry.
+        // Keep their visible ink aligned with the temperature in either path.
         if (!valid || (id != 800 && id != 801 && id != 802)) {
-            canvas().fillRoundRect(x + 14, y + 22, 42, 22, 9, kTextMuted);
+            canvas().fillRoundRect(x + 14, visibleTop, 42, 22, 9, kTextMuted);
         } else {
-            drawHomeWeatherIconFallback(x, y, true, id);
+            drawHomeWeatherIconFallback(x, visibleTop + 7, true, id);
         }
         return;
     }
-    if (!valid) drawHomeAsset(ui_home_weather_unknown, x, y);
-    else if (id == 800) drawHomeAsset(ui_home_weather_clear, x, y);
-    else if (id == 801 || id == 802) drawHomeAsset(ui_home_weather_partly, x, y);
-    else if (id == 803 || id == 804) drawHomeAsset(ui_home_weather_cloudy, x, y);
-    else if (id >= 200 && id <= 232) drawHomeAsset(ui_home_weather_storm, x, y);
-    else if ((id >= 300 && id <= 321) || (id >= 500 && id <= 531)) drawHomeAsset(ui_home_weather_rain, x, y);
-    else if (id >= 600 && id <= 622) drawHomeAsset(ui_home_weather_snow, x, y);
-    else if (id >= 700 && id < 800) drawHomeAsset(ui_home_weather_mist, x, y);
-    else drawHomeAsset(ui_home_weather_unknown, x, y);
+    // Normalise actual ink, not transparent image rectangles. Clear's art has
+    // a one-pixel inset, partly cloudy begins at zero, and cloud states begin
+    // 12 pixels down in their common 64×56 canvas.
+    if (!valid) drawHomeAsset(ui_home_weather_unknown, x, visibleTop - 12);
+    else if (id == 800) drawHomeAsset(ui_home_weather_clear, x, visibleTop - 1);
+    else if (id == 801 || id == 802) drawHomeAsset(ui_home_weather_partly, x, visibleTop);
+    else if (id == 803 || id == 804) drawHomeAsset(ui_home_weather_cloudy, x, visibleTop - 12);
+    else if (id >= 200 && id <= 232) drawHomeAsset(ui_home_weather_storm, x, visibleTop - 12);
+    else if ((id >= 300 && id <= 321) || (id >= 500 && id <= 531)) drawHomeAsset(ui_home_weather_rain, x, visibleTop - 12);
+    else if (id >= 600 && id <= 622) drawHomeAsset(ui_home_weather_snow, x, visibleTop - 12);
+    else if (id >= 700 && id < 800) drawHomeAsset(ui_home_weather_mist, x, visibleTop - 12);
+    else drawHomeAsset(ui_home_weather_unknown, x, visibleTop - 12);
 }
 
 void drawHomeTileIcon(int16_t x, int16_t y, uint8_t tile) {
     if (!uiFrameReady) {
-        drawHomeTileIconFallback(x - (kHomeTileWidth - kHomeTileIconSize) / 2, y - 4, tile);
+        const uint8_t icon = tile < 4 ? tile : 0;
+        drawHomeTileIconFallback(x - (kHomeTileWidth - kHomeTileIconSize) / 2,
+                                 y - 4 + kHomeTileIconFallbackYOffset[icon], icon);
         return;
     }
     switch (tile) {
@@ -1523,9 +1537,16 @@ void renderStationInfo(const UiRenderState& state, const char* currentTime, bool
 void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhite) {
     switch (kind) {
     case 0:  // Network
-        canvas().drawArc(x, y - 2, 7, 10, 210, 330, color);
-        canvas().drawArc(x, y - 2, 13, 16, 210, 330, color);
-        canvas().fillCircle(x, y + 5, 2, color);
+        // Use the same prepared Wi-Fi mark as the page headers. This keeps the
+        // Settings destination immediately recognizable and avoids a second,
+        // slightly different network symbol.
+        if (uiFrameReady) {
+            canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), x - 12, y - 10);
+        } else {
+            canvas().drawArc(x, y - 2, 7, 10, 210, 330, color);
+            canvas().drawArc(x, y - 2, 13, 16, 210, 330, color);
+            canvas().fillCircle(x, y + 5, 2, color);
+        }
         break;
     case 1:  // Display
         canvas().drawRoundRect(x - 13, y - 9, 26, 18, 3, color);
@@ -1533,10 +1554,12 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         canvas().drawLine(x, y + 9, x, y + 13, color);
         break;
     case 2:  // Audio
-        canvas().fillTriangle(x - 13, y - 5, x - 5, y - 5, x - 5, y + 5, color);
-        canvas().fillRect(x - 5, y - 9, 5, 18, color);
-        canvas().drawArc(x + 1, y, 6, 9, 300, 60, color);
-        canvas().drawArc(x + 1, y, 11, 14, 300, 60, color);
+        // A conventional right-facing speaker reads cleanly at this size. The
+        // horn now points toward its sound waves instead of away from them.
+        canvas().fillRect(x - 13, y - 5, 6, 10, color);
+        canvas().fillTriangle(x - 7, y - 9, x - 7, y + 9, x + 2, y, color);
+        canvas().drawArc(x + 2, y, 7, 10, 300, 60, color);
+        canvas().drawArc(x + 2, y, 12, 15, 300, 60, color);
         break;
     case 3:  // Weather & time
         canvas().drawCircle(x - 5, y - 4, 6, color);
@@ -1565,17 +1588,22 @@ void drawSettingsListRow(int16_t y, const char* label, uint8_t icon, bool danger
     drawSettingsChevron(kListOuterInset + 226, y + 23, danger ? kRed : kWhite);
 }
 
+// Audio rows use the full-width surface, with equal eight-pixel side margins.
+// The 44-pixel +/- targets are shared with hit testing below.
+constexpr int16_t kToneMinusX = 204;
+constexpr int16_t kTonePlusX = 260;
+constexpr int16_t kToneButtonWidth = 44;
+
 void drawEditorControl(int16_t y, const char* label, int value) {
-    drawListCard(kListOuterInset, y, false);
-    listPrimaryText(label, kListOuterInset + 16, y, 112);
-    const String valueLabel = String(value);
-    text(valueLabel, 128, y + 12, uiFont(&fonts::FreeSans9pt7b), kWhite, 24);
-    canvas().fillRoundRect(158, y + 5, 36, 36, 6, kSlate);
-    canvas().fillRoundRect(208, y + 5, 36, 36, 6, kBlue);
+    drawListCard(8, y + 2, false, true);
+    listPrimaryText(label, 24, y, 104);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("-", 176, y + 23, uiFont(&fonts::FreeSans9pt7b));
-    canvas().drawString("+", 226, y + 23, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString(String(value).c_str(), 166, y + 23, uiFont(&fonts::FreeSans9pt7b));
+    canvas().fillRoundRect(kToneMinusX + 4, y + 5, kToneButtonWidth - 8, 36, 6, kSlate);
+    canvas().fillRoundRect(kTonePlusX + 4, y + 5, kToneButtonWidth - 8, 36, 6, kBlue);
+    canvas().drawString("-", kToneMinusX + kToneButtonWidth / 2, y + 23, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("+", kTonePlusX + kToneButtonWidth / 2, y + 23, uiFont(&fonts::FreeSans9pt7b));
 }
 
 void drawEditorFooter() {
@@ -1614,17 +1642,16 @@ void renderToneSettings(const UiRenderState& state, const char* currentTime, boo
 void renderDisplaySettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     drawListHeader("Display", currentTime, timeValid);
-    drawListCard(kListOuterInset, 68, false);
-    text("Auto dimming", kListOuterInset + 16, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
-    text("After", kListOuterInset + 16, 99, uiFont(&fonts::Font0), kTextMuted, 48);
+    drawListCard(8, 68, false, true);
+    text("Auto dimming", 24, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
     const String dimLabel = String(state.dimSecondsDraft) + " sec";
-    text(dimLabel, 78, 95, uiFont(&fonts::FreeSans9pt7b), kWhite, 64);
-    canvas().fillRoundRect(158, 73, 36, 36, 6, kSlate);
-    canvas().fillRoundRect(208, 73, 36, 36, 6, kBlue);
+    text(dimLabel, 152, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 66);
+    canvas().fillRoundRect(222, 71, 36, 36, 6, kSlate);
+    canvas().fillRoundRect(272, 71, 36, 36, 6, kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("-", 176, 91, uiFont(&fonts::FreeSans9pt7b));
-    canvas().drawString("+", 226, 91, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("-", 240, 89, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("+", 290, 89, uiFont(&fonts::FreeSans9pt7b));
     text("The screen wakes on touch or control input.", 24, 132,
          uiFont(&fonts::Font0), kTextMuted, 250);
     drawEditorFooter();
@@ -1714,7 +1741,9 @@ void drawHomeTile(int16_t x, uint16_t color, const char* top, const char* bottom
     } else {
         canvas().fillRoundRect(x, kHomeTileY, kHomeTileWidth, kHomeTileHeight, 8, color);
     }
-    drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, kHomeTileY + 2, tile);
+    const uint8_t icon = tile < 4 ? tile : 0;
+    const int16_t iconY = kHomeTileIconVisibleTop - kHomeTileIconTransparentTop[icon];
+    drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, iconY, icon);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kHomeText);
     canvas().drawString(top, x + kHomeTileWidth / 2, kHomeTileY + (bottom == nullptr ? 52 : 46), homeLabelFont());
@@ -1743,7 +1772,7 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     // Visibility is a committed setting shared with the web UI, not a browser-
     // only preference.  Hidden weather leaves the photograph untouched.
     if (showWeatherOnHome) {
-        drawHomeWeatherIcon(9, 66, hasWeather, condition);
+        drawHomeWeatherIcon(9, 68, hasWeather, condition);
     }
     if (showWeatherOnHome && hasWeather) {
         char temperatureText[12];
@@ -1756,8 +1785,8 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         if (!uiFrameReady) {
             canvas().drawCircle(84 + canvas().textWidth(temperatureText), 81, 2, kWhite);
         }
-        text(homeCityLabel(owmCity), 76, 88, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 76, 104, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), 76, 94, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 76, 112, homeCaptionFont(), kWhite, 106);
     } else if (showWeatherOnHome) {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
@@ -1920,12 +1949,12 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         }
     } else if (state.page == UiPage::SettingsAudio) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (x >= 154 && x < 198) {
+        if (x >= kToneMinusX && x < kToneMinusX + kToneButtonWidth) {
             if (y >= 44 && y < 90) return UiTarget::ToneBassDecrease;
             if (y >= 92 && y < 138) return UiTarget::ToneMidDecrease;
             if (y >= 140 && y < 186) return UiTarget::ToneTrebleDecrease;
         }
-        if (x >= 204 && x < 248) {
+        if (x >= kTonePlusX && x < kTonePlusX + kToneButtonWidth) {
             if (y >= 44 && y < 90) return UiTarget::ToneBassIncrease;
             if (y >= 92 && y < 138) return UiTarget::ToneMidIncrease;
             if (y >= 140 && y < 186) return UiTarget::ToneTrebleIncrease;
@@ -1934,8 +1963,8 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 168, 190, 136, 40)) return UiTarget::ToneSave;
     } else if (state.page == UiPage::SettingsDisplay) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (contains(x, y, 154, 64, 44, 52)) return UiTarget::DimDecrease;
-        if (contains(x, y, 204, 64, 44, 52)) return UiTarget::DimIncrease;
+        if (contains(x, y, 218, 64, 44, 52)) return UiTarget::DimDecrease;
+        if (contains(x, y, 268, 64, 44, 52)) return UiTarget::DimIncrease;
         if (contains(x, y, 16, 190, 136, 40)) return UiTarget::DimCancel;
         if (contains(x, y, 168, 190, 136, 40)) return UiTarget::DimSave;
     } else if (state.page == UiPage::SettingsDevice) {

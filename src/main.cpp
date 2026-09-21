@@ -202,10 +202,13 @@ void loop() {
     updateAlarm(timeInfo, timeValid, buttonEvent == ButtonEvent::Push, now);
     uiControllerSetAlarmActive(isAlarming);
 
-    // The first accepted contact owns one action. TouchGesture stays latched
+    // The first accepted contact owns the press. TouchPressLatch stays latched
     // across navigation until release, including consumed dim/alarm presses.
     const UiPage touchPage = uiControllerRenderState().page;
 
+    if (touchEvent == TouchEvent::Release || displayWasDimmed || alarmWasActive) {
+        uiControllerTouchEnd();
+    }
     const int detents = consumeEncoderDetents();
     if (!alarmWasActive) {
         uiControllerTurn(detents, now, displayWasDimmed);
@@ -218,6 +221,8 @@ void loop() {
         if (touchEvent == TouchEvent::Begin && state.page == touchPage &&
             !displayWasDimmed && !isAlarming) {
             uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, false);
+        } else if (touchEvent == TouchEvent::Contact && !displayWasDimmed && !isAlarming) {
+            uiControllerTouchContact(uiHitTest(state, touchX, touchY), now);
         }
     }
     if (buttonEvent != ButtonEvent::None || touchEvent != TouchEvent::None) {
@@ -295,6 +300,13 @@ void loop() {
                 Serial.println("Unable to save show favorite");
             }
             forceRedraw = true;
+            break;
+        case UiCommandKind::PreviewTone:
+            // Preview affects the audio processor only. Unrelated saves (e.g.
+            // encoder volume or sleep) continue to persist committed tone.
+            audio.setTone(constrain(command.value, -15, 15),
+                          constrain(command.secondary, -15, 15),
+                          constrain(command.tertiary, -15, 15));
             break;
         case UiCommandKind::ApplyTone:
             gB = constrain(command.value, -15, 15);

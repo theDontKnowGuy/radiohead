@@ -146,6 +146,17 @@ int main(int argc, char** argv) {
     assert(ui_home_clock_advances[0] == 24 && ui_home_clock_advances[9] == 25);
     assert(ui_home_clock_advances[10] == 9);
     assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
+    // Home icon PNGs have unequal transparent padding, so the renderer aligns
+    // their visible ink rather than their canvas origins.
+    assert(kHomeTileIconVisibleTop == kHomeTileY + 8);
+    assert(kHomeTileIconTransparentTop[0] == 0);
+    assert(kHomeTileIconTransparentTop[1] == 4);
+    assert(kHomeTileIconTransparentTop[2] == 4);
+    assert(kHomeTileIconTransparentTop[3] == 1);
+    assert(kHomeTileIconFallbackYOffset[0] == -3);
+    assert(kHomeTileIconFallbackYOffset[1] == -4);
+    assert(kHomeTileIconFallbackYOffset[2] == 0);
+    assert(kHomeTileIconFallbackYOffset[3] == 1);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
@@ -287,9 +298,17 @@ int main(int argc, char** argv) {
     assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
-    assert(uiHitTest(toneHitState, 164, 72) == UiTarget::ToneBassDecrease);
-    assert(uiHitTest(toneHitState, 226, 118) == UiTarget::ToneMidIncrease);
+    assert(uiHitTest(toneHitState, 226, 72) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 282, 118) == UiTarget::ToneMidIncrease);
     assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
+    assert(uiHitTest(toneHitState, 203, 72) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 204, 44) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 247, 89) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 248, 72) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 259, 72) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 260, 140) == UiTarget::ToneTrebleIncrease);
+    assert(uiHitTest(toneHitState, 303, 185) == UiTarget::ToneTrebleIncrease);
+    assert(uiHitTest(toneHitState, 304, 162) == UiTarget::None);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
     assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceCalibration);
@@ -406,6 +425,9 @@ int main(int argc, char** argv) {
     settingsSecondPage.settingsOffset = 1;
     renderSettings(settingsSecondPage, "15:01", true);
     save((dir + "/settings-page-two-smooth.ppm").c_str());
+    toneHitState.toneBassDraft = -15;
+    toneHitState.toneMidDraft = 0;
+    toneHitState.toneTrebleDraft = 15;
     renderToneSettings(toneHitState, "15:01", true);
     save((dir + "/settings-audio-smooth.ppm").c_str());
     UiRenderState displaySettings;

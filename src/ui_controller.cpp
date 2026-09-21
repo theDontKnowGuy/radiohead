@@ -21,6 +21,14 @@ bool hasPendingCommand = false;
 int pendingVolumeDelta = 0;
 bool alarmIsActive = false;
 unsigned long volumeOverlayUntil = 0;
+UiCommand pendingToneCommand;
+bool hasPendingToneCommand = false;
+int committedBass = 0, committedMid = 0, committedTreble = 0;
+UiTarget repeatTarget = UiTarget::None;
+unsigned long repeatLastAt = 0;
+bool repeatStarted = false;
+constexpr unsigned long kToneHoldDelayMs = 450;
+constexpr unsigned long kToneRepeatMs = 120;
 
 void openToneSettings();
 void openDisplaySettings();
@@ -44,11 +52,32 @@ void queue(UiCommandKind kind, int value = 0) {
     }
 }
 
-void queueTone(int bass, int mid, int treble) {
-    if (!hasPendingCommand) {
-        pendingCommand = {UiCommandKind::ApplyTone, bass, mid, treble};
-        hasPendingCommand = true;
-    }
+void queueTone(UiCommandKind kind, int bass, int mid, int treble) {
+    // Keep previews independent of simultaneous encoder commands. Save/Cancel
+    // replaces any unconsumed preview, so an old preview cannot run afterward.
+    pendingToneCommand = {kind, bass, mid, treble};
+    hasPendingToneCommand = true;
+}
+
+void loadCommittedTone() {
+    state.toneBassDraft = committedBass = gB;
+    state.toneMidDraft = committedMid = gM;
+    state.toneTrebleDraft = committedTreble = gT;
+}
+
+void syncCommittedTone() {
+    if (state.page != UiPage::SettingsAudio ||
+        (committedBass == gB && committedMid == gM && committedTreble == gT)) return;
+    // A newer web edit supersedes the draft; neither Save nor Cancel may
+    // overwrite it with the values that were present when the editor opened.
+    loadCommittedTone();
+    hasPendingToneCommand = false;
+    repeatTarget = UiTarget::None;
+    markDirty();
+}
+
+bool isToneAdjustment(UiTarget target) {
+    return target >= UiTarget::ToneBassDecrease && target <= UiTarget::ToneTrebleIncrease;
 }
 
 void openStations() {
@@ -186,9 +215,7 @@ void openSettingsItem(int item) {
 
 void openToneSettings() {
     state.page = UiPage::SettingsAudio;
-    state.toneBassDraft = gB;
-    state.toneMidDraft = gM;
-    state.toneTrebleDraft = gT;
+    loadCommittedTone();
     markDirty();
 }
 
@@ -435,27 +462,25 @@ void handleTarget(UiTarget target, int value = 0) {
         break;
     case UiPage::SettingsAudio:
         if (target == UiTarget::SettingsBack || target == UiTarget::ToneCancel) {
+            queueTone(UiCommandKind::PreviewTone, gB, gM, gT);
             openSettings();
-        } else if (target == UiTarget::ToneBassDecrease) {
-            state.toneBassDraft = constrain(state.toneBassDraft - 1, -15, 15);
-            markDirty();
-        } else if (target == UiTarget::ToneBassIncrease) {
-            state.toneBassDraft = constrain(state.toneBassDraft + 1, -15, 15);
-            markDirty();
-        } else if (target == UiTarget::ToneMidDecrease) {
-            state.toneMidDraft = constrain(state.toneMidDraft - 1, -15, 15);
-            markDirty();
-        } else if (target == UiTarget::ToneMidIncrease) {
-            state.toneMidDraft = constrain(state.toneMidDraft + 1, -15, 15);
-            markDirty();
-        } else if (target == UiTarget::ToneTrebleDecrease) {
-            state.toneTrebleDraft = constrain(state.toneTrebleDraft - 1, -15, 15);
-            markDirty();
-        } else if (target == UiTarget::ToneTrebleIncrease) {
-            state.toneTrebleDraft = constrain(state.toneTrebleDraft + 1, -15, 15);
-            markDirty();
+        } else if (isToneAdjustment(target)) {
+            int* draft = target <= UiTarget::ToneBassIncrease ? &state.toneBassDraft :
+                         target <= UiTarget::ToneMidIncrease ? &state.toneMidDraft :
+                                                              &state.toneTrebleDraft;
+            const bool decrease = target == UiTarget::ToneBassDecrease ||
+                                  target == UiTarget::ToneMidDecrease ||
+                                  target == UiTarget::ToneTrebleDecrease;
+            const int next = constrain(*draft + (decrease ? -1 : 1), -15, 15);
+            if (*draft != next) {
+                *draft = next;
+                queueTone(UiCommandKind::PreviewTone, state.toneBassDraft,
+                          state.toneMidDraft, state.toneTrebleDraft);
+                markDirty();
+            }
         } else if (target == UiTarget::ToneSave) {
-            queueTone(state.toneBassDraft, state.toneMidDraft, state.toneTrebleDraft);
+            queueTone(UiCommandKind::ApplyTone, state.toneBassDraft,
+                      state.toneMidDraft, state.toneTrebleDraft);
             openSettings();
         }
         break;
@@ -517,6 +542,8 @@ void uiControllerBegin() {
     pendingVolumeDelta = 0;
     alarmIsActive = false;
     volumeOverlayUntil = 0;
+    hasPendingToneCommand = false;
+    repeatTarget = UiTarget::None;
 }
 
 void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
@@ -551,12 +578,37 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
 }
 
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {
-    (void)now;
+    repeatTarget = UiTarget::None;
+    syncCommittedTone();
     if (alarmIsActive || displayWasDimmed) {
         markDirty();
         return;
     }
+    if (state.page == UiPage::SettingsAudio && isToneAdjustment(target)) {
+        repeatTarget = target;
+        repeatLastAt = now;
+        repeatStarted = false;
+    }
     handleTarget(target, value);
+}
+
+void uiControllerTouchContact(UiTarget target, unsigned long now) {
+    syncCommittedTone();
+    if (alarmIsActive || state.page != UiPage::SettingsAudio || target != repeatTarget) {
+        repeatTarget = UiTarget::None;
+        return;
+    }
+    if (repeatTarget == UiTarget::None) return;
+    const unsigned long interval = repeatStarted ? kToneRepeatMs : kToneHoldDelayMs;
+    if (now - repeatLastAt < interval) return;
+    repeatStarted = true;
+    repeatLastAt = now;
+    // At most one step per fresh contact, never a blocking catch-up burst.
+    handleTarget(target, 0);
+}
+
+void uiControllerTouchEnd() {
+    repeatTarget = UiTarget::None;
 }
 
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
@@ -602,6 +654,7 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
 }
 
 void uiControllerSetAlarmActive(bool active) {
+    if (active) repeatTarget = UiTarget::None;
     alarmIsActive = active;
 }
 
@@ -612,6 +665,7 @@ void uiControllerReportDeviceActionFailure() {
 }
 
 void uiControllerTick(unsigned long now) {
+    syncCommittedTone();
     if (volumeOverlayUntil != 0 && static_cast<long>(now - volumeOverlayUntil) >= 0) {
         volumeOverlayUntil = 0;
         markDirty();
@@ -625,7 +679,10 @@ bool uiControllerTakeCommand(UiCommand& command) {
         return true;
     }
     if (!hasPendingCommand) {
-        return false;
+        if (!hasPendingToneCommand) return false;
+        command = pendingToneCommand;
+        hasPendingToneCommand = false;
+        return true;
     }
     command = pendingCommand;
     hasPendingCommand = false;
