@@ -387,13 +387,22 @@ constexpr uint16_t kRed = 0xF945;
 constexpr uint16_t kGreen = 0x154B;
 constexpr uint16_t kPurple = 0x8218;
 constexpr uint16_t kSlate = 0x4391;
+// Home controls use this soft off-white instead of fully saturated white.
+constexpr uint16_t kHomeText = 0xE77E;  // #E8EEF3 in RGB565
+constexpr uint16_t kHomeBlue = 0x09D0;
+constexpr uint16_t kHomeGreen = 0x1266;
+constexpr uint16_t kHomePurple = 0x494E;
+constexpr uint16_t kHomeSlate = 0x2A4B;
 
 #ifndef UI_P2_FIXTURE
 #define UI_P2_FIXTURE 0
 #endif
 
 constexpr int16_t kHomeTileY = 154;
+constexpr int16_t kHomeTileWidth = 68;
 constexpr int16_t kHomeTileHeight = 70;
+constexpr int16_t kHomeTileIconSize = 40;
+constexpr int16_t kHomeTileX[] = {7, 86, 165, 244};
 constexpr int kStationSlotCount = 10;
 constexpr int16_t kStationListTop = 44;
 constexpr int16_t kStationListRowHeight = 48;
@@ -640,9 +649,9 @@ void drawHomeHeader(bool timeValid) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages retain drawHeader.
     constexpr int16_t centerY = 22;
-    canvas().setTextColor(kWhite);
+    canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
-    canvas().drawString("Internet Radio", 14, centerY, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("Internet Radio", 14, centerY, display_fonts::homeTitle());
     char date[16] = "";
     if (timeValid) {
         const time_t now = time(nullptr);
@@ -654,14 +663,14 @@ void drawHomeHeader(bool timeValid) {
     canvas().setTextDatum(MR_DATUM);
     canvas().setTextColor(kWhite);
     // The small face's visible letters sit slightly below its line-box center.
-    canvas().drawString(date[0] == '\0' ? "" : date, 275, centerY - 1, uiFont(&fonts::Font0));
+    canvas().drawString(date[0] == '\0' ? "" : date, 271, centerY - 1, uiFont(&fonts::Font0));
     if (uiFrameReady) {
         // Visible Wi-Fi pixels span local y=4..16: optical center is y=10.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, centerY - 10);
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 287, centerY - 10);
     } else {
-        canvas().drawArc(293, centerY, 4, 6, 210, 330, kWhite);
-        canvas().drawArc(293, centerY, 8, 10, 210, 330, kWhite);
-        canvas().fillCircle(293, centerY + 5, 1, kWhite);
+        canvas().drawArc(298, centerY, 4, 6, 210, 330, kWhite);
+        canvas().drawArc(298, centerY, 8, 10, 210, 330, kWhite);
+        canvas().fillCircle(298, centerY + 5, 1, kWhite);
     }
 }
 
@@ -688,34 +697,39 @@ void drawHomeWeatherIconFallback(int16_t x, int16_t y, bool hasWeather, int weat
     }
 }
 
-void drawHomeTileIconFallback(int16_t x, int16_t y, uint8_t tile) {
-    canvas().setTextColor(kWhite);
+void drawHomeTileIconFallback(int16_t tileX, int16_t tileY, uint8_t tile) {
+    // Keep the no-PSRAM primitive path optically consistent with the prepared
+    // 40 px icon assets. Its tile coordinates make the centering explicit.
+    const int16_t x = tileX + (kHomeTileWidth - kHomeTileIconSize) / 2;
+    const int16_t y = tileY + 4;
+    const uint16_t iconColor = kHomeText;
+    canvas().setTextColor(iconColor);
     if (tile == 0) {
-        canvas().drawRoundRect(x + 8, y + 10, 28, 18, 4, kWhite);
-        canvas().drawCircle(x + 17, y + 19, 3, kWhite);
-        canvas().drawCircle(x + 29, y + 19, 3, kWhite);
-        canvas().drawLine(x + 21, y + 7, x + 30, y + 2, kWhite);
-        canvas().drawLine(x + 30, y + 2, x + 35, y + 2, kWhite);
+        canvas().drawRoundRect(x + 4, y + 13, 31, 20, 4, iconColor);
+        canvas().drawCircle(x + 13, y + 23, 3, iconColor);
+        canvas().drawCircle(x + 27, y + 23, 3, iconColor);
+        canvas().drawLine(x + 9, y + 10, x + 30, y + 3, iconColor);
+        canvas().drawLine(x + 30, y + 3, x + 35, y + 3, iconColor);
     } else if (tile == 1) {
         for (int row = 0; row < 3; ++row) {
-            canvas().fillCircle(x + 11, y + 9 + row * 9, 2, kWhite);
-            canvas().fillRoundRect(x + 18, y + 7 + row * 9, 22, 4, 2, kWhite);
+            canvas().fillCircle(x + 7, y + 10 + row * 10, 2, iconColor);
+            canvas().fillRoundRect(x + 14, y + 8 + row * 10, 25, 4, 2, iconColor);
         }
     } else if (tile == 2) {
-        canvas().drawLine(x + 24, y + 32, x + 10, y + 18, kWhite);
-        canvas().drawLine(x + 10, y + 18, x + 10, y + 11, kWhite);
-        canvas().drawLine(x + 10, y + 11, x + 15, y + 6, kWhite);
-        canvas().drawLine(x + 15, y + 6, x + 24, y + 12, kWhite);
-        canvas().drawLine(x + 24, y + 12, x + 33, y + 6, kWhite);
-        canvas().drawLine(x + 33, y + 6, x + 38, y + 11, kWhite);
-        canvas().drawLine(x + 38, y + 11, x + 38, y + 18, kWhite);
-        canvas().drawLine(x + 38, y + 18, x + 24, y + 32, kWhite);
+        canvas().drawLine(x + 20, y + 34, x + 4, y + 18, iconColor);
+        canvas().drawLine(x + 4, y + 18, x + 4, y + 10, iconColor);
+        canvas().drawLine(x + 4, y + 10, x + 10, y + 4, iconColor);
+        canvas().drawLine(x + 10, y + 4, x + 20, y + 11, iconColor);
+        canvas().drawLine(x + 20, y + 11, x + 30, y + 4, iconColor);
+        canvas().drawLine(x + 30, y + 4, x + 36, y + 10, iconColor);
+        canvas().drawLine(x + 36, y + 10, x + 36, y + 18, iconColor);
+        canvas().drawLine(x + 36, y + 18, x + 20, y + 34, iconColor);
     } else {
-        canvas().fillCircle(x + 24, y + 17, 11, kWhite);
-        canvas().fillCircle(x + 24, y + 17, 5, kSlate);
+        canvas().fillCircle(x + 20, y + 19, 12, iconColor);
+        canvas().fillCircle(x + 20, y + 19, 5, kHomeSlate);
         for (int i = 0; i < 8; ++i) {
             const float angle = i * 45 * 0.0174533F;
-            canvas().fillCircle(x + 24 + cos(angle) * 14, y + 17 + sin(angle) * 14, 3, kWhite);
+            canvas().fillCircle(x + 20 + cos(angle) * 16, y + 19 + sin(angle) * 16, 3, iconColor);
         }
     }
 }
@@ -781,7 +795,7 @@ void drawHomeWeatherIcon(int16_t x, int16_t y, bool valid, int id) {
 
 void drawHomeTileIcon(int16_t x, int16_t y, uint8_t tile) {
     if (!uiFrameReady) {
-        drawHomeTileIconFallback(x - 6, y, tile);
+        drawHomeTileIconFallback(x - (kHomeTileWidth - kHomeTileIconSize) / 2, y - 4, tile);
         return;
     }
     switch (tile) {
@@ -1330,13 +1344,13 @@ void drawHomeTile(int16_t x, uint16_t color, const char* top, const char* bottom
         case 3: drawHomeAsset(ui_home_tile_settings, x, kHomeTileY); break;
         }
     } else {
-        canvas().fillRoundRect(x, kHomeTileY, 70, kHomeTileHeight, 8, color);
+        canvas().fillRoundRect(x, kHomeTileY, kHomeTileWidth, kHomeTileHeight, 8, color);
     }
-    drawHomeTileIcon(x + 17, kHomeTileY + 6, tile);
+    drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, kHomeTileY + 4, tile);
     canvas().setTextDatum(MC_DATUM);
-    canvas().setTextColor(kWhite);
-    canvas().drawString(top, x + 35, kHomeTileY + (bottom == nullptr ? 53 : 47), homeLabelFont());
-    if (bottom != nullptr) canvas().drawString(bottom, x + 35, kHomeTileY + 60, homeLabelFont());
+    canvas().setTextColor(kHomeText);
+    canvas().drawString(top, x + kHomeTileWidth / 2, kHomeTileY + (bottom == nullptr ? 48 : 43), homeLabelFont());
+    if (bottom != nullptr) canvas().drawString(bottom, x + kHomeTileWidth / 2, kHomeTileY + 56, homeLabelFont());
     serviceUiAudio();
 }
 
@@ -1358,21 +1372,20 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
 
     // Home deliberately leaves the supplied sunset visible.  It is the primary
     // composition layer; only dense pages receive opaque reading surfaces.
-    drawHomeWeatherIcon(14, 58, hasWeather, condition);
+    drawHomeWeatherIcon(16, 58, hasWeather, condition);
     if (hasWeather) {
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d", static_cast<int>(roundf(displayedTemperature)));
-        // The temperature VLW's visible glyph starts 7 px below its top
-        // datum. Offset it so the rendered digits—not just their line box—
-        // align with the visible top of the weather artwork at y=58.
+        // Align the smaller regular temperature's visible glyphs with the
+        // weather artwork, rather than its nominal line box.
         text(uiFrameReady ? String(temperatureText) + "°" : String(temperatureText),
-             90, 51, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
+             86, 52, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
         if (!uiFrameReady) {
             canvas().drawCircle(94 + canvas().textWidth(temperatureText), 71, 2, kWhite);
         }
-        text(homeCityLabel(owmCity), 90, 82, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 90, 99, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), 86, 82, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 86, 96, homeCaptionFont(), kWhite, 106);
     } else {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
@@ -1381,21 +1394,21 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
 
     canvas().setTextDatum(TR_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString(timeValid ? currentTime : "--:--", 303, 28, uiFont(&fonts::FreeSansBold24pt7b));
+    canvas().drawString(timeValid ? currentTime : "--:--", 280, 32, uiFont(&fonts::FreeSansBold24pt7b));
     // Home is the live-radio destination. Keep its active-station summary
     // prominent instead of linking to a separate live-player page.
     text(station.isEmpty() ? "Now playing" : station, 212, 84,
          uiFont(&fonts::FreeSansBold12pt7b), kWhite, 91);
-    drawHomeTile(8, kBlue, "Live Radio", nullptr, 0);
-    drawHomeTile(86, kGreen, "Recorded", "Shows", 1);
-    drawHomeTile(164, kPurple, "Favorites", nullptr, 2);
-    drawHomeTile(242, kSlate, "Settings", nullptr, 3);
-    const int16_t focusX[] = {8, 86, 164, 242};
+    // A strict 4-column grid: 68 px tiles, 11 px gaps, one shared baseline.
+    drawHomeTile(kHomeTileX[0], kHomeBlue, "Live Radio", nullptr, 0);
+    drawHomeTile(kHomeTileX[1], kHomeGreen, "Recorded", "Shows", 1);
+    drawHomeTile(kHomeTileX[2], kHomePurple, "Favorites", nullptr, 2);
+    drawHomeTile(kHomeTileX[3], kHomeSlate, "Settings", nullptr, 3);
     const uint8_t focus = state.homeFocus < 4 ? state.homeFocus : 0;
     if (uiFrameReady) {
-        drawHomeAsset(ui_home_focus, focusX[focus] - 2, kHomeTileY - 2);
+        drawHomeAsset(ui_home_focus, kHomeTileX[focus] - 2, kHomeTileY - 2);
     } else {
-        canvas().drawRoundRect(focusX[focus] - 2, kHomeTileY - 2, 74, kHomeTileHeight + 4, 9, kBlueFocus);
+        canvas().drawRoundRect(kHomeTileX[focus] - 2, kHomeTileY - 2, kHomeTileWidth + 4, kHomeTileHeight + 4, 9, kBlueFocus);
     }
 }
 
@@ -1450,10 +1463,10 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         return y < kStationListTop + kListRailHeight / 2 ? UiTarget::ListPrevious : UiTarget::ListNext;
     }
     if (state.page == UiPage::Home) {
-        if (contains(x, y, 8, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeLiveRadio;
-        if (contains(x, y, 86, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeRecordedShows;
-        if (contains(x, y, 164, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeFavorites;
-        if (contains(x, y, 242, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeSettings;
+        if (contains(x, y, kHomeTileX[0], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeLiveRadio;
+        if (contains(x, y, kHomeTileX[1], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeRecordedShows;
+        if (contains(x, y, kHomeTileX[2], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeFavorites;
+        if (contains(x, y, kHomeTileX[3], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeSettings;
     } else if (state.page == UiPage::Listening) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PlayerBack;
         if (contains(x, y, 0, 44, 110, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PlayerOptions;

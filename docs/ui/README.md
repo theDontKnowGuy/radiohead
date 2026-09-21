@@ -10,6 +10,10 @@ native layout, touch/encoder behavior, module contracts, budgets and work packag
 Check [implementation status](implementation-status.md) before continuing: the
 existing cream/olive functional slice does not complete P2 or P3.
 
+See the [station discovery and artwork plan](station-discovery-and-artwork-plan.md)
+for browser station search, editable stream/logo suggestions, image conversion and
+persistent artwork on the ESP32 without a project-operated backend.
+
 - [Earlier interaction proposal](interaction-plan.md) and its `radio-ui.html`
   prototype: **superseded; historical only; do not implement this direction**.
 

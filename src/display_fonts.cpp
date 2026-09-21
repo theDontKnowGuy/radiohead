@@ -3,7 +3,7 @@
 
 namespace display_fonts {
 namespace {
-lgfx::VLWfont small, body, title, temperature, clock, labelFont, captionFont;
+lgfx::VLWfont small, body, title, temperature, clock, labelFont, captionFont, homeTitleFont;
 lgfx::PointerWrapper smallData(ui_font_small, sizeof(ui_font_small));
 lgfx::PointerWrapper bodyData(ui_font_body, sizeof(ui_font_body));
 lgfx::PointerWrapper titleData(ui_font_title, sizeof(ui_font_title));
@@ -11,6 +11,7 @@ lgfx::PointerWrapper temperatureData(ui_font_temperature, sizeof(ui_font_tempera
 lgfx::PointerWrapper clockData(ui_font_clock, sizeof(ui_font_clock));
 lgfx::PointerWrapper labelData(ui_font_label, sizeof(ui_font_label));
 lgfx::PointerWrapper captionData(ui_font_caption, sizeof(ui_font_caption));
+lgfx::PointerWrapper homeTitleData(ui_font_home_title, sizeof(ui_font_home_title));
 bool ready = false;
 }
 
@@ -21,7 +22,7 @@ bool init() {
     ready = small.loadFont(&smallData) && body.loadFont(&bodyData)
         && title.loadFont(&titleData) && temperature.loadFont(&temperatureData)
         && clock.loadFont(&clockData) && labelFont.loadFont(&labelData)
-        && captionFont.loadFont(&captionData);
+        && captionFont.loadFont(&captionData) && homeTitleFont.loadFont(&homeTitleData);
     if (!ready) {
         small.unloadFont();
         body.unloadFont();
@@ -30,6 +31,7 @@ bool init() {
         clock.unloadFont();
         labelFont.unloadFont();
         captionFont.unloadFont();
+        homeTitleFont.unloadFont();
     } else {
         // VLW otherwise guesses word spacing from line height, which is wider
         // than Roboto's actual space. Keep measured and drawn widths consistent.
@@ -40,12 +42,14 @@ bool init() {
         clock.spaceWidth = ui_font_clock_space_width;
         labelFont.spaceWidth = ui_font_label_space_width;
         captionFont.spaceWidth = ui_font_caption_space_width;
+        homeTitleFont.spaceWidth = ui_font_home_title_space_width;
     }
     return ready;
 }
 
 const lgfx::IFont* label() { return ready ? &labelFont : static_cast<const lgfx::IFont*>(&fonts::Font0); }
 const lgfx::IFont* caption() { return ready ? &captionFont : static_cast<const lgfx::IFont*>(&fonts::Font0); }
+const lgfx::IFont* homeTitle() { return ready ? &homeTitleFont : static_cast<const lgfx::IFont*>(&fonts::FreeSans9pt7b); }
 
 const lgfx::IFont* smooth(const lgfx::IFont* bitmap) {
     if (!ready) return bitmap;

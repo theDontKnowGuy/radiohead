@@ -1,5 +1,35 @@
 # Touch UI implementation status
 
+## 2026-09-21 — Home graphic polish
+
+The Home-specific comparison work is tracked in
+[home-graphic-polish-plan.md](home-graphic-polish-plan.md). It implements a
+uniform 25% background-black veil, a 17.4% smaller regular clock, regular
+condensed weather digits, 15.4% smaller medium tile labels, muted translucent
+tile gradients, a low-opacity focus outline, softer #E8EEF3 Home text/icons,
+and a tighter weather text block. The direct 4:3-to-320×240 resize remains
+uncropped. It does not change playback, input, routes, persistence, or weather
+fetching.
+
+**Visual:** the native 320×240 production fixture was inspected. **Functional:**
+`pio run -e esp32s3`, `tools/render_ui_fonts.py`, and `git diff --check` pass.
+**Hardware:** this revision was not flashed; TFT appearance, touch behavior,
+repaint timing, and sustained audio remain open for device verification.
+
+## 2026-09-21 — Home graphic polish, second pass
+
+The user-directed refinement reduces the Home clock from 38 px to 34 px and
+the temperature from 30 px to 27 px, both regular condensed. It introduces a
+15 px regular Home title, 40 px icons, label baselines 4–5 px higher, a
+68×70 tile / 11 px gap grid, further-muted blue and green tiles, and explicit
+header/weather spacing adjustments. The no-PSRAM primitive icons follow the
+same larger composition.
+
+**Visual:** the updated native 320×240 production fixture was inspected.
+**Functional:** `pio run -e esp32s3`, `tools/render_ui_fonts.py`, and
+`git diff --check` pass. **Hardware:** not flashed; physical TFT appearance,
+touch behavior, repaint timing, and sustained audio remain unverified.
+
 ## 2026-09-20 — Four-row right-rail list refinement
 
 The latest physical-device photo showed that the first right-rail pass still

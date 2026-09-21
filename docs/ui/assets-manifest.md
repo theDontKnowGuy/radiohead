@@ -3,8 +3,8 @@
 | Asset | Source | Build output | Use | Notes |
 | --- | --- | --- | --- | --- |
 | Sunset coast background | `docs/bg1.png` supplied by user | `.pio/ui_assets/background_320x240.png`, embedded C array | Base layer on concept fixtures | Source is 1448×1086 sRGB PNG; resampled directly to 320×240 (same 4:3 aspect ratio) with macOS `sips`. The build script emits a PNG byte array using `xxd`; LovyanGFX decodes it once for a full-page render. |
-| Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Lanczos resize, saturation 0.84, smooth 16–23% navy veil; original source retained. |
-| Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four 70×70 gradient tiles; 74×74 focus mask; four 36×36 icons; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
+| Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.80, then a uniform 25% black veil. The original source is retained. |
+| Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four 68×70 restrained, darkened, slightly translucent gradient tiles; a 72×74 low-opacity focus mask; four 40×40 #E8EEF3 icons; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
 | Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 64×64 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
 | List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
 
@@ -40,17 +40,17 @@ readable PSRAM canvas, never the TFT. If that canvas is unavailable, Home uses
 the opaque toned background and native primitive/bitmap fallback. Icons are
 original programmatic geometry, not downloaded weather-provider artwork.
 
-The Home background veil uses RGB(8,17,37), smoothly moving from 23% at the top
-to 16% around the horizon and 20% at the bottom. This is artwork treatment, not
-white-balance compensation; the user confirmed physical white is correct.
+The Home background uses a uniform 25% black veil after modest desaturation. This
+is artwork treatment, not white-balance compensation; it preserves the 4:3 source
+composition while giving the type and controls clear priority.
 
 ## Smooth typography assets (2026-09-19)
 
-`assets/fonts/{small,body,title,temperature,clock,label,caption}.vlw` are intentional font
+`assets/fonts/{small,body,home_title,title,temperature,clock,label,caption}.vlw` are intentional font
 assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need neither a
 system font nor Pillow. Generated C headers remain under `.pio/ui_assets`.
 
-Current Latin source: Roboto Regular/Medium/Bold and Roboto Condensed Bold
+Current Latin source: Roboto Regular/Medium and Roboto Condensed Regular
 2.001101 (2014), from TeX Live's
 `opentype/google/roboto` directory, upstream <https://github.com/google/roboto>.
 The actual OTF metadata identifies Apache License 2.0; see

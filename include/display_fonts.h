@@ -7,5 +7,6 @@ namespace display_fonts {
 bool init();
 const lgfx::IFont* label();
 const lgfx::IFont* caption();
+const lgfx::IFont* homeTitle();
 const lgfx::IFont* smooth(const lgfx::IFont* bitmap);
 }

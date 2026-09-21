@@ -114,9 +114,9 @@ int main(int argc, char** argv) {
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
     const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
     assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
-    // Fit the actual Home labels into their 70 px tiles with 3 px side insets.
+    // Fit the actual Home labels into their 68 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
-        assert(frame.textWidth(label, display_fonts::label()) <= 64);
+        assert(frame.textWidth(label, display_fonts::label()) <= 62);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
@@ -134,9 +134,9 @@ int main(int argc, char** argv) {
     assert(uiHitTest({}, 81, 200) == UiTarget::None);
     for (int i = 0; i < 4; ++i) {
         const UiTarget target = static_cast<UiTarget>(static_cast<int>(UiTarget::HomeLiveRadio) + i);
-        assert(uiHitTest({}, 8 + i*78 + 35, kHomeTileY + 35) == target);
-        assert(uiHitTest({}, 8 + i*78, kHomeTileY) == target);
-        assert(uiHitTest({}, 8 + i*78 + 69, kHomeTileY + 69) == target);
+        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth / 2, kHomeTileY + 35) == target);
+        assert(uiHitTest({}, kHomeTileX[i], kHomeTileY) == target);
+        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth - 1, kHomeTileY + 69) == target);
     }
     assert(frame.textWidth("GALATZ", uiFont(&fonts::FreeSansBold12pt7b)) <= 91);
     UiRenderState playerHitState;
