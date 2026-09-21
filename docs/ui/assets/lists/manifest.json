@@ -45,10 +45,17 @@
     },
     "rail": {
       "size": [
-        62,
-        196
+        57,
+        190
       ],
-      "sha256": "98a3806d57471c5a07979872919b77faffab09a2e4b36292ad56981dc6f8cdf3"
+      "sha256": "528e202815839edb17a1dcfaea13a63676785fcb327dd8cfc3f570f43fab4f37"
+    },
+    "rail_favorites": {
+      "size": [
+        57,
+        142
+      ],
+      "sha256": "44b6c4057d241a417e98e1e0bf16711ebdbd2e72c8d4be46042090209fdf1642"
     },
     "pager_thumb_1": {
       "size": [

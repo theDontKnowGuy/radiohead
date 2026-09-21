@@ -17,7 +17,8 @@ OUTPUT = ROOT / "docs" / "ui" / "assets" / "lists"
 SIZES = {
     "card": [248, 46], "card_focused": [248, 46],
     "card_wide": [304, 42], "card_wide_focused": [304, 42],
-    "pager": [50, 44], "pager_active": [50, 44], "rail": [62, 196],
+    "pager": [50, 44], "pager_active": [50, 44], "rail": [57, 190],
+    "rail_favorites": [57, 142],
     "pager_thumb_1": [44, 84], "pager_thumb_2": [44, 42], "pager_thumb_3": [44, 28],
 }
 

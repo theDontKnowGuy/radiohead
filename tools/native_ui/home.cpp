@@ -159,8 +159,10 @@ int main(int argc, char** argv) {
     assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
     assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
     assert(uiHitTest(favoritesHitState, 232, 108) == UiTarget::FavoritesRowFavorite0);
-    assert(uiHitTest(favoritesHitState, 289, 100) == UiTarget::FavoritesPrevious);
-    assert(uiHitTest(favoritesHitState, 289, 160) == UiTarget::FavoritesNext);
+    assert(uiHitTest(favoritesHitState, 150, 204) == UiTarget::FavoritesRow2);
+    assert(uiHitTest(favoritesHitState, 232, 204) == UiTarget::FavoritesRowFavorite2);
+    assert(uiHitTest(favoritesHitState, kListPagerLeft + 25, kFavoriteListTop) == UiTarget::FavoritesPrevious);
+    assert(uiHitTest(favoritesHitState, kListPagerLeft + 25, kFavoriteListBottom - 1) == UiTarget::FavoritesNext);
     UiRenderState showsHitState;
     showsHitState.page = UiPage::RecordedShows;
     assert(uiHitTest(showsHitState, 22, 22) == UiTarget::ShowsBack);
@@ -170,10 +172,11 @@ int main(int argc, char** argv) {
     episodesHitState.episodeShow = 0;
     assert(uiHitTest(episodesHitState, 150, 68) == UiTarget::EpisodeRow0);
     for (const auto& page : {stationHitState, showsHitState, episodesHitState}) {
-        assert(uiHitTest(page, 289, 44) == UiTarget::ListPrevious);
-        assert(uiHitTest(page, 289, 141) == UiTarget::ListPrevious);
-        assert(uiHitTest(page, 289, 142) == UiTarget::ListNext);
-        assert(uiHitTest(page, 289, 239) == UiTarget::ListNext);
+        assert(uiHitTest(page, kListPagerLeft + 25, kStationListTop) == UiTarget::ListPrevious);
+        assert(uiHitTest(page, kListPagerLeft + 25, kStationListTop + kListRailHeight / 2 - 1) == UiTarget::ListPrevious);
+        assert(uiHitTest(page, kListPagerLeft + 25, kStationListTop + kListRailHeight / 2) == UiTarget::ListNext);
+        assert(uiHitTest(page, kListPagerLeft + 25, kListRailBottom - 1) == UiTarget::ListNext);
+        assert(uiHitTest(page, kListPagerLeft + 25, kListRailBottom) == UiTarget::None);
         assert(uiHitTest(page, 160, 214) == UiTarget::ListRow3 ||
                uiHitTest(page, 160, 214) == UiTarget::ShowRow3 ||
                uiHitTest(page, 160, 214) == UiTarget::EpisodeRow3);

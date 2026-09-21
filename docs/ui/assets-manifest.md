@@ -25,9 +25,9 @@ python3 tools/prepare_list_assets.py
 ```
 
 The list recipe generates 248×46 cards for four-row paged lists, 304×42 cards for
-compact option lists, 50×44 right-side pager controls, a 62×196 translucent
-rail, and 44 px-wide page thumbs in 84/42/28 px heights for one/two/three
-pages. Normal and focused cards share the same edge opacity so the focused first
+compact option lists, 50×44 right-side pager controls, 57×190 and 57×142 translucent
+rounded rails for four-row and Favorites three-row lists, and 44 px-wide page thumbs
+in 84/42/28 px heights for one/two/three pages. Normal and focused cards share the same edge opacity so the focused first
 row cannot visually widen its following gap. These assets contain
 only translucent surface/border pixels—labels, chevrons, artwork, and favorite
 state remain dynamic firmware drawing.

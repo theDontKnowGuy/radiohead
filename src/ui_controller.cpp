@@ -9,7 +9,7 @@
 namespace {
 
 constexpr int kRowsPerPage = UI_LIST_ROWS;
-constexpr int kFavoriteRowsPerPage = 2;
+constexpr int kFavoriteRowsPerPage = 3;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
@@ -352,7 +352,7 @@ void handleTarget(UiTarget target, int value = 0) {
             uiControllerPage(-1, 0, false);
         } else if (target == UiTarget::FavoritesNext) {
             uiControllerPage(1, 0, false);
-        } else if (target >= UiTarget::FavoritesRow0 && target <= UiTarget::FavoritesRow1) {
+        } else if (target >= UiTarget::FavoritesRow0 && target <= UiTarget::FavoritesRow2) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRow0);
             const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
             if (!state.favoriteShowsTab && slot >= 0) {
@@ -362,7 +362,7 @@ void handleTarget(UiTarget target, int value = 0) {
                 const int show = podcastShowAt(state.favoriteOffset + row, true);
                 if (show >= 0) openEpisodes(show);
             }
-        } else if (target >= UiTarget::FavoritesRowFavorite0 && target <= UiTarget::FavoritesRowFavorite1) {
+        } else if (target >= UiTarget::FavoritesRowFavorite0 && target <= UiTarget::FavoritesRowFavorite2) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRowFavorite0);
             const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
             if (!state.favoriteShowsTab && slot >= 0) queue(UiCommandKind::ToggleStationFavorite, slot);

@@ -402,7 +402,25 @@ constexpr int kStationSlotCount = 10;
 constexpr int16_t kStationListTop = 44;
 constexpr int16_t kStationListRowHeight = 48;
 constexpr int kStationRowsPerPage = UI_LIST_ROWS;
-constexpr int kFavoriteRowsPerPage = 2;
+constexpr int16_t kListCardWidth = 248;
+constexpr int16_t kListCardHeight = 46;
+constexpr int16_t kListOuterInset = 5;
+constexpr int16_t kListRailGap = 5;
+constexpr int16_t kListRailLeft = kListOuterInset + kListCardWidth + kListRailGap;
+constexpr int16_t kListRailWidth = 320 - kListRailLeft - kListOuterInset;
+constexpr int16_t kListRailBottom = kStationListTop +
+    (kStationRowsPerPage - 1) * kStationListRowHeight + kListCardHeight;
+constexpr int16_t kListRailHeight = kListRailBottom - kStationListTop;
+constexpr int16_t kListPagerLeft = kListRailLeft + 4;
+constexpr int16_t kListTitleLeft = kListOuterInset + 22;
+constexpr int kFavoriteRowsPerPage = 3;
+constexpr int16_t kFavoriteListTop = 88;
+constexpr int16_t kFavoriteListRowHeight = 48;
+constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
+    (kFavoriteRowsPerPage - 1) * kFavoriteListRowHeight + kListCardHeight;
+// The font's visible glyphs sit below its top-left origin.  This offset keeps
+// a single-line label optically centered in a 46 px list card.
+constexpr int16_t kListPrimaryTextTop = 11;
 
 const lgfx::IFont* homeLabelFont() {
     return uiFrameReady ? display_fonts::label() : &fonts::Font0;
@@ -414,6 +432,16 @@ const lgfx::IFont* homeCaptionFont() {
 
 bool contains(int16_t x, int16_t y, int16_t left, int16_t top, int16_t width, int16_t height) {
     return x >= left && x < left + width && y >= top && y < top + height;
+}
+
+int listRowAt(int16_t y) {
+    if (y < kStationListTop) return -1;
+    const int row = (y - kStationListTop) / kStationListRowHeight;
+    if (row < 0 || row >= kStationRowsPerPage ||
+        y >= kStationListTop + row * kStationListRowHeight + kListCardHeight) {
+        return -1;
+    }
+    return row;
 }
 
 String ellipsize(const String& source, int16_t width) {
@@ -466,6 +494,10 @@ void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font, ui
     canvas().drawString(rendered.c_str(), x, y);
 }
 
+void listPrimaryText(const String& value, int16_t x, int16_t rowY, int16_t width) {
+    text(value, x, rowY + kListPrimaryTextTop, uiFont(&fonts::FreeSans9pt7b), kWhite, width);
+}
+
 void footerButton(int16_t x, int16_t width, const char* label, bool highlighted = false) {
     canvas().fillRoundRect(x + 2, 190, width - 4, 46, 6, highlighted ? kBlue : kSurface);
     canvas().drawRoundRect(x + 2, 190, width - 4, 46, 6, highlighted ? kWhite : kTextMuted);
@@ -493,8 +525,8 @@ void drawListCard(int16_t x, int16_t y, bool focused, bool wide = false) {
         }
     }
     if (!drawn) {
-        const int16_t width = wide ? 304 : 248;
-        const int16_t height = wide ? 42 : 46;
+        const int16_t width = wide ? 304 : kListCardWidth;
+        const int16_t height = wide ? 42 : kListCardHeight;
         canvas().fillRoundRect(x, y, width, height, wide ? 6 : 7, focused ? kBlue : kSurface);
         canvas().drawRoundRect(x, y, width, height, wide ? 6 : 7, focused ? kBlueFocus : kTextMuted);
     }
@@ -512,33 +544,44 @@ void drawPagerChevron(int16_t centerX, int16_t centerY, bool up, bool enabled) {
     }
 }
 
-void drawListPager(int offset, int count, int rows, int16_t top = 44, int16_t bottom = 240,
+void drawListPager(int offset, int count, int rows, int16_t top = kStationListTop,
+                   int16_t bottom = kListRailBottom,
                    bool showPosition = true) {
     const bool canPrevious = offset > 0;
     const bool canNext = offset + rows < count;
     const int16_t upY = top + 6;
     const int16_t downY = bottom - 50;
-    bool railDrawn = top != 44 || bottom != 240;
+    const bool primaryListRail = top == kStationListTop && bottom == kListRailBottom;
+    const int16_t pagerLeft = kListPagerLeft;
+    const int16_t pagerCenterX = pagerLeft + 25;
+    bool railDrawn = false;
     bool upDrawn = false;
     bool downDrawn = false;
     if (uiFrameReady) {
-        if (!railDrawn) railDrawn = drawSurfaceAsset(ui_list_rail, 258, 44);
-        upDrawn = canPrevious ? drawSurfaceAsset(ui_list_pager_active, 264, upY)
-                              : drawSurfaceAsset(ui_list_pager, 264, upY);
-        downDrawn = canNext ? drawSurfaceAsset(ui_list_pager_active, 264, downY)
-                             : drawSurfaceAsset(ui_list_pager, 264, downY);
+        if (primaryListRail) {
+            railDrawn = drawSurfaceAsset(ui_list_rail, kListRailLeft, kStationListTop);
+        } else if (top == kFavoriteListTop && bottom == kFavoriteListBottom) {
+            railDrawn = drawSurfaceAsset(ui_list_rail_favorites, kListRailLeft, top);
+        }
+        upDrawn = canPrevious ? drawSurfaceAsset(ui_list_pager_active, pagerLeft, upY)
+                              : drawSurfaceAsset(ui_list_pager, pagerLeft, upY);
+        downDrawn = canNext ? drawSurfaceAsset(ui_list_pager_active, pagerLeft, downY)
+                             : drawSurfaceAsset(ui_list_pager, pagerLeft, downY);
     }
-    if (!railDrawn) canvas().fillRect(258, 44, 62, 196, kNavy);
+    if (!railDrawn) {
+        canvas().fillRoundRect(kListRailLeft, top, kListRailWidth, bottom - top, 7, kNavy);
+        canvas().drawRoundRect(kListRailLeft, top, kListRailWidth, bottom - top, 7, kTextMuted);
+    }
     if (!upDrawn) {
-        canvas().fillRoundRect(264, upY, 50, 44, 8, canPrevious ? kBlue : kSurface);
-        canvas().drawRoundRect(264, upY, 50, 44, 8, canPrevious ? kBlueFocus : kTextMuted);
+        canvas().fillRoundRect(pagerLeft, upY, 50, 44, 8, canPrevious ? kBlue : kSurface);
+        canvas().drawRoundRect(pagerLeft, upY, 50, 44, 8, canPrevious ? kBlueFocus : kTextMuted);
     }
     if (!downDrawn) {
-        canvas().fillRoundRect(264, downY, 50, 44, 8, canNext ? kBlue : kSurface);
-        canvas().drawRoundRect(264, downY, 50, 44, 8, canNext ? kBlueFocus : kTextMuted);
+        canvas().fillRoundRect(pagerLeft, downY, 50, 44, 8, canNext ? kBlue : kSurface);
+        canvas().drawRoundRect(pagerLeft, downY, 50, 44, 8, canNext ? kBlueFocus : kTextMuted);
     }
-    drawPagerChevron(289, upY + 22, true, canPrevious);
-    drawPagerChevron(289, downY + 22, false, canNext);
+    drawPagerChevron(pagerCenterX, upY + 22, true, canPrevious);
+    drawPagerChevron(pagerCenterX, downY + 22, false, canNext);
     if (showPosition) {
         // All catalog-backed lists are bounded to three pages (10 stations or
         // shows, and eight episodes).  Prepared variants avoid runtime PNG
@@ -550,8 +593,8 @@ void drawListPager(int offset, int count, int rows, int16_t top = 44, int16_t bo
         // whole track, rather than treating 6 / 4 as the middle page.
         const int page = maxOffset == 0 ? 0 :
             std::max(0, std::min(pages - 1, (offset * (pages - 1) + maxOffset / 2) / maxOffset));
-        constexpr int16_t kTrackTop = 100;
-        constexpr int16_t kThumbX = 267;
+        constexpr int16_t kTrackTop = 98;
+        constexpr int16_t kThumbX = kListRailLeft + 7;
         bool thumbDrawn = false;
         if (uiFrameReady) {
             switch (pages) {
@@ -585,14 +628,15 @@ void drawHeaderClock(const char* currentTime, bool timeValid) {
     canvas().fillCircle(294, 26, 2, kWhite);
 }
 
-void drawHeader(const char* currentTime, bool timeValid, const char* title, bool back = true) {
+void drawHeader(const char* currentTime, bool timeValid, const char* title, bool back = true,
+                int16_t contentLeft = 20) {
     canvas().fillRect(0, 0, 320, 44, kNavy);
     canvas().fillRect(0, 42, 320, 2, kBlueDark);
     if (back) {
-        canvas().drawLine(29, 14, 20, 22, kWhite);
-        canvas().drawLine(20, 22, 29, 30, kWhite);
+        canvas().drawLine(contentLeft + 9, 14, contentLeft, 22, kWhite);
+        canvas().drawLine(contentLeft, 22, contentLeft + 9, 30, kWhite);
     }
-    text(title, back ? 42 : 14, 13, uiFont(&fonts::FreeSans9pt7b), kWhite, 150);
+    text(title, back ? contentLeft + 22 : 14, 13, uiFont(&fonts::FreeSans9pt7b), kWhite, 150);
     drawHeaderClock(currentTime, timeValid);
 }
 
@@ -805,14 +849,15 @@ void drawTransport(int16_t x, int16_t y, const char* glyph, bool primary) {
     canvas().drawString(glyph, x, y - 1, uiFont(&fonts::FreeSansBold12pt7b));
 }
 
-void drawStationsHeader(const char* currentTime, bool timeValid) {
-    // Unlike the older generic header, this preserves the sunset photo all the
-    // way to the top edge, matching the live-stations reference composition.
-    canvas().drawLine(30, 14, 20, 22, kWhite);
-    canvas().drawLine(20, 22, 30, 30, kWhite);
+void drawListHeader(const char* title, const char* currentTime, bool timeValid) {
+    // List pages preserve the sunset photo all the way to the top edge.  Keep
+    // the back affordance, title, clock, and Wi-Fi glyph on one shared
+    // baseline so Stations, Recorded Shows, and Favorites cannot drift apart.
+    canvas().drawLine(kListOuterInset + 9, 14, kListOuterInset, 22, kWhite);
+    canvas().drawLine(kListOuterInset, 22, kListOuterInset + 9, 30, kWhite);
     canvas().setTextDatum(ML_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("Live Radio", 42, 22, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString(title, kListTitleLeft, 22, uiFont(&fonts::FreeSansBold12pt7b));
     canvas().setTextDatum(MR_DATUM);
     canvas().drawString(timeValid ? currentTime : "--:--", 270, 22, uiFont(&fonts::FreeSansBold12pt7b));
     if (uiFrameReady) {
@@ -992,7 +1037,7 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
 
 void renderStations(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawStationsHeader(currentTime, timeValid);
+    drawListHeader("Live Radio", currentTime, timeValid);
     const int count = playableStationCount();
     if (count == 0) {
         text("No stations saved", 28, 88, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1006,16 +1051,12 @@ void renderStations(const UiRenderState& state, const char* currentTime, bool ti
             continue;
         }
         const bool focused = visibleIndex == state.stationFocus;
-        drawListCard(8, y, focused);
-        drawArtwork(stations[slot].name, 20, y + 8, 32, focused ? kBlueDark : kSlate, false);
-        text(stations[slot].name, 62, y + 6, uiFont(&fonts::FreeSans9pt7b), kWhite, 145);
-        const String detail = slot == state.playingStation && !songTitle.isEmpty()
-            ? songTitle
-            : String("Live radio");
-        text(detail, 62, y + 25, uiFont(&fonts::Font0), kWhite, 145);
-        drawStar(232, y + 24, isStationFavorite(slot));
+        drawListCard(kListOuterInset, y, focused);
+        drawArtwork(stations[slot].name, kListOuterInset + 12, y + 8, 32, focused ? kBlueDark : kSlate, false);
+        listPrimaryText(stations[slot].name, kListOuterInset + 54, y, 145);
+        drawStar(kListOuterInset + 224, y + 24, isStationFavorite(slot));
         if (focused && state.stationFavoriteFocus) {
-            canvas().drawCircle(232, y + 24, 16, kWhite);
+            canvas().drawCircle(kListOuterInset + 224, y + 24, 16, kWhite);
         }
     }
     drawListPager(state.stationOffset, count, kStationRowsPerPage);
@@ -1041,14 +1082,14 @@ int favoriteStationSlotAt(int favoriteIndex) {
 void drawListRow(int16_t y, const String& name, bool focused, bool favorite, bool favoriteFocused) {
     drawListCard(8, y, focused);
     drawArtwork(name, 14, y + 8, 32, focused ? kBlueDark : kSlate, false);
-    text(name, 58, y + 14, uiFont(&fonts::FreeSans9pt7b), kWhite, 145);
+    listPrimaryText(name, 58, y, 145);
     drawStar(232, y + 24, favorite);
     if (favoriteFocused) canvas().drawCircle(232, y + 24, 16, kWhite);
 }
 
 void renderFavorites(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Favorites");
+    drawListHeader("Favorites", currentTime, timeValid);
     const uint16_t stationTabColor = state.favoriteShowsTab ? kSurfaceRaised : kBlue;
     const uint16_t showTabColor = state.favoriteShowsTab ? kBlue : kSurfaceRaised;
     canvas().fillRoundRect(8, 48, 148, 34, 6, stationTabColor);
@@ -1066,9 +1107,10 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
         int count = 0;
         for (int show = 0; show < PODCAST_SHOW_COUNT; ++show) {
             if (!isPodcastShowFavorite(show)) continue;
-            if (count >= state.favoriteOffset && count < state.favoriteOffset + 2) {
+            if (count >= state.favoriteOffset && count < state.favoriteOffset + kFavoriteRowsPerPage) {
                 const int row = count - state.favoriteOffset;
-                drawListRow(88 + row * 48, podcastShows[show].webName, false, true, false);
+                drawListRow(kFavoriteListTop + row * kFavoriteListRowHeight,
+                            podcastShows[show].webName, false, true, false);
             }
             ++count;
         }
@@ -1076,7 +1118,8 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
             text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
             text("Use show options to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
         }
-        drawListPager(state.favoriteOffset, count, kFavoriteRowsPerPage, 84, 188, false);
+        drawListPager(state.favoriteOffset, count, kFavoriteRowsPerPage,
+                      kFavoriteListTop, kFavoriteListBottom, false);
         return;
     }
 
@@ -1085,15 +1128,17 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
         text("No favorite stations", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
         text("Use a station star to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
     }
-    for (int row = 0; row < 2; ++row) {
+    for (int row = 0; row < kFavoriteRowsPerPage; ++row) {
         const int favoriteIndex = state.favoriteOffset + row;
         const int slot = favoriteStationSlotAt(favoriteIndex);
         if (slot < 0) continue;
         const bool bodyFocused = state.favoriteFocus == favoriteIndex * 2;
         const bool starFocused = state.favoriteFocus == favoriteIndex * 2 + 1;
-        drawListRow(88 + row * 48, stations[slot].name, bodyFocused || starFocused, true, starFocused);
+        drawListRow(kFavoriteListTop + row * kFavoriteListRowHeight, stations[slot].name,
+                    bodyFocused || starFocused, true, starFocused);
     }
-    drawListPager(state.favoriteOffset, count, kFavoriteRowsPerPage, 84, 188, false);
+    drawListPager(state.favoriteOffset, count, kFavoriteRowsPerPage,
+                  kFavoriteListTop, kFavoriteListBottom, false);
 }
 
 String durationLabel(uint32_t seconds) {
@@ -1106,7 +1151,7 @@ String durationLabel(uint32_t seconds) {
 
 void renderRecordedShows(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, state.showFavoritesOnly ? "Favorite Shows" : "Recorded Shows");
+    drawListHeader(state.showFavoritesOnly ? "Favorite Shows" : "Recorded Shows", currentTime, timeValid);
     int drawn = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
         if (state.showFavoritesOnly && !isPodcastShowFavorite(index)) continue;
@@ -1115,12 +1160,11 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
         if (row >= kStationRowsPerPage) break;
         const bool focused = drawn == state.showFocus;
         const int y = kStationListTop + row * kStationListRowHeight;
-        drawListCard(8, y, focused);
-        drawArtwork(podcastShows[index].tftName, 18, y + 8, 32, focused ? kBlueDark : kGreen, false);
-        text(podcastShows[index].webName, 62, y + 6, uiFont(&fonts::FreeSans9pt7b), kWhite, 160);
-        text("Recorded show", 62, y + 25, uiFont(&fonts::Font0), kTextMuted, 160);
-        canvas().drawLine(238, y + 17, 246, y + 24, kWhite);
-        canvas().drawLine(246, y + 24, 238, y + 31, kWhite);
+        drawListCard(kListOuterInset, y, focused);
+        drawArtwork(podcastShows[index].tftName, kListOuterInset + 10, y + 8, 32, focused ? kBlueDark : kGreen, false);
+        listPrimaryText(podcastShows[index].webName, kListOuterInset + 54, y, 160);
+        canvas().drawLine(kListOuterInset + 230, y + 17, kListOuterInset + 238, y + 24, kWhite);
+        canvas().drawLine(kListOuterInset + 238, y + 24, kListOuterInset + 230, y + 31, kWhite);
         ++drawn;
     }
     if (state.showFavoritesOnly && drawn == 0) {
@@ -1137,7 +1181,7 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
 void renderShowEpisodes(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     const bool validShow = state.episodeShow >= 0 && state.episodeShow < PODCAST_SHOW_COUNT;
-    drawHeader(currentTime, timeValid, validShow ? podcastShows[state.episodeShow].tftName : "Episodes");
+    drawListHeader(validShow ? podcastShows[state.episodeShow].tftName : "Episodes", currentTime, timeValid);
     if (!validShow) return;
     if (podcastRequestedShow() == state.episodeShow && podcastLoadState() == PodcastLoadState::Loading) {
         text("Loading episodes…", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1154,14 +1198,11 @@ void renderShowEpisodes(const UiRenderState& state, const char* currentTime, boo
         if (index >= podcastEpisodeCount) break;
         const int y = kStationListTop + row * kStationListRowHeight;
         const bool focused = index == state.episodeFocus;
-        drawListCard(8, y, focused);
-        canvas().drawCircle(29, y + 24, 11, kWhite);
-        canvas().fillTriangle(26, y + 19, 26, y + 29, 34, y + 24, kWhite);
-        text(podcastEpisodes[index].title, 48, y + 6, uiFont(&fonts::FreeSans9pt7b), kWhite, 165);
-        String detail = podcastEpisodes[index].publishedUtc.length() >= 10
-            ? podcastEpisodes[index].publishedUtc.substring(0, 10) : String("Unknown date");
-        text(detail, 48, y + 25, uiFont(&fonts::Font0), kTextMuted, 130);
-        text(durationLabel(podcastEpisodes[index].durationSeconds), 200, y + 25, uiFont(&fonts::Font0), kWhite, 48);
+        drawListCard(kListOuterInset, y, focused);
+        canvas().drawCircle(kListOuterInset + 21, y + 24, 11, kWhite);
+        canvas().fillTriangle(kListOuterInset + 18, y + 19, kListOuterInset + 18, y + 29,
+                              kListOuterInset + 26, y + 24, kWhite);
+        listPrimaryText(podcastEpisodes[index].title, kListOuterInset + 40, y, 165);
     }
     drawListPager(state.episodeOffset, podcastEpisodeCount, kStationRowsPerPage);
 }
@@ -1404,8 +1445,9 @@ void renderP2Fixture(const UiRenderState& state, const char* currentTime, bool t
 
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
     if ((state.page == UiPage::Stations || state.page == UiPage::RecordedShows ||
-         state.page == UiPage::ShowEpisodes) && contains(x, y, 258, 44, 62, 196)) {
-        return y < 142 ? UiTarget::ListPrevious : UiTarget::ListNext;
+         state.page == UiPage::ShowEpisodes) &&
+        contains(x, y, kListRailLeft, kStationListTop, kListRailWidth, kListRailHeight)) {
+        return y < kStationListTop + kListRailHeight / 2 ? UiTarget::ListPrevious : UiTarget::ListNext;
     }
     if (state.page == UiPage::Home) {
         if (contains(x, y, kHomePlayerX, kHomePlayerY, kHomePlayerWidth, kHomePlayerHeight)) return UiTarget::HomeNowPlaying;
@@ -1423,13 +1465,14 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 48, 188, 214, 52)) return UiTarget::ListeningVolume;
     } else if (state.page == UiPage::Stations) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ListBack;
-        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight && x >= 212) {
+        const int row = listRowAt(y);
+        if (row >= 0 && x >= kListOuterInset + 204) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRowFavorite0) +
-                (y - kStationListTop) / kStationListRowHeight);
+                row);
         }
-        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+        if (row >= 0) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRow0) +
-                (y - kStationListTop) / kStationListRowHeight);
+                row);
         }
     } else if (state.page == UiPage::StationOptions) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::OptionsBack;
@@ -1442,26 +1485,32 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::FavoritesBack;
         if (contains(x, y, 8, 48, 148, 34)) return UiTarget::FavoritesStationsTab;
         if (contains(x, y, 164, 48, 148, 34)) return UiTarget::FavoritesShowsTab;
-        if (contains(x, y, 264, 84, 56, 104)) {
-            return y < 136 ? UiTarget::FavoritesPrevious : UiTarget::FavoritesNext;
+        if (contains(x, y, kListRailLeft, kFavoriteListTop, kListRailWidth,
+                     kFavoriteListBottom - kFavoriteListTop)) {
+            return y < kFavoriteListTop + (kFavoriteListBottom - kFavoriteListTop) / 2
+                ? UiTarget::FavoritesPrevious : UiTarget::FavoritesNext;
         }
-        if (!state.favoriteShowsTab && y >= 88 && y < 184 && x >= 212) {
-            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRowFavorite0) + (y - 88) / 48);
+        if (!state.favoriteShowsTab && y >= kFavoriteListTop && y < kFavoriteListBottom && x >= 212) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRowFavorite0) +
+                (y - kFavoriteListTop) / kFavoriteListRowHeight);
         }
-        if (y >= 88 && y < 184) {
-            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRow0) + (y - 88) / 48);
+        if (y >= kFavoriteListTop && y < kFavoriteListBottom) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::FavoritesRow0) +
+                (y - kFavoriteListTop) / kFavoriteListRowHeight);
         }
     } else if (state.page == UiPage::RecordedShows) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ShowsBack;
-        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+        const int row = listRowAt(y);
+        if (row >= 0) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::ShowRow0) +
-                (y - kStationListTop) / kStationListRowHeight);
+                row);
         }
     } else if (state.page == UiPage::ShowEpisodes) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::EpisodesBack;
-        if (y >= kStationListTop && y < kStationListTop + kStationRowsPerPage * kStationListRowHeight) {
+        const int row = listRowAt(y);
+        if (row >= 0) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::EpisodeRow0) +
-                (y - kStationListTop) / kStationListRowHeight);
+                row);
         }
     } else if (state.page == UiPage::PodcastPlayer) {
         if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PodcastBack;
