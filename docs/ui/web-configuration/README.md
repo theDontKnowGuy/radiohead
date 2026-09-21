@@ -237,21 +237,22 @@ identity/artwork rules to every import path; imported URLs are not playback proo
 ### S2 — Network
 
 Heading **Network**; subtitle **Keep your radio connected.** First panel: actual
-network, connection state, signal and reachable local address. Actions **Retry
-connection** and **Forget network**. In setup mode show the actual setup SSID and
+network, connection state, signal and reachable local address. Action **Forget
+network**. In setup mode show the actual setup SSID and
 address, never the sample `Radiohead-Setup` or `192.168.4.1` as unconditional facts.
 
 **F4 — Change Wi-Fi**: scan/select network, **Hidden network…** with exact SSID,
 password field when required, **Show password**, **Cancel** / **Connect**.
-**Scan again** must leave current form edits intact. Show progress/failure and
-allow retry. Keep current credentials on an unchanged empty password; clearing
-must be an explicit operation. Never echo a saved password back to the browser.
+**Scan networks** must leave current form edits intact. Selecting a result copies
+only its SSID into the Network name field; security and password remain manual.
+Keep current credentials on an unchanged empty password; selecting Open network
+explicitly clears the password. Never echo a saved password back to the browser.
 
-Before Connect show **Changing Wi-Fi may disconnect this page. If it does, join
-the new network and reopen the radio’s address.** Distinguish credentials received,
-attempting connection, connected and connection failed. Browser loss after a
-network switch does not prove either success or failure. Provide recovery through
-the TFT setup entry and actual AP address. Forget requires a named confirmation
+Before Connect show **Changing Wi-Fi restarts the radio. This page will disconnect;
+join the new network and reopen the radio’s address.** Save validated credentials,
+acknowledge the restart, then reboot without attempting an in-place connection or
+previous-network recovery. The next boot attempts only the saved network and falls
+back to setup AP if it cannot connect. Forget requires a named confirmation
 explaining disconnection and setup recovery, not an optimistic success toast.
 
 ### S3 — Weather & time

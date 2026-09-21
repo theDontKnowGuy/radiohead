@@ -28,16 +28,12 @@ bool otaUploadSucceeded = false;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
 
-enum class NetworkTransition : uint8_t { Idle, Connecting, Recovering, Setup };
-
-NetworkTransition networkTransition = NetworkTransition::Idle;
-String pendingNetworkSsid;
-String pendingNetworkPassword;
 String networkMessage;
-unsigned long networkTransitionStartedAt = 0;
+bool webRestartScheduled = false;
+unsigned long webRestartAt = 0;
 uint32_t networkConfigurationEpoch = 1;
 uint32_t weatherConfigurationEpoch = 1;
-constexpr unsigned long NETWORK_CONNECT_TIMEOUT_MS = 20000;
+constexpr unsigned long WEB_RESTART_DELAY_MS = 500;
 
 String htmlEscape(const String& value) {
     String escaped;
@@ -215,15 +211,8 @@ String localAddress() {
 uint32_t fnv1aString(const String& value, uint32_t hash = 2166136261UL);
 
 const char* networkTransitionName() {
-    switch (networkTransition) {
-    case NetworkTransition::Connecting: return "connecting";
-    case NetworkTransition::Recovering: return "recovering";
-    case NetworkTransition::Setup: return "setup";
-    case NetworkTransition::Idle:
-        if (isAP) return "setup";
-        return WiFi.status() == WL_CONNECTED ? "connected" : "disconnected";
-    }
-    return "disconnected";
+    if (isAP) return "setup";
+    return WiFi.status() == WL_CONNECTED ? "connected" : "disconnected";
 }
 
 uint32_t networkRevision() {
@@ -267,8 +256,7 @@ String networkStateJson() {
     String json;
     json.reserve(520);
     const bool connected = WiFi.status() == WL_CONNECTED && !isAP;
-    const String displaySsid = connected ? WiFi.SSID() :
-        (!pendingNetworkSsid.isEmpty() ? pendingNetworkSsid : st_ssid);
+    const String displaySsid = connected ? WiFi.SSID() : st_ssid;
     json = "{\"revision\":" + String(networkRevision()) +
         ",\"state\":\"" + String(networkTransitionName()) +
         "\",\"ssid\":\"" + jsonEscape(displaySsid) +
@@ -287,17 +275,16 @@ void sendNetworkState(int status = 200) {
     server.send(status, "application/json; charset=utf-8", networkStateJson());
 }
 
-void startNetworkAttempt(const String& ssid, const String& password, bool recovering = false) {
-    pendingNetworkSsid = ssid;
-    pendingNetworkPassword = password;
-    networkTransition = recovering ? NetworkTransition::Recovering : NetworkTransition::Connecting;
-    networkTransitionStartedAt = millis();
-    networkMessage = recovering ? "Reconnecting to the previous network." : "Credentials received; attempting connection.";
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect(false, false);
-    WiFi.begin(pendingNetworkSsid.c_str(), pendingNetworkPassword.c_str());
-    isAP = false;
+bool saveWiFiAndScheduleRestart(const String& ssid, const String& password) {
+    if (!saveWiFiCredentials(ssid, password)) return false;
+    st_ssid = ssid;
+    st_pass = password;
+    ++networkConfigurationEpoch;
+    networkMessage = "Wi-Fi settings saved. Restarting radio.";
+    webRestartScheduled = true;
+    webRestartAt = millis() + WEB_RESTART_DELAY_MS;
     forceRedraw = true;
+    return true;
 }
 
 void enterSetupRecovery(const char* message) {
@@ -305,9 +292,6 @@ void enterSetupRecovery(const char* message) {
     WiFi.mode(WIFI_AP);
     WiFi.softAP("Radio_Setup");
     isAP = true;
-    networkTransition = NetworkTransition::Setup;
-    pendingNetworkSsid = "";
-    pendingNetworkPassword = "";
     networkMessage = message;
     forceRedraw = true;
 }
@@ -656,7 +640,7 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
 <label class='rh-field'><span>Security</span><select id='network-security'><option value='secured'>Password protected</option><option value='open'>Open network</option></select></label>
 <label class='rh-field' id='network-password-field'><span>Password <small id='network-password-help'>Enter a password for this network.</small></span><input id='network-password' type='password' maxlength='63' autocomplete='new-password'></label>
 <label class='rh-inlinecheck'><input id='network-show-password' type='checkbox'>Show password</label>
-<p class='rh-note rh-warning'>Changing Wi-Fi may disconnect this page. If it does, join the new network and reopen the radio’s address. A lost browser connection is not proof that the connection succeeded.</p>
+<p class='rh-note rh-warning'>Changing Wi-Fi restarts the radio. This page will disconnect; join the new network and reopen the radio’s address.</p>
 <div class='rh-footer'><span class='rh-formstatus' id='network-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='network-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='network-connect'>Connect</button></div></section>
 <script>)HTML";
         html += R"JS((()=>{const $=id=>document.getElementById(id),api=(path,body={})=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});let state=null,scanTimer=0;
@@ -669,7 +653,7 @@ function selectNetwork(ssid){$('network-ssid').value=ssid;$('network-form-status
 function renderScan(data){const out=$('network-results');if(data.state==='scanning'){out.innerHTML='<p class="rh-note">Scanning nearby networks…</p>';clearTimeout(scanTimer);scanTimer=setTimeout(loadScan,700);return;}if(data.state==='failed'){out.innerHTML='<p class="rh-note rh-error">Wi-Fi scan failed. Try again.</p>';return;}out.innerHTML=data.networks?.length?data.networks.map(n=>`<button type="button" class="rh-result" data-ssid="${esc(n.ssid)}"><span><bdi>${esc(n.ssid)}</bdi><small>${esc(n.security)} · ${n.rssi} dBm</small></span></button>`).join(''):'<p class="rh-note">No visible networks found. Enter a hidden network name instead.</p>';out.querySelectorAll('[data-ssid]').forEach(b=>b.onclick=()=>selectNetwork(b.dataset.ssid));}
 async function loadScan(){try{renderScan(await fetch('/api/network/scan',{cache:'no-store'}).then(r=>r.json()))}catch(_){$('network-results').innerHTML='<p class="rh-note rh-error">The scan response was unavailable.</p>';}}
 async function scan(){try{await api('/api/network/scan/start');await loadScan();}catch(error){$('network-form-status').textContent=error.message;}}
-async function connect(){const ssid=$('network-ssid').value.trim(),open=$('network-security').value==='open',password=$('network-password').value;if(!ssid){$('network-form-status').textContent='Enter the exact network name.';$('network-ssid').focus();return;}let passwordAction=open?'clear':password?'replace':ssid===state.configuredSsid&&state.hasSavedPassword?'keep':'';if(!open&&!passwordAction){$('network-form-status').textContent='Enter a password, or explicitly select an open network.';$('network-password').focus();return;}try{const result=await api('/api/network/connect',{revision:state.revision,ssid,password,passwordAction});render(result);$('network-form-status').textContent='Credentials received. Attempting connection…';setTimeout(refresh,800);}catch(error){$('network-form-status').textContent=error.message;}}
+async function connect(){const ssid=$('network-ssid').value.trim(),open=$('network-security').value==='open',password=$('network-password').value;if(!ssid){$('network-form-status').textContent='Enter the exact network name.';$('network-ssid').focus();return;}let passwordAction=open?'clear':password?'replace':ssid===state.configuredSsid&&state.hasSavedPassword?'keep':'';if(!open&&!passwordAction){$('network-form-status').textContent='Enter a password, or explicitly select an open network.';$('network-password').focus();return;}try{await api('/api/network/connect',{revision:state.revision,ssid,password,passwordAction});$('network-form-status').textContent='Wi-Fi settings saved. Restarting radio…';}catch(error){$('network-form-status').textContent=error.message;}}
 $('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid').focus();$('network-form-status').textContent='Enter the exact hidden network name and its security.';};$('network-security').onchange=passwordControls;$('network-show-password').onchange=e=>$('network-password').type=e.target.checked?'text':'password';$('network-cancel').onclick=()=>{if(state){$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-security').value='secured';passwordControls();$('network-form-status').textContent='Draft discarded.';}};$('network-connect').onclick=connect;$('network-forget').onclick=async()=>{if(!state.configuredSsid||!confirm(`Forget ${state.configuredSsid}? The radio will disconnect and return to its setup network.`))return;try{render(await api('/api/network/forget',{revision:state.revision}));$('network-form-status').textContent='Network forgotten. Join the setup network shown above.';}catch(error){$('network-form-status').textContent=error.message;}};refresh();setInterval(()=>{if(!document.hidden)refresh();},2500);})();</script>)JS";
         break;
     case WebSection::Weather:
@@ -988,45 +972,9 @@ String networkScanJson() {
 }  // namespace
 
 void serviceWebNetworkRequests(unsigned long now) {
-    if (networkTransition != NetworkTransition::Connecting &&
-        networkTransition != NetworkTransition::Recovering) return;
-
-    if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == pendingNetworkSsid) {
-        if (networkTransition == NetworkTransition::Connecting) {
-            if (!saveWiFiCredentials(pendingNetworkSsid, pendingNetworkPassword)) {
-                networkMessage = "Connected, but saving Wi-Fi credentials failed. Keep this page open and retry.";
-                pendingNetworkSsid = "";
-                pendingNetworkPassword = "";
-                networkTransition = NetworkTransition::Idle;
-                return;
-            }
-            st_ssid = pendingNetworkSsid;
-            st_pass = pendingNetworkPassword;
-            ++networkConfigurationEpoch;
-            WiFi.softAPdisconnect(true);
-            isAP = false;
-            configTime(0, 0, ntpServer);
-            applyConfiguredTimeZone();
-            networkMessage = "Connected. Reopen the radio at this network address if this page disconnected.";
-        } else {
-            networkMessage = "Reconnected to the saved network.";
-        }
-        pendingNetworkSsid = "";
-        pendingNetworkPassword = "";
-        networkTransition = NetworkTransition::Idle;
-        forceRedraw = true;
-        return;
+    if (webRestartScheduled && static_cast<long>(now - webRestartAt) >= 0) {
+        ESP.restart();
     }
-
-    if (now - networkTransitionStartedAt < NETWORK_CONNECT_TIMEOUT_MS) return;
-    if (networkTransition == NetworkTransition::Connecting && !st_ssid.isEmpty()) {
-        networkMessage = "The new network did not connect. Restoring the previously saved network.";
-        startNetworkAttempt(st_ssid, st_pass, true);
-        return;
-    }
-    enterSetupRecovery(networkTransition == NetworkTransition::Connecting
-        ? "Connection failed. Join this setup network and try again."
-        : "The saved network is unavailable. Join this setup network to configure Wi-Fi.");
 }
 
 void startWebServer() {
@@ -1067,8 +1015,8 @@ void startWebServer() {
     });
     server.on("/api/network/connect", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
-        if (networkTransition == NetworkTransition::Connecting || networkTransition == NetworkTransition::Recovering) {
-            server.send(409, "application/json; charset=utf-8", "{\"error\":\"A network connection attempt is already in progress.\"}");
+        if (webRestartScheduled) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"The radio is already restarting.\"}");
             return;
         }
         const String ssid = server.arg("ssid");
@@ -1093,8 +1041,11 @@ void startWebServer() {
             }
             candidatePassword = password;
         }
-        startNetworkAttempt(ssid, candidatePassword);
-        sendNetworkState(202);
+        if (!saveWiFiAndScheduleRestart(ssid, candidatePassword)) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Wi-Fi settings could not be saved.\"}");
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
     });
     server.on("/api/network/retry", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
@@ -1102,8 +1053,13 @@ void startWebServer() {
             server.send(409, "application/json; charset=utf-8", "{\"error\":\"No saved network is available to retry.\"}");
             return;
         }
-        startNetworkAttempt(st_ssid, st_pass, true);
-        sendNetworkState(202);
+        if (webRestartScheduled) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"The radio is already restarting.\"}");
+            return;
+        }
+        webRestartScheduled = true;
+        webRestartAt = millis() + WEB_RESTART_DELAY_MS;
+        server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
     });
     server.on("/api/network/forget", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
@@ -1448,8 +1404,7 @@ void startWebServer() {
     server.on("/setwifi", HTTP_POST, [] {
         const String newSsid = server.arg("s");
         const String newPassword = server.arg("p");
-        if (!isPrintableSettingText(newSsid, 32) || newPassword.length() > 63 ||
-            networkTransition == NetworkTransition::Connecting || networkTransition == NetworkTransition::Recovering) {
+        if (!isPrintableSettingText(newSsid, 32) || newPassword.length() > 63 || webRestartScheduled) {
             sendBadRequest("Invalid Wi-Fi settings");
             return;
         }
@@ -1464,7 +1419,10 @@ void startWebServer() {
             sendBadRequest("Enter a password or explicitly clear it for an open network");
             return;
         }
-        startNetworkAttempt(newSsid, candidatePassword);
+        if (!saveWiFiAndScheduleRestart(newSsid, candidatePassword)) {
+            server.send(500, "text/plain", "Wi-Fi settings could not be saved");
+            return;
+        }
         redirectTo("/network");
     });
     server.on("/scan_m3u", [] {
