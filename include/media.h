@@ -50,6 +50,10 @@ PodcastPlaybackSnapshot podcastPlaybackSnapshot();
 // different show is opened.
 const PodcastEpisode* podcastActiveEpisode();
 void playStation(int stationIndex);
+// Explicit web test playback is intentionally separate from the saved catalog.
+bool startStationTest(const String& name, const String& url);
+bool mediaTestActive();
+String mediaTestName();
 void stopStationPlayback();
 void setRadioVolumeIndex(int volumeIndex);
 void toggleRadioMute();

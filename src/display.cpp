@@ -1,4 +1,5 @@
 #include "display.h"
+#include "settings.h"
 #include <esp_heap_caps.h>
 
 #include <ArduinoJson.h>
@@ -864,12 +865,32 @@ void drawHomeTileIcon(int16_t x, int16_t y, uint8_t tile) {
 }
 
 void drawArtwork(const String& name, int16_t x, int16_t y, int16_t size, uint16_t accent = kBlue,
-                 bool framed = true) {
+                 bool framed = true, int stationSlot = -1) {
     if (framed) {
         canvas().fillRoundRect(x, y, size, size, 7, kSurfaceRaised);
         canvas().fillRoundRect(x + 4, y + 4, size - 8, size - 8, 5, accent);
     } else {
         canvas().fillRoundRect(x, y, size, size, 5, accent);
+    }
+    // Artwork is prepared in the browser and read only when this station/size
+    // changes.  Rendering never decodes or downloads arbitrary image data.
+    static uint16_t artworkPixels[88 * 88];
+    static int cachedSlot = -2;
+    static int cachedSize = 0;
+    static uint32_t cachedRevision = 0;
+    const uint32_t revision = stationArtworkContentRevision(stationSlot);
+    if (stationSlot >= 0 && revision != 0 &&
+        (cachedSlot != stationSlot || cachedSize != size || cachedRevision != revision)) {
+        cachedSlot = stationSlot;
+        cachedSize = size;
+        cachedRevision = revision;
+        if (!loadStationArtwork(stationSlot, size, artworkPixels, sizeof(artworkPixels) / sizeof(artworkPixels[0]))) {
+            cachedSlot = -1;
+        }
+    }
+    if (cachedSlot == stationSlot && cachedSize == size && cachedRevision == revision) {
+        canvas().pushImage(x, y, size, size, artworkPixels);
+        return;
     }
     String initials;
     for (size_t i = 0; i < name.length() && initials.length() < 2; ++i) {
@@ -1106,7 +1127,7 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
         text("192.168.4.1", 28, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted);
     } else {
         const String station = activeStationName();
-        drawArtwork(station, 12, 54, 88);
+        drawArtwork(station, 12, 54, 88, kBlue, true, currentStationIdx);
         canvas().fillRoundRect(110, 54, 198, 103, 8, kSurface);
         canvas().fillRoundRect(120, 63, 76, 17, 5, podcastMode ? kGreen : playbackColor(state.playback));
         text(podcastMode ? "SHOW" : playbackLabel(state.playback), 126, 67, uiFont(&fonts::Font0), kWhite, 68);
@@ -1158,7 +1179,7 @@ void renderStations(const UiRenderState& state, const char* currentTime, bool ti
         }
         const bool focused = visibleIndex == state.stationFocus;
         drawListCard(kListOuterInset, y, focused);
-        drawArtwork(stations[slot].name, kListOuterInset + 12, y + 8, 32, focused ? kBlueDark : kSlate, false);
+        drawArtwork(stations[slot].name, kListOuterInset + 12, y + 8, 32, focused ? kBlueDark : kSlate, false, slot);
         listPrimaryText(stations[slot].name, kListOuterInset + 54, y, 145);
         drawStar(kListOuterInset + 224, y + 24, isStationFavorite(slot));
         if (focused && state.stationFavoriteFocus) {
@@ -1386,7 +1407,7 @@ void renderStationInfo(const UiRenderState& state, const char* currentTime, bool
     drawHeader(currentTime, timeValid, "Station Information");
     const int slot = state.optionStation;
     if (slot >= 0 && slot < STATION_COUNT && !stations[slot].url.isEmpty()) {
-        drawArtwork(stations[slot].name, 16, 58, 64);
+        drawArtwork(stations[slot].name, 16, 58, 64, kBlue, true, slot);
         text(stations[slot].name, 94, 66, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 200);
         text("No verified catalog information", 20, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 280);
         text("is available for this station.", 20, 164, uiFont(&fonts::FreeSans9pt7b), kTextMuted, 280);

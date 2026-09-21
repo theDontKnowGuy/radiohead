@@ -11,16 +11,16 @@
     44
   ],
   "advances": [
-    20,
-    20,
-    20,
-    20,
-    20,
-    20,
-    20,
-    20,
-    20,
-    20,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
+    21,
     10,
     11
   ],
@@ -28,89 +28,89 @@
     1,
     5,
     2,
-    1,
-    1,
     2,
     1,
     2,
-    1,
-    1,
+    2,
+    2,
+    2,
+    2,
     2,
     0
   ],
   "y_offsets": [
-    5,
     6,
-    5,
-    5,
+    7,
     6,
-    5,
-    5,
     6,
-    5,
-    5,
+    7,
+    6,
+    6,
+    7,
+    6,
+    6,
     15,
     23
   ],
   "ink_bounds": [
     [
       1,
-      5,
+      6,
       19,
       38
     ],
     [
       5,
-      6,
+      7,
       15,
       38
     ],
     [
       2,
-      5,
+      6,
       18,
       38
     ],
     [
-      1,
-      5,
-      18,
+      2,
+      6,
+      19,
       38
     ],
     [
       1,
+      7,
+      19,
+      38
+    ],
+    [
+      2,
+      6,
+      18,
+      38
+    ],
+    [
+      2,
       6,
       19,
       38
     ],
     [
       2,
-      5,
-      18,
-      38
-    ],
-    [
-      1,
-      5,
+      7,
       18,
       38
     ],
     [
       2,
       6,
-      18,
+      19,
       38
     ],
     [
-      1,
-      5,
-      18,
-      38
-    ],
-    [
-      1,
-      5,
-      18,
+      2,
+      6,
+      19,
       38
     ],
     [
@@ -127,30 +127,30 @@
     ]
   ],
   "measurements": {
-    "digit_ink_height": 33,
+    "digit_ink_height": 32,
     "widest_digit_ink_width": 18,
-    "digit_advance": 20,
+    "digit_advance": 21,
     "colon_advance": 10,
     "zero_vertical_stem": 4,
     "zero_opaque_stem": 3,
     "sample_10_17_bounds": [
-      195,
-      44,
-      278,
+      191,
+      45,
+      277,
       77,
-      83,
-      33
+      86,
+      32
     ],
     "sample_14_37_bounds": [
-      195,
-      44,
-      278,
+      191,
+      45,
+      277,
       77,
-      83,
-      33
+      86,
+      32
     ]
   },
   "bytes": 11616,
-  "sha256": "a0f42f86efce309ce717f16a97cd756255afdb04885cdea868bbaa4d123985cb",
+  "sha256": "40c7b1320f08278aa4327e2fd360b43b0839a77ee6d60cd24a70e33ae5ea4263",
   "recipe": "Inter Medium is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core."
 }

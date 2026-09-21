@@ -120,3 +120,18 @@ The final atlas build passes at 66,492 B RAM (20.3%) and 3,150,355 B flash
 (48.1%). `tools/render_ui_fonts.py` renders and preserves the native 320×240
 fixture; `git diff --check` passes. This visual fixture meets the stated glyph
 measurements, but physical TFT visual acceptance remains open.
+
+## 2026-09-21 Final Home-clock geometry adjustment
+
+| Requirement | Result | Acceptance state |
+| --- | --- | --- |
+| Reduce visible glyph height by approximately 4–5%. | Done: 32 px visible digit ink is the nearest whole-pixel result to the requested reduction from 33 px. The baseline and Home clock origin remain unchanged. | Native fixture: pass. Physical TFT pending. |
+| Widen digits/advances by approximately 5%. | Done: tabular digit advance is 21 px (from 20 px); widest digit ink remains 18 px so the 3 px opaque Medium-weight stem is preserved rather than becoming heavier. | Deterministic atlas measurement: pass. |
+| Preserve colon, right alignment, vertical position, font and composition. | Done: Inter Medium, 8× Lanczos source, alpha-mask/RGB565 blending, 10 px colon advance, `kRight = 280`, and `kTop = 39` are unchanged. | Source review: pass. |
+| Render the requested native comparison. | Done: [14:37 fixture](../../.pio/ui_native/home-clock-1437.png) renders at 320×240. Its deterministic final ink box is x=191…277, y=45…77, **86×32 px**. | Native fixture inspected: pass. |
+
+`tools/render_ui_fonts.py` passes with 291 fractional alpha pixels in the atlas;
+`git diff --check` passes. The current PlatformIO build is blocked before compilation
+of this visual change by unrelated in-progress station-artwork declarations in
+`include/settings.h` that use `size_t` without its declaration. No device flash was
+performed, so visual acceptance on the physical TFT remains pending.

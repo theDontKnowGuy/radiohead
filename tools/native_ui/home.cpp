@@ -86,6 +86,11 @@ PodcastPlaybackSnapshot podcastPlaybackSnapshot() {
 const PodcastEpisode* podcastActiveEpisode() { return &podcastEpisodes[0]; }
 float tempC = 30;
 int weatherID = 801, weatherStateMux = 0;
+// The production renderer may use persisted station artwork.  Fixtures use the
+// existing generated fallback art, so provide the settings seam without pulling
+// persistence into the native visual test binary.
+uint32_t stationArtworkContentRevision(int) { return 0; }
+bool loadStationArtwork(int, int, uint16_t*, size_t) { return false; }
 #define portENTER_CRITICAL(mux) ((void)0)
 #define portEXIT_CRITICAL(mux) ((void)0)
 time_t fixtureTime(time_t*) { return 1789819200; }
@@ -124,7 +129,7 @@ int main(int argc, char** argv) {
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
     assert(ui_home_clock_glyph_count == 12);
     assert(ui_home_clock_cell_width == 22 && ui_home_clock_cell_height == 44);
-    assert(ui_home_clock_advances[0] == 20 && ui_home_clock_advances[9] == 20);
+    assert(ui_home_clock_advances[0] == 21 && ui_home_clock_advances[9] == 21);
     assert(ui_home_clock_advances[10] == 10);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {

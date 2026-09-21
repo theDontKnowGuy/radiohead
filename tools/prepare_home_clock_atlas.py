@@ -18,8 +18,8 @@ OUTPUT = ROOT / "docs" / "ui" / "assets" / "home"
 GLYPHS = "0123456789:-"
 SCALE = 8
 SOURCE_SIZE = 48
-TARGET_DIGIT_HEIGHT = 33
-TARGET_DIGIT_ADVANCE = 20
+TARGET_DIGIT_HEIGHT = 32
+TARGET_DIGIT_ADVANCE = 21
 TARGET_DIGIT_INK_WIDTH = 18
 TARGET_COLON_ADVANCE = 10
 CELL_WIDTH = 22
@@ -120,9 +120,8 @@ def main():
     digit_crops = [source_glyphs[glyph][0] for glyph in "0123456789"]
     source_width = max(crop.width for crop in digit_crops)
     source_height = max(crop.height for crop in digit_crops)
-    # The 18 px widest ink with a 20 px tabular advance keeps Inter's figures
-    # visibly broader than the preceding 38 px trial while leaving a crisp
-    # unshared edge around each digit.
+    # Widen the final tabular figures without altering their Medium-weight
+    # source or the runtime atlas/blending path.
     scale_x = (TARGET_DIGIT_INK_WIDTH * SCALE) / source_width
     scale_y = (TARGET_DIGIT_HEIGHT * SCALE) / source_height
     alpha = bytearray()

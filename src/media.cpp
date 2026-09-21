@@ -35,6 +35,8 @@ int playingStation = -1;
 unsigned long requestStartedAt = 0;
 bool stationRecoveryScheduled = false;
 bool stationRecoveryAttempt = false;
+bool stationTestPlayback = false;
+String stationTestName;
 bool ignoreEofUntilPlaybackReady = false;
 uint8_t stationRecoveryAttempts = 0;
 unsigned long stationRecoveryDueAt = 0;
@@ -122,7 +124,7 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
         playbackState = PlaybackState::Playing;
         forceRedraw = true;
     } else if (message.e == Audio::evt_info && message.msg != nullptr &&
-        strcmp(message.msg, "stream ready") == 0 && requestedStation >= 0) {
+        strcmp(message.msg, "stream ready") == 0 && (requestedStation >= 0 || stationTestPlayback)) {
         ignoreEofUntilPlaybackReady = false;
         stationRecoveryScheduled = false;
         stationRecoveryAttempts = 0;
@@ -684,6 +686,8 @@ const PodcastEpisode* podcastActiveEpisode() {
 }
 
 void playStation(int stationIndex) {
+    stationTestPlayback = false;
+    stationTestName = "";
     if (!stationRecoveryAttempt) {
         cancelStationRecovery();
     }
@@ -731,6 +735,33 @@ void playStation(int stationIndex) {
     }
 }
 
+bool startStationTest(const String& name, const String& url) {
+    if (isAP || name.isEmpty() || !isHttpUrl(url)) return false;
+    cancelStationRecovery();
+    podcastMode = false;
+    hasActivePodcastEpisode = false;
+    activePodcastShow = -1;
+    activePodcastEpisode = -1;
+    radioMuted = false;
+    audio.setVolume(volCurve[mainVal]);
+    podcastShowTft = "";
+    songTitle = "";
+    stationTestPlayback = true;
+    stationTestName = name;
+    requestedStation = -1;
+    playingStation = -1;
+    playbackState = PlaybackState::Connecting;
+    requestStartedAt = millis();
+    ignoreEofUntilPlaybackReady = true;
+    forceRedraw = true;
+    const String targetUrl = parseM3U(url);
+    if (!isHttpUrl(targetUrl) || !audio.connecttohost(targetUrl.c_str())) {
+        playbackState = PlaybackState::Failed;
+        forceRedraw = true;
+    }
+    return true;
+}
+
 void stopStationPlayback() {
     cancelStationRecovery();
     audio.stopSong();
@@ -743,10 +774,14 @@ void stopStationPlayback() {
     ignoreEofUntilPlaybackReady = false;
     requestedStation = -1;
     playingStation = -1;
+    stationTestPlayback = false;
+    stationTestName = "";
     forceRedraw = true;
 }
 
 PlaybackState mediaPlaybackState() { return playbackState; }
+bool mediaTestActive() { return stationTestPlayback; }
+String mediaTestName() { return stationTestName; }
 int mediaRequestedStation() { return requestedStation; }
 int mediaPlayingStation() { return playingStation; }
 

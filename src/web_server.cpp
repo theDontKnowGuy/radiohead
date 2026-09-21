@@ -18,9 +18,12 @@ namespace {
 constexpr size_t MAX_STATION_NAME_LENGTH = 80;
 constexpr size_t MAX_URL_LENGTH = 512;
 constexpr size_t MAX_M3U_LINE_LENGTH = 640;
+constexpr size_t MAX_M3U_TEXT_BYTES = 48 * 1024;
 
 bool otaUploadStarted = false;
 bool otaUploadSucceeded = false;
+bool artworkUploadAccepted = false;
+bool artworkUploadSucceeded = false;
 
 String htmlEscape(const String& value) {
     String escaped;
@@ -187,6 +190,7 @@ String localAddress() {
 }
 
 String currentPlaybackName() {
+    if (mediaTestActive()) return mediaTestName();
     if (podcastMode) {
         const PodcastEpisode* episode = podcastActiveEpisode();
         if (episode != nullptr && !episode->title.isEmpty()) return episode->title;
@@ -196,6 +200,113 @@ String currentPlaybackName() {
         return stations[currentStationIdx].name;
     }
     return "Nothing playing";
+}
+
+uint32_t fnv1aString(const String& value, uint32_t hash = 2166136261UL) {
+    for (size_t i = 0; i < value.length(); ++i) {
+        hash ^= static_cast<uint8_t>(value[i]);
+        hash *= 16777619UL;
+    }
+    return hash;
+}
+
+uint32_t stationCatalogRevision() {
+    uint32_t hash = 2166136261UL;
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        hash = fnv1aString(stations[slot].name, hash);
+        hash = fnv1aString(stations[slot].url, hash);
+        hash ^= isStationFavorite(slot) ? 1U : 0U;
+        hash *= 16777619UL;
+    }
+    return hash & 0x7fffffffUL;
+}
+
+bool hasCurrentStationRevision() {
+    int revision = 0;
+    if (!parseIntegerArg("revision", 0, 2147483647, revision)) {
+        server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid station revision\"}");
+        return false;
+    }
+    if (static_cast<uint32_t>(revision) != stationCatalogRevision()) {
+        server.send(409, "application/json; charset=utf-8",
+                    "{\"error\":\"Station list changed. Refresh the draft before saving.\",\"revision\":" +
+                    String(stationCatalogRevision()) + "}");
+        return false;
+    }
+    return true;
+}
+
+int savedStationCount() {
+    int count = 0;
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        if (!stations[slot].url.isEmpty()) ++count;
+    }
+    return count;
+}
+
+String stationListJson() {
+    String json;
+    json.reserve(2300);
+    json = "{\"revision\":" + String(stationCatalogRevision()) + ",\"capacity\":" +
+        String(STATION_COUNT) + ",\"saved\":" + String(savedStationCount()) + ",\"stations\":[";
+    bool first = true;
+    for (int slot = 0; slot < STATION_COUNT; ++slot) {
+        const RadioStation& station = stations[slot];
+        if (station.url.isEmpty()) continue;
+        if (!first) json += ',';
+        first = false;
+        json += "{\"slot\":" + String(slot) + ",\"name\":\"" + jsonEscape(station.name) +
+            "\",\"url\":\"" + jsonEscape(station.url) + "\",\"favorite\":" +
+            String(isStationFavorite(slot) ? "true" : "false") + ",\"playing\":" +
+            String(slot == mediaPlayingStation() ? "true" : "false") + ",\"artwork\":" +
+            String(stationArtworkExists(slot) ? "true" : "false") + ",\"artworkRevision\":" +
+            String(stationArtworkRevision(slot)) + "}";
+    }
+    return json + "]}";
+}
+
+void sendStationList(int status = 200) {
+    server.send(status, "application/json; charset=utf-8", stationListJson());
+}
+
+void appendM3UEntries(const String& text, std::vector<RadioStation>& entries) {
+    String line;
+    String pendingName;
+    line.reserve(160);
+    const auto process = [&] {
+        line.trim();
+        if (line.startsWith("#EXTINF:")) {
+            const int comma = line.indexOf(',');
+            pendingName = comma >= 0 ? line.substring(comma + 1) : "Unknown station";
+            if (pendingName.length() > MAX_STATION_NAME_LENGTH) pendingName.remove(MAX_STATION_NAME_LENGTH);
+        } else if (isHttpUrl(line) && entries.size() < STATION_COUNT) {
+            entries.push_back({pendingName.isEmpty() ? String("Unknown station") : pendingName, line});
+            pendingName = "";
+        }
+        line = "";
+    };
+    for (size_t i = 0; i <= text.length(); ++i) {
+        const char character = i == text.length() ? '\n' : text[i];
+        if (character == '\n') {
+            process();
+        } else if (character != '\r' && line.length() < MAX_M3U_LINE_LENGTH) {
+            line += character;
+        }
+    }
+}
+
+String m3uPreviewJson(const String& text, bool& valid) {
+    std::vector<RadioStation> entries;
+    valid = text.length() <= MAX_M3U_TEXT_BYTES;
+    if (valid) appendM3UEntries(text, entries);
+    String json = "{\"revision\":" + String(stationCatalogRevision()) + ",\"free\":" +
+        String(STATION_COUNT - savedStationCount()) + ",\"entries\":[";
+    for (size_t i = 0; i < entries.size(); ++i) {
+        if (i) json += ',';
+        json += "{\"name\":\"" + jsonEscape(entries[i].name) + "\",\"url\":\"" +
+            jsonEscape(entries[i].url) + "\"}";
+    }
+    return json + "]}";
 }
 
 String playbackLabel() {
@@ -287,29 +398,69 @@ void appendNavigation(String& html, WebSection selected) {
 void appendSectionContent(String& html, WebSection section) {
     switch (section) {
     case WebSection::Stations: {
-        int savedCount = 0;
-        for (int slot = 0; slot < STATION_COUNT; ++slot) {
-            if (!stations[slot].name.isEmpty() || !stations[slot].url.isEmpty()) ++savedCount;
-        }
+        const int savedCount = savedStationCount();
         html += "<div class='rh-pagehead'><div><h1>Stations</h1><p>A familiar collection. A new discovery.</p></div></div>"
-            "<section class='rh-list' aria-labelledby='saved-stations'><div class='rh-listhead'><h2 id='saved-stations'>Saved on your radio</h2><span>" +
-            String(savedCount) + " / " + String(STATION_COUNT) + " stations</span></div>";
+            "<div class='rh-row rh-spread'><button class='rh-button rh-primary' id='station-add' type='button'" +
+            String(savedCount >= STATION_COUNT ? " disabled" : "") + ">Add station</button><button class='rh-button' id='m3u-import' type='button'>Import M3U</button></div>"
+            "<section class='rh-list' aria-labelledby='saved-stations'><div class='rh-listhead'><h2 id='saved-stations'>Saved on your radio</h2><span id='station-count'>" +
+            String(savedCount) + " / " + String(STATION_COUNT) + " stations</span></div><div id='station-list'>";
         if (savedCount == 0) {
             html += "<p class='rh-empty'>No saved stations. Add your first station above.</p>";
         } else {
             for (int slot = 0; slot < STATION_COUNT; ++slot) {
                 const RadioStation& station = stations[slot];
-                if (station.name.isEmpty() && station.url.isEmpty()) continue;
+                if (station.url.isEmpty()) continue;
                 const String name = station.name.isEmpty() ? station.url : station.name;
                 html += "<div class='rh-station'><div class='rh-art' aria-hidden='true'>" +
-                    htmlEscape(name.substring(0, 1)) + "</div><div><div class='rh-stationname'><bdi>" +
+                    String(stationArtworkExists(slot) ? "<img alt='' src='/api/stations/artwork?slot=" + String(slot) + "'>" : htmlEscape(name.substring(0, 1))) + "</div><div><div class='rh-stationname'><bdi>" +
                     htmlEscape(name) + "</bdi>";
                 if (slot == mediaPlayingStation()) html += "<span class='rh-playing'>Playing</span>";
                 html += "</div><p class='rh-stationdesc' dir='ltr'>" + htmlEscape(station.url) +
-                    "</p></div></div>";
+                    "</p></div><div class='rh-actions'><button class='rh-iconbutton' type='button' data-favorite='" + String(slot) +
+                    "' aria-label='Toggle favorite for " + htmlEscape(name) + "' aria-pressed='" +
+                    String(isStationFavorite(slot) ? "true" : "false") + "'>★</button><button class='rh-iconbutton' type='button' data-edit='" +
+                    String(slot) + "' aria-label='Edit " + htmlEscape(name) + "'>✎</button></div></div>";
             }
         }
-        html += "</section><p class='rh-footnote'>Favorites appear on your radio, too.</p>";
+        html += "</div></section><p class='rh-importline'>Favorites appear on your radio, too. <span id='station-feedback' class='rh-muted' aria-live='polite'></span></p>"
+            "<section class='rh-box' id='station-editor' hidden><button class='rh-back' type='button' id='station-cancel'>← Back to stations</button>"
+            "<h2 id='station-editor-title'>Make it yours</h2><p>Use a direct audio stream, not a station’s website.</p>"
+            "<div class='rh-steps'><b>1 · Find</b><span>→</span><span>2 · Review &amp; test</span><span>→</span><span>3 · Save</span></div>"
+            "<div class='rh-tabs'><button type='button' data-mode='search' aria-pressed='true'>Search directory</button><button type='button' data-mode='manual' aria-pressed='false'>Enter manually</button></div>"
+            "<div id='directory-search'><label class='rh-field'><span>Station name</span><input id='directory-query' maxlength='80' autocomplete='off'></label>"
+            "<div class='rh-grid2'><label class='rh-field'><span>Country <small>optional</small></span><input id='directory-country' maxlength='80'></label><label class='rh-field'><span>Language <small>optional</small></span><input id='directory-language' maxlength='80'></label></div>"
+            "<div class='rh-footer'><span class='rh-formstatus' id='directory-status'></span><button class='rh-button' type='button' id='directory-submit'>Search</button></div><div id='directory-results'></div></div>"
+            "<label class='rh-field'><span>Station name</span><input id='station-name' maxlength='80' required></label><label class='rh-field'><span>Stream URL</span><input id='station-url' type='url' maxlength='512' inputmode='url' required></label>"
+            "<label class='rh-field'><span>Logo URL <small>optional; local upload is the dependable fallback</small></span><input id='station-logo-url' type='url' maxlength='512'></label>"
+            "<label class='rh-field'><span>Image framing</span><select id='station-art-fit'><option value='fit'>Fit with padding</option><option value='crop'>Center crop</option></select></label>"
+            "<label class='rh-upload' for='station-logo-file'><input id='station-logo-file' type='file' accept='image/png,image/jpeg,image/webp,image/svg+xml'>Upload a station logo <small id='station-logo-status'></small></label>"
+            "<div class='rh-art' id='station-art-preview' aria-label='Artwork preview'>R</div><label class='rh-inlinecheck'><input id='station-favorite' type='checkbox'>Add to favorites</label>"
+            "<p class='rh-note rh-warning'>Test on radio changes playback. Browsing, editing and saving keep your current station playing.</p>"
+            "<div class='rh-footer'><span class='rh-formstatus' id='station-form-status'>Not tested</span><button class='rh-button' type='button' id='station-test'>Test on radio</button><button class='rh-button rh-danger' type='button' id='station-remove' hidden>Remove station</button><button class='rh-button rh-primary' type='button' id='station-save'>Save station</button></div></section>"
+            "<section class='rh-box' id='m3u-editor' hidden><button class='rh-back' type='button' id='m3u-cancel'>← Back to stations</button><h2>Import stations</h2><p>Preview your playlist before adding anything.</p>"
+            "<label class='rh-upload' for='m3u-file'><input id='m3u-file' type='file' accept='.m3u,.m3u8,audio/x-mpegurl'>Choose an M3U file</label><label class='rh-field'><span>Or paste M3U content</span><textarea id='m3u-text' maxlength='49152'></textarea></label>"
+            "<div class='rh-footer'><span class='rh-formstatus' id='m3u-status'></span><button class='rh-button' type='button' id='m3u-preview'>Preview import</button><button class='rh-button rh-primary' type='button' id='m3u-commit' disabled>Import stations</button></div><div id='m3u-results'></div></section>"
+            "<script>";
+        html += R"JS((()=>{
+const $=id=>document.getElementById(id), api=(path,body)=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});
+let state=null,draftSlot=null,draftArtwork=null,draftArtworkDirty=false,previewRevision=null,testPoll=0;
+const feedback=message=>$('station-feedback').textContent=message;
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const showList=()=>{$('station-editor').hidden=true;$('m3u-editor').hidden=true;window.scrollTo({top:0,behavior:'smooth'});};
+function render(data){state=data;$('station-count').textContent=data.saved+' / '+data.capacity+' stations';$('station-add').disabled=data.saved>=data.capacity;const list=$('station-list');list.innerHTML=data.stations.length?data.stations.map(s=>`<div class="rh-station"><div class="rh-art" aria-hidden="true">${s.artwork?`<img alt="" src="/api/stations/artwork?slot=${s.slot}&r=${s.artworkRevision}">`:esc((s.name||s.url).slice(0,1))}</div><div><div class="rh-stationname"><bdi>${esc(s.name||s.url)}</bdi>${s.playing?'<span class="rh-live">Playing</span>':''}</div><p class="rh-stationdesc" dir="ltr">${esc(s.url)}</p></div><div class="rh-actions"><button class="rh-iconbutton" data-favorite="${s.slot}" aria-label="Toggle favorite for ${esc(s.name)}" aria-pressed="${s.favorite}">★</button><button class="rh-iconbutton" data-edit="${s.slot}" aria-label="Edit ${esc(s.name)}">✎</button></div></div>`).join(''):'<p class="rh-empty">No saved stations. Add your first station above.</p>';list.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(Number(b.dataset.edit)));list.querySelectorAll('[data-favorite]').forEach(b=>b.onclick=()=>favorite(Number(b.dataset.favorite)));}
+async function refresh(){try{render(await fetch('/api/stations',{cache:'no-store'}).then(r=>r.json()))}catch(_){feedback('Radio connection lost.')}}
+function openEditor(slot){const existing=slot===null?null:state.stations.find(s=>s.slot===slot);if(!existing&&state.saved>=state.capacity){feedback('All 10 slots are full. Edit or remove a saved station to make room.');return;}draftSlot=slot;draftArtwork=null;draftArtworkDirty=false;clearInterval(testPoll);$('station-editor-title').textContent=existing?'Edit station':'Make it yours';$('station-name').value=existing?existing.name:'';$('station-url').value=existing?existing.url:'';$('station-logo-url').value='';$('station-favorite').checked=!!(existing&&existing.favorite);$('station-remove').hidden=!existing;$('station-form-status').textContent='Not tested';$('station-art-preview').textContent=(existing?existing.name:'R').slice(0,1)||'R';$('station-editor').hidden=false;$('m3u-editor').hidden=true;$('station-editor').scrollIntoView({behavior:'smooth'});}
+async function favorite(slot){try{const data=await api('/api/stations/favorite',{slot,revision:state.revision});render(data);feedback('Favorite updated.')}catch(error){feedback(error.message);await refresh();}}
+async function search(){const query=$('directory-query').value.trim();if(!query){$('directory-status').textContent='Enter a station name.';return;}$('directory-status').textContent='Searching directory…';const aliases={nyt:'New York Times'};const term=aliases[query.toLowerCase()]||query;const params=new URLSearchParams({name:term,limit:'20',hidebroken:'true'});const country=$('directory-country').value.trim(),language=$('directory-language').value.trim();if(country)params.set('country',country);if(language)params.set('language',language);const mirrors=['https://de1.api.radio-browser.info','https://at1.api.radio-browser.info'];let results;for(const mirror of mirrors){try{const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),7000);const response=await fetch(mirror+'/json/stations/search?'+params,{signal:ctl.signal});clearTimeout(timer);if(response.ok){results=await response.json();break;}}catch(_){}}if(!results){$('directory-status').textContent='The station directory is unavailable. Try again when internet returns, or enter a stream URL manually.';return;}const norm=s=>s.normalize('NFKC').toLocaleLowerCase().trim().replace(/\s+/g,' ');const target=norm(term);results=results.filter(r=>r&&r.name&&(r.url_resolved||r.url)).sort((a,b)=>{const score=r=>{const n=norm(r.name);return n===target?3:n.split(' ').includes(target)?2:n.includes(target)?1:0};return score(b)-score(a)||(Number(b.votes)||0)-(Number(a.votes)||0)}).slice(0,5);$('directory-status').textContent=results.length?(term!==query?'Searching for '+term+'.':'Suggested matches'):'No matching stations found. Try another name or enter a stream URL manually.';$('directory-results').innerHTML=results.map((r,i)=>`<button class="rh-result" type="button" data-result="${i}"><span class="rh-art">${esc(r.name.slice(0,1))}</span><span><bdi>${esc(r.name)}</bdi><small>${esc([r.country,r.language,r.codec].filter(Boolean).join(' · ')||'Untested')}</small></span></button>`).join('');$('directory-results').querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=results[Number(b.dataset.result)];$('station-name').value=r.name;$('station-url').value=r.url_resolved||r.url;$('station-logo-url').value=r.favicon||'';$('station-form-status').textContent='Not tested';$('directory-results').innerHTML='';$('directory-status').textContent='Suggestion copied to your editable draft.';});}
+async function loadImage(fileOrUrl){try{let blob=fileOrUrl;if(typeof fileOrUrl==='string'){const response=await fetch(fileOrUrl,{mode:'cors'});if(!response.ok)throw Error();blob=await response.blob();}if(blob.size>512*1024)throw Error('Image exceeds the 512 KiB limit.');const image=await createImageBitmap(blob);if(image.width>2048||image.height>2048)throw Error('Image dimensions exceed 2048 × 2048.');draftArtwork={image,blob};draftArtworkDirty=true;$('station-logo-status').textContent='Ready to prepare after station save.';const canvas=document.createElement('canvas');canvas.width=88;canvas.height=88;const c=canvas.getContext('2d');c.fillStyle='#26364f';c.fillRect(0,0,88,88);const scale=$('station-art-fit').value==='crop'?Math.max(88/image.width,88/image.height):Math.min(88/image.width,88/image.height);c.drawImage(image,(88-image.width*scale)/2,(88-image.height*scale)/2,image.width*scale,image.height*scale);$('station-art-preview').innerHTML='';$('station-art-preview').append(c); }catch(error){draftArtwork=null;draftArtworkDirty=false;$('station-logo-status').textContent=(error.message||'Could not prepare that logo. Use a local PNG, JPEG or WebP image.');}}
+function le32(out,n){out.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255)}function fnv(bytes){let h=2166136261;for(const b of bytes){h^=b;h=Math.imul(h,16777619)}return h>>>0}function artPackage(image,revision){const payload=[];for(const size of [32,64,88]){const canvas=document.createElement('canvas');canvas.width=canvas.height=size;const c=canvas.getContext('2d');c.fillStyle='#26364f';c.fillRect(0,0,size,size);const scale=$('station-art-fit').value==='crop'?Math.max(size/image.width,size/image.height):Math.min(size/image.width,size/image.height);c.drawImage(image,(size-image.width*scale)/2,(size-image.height*scale)/2,image.width*scale,image.height*scale);const p=c.getImageData(0,0,size,size).data;for(let i=0;i<p.length;i+=4){const rgb=((p[i]&248)<<8)|((p[i+1]&252)<<3)|(p[i+2]>>3);payload.push(rgb>>8,rgb&255);}}const out=[82,72,65,49];le32(out,revision);le32(out,fnv(payload));out.push(0,0,0,0,...payload);return new Blob([new Uint8Array(out)],{type:'application/octet-stream'});}
+async function uploadArtwork(slot,revision){if(!draftArtworkDirty||!draftArtwork)return 'No artwork selected.';const form=new FormData();form.set('package',artPackage(draftArtwork.image,revision),'station-artwork.rha');const response=await fetch('/api/stations/artwork?slot='+encodeURIComponent(slot)+'&revision='+encodeURIComponent(revision),{method:'POST',body:form});const data=await response.json().catch(()=>({error:'Artwork response was invalid.'}));if(!response.ok)throw Error(data.error||'Artwork upload failed.');return 'Artwork saved.';}
+async function save(){const name=$('station-name').value.trim(),url=$('station-url').value.trim();if(!name||!/^https?:\/\//i.test(url)){ $('station-form-status').textContent='Enter a station name and direct HTTP(S) stream URL.';return;}try{const data=await api('/api/stations/save',{slot:draftSlot===null?'':draftSlot,name,url,favorite:$('station-favorite').checked?'1':'0',revision:state.revision});render(data);const saved=data.stations.find(s=>s.url===url&&s.name===name);let result='Station saved.';if(draftArtworkDirty&&saved){try{result+=' '+await uploadArtwork(saved.slot,saved.artworkRevision);await refresh();}catch(error){result+=' Station saved, but artwork failed: '+error.message;}}feedback(result);$('station-form-status').textContent=result;showList();}catch(error){$('station-form-status').textContent=error.message;await refresh();}}
+async function test(){const name=$('station-name').value.trim(),url=$('station-url').value.trim();if(!name||!/^https?:\/\//i.test(url)){ $('station-form-status').textContent='Enter a station name and direct HTTP(S) stream URL first.';return;}try{await api('/api/stations/test',{name,url});$('station-form-status').textContent='Testing…';clearInterval(testPoll);testPoll=setInterval(async()=>{try{const p=await fetch('/api/player',{cache:'no-store'}).then(r=>r.json());if(p.state==='playing'||p.state==='muted'||p.state==='failed'){$('station-form-status').textContent=p.state==='failed'?'Test failed.':'Playing test stream.';clearInterval(testPoll);}}catch(_){}} ,700);}catch(error){$('station-form-status').textContent=error.message;}}
+async function preview(){const text=$('m3u-text').value;if(!text){$('m3u-status').textContent='Choose a file or paste M3U content.';return;}try{const data=await api('/api/stations/m3u/preview',{text});previewRevision=data.revision;$('m3u-status').textContent=`${data.entries.length} valid entries; ${data.free} free slots.`;$('m3u-results').innerHTML=data.entries.map(e=>`<p class="rh-note"><bdi>${esc(e.name)}</bdi><span dir="ltr">${esc(e.url)}</span></p>`).join('')||'<p class="rh-note rh-warning">No valid radio streams were found. HLS segments are not stations.</p>';$('m3u-commit').disabled=!data.entries.length||data.entries.length>data.free;}catch(error){$('m3u-status').textContent=error.message;}}
+async function commit(){try{const data=await api('/api/stations/m3u/commit',{text:$('m3u-text').value,revision:previewRevision});render(data);feedback('Stations imported.');showList();}catch(error){$('m3u-status').textContent=error.message;await refresh();}}
+$('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showList;$('station-save').onclick=save;$('station-test').onclick=test;$('station-remove').onclick=async()=>{const item=state.stations.find(s=>s.slot===draftSlot);if(!item||!confirm(`Remove ${item.name}? This removes its saved station, favorite and artwork. Playback of this exact station will stop.`))return;try{render(await api('/api/stations/remove',{slot:draftSlot,revision:state.revision}));feedback('Station removed.');showList();}catch(error){$('station-form-status').textContent=error.message;}};$('directory-submit').onclick=search;$('directory-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search();}});document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{const searchMode=button.dataset.mode==='search';document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b===button));$('directory-search').hidden=!searchMode;});$('station-logo-file').onchange=e=>e.target.files[0]&&loadImage(e.target.files[0]);$('station-logo-url').addEventListener('change',e=>e.target.value&&loadImage(e.target.value));$('m3u-import').onclick=()=>{$('station-editor').hidden=true;$('m3u-editor').hidden=false;$('m3u-editor').scrollIntoView({behavior:'smooth'});};$('m3u-cancel').onclick=showList;$('m3u-preview').onclick=preview;$('m3u-commit').onclick=commit;$('m3u-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>49152){$('m3u-status').textContent='M3U files are limited to 48 KiB.';return;}$('m3u-text').value=await f.text();};refresh();
+})();</script>)JS";
         break;
     }
     case WebSection::Network:
@@ -341,7 +492,9 @@ void appendSectionContent(String& html, WebSection section) {
 
 void handleConfigShell(WebSection section) {
     String html;
-    html.reserve(9400);
+    // The Station editor carries its local-only discovery and image-preparation
+    // code, so reserve once instead of repeatedly growing a transient String.
+    html.reserve(section == WebSection::Stations ? 24500 : 9400);
     html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
         "<link rel='stylesheet' href='/ui/radiohead.css'></head><body class='radiohead-page'><div id='rh-config'>"
@@ -541,6 +694,66 @@ void handleM3UUpload() {
     }
 }
 
+void handleArtworkUpload() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        artworkUploadAccepted = false;
+        artworkUploadSucceeded = false;
+        int slot = -1;
+        int revision = 0;
+        if (upload.name != "package" || !parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) ||
+            !parseIntegerArg("revision", 1, 2147483647, revision)) return;
+        artworkUploadAccepted = stationArtworkUploadBegin(slot, static_cast<uint32_t>(revision));
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (!artworkUploadAccepted || !stationArtworkUploadWrite(upload.buf, upload.currentSize)) {
+            artworkUploadAccepted = false;
+        }
+    } else if (upload.status == UPLOAD_FILE_END) {
+        artworkUploadSucceeded = artworkUploadAccepted && stationArtworkUploadFinish();
+        artworkUploadAccepted = false;
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        stationArtworkUploadAbort();
+        artworkUploadAccepted = false;
+        artworkUploadSucceeded = false;
+    }
+}
+
+void sendStationArtworkThumbnail() {
+    int slot = -1;
+    if (!parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) || !stationArtworkExists(slot)) {
+        server.send(404, "text/plain", "Station artwork is unavailable");
+        return;
+    }
+    uint16_t pixels[32 * 32];
+    if (!loadStationArtwork(slot, 32, pixels, sizeof(pixels) / sizeof(pixels[0]))) {
+        server.send(404, "text/plain", "Station artwork is unavailable");
+        return;
+    }
+    uint8_t header[54] = {};
+    header[0] = 'B'; header[1] = 'M';
+    const uint32_t size = sizeof(header) + 32 * 32 * 3;
+    const auto put32 = [&header](size_t offset, uint32_t value) {
+        header[offset] = value & 0xff; header[offset + 1] = (value >> 8) & 0xff;
+        header[offset + 2] = (value >> 16) & 0xff; header[offset + 3] = (value >> 24) & 0xff;
+    };
+    put32(2, size); put32(10, sizeof(header)); put32(14, 40); put32(18, 32); put32(22, 32);
+    header[26] = 1; header[28] = 24; put32(34, 32 * 32 * 3);
+    server.sendHeader("Cache-Control", "no-store");
+    server.setContentLength(size);
+    server.send(200, "image/bmp", "");
+    server.sendContent(reinterpret_cast<const char*>(header), sizeof(header));
+    uint8_t row[32 * 3];
+    for (int y = 31; y >= 0; --y) {
+        for (int x = 0; x < 32; ++x) {
+            const uint16_t pixel = pixels[y * 32 + x];
+            row[x * 3] = static_cast<uint8_t>(((pixel & 0x1f) << 3) | ((pixel & 0x1f) >> 2));
+            row[x * 3 + 1] = static_cast<uint8_t>((((pixel >> 5) & 0x3f) << 2) | (((pixel >> 5) & 0x3f) >> 4));
+            row[x * 3 + 2] = static_cast<uint8_t>((((pixel >> 11) & 0x1f) << 3) | (((pixel >> 11) & 0x1f) >> 2));
+        }
+        server.sendContent(reinterpret_cast<const char*>(row), sizeof(row));
+    }
+}
+
 }  // namespace
 
 void startWebServer() {
@@ -599,6 +812,155 @@ void startWebServer() {
         queueSettingsSave();
         sendPlayerState();
     });
+    server.on("/api/stations", HTTP_GET, [] { sendStationList(); });
+    server.on("/api/stations/artwork", HTTP_GET, sendStationArtworkThumbnail);
+    server.on("/api/stations/save", HTTP_POST, [] {
+        if (!hasCurrentStationRevision()) return;
+        const String name = server.arg("name");
+        const String url = server.arg("url");
+        if (name.isEmpty() || name.length() > MAX_STATION_NAME_LENGTH || !isHttpUrl(url)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Enter a station name and direct HTTP(S) stream URL.\"}");
+            return;
+        }
+        int slot = -1;
+        if (server.hasArg("slot") && !server.arg("slot").isEmpty()) {
+            if (!parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) || stations[slot].url.isEmpty()) {
+                server.send(409, "application/json; charset=utf-8", "{\"error\":\"That station is no longer available to edit.\"}");
+                return;
+            }
+        } else {
+            for (int candidate = 0; candidate < STATION_COUNT; ++candidate) {
+                if (stations[candidate].url.isEmpty()) {
+                    slot = candidate;
+                    break;
+                }
+            }
+            if (slot < 0) {
+                server.send(409, "application/json; charset=utf-8", "{\"error\":\"All 10 slots are full. Remove a station before adding another.\"}");
+                return;
+            }
+        }
+        const bool streamChanged = stations[slot].url != url;
+        if (streamChanged) removeStationArtwork(slot);
+        stations[slot].name = name;
+        stations[slot].url = url;
+        const bool favorite = server.arg("favorite") == "1";
+        setStationFavorite(slot, favorite);
+        saveSettings();
+        if (!saveFavorites()) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Station was changed but its favorite could not be saved.\"}");
+            return;
+        }
+        forceRedraw = true;
+        sendStationList();
+    });
+    server.on("/api/stations/favorite", HTTP_POST, [] {
+        int slot = -1;
+        if (!hasCurrentStationRevision()) return;
+        if (!parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) || stations[slot].url.isEmpty()) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid station.\"}");
+            return;
+        }
+        const bool wasFavorite = isStationFavorite(slot);
+        if (toggleStationFavorite(slot) && !saveFavorites()) {
+            setStationFavorite(slot, wasFavorite);
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Unable to save favorite.\"}");
+            return;
+        }
+        forceRedraw = true;
+        sendStationList();
+    });
+    server.on("/api/stations/remove", HTTP_POST, [] {
+        int slot = -1;
+        if (!hasCurrentStationRevision()) return;
+        if (!parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) || stations[slot].url.isEmpty()) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid station.\"}");
+            return;
+        }
+        // Do not retune to an arbitrary occupant of a reused slot.  Only the
+        // exact removed stream is stopped.
+        if (mediaPlayingStation() == slot || mediaRequestedStation() == slot) stopStationPlayback();
+        stations[slot].name = "";
+        stations[slot].url = "";
+        removeStationArtwork(slot);
+        clearStationFavorite(slot);
+        saveSettings();
+        if (!saveFavorites()) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Unable to save station removal.\"}");
+            return;
+        }
+        forceRedraw = true;
+        sendStationList();
+    });
+    server.on("/api/stations/test", HTTP_POST, [] {
+        const String name = server.arg("name");
+        const String url = server.arg("url");
+        if (name.isEmpty() || name.length() > MAX_STATION_NAME_LENGTH || !isHttpUrl(url) || !startStationTest(name, url)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"The radio could not start that test stream.\"}");
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", "{\"state\":\"testing\"}");
+    });
+    server.on("/api/stations/m3u/preview", HTTP_POST, [] {
+        const String text = server.arg("text");
+        bool valid = false;
+        const String json = m3uPreviewJson(text, valid);
+        if (!valid) {
+            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 48 KiB limit.\"}");
+            return;
+        }
+        server.send(200, "application/json; charset=utf-8", json);
+    });
+    server.on("/api/stations/m3u/commit", HTTP_POST, [] {
+        if (!hasCurrentStationRevision()) return;
+        const String text = server.arg("text");
+        if (text.length() > MAX_M3U_TEXT_BYTES) {
+            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 48 KiB limit.\"}");
+            return;
+        }
+        std::vector<RadioStation> entries;
+        appendM3UEntries(text, entries);
+        std::vector<RadioStation> unique;
+        for (const RadioStation& entry : entries) {
+            bool duplicate = false;
+            for (int slot = 0; slot < STATION_COUNT; ++slot) {
+                if (stations[slot].url == entry.url) duplicate = true;
+            }
+            for (const RadioStation& accepted : unique) {
+                if (accepted.url == entry.url) duplicate = true;
+            }
+            if (!duplicate) unique.push_back(entry);
+        }
+        const int freeSlots = STATION_COUNT - savedStationCount();
+        if (unique.empty()) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"No new valid radio streams were found.\"}");
+            return;
+        }
+        if (static_cast<int>(unique.size()) > freeSlots) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"Not enough free station slots. Nothing was imported.\"}");
+            return;
+        }
+        size_t entry = 0;
+        for (int slot = 0; slot < STATION_COUNT && entry < unique.size(); ++slot) {
+            if (!stations[slot].url.isEmpty()) continue;
+            removeStationArtwork(slot);
+            stations[slot] = unique[entry++];
+            clearStationFavorite(slot);
+        }
+        saveSettings();
+        saveFavorites();
+        forceRedraw = true;
+        sendStationList();
+    });
+    server.on("/api/stations/artwork", HTTP_POST, [] {
+        if (!artworkUploadSucceeded) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Artwork was rejected; the previous artwork was kept.\"}");
+            return;
+        }
+        artworkUploadSucceeded = false;
+        forceRedraw = true;
+        server.send(200, "application/json; charset=utf-8", "{\"ok\":true}");
+    }, handleArtworkUpload);
     server.on("/programs", handlePrograms);
     server.on("/episodes", handleEpisodes);
 
@@ -726,6 +1088,7 @@ void startWebServer() {
             sendBadRequest("Invalid station");
             return;
         }
+        if (stations[stationIndex].url != url) removeStationArtwork(stationIndex);
         stations[stationIndex].name = name;
         stations[stationIndex].url = url;
         if (clearStationFavorite(stationIndex)) {
@@ -750,6 +1113,7 @@ void startWebServer() {
             return;
         }
         const bool replaced = stations[stationIndex].url != url;
+        if (replaced) removeStationArtwork(stationIndex);
         stations[stationIndex].url = url;
         stations[stationIndex].name = name;
         if (replaced && clearStationFavorite(stationIndex)) {

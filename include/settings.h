@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 using TouchCalibration = std::array<uint16_t, 8>;
@@ -22,3 +23,16 @@ bool toggleStationFavorite(int stationIndex);
 bool clearStationFavorite(int stationIndex);
 bool isPodcastShowFavorite(int showIndex);
 bool togglePodcastShowFavorite(int showIndex);
+
+// Station artwork is a separately versioned LittleFS asset.  It is tied to the
+// current stream URL, so a reused slot cannot inherit another station's logo.
+bool stationArtworkBegin();
+bool stationArtworkExists(int stationIndex);
+uint32_t stationArtworkRevision(int stationIndex);
+uint32_t stationArtworkContentRevision(int stationIndex);
+bool stationArtworkUploadBegin(int stationIndex, uint32_t expectedRevision);
+bool stationArtworkUploadWrite(const uint8_t* data, size_t length);
+bool stationArtworkUploadFinish();
+void stationArtworkUploadAbort();
+bool removeStationArtwork(int stationIndex);
+bool loadStationArtwork(int stationIndex, int size, uint16_t* pixels, size_t pixelCount);
