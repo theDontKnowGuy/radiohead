@@ -131,7 +131,25 @@ measurements, but physical TFT visual acceptance remains open.
 | Render the requested native comparison. | Done: [14:37 fixture](../../.pio/ui_native/home-clock-1437.png) renders at 320×240. Its deterministic final ink box is x=191…277, y=45…77, **86×32 px**. | Native fixture inspected: pass. |
 
 `tools/render_ui_fonts.py` passes with 291 fractional alpha pixels in the atlas;
-`git diff --check` passes. The current PlatformIO build is blocked before compilation
-of this visual change by unrelated in-progress station-artwork declarations in
-`include/settings.h` that use `size_t` without its declaration. No device flash was
-performed, so visual acceptance on the physical TFT remains pending.
+`pio run -e esp32s3` passes at 82,268 B RAM (25.1%) and 3,215,795 B flash (49.1%),
+and `git diff --check` passes. No device flash was performed, so visual acceptance
+on the physical TFT remains pending.
+
+## 2026-09-21 Home-clock weight and top-right anchor correction
+
+| Requirement | Result | Acceptance state |
+| --- | --- | --- |
+| Increase visual weight without increasing height. | Done: only the Inter source face changes from Medium to installed Inter SemiBold (weight 600). Visible digit height remains 32 px; the final zero-stem opaque core is 4 px, giving a solid 3–4 px core with one-pixel anti-aliased edges. | Native fixture inspected. Physical TFT pending. |
+| Re-anchor beneath the date and toward the right. | Done: atlas composition remains unchanged, but Home's anchor moves 6 px up and 5 px right, from `(280,39)` to `(285,33)`. | Source and fixture: pass. |
+| Preserve all non-clock Home elements. | Done: date, weather, buttons, font family, background and runtime alpha/RGB565 path are untouched. | Scoped diff: pass. |
+| Render and compare exact `14:37`. | Done: [native fixture](../../.pio/ui_native/home-clock-1437.png) has a measured ink box of x=196…282, y=39…71 (**86×32 px**). [Direct comparison](../../.pio/ui_native/home-clock-1437-comparison.png) places it beside the 320×240-normalized Home reference; their clock/date vertical relationship now aligns closely. | Native visual inspection: ready for user review; physical/reference acceptance remains open. |
+
+## 2026-09-21 Home-clock geometry-only refinement
+
+| Requirement | Result | Acceptance state |
+| --- | --- | --- |
+| Keep the current weight and rendering. | Done: Inter SemiBold source, 8× Lanczos atlas generation, alpha strengthening, 4 px opaque core, and runtime RGB565 blending are unchanged. | Scoped source review: pass. |
+| Reduce height and widen figures/advance. | Done: visible digit ink is 31 px (32 → 31, 3.1% shorter); maximum digit ink is 19 px (18 → 19, 5.6% wider); tabular advance is 22 px (21 → 22, 4.8% wider—the nearest native-pixel result). | Deterministic atlas measurement: pass. |
+| Reduce and space the colon. | Done: colon advance stays 10 px while its ink is reduced from 5 px to 4 px, giving a smaller mark and more surrounding whitespace. | Atlas bounds: pass. |
+| Shift right without changing vertical placement. | Done: only the horizontal Home anchor moves x=285 → x=289; y=33 is unchanged. | Source and fixture: pass. |
+| Test exact `14:37` against the mockup. | Done: [native fixture](../../.pio/ui_native/home-clock-1437.png) has final ink bounds x=197…286, y=40…71 (**89×31 px**). [Direct comparison](../../.pio/ui_native/home-clock-1437-comparison.png) is regenerated beside the normalized reference Home panel. | Native visual review complete; physical TFT pending. |

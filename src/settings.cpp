@@ -22,6 +22,7 @@ constexpr uint8_t STATION_ARTWORK_MAGIC[] = {'R', 'H', 'A', '1'};
 bool settingsSavePending = false;
 unsigned long settingsSaveQueuedAt = 0;
 bool artworkFilesystemReady = false;
+bool artworkFilesystemMountAttempted = false;
 File artworkUploadFile;
 int artworkUploadSlot = -1;
 uint32_t artworkUploadRevision = 0;
@@ -181,10 +182,25 @@ bool togglePodcastShowFavorite(int showIndex) {
 
 bool stationArtworkBegin() {
     if (artworkFilesystemReady) return true;
-    // Never format from normal firmware startup: a mount problem must not erase
-    // logos that may still be recoverable.
+    if (artworkFilesystemMountAttempted) return false;
+    artworkFilesystemMountAttempted = true;
     artworkFilesystemReady = LittleFS.begin(false, "/littlefs", 4, "spiffs");
-    if (!artworkFilesystemReady) return false;
+    if (!artworkFilesystemReady) {
+        // The user explicitly authorized recovery by clearing the current
+        // filesystem after a corrupt LittleFS directory was observed.  This is
+        // deliberately a one-time boot action, never a render-path retry.
+        Serial.println("[artwork] LittleFS mount failed; formatting authorized artwork storage");
+        if (!LittleFS.format()) {
+            Serial.println("[artwork] LittleFS format failed");
+            return false;
+        }
+        artworkFilesystemReady = LittleFS.begin(false, "/littlefs", 4, "spiffs");
+        if (!artworkFilesystemReady) {
+            Serial.println("[artwork] LittleFS remount failed after format");
+            return false;
+        }
+        Serial.println("[artwork] LittleFS formatted and mounted");
+    }
     for (int slot = 0; slot < STATION_COUNT; ++slot) {
         const String active = artworkPath(slot);
         const String backup = artworkPath(slot, ".bak");

@@ -1,4 +1,4 @@
-"""Build the native Home-clock alpha atlas from Inter Medium.
+"""Build the native Home-clock alpha atlas from Inter SemiBold.
 
 Each source glyph is rendered at 8×, cropped to actual ink, aligned to a common
 baseline and normalized into the requested tabular geometry before one final
@@ -18,15 +18,16 @@ OUTPUT = ROOT / "docs" / "ui" / "assets" / "home"
 GLYPHS = "0123456789:-"
 SCALE = 8
 SOURCE_SIZE = 48
-TARGET_DIGIT_HEIGHT = 32
-TARGET_DIGIT_ADVANCE = 21
-TARGET_DIGIT_INK_WIDTH = 18
+TARGET_DIGIT_HEIGHT = 31
+TARGET_DIGIT_ADVANCE = 22
+TARGET_DIGIT_INK_WIDTH = 19
 TARGET_COLON_ADVANCE = 10
+TARGET_COLON_INK_WIDTH = 4
 CELL_WIDTH = 22
 CELL_HEIGHT = 44
 BASELINE = 38
-RENDER_TOP = 39
-RENDER_RIGHT = 280
+RENDER_TOP = 33
+RENDER_RIGHT = 289
 
 
 def glyph_mask(font, glyph):
@@ -110,7 +111,7 @@ def sample_bounds(text, advances, bounds):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--font", type=Path, required=True,
-                        help="path to Inter-Medium.otf")
+                        help="path to the chosen Inter source face")
     args = parser.parse_args()
     if not args.font.is_file():
         raise RuntimeError(f"Missing required Home-clock source font: {args.font}")
@@ -120,7 +121,7 @@ def main():
     digit_crops = [source_glyphs[glyph][0] for glyph in "0123456789"]
     source_width = max(crop.width for crop in digit_crops)
     source_height = max(crop.height for crop in digit_crops)
-    # Widen the final tabular figures without altering their Medium-weight
+    # Widen the final tabular figures without altering their SemiBold-weight
     # source or the runtime atlas/blending path.
     scale_x = (TARGET_DIGIT_INK_WIDTH * SCALE) / source_width
     scale_y = (TARGET_DIGIT_HEIGHT * SCALE) / source_height
@@ -130,6 +131,9 @@ def main():
     for glyph in GLYPHS:
         source, bounds, source_baseline = source_glyphs[glyph]
         target_width = max(1, round(source.width * scale_x / SCALE))
+        if glyph == ":":
+            # Leave the existing 10 px advance around a slightly smaller colon.
+            target_width = TARGET_COLON_INK_WIDTH
         target_height = max(1, round(source.height * scale_y / SCALE))
         final = downsample_ink(source, target_width, target_height)
         advance = TARGET_COLON_ADVANCE if glyph == ":" else (
@@ -176,7 +180,7 @@ def main():
         },
         "bytes": len(alpha),
         "sha256": hashlib.sha256(alpha).hexdigest(),
-        "recipe": "Inter Medium is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core.",
+        "recipe": "Inter SemiBold is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core.",
     }
     (OUTPUT / "clock_atlas.json").write_text(json.dumps(manifest, indent=2) + "\n")
 

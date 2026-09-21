@@ -129,6 +129,10 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
     initializeTouchCalibration();
     loadSettings();
+    // Initialize artwork storage once, including the user-authorized recovery
+    // of the currently corrupt LittleFS partition, before web rendering can
+    // ask for station thumbnails.
+    stationArtworkBegin();
     connectToNetwork();
     startWebServer();
 

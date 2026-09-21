@@ -802,8 +802,9 @@ uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
 }
 
 void drawHomeClockAtlas(const char* value) {
-    constexpr int16_t kRight = 280;
-    constexpr int16_t kTop = 39;
+    // Align with Home's date/Wi-Fi composition, not the broader content area.
+    constexpr int16_t kRight = 289;
+    constexpr int16_t kTop = 33;
     int16_t width = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);

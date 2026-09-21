@@ -3,23 +3,23 @@
 ## 2026-09-21 — Fixed Home-clock alpha atlas
 
 The Home clock no longer uses a VLW font. Its reproducible recipe rasterizes
-Inter Medium at 8×, crops actual source-ink bounds, baseline-aligns each glyph,
+Inter SemiBold at 8×, crops actual source-ink bounds, baseline-aligns each glyph,
 Lanczos-downsamples it into 8-bit alpha masks for 0–9, colon, and the
 unavailable-state dash, then modestly strengthens alpha for an opaque core.
 Runtime alpha-blends every glyph pixel over the freshly rendered readable RGB565
 Home canvas, avoiding an assumed-background fringe or any font/sprite scaling.
-The final trial measures 32 px digit ink, a 3 px opaque zero stem, 21 px tabular
-digit advances, an unchanged 10 px colon advance, and an 86×32 px `14:37` ink box at
-x=191…277/y=45…77. Its #F5F5F5 clock color, date #D8DDE3, and logical right edge x=280
-remain unchanged. Compact opaque/list/Recorded Show clocks remain 18 px Roboto
+The final trial measures 31 px digit ink, a 4 px opaque zero stem, 22 px tabular
+digit advances, an unchanged 10 px colon advance with its ink reduced to 4 px, and an
+89×31 px `14:37` ink box at x=197…286/y=40…71. Its #F5F5F5 clock color and date
+#D8DDE3 remain unchanged. The Home composition uses logical anchor x=289/y=33: 4 px
+right of the preceding version with unchanged vertical position. Compact opaque/list/Recorded Show clocks remain 18 px Roboto
 Regular VLW because this atlas is intentionally Home-specific.
 
 **Visual:** production native [14:37 fixture](../../.pio/ui_native/home-clock-1437.png)
-inspected against the stated 86×32 px target; physical/reference final acceptance
+inspected against the stated 89×31 px target; physical/reference final acceptance
 remains open. **Functional:** `tools/render_ui_fonts.py` (including anti-aliasing
-checks) and `git diff --check` pass. The current `pio run -e esp32s3` is blocked by
-unrelated in-progress station-artwork declarations in `include/settings.h` that use
-`size_t` without its declaration. **Hardware:** not flashed;
+checks), `pio run -e esp32s3`, and `git diff --check` pass. The build reports
+82,268 B RAM (25.1%) and 3,215,795 B flash (49.1%). **Hardware:** not flashed;
 physical TFT appearance, repaint timing, and sustained-audio behavior remain
 unverified.
 

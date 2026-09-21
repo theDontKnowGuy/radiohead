@@ -1,6 +1,6 @@
 {
-  "source": "Inter-Medium.otf",
-  "source_sha256": "1e65171fccd6f445b7742728454620ec2867356c849af78e71bf2c4f0e3d97ba",
+  "source": "Inter-SemiBold.otf",
+  "source_sha256": "bd68706b7bf8b3c580ae57685a2116bb1704b3a9998309ccfec7cd486f8a593e",
   "pillow": "12.3.0",
   "glyphs": "0123456789:-",
   "scale": 8,
@@ -11,22 +11,22 @@
     44
   ],
   "advances": [
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
+    22,
+    22,
+    22,
+    22,
+    22,
+    22,
+    22,
+    22,
+    22,
+    22,
     10,
     11
   ],
   "x_offsets": [
     1,
-    5,
+    6,
     2,
     2,
     1,
@@ -35,122 +35,122 @@
     2,
     2,
     2,
-    2,
+    3,
     0
   ],
   "y_offsets": [
-    6,
     7,
-    6,
-    6,
+    8,
     7,
-    6,
-    6,
     7,
-    6,
-    6,
-    15,
-    23
+    8,
+    7,
+    7,
+    8,
+    7,
+    7,
+    16,
+    24
   ],
   "ink_bounds": [
     [
       1,
-      6,
-      19,
-      38
-    ],
-    [
-      5,
       7,
-      15,
+      20,
+      38
+    ],
+    [
+      6,
+      8,
+      16,
       38
     ],
     [
       2,
-      6,
-      18,
-      38
-    ],
-    [
-      2,
-      6,
+      7,
       19,
+      38
+    ],
+    [
+      2,
+      7,
+      20,
       38
     ],
     [
       1,
+      8,
+      20,
+      38
+    ],
+    [
+      2,
       7,
-      19,
-      38
-    ],
-    [
-      2,
-      6,
-      18,
-      38
-    ],
-    [
-      2,
-      6,
       19,
       38
     ],
     [
       2,
       7,
-      18,
+      20,
       38
     ],
     [
       2,
-      6,
+      8,
       19,
       38
     ],
     [
       2,
-      6,
-      19,
+      7,
+      20,
       38
     ],
     [
       2,
-      15,
+      7,
+      20,
+      38
+    ],
+    [
+      3,
+      16,
       7,
       38
     ],
     [
       0,
-      23,
+      24,
       11,
-      27
+      28
     ]
   ],
   "measurements": {
-    "digit_ink_height": 32,
-    "widest_digit_ink_width": 18,
-    "digit_advance": 21,
+    "digit_ink_height": 31,
+    "widest_digit_ink_width": 19,
+    "digit_advance": 22,
     "colon_advance": 10,
     "zero_vertical_stem": 4,
-    "zero_opaque_stem": 3,
+    "zero_opaque_stem": 4,
     "sample_10_17_bounds": [
-      191,
-      45,
-      277,
-      77,
-      86,
-      32
+      197,
+      40,
+      286,
+      71,
+      89,
+      31
     ],
     "sample_14_37_bounds": [
-      191,
-      45,
-      277,
-      77,
-      86,
-      32
+      197,
+      40,
+      286,
+      71,
+      89,
+      31
     ]
   },
   "bytes": 11616,
-  "sha256": "40c7b1320f08278aa4327e2fd360b43b0839a77ee6d60cd24a70e33ae5ea4263",
-  "recipe": "Inter Medium is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core."
+  "sha256": "c44ce9d4561a3de07cd59b87707891f7a6ba4c8604b12622e5078c141c7c448f",
+  "recipe": "Inter SemiBold is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core."
 }

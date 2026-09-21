@@ -18,7 +18,9 @@ namespace {
 constexpr size_t MAX_STATION_NAME_LENGTH = 80;
 constexpr size_t MAX_URL_LENGTH = 512;
 constexpr size_t MAX_M3U_LINE_LENGTH = 640;
-constexpr size_t MAX_M3U_TEXT_BYTES = 48 * 1024;
+// Deliberately generous during M3U import stress testing.  The request is
+// still bounded, but its heap/service impact must be measured on hardware.
+constexpr size_t MAX_M3U_TEXT_BYTES = 4 * 1024 * 1024;
 
 bool otaUploadStarted = false;
 bool otaUploadSucceeded = false;
@@ -438,7 +440,7 @@ void appendSectionContent(String& html, WebSection section) {
             "<p class='rh-note rh-warning'>Test on radio changes playback. Browsing, editing and saving keep your current station playing.</p>"
             "<div class='rh-footer'><span class='rh-formstatus' id='station-form-status'>Not tested</span><button class='rh-button' type='button' id='station-test'>Test on radio</button><button class='rh-button rh-danger' type='button' id='station-remove' hidden>Remove station</button><button class='rh-button rh-primary' type='button' id='station-save'>Save station</button></div></section>"
             "<section class='rh-box' id='m3u-editor' hidden><button class='rh-back' type='button' id='m3u-cancel'>← Back to stations</button><h2>Import stations</h2><p>Preview your playlist before adding anything.</p>"
-            "<label class='rh-upload' for='m3u-file'><input id='m3u-file' type='file' accept='.m3u,.m3u8,audio/x-mpegurl'>Choose an M3U file</label><label class='rh-field'><span>Or paste M3U content</span><textarea id='m3u-text' maxlength='49152'></textarea></label>"
+            "<label class='rh-upload' for='m3u-file'><input id='m3u-file' type='file' accept='.m3u,.m3u8,audio/x-mpegurl'>Choose an M3U file</label><label class='rh-field'><span>Or paste M3U content</span><textarea id='m3u-text' maxlength='4194304'></textarea></label>"
             "<div class='rh-footer'><span class='rh-formstatus' id='m3u-status'></span><button class='rh-button' type='button' id='m3u-preview'>Preview import</button><button class='rh-button rh-primary' type='button' id='m3u-commit' disabled>Import stations</button></div><div id='m3u-results'></div></section>"
             "<script>";
         html += R"JS((()=>{
@@ -459,7 +461,7 @@ async function save(){const name=$('station-name').value.trim(),url=$('station-u
 async function test(){const name=$('station-name').value.trim(),url=$('station-url').value.trim();if(!name||!/^https?:\/\//i.test(url)){ $('station-form-status').textContent='Enter a station name and direct HTTP(S) stream URL first.';return;}try{await api('/api/stations/test',{name,url});$('station-form-status').textContent='Testing…';clearInterval(testPoll);testPoll=setInterval(async()=>{try{const p=await fetch('/api/player',{cache:'no-store'}).then(r=>r.json());if(p.state==='playing'||p.state==='muted'||p.state==='failed'){$('station-form-status').textContent=p.state==='failed'?'Test failed.':'Playing test stream.';clearInterval(testPoll);}}catch(_){}} ,700);}catch(error){$('station-form-status').textContent=error.message;}}
 async function preview(){const text=$('m3u-text').value;if(!text){$('m3u-status').textContent='Choose a file or paste M3U content.';return;}try{const data=await api('/api/stations/m3u/preview',{text});previewRevision=data.revision;$('m3u-status').textContent=`${data.entries.length} valid entries; ${data.free} free slots.`;$('m3u-results').innerHTML=data.entries.map(e=>`<p class="rh-note"><bdi>${esc(e.name)}</bdi><span dir="ltr">${esc(e.url)}</span></p>`).join('')||'<p class="rh-note rh-warning">No valid radio streams were found. HLS segments are not stations.</p>';$('m3u-commit').disabled=!data.entries.length||data.entries.length>data.free;}catch(error){$('m3u-status').textContent=error.message;}}
 async function commit(){try{const data=await api('/api/stations/m3u/commit',{text:$('m3u-text').value,revision:previewRevision});render(data);feedback('Stations imported.');showList();}catch(error){$('m3u-status').textContent=error.message;await refresh();}}
-$('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showList;$('station-save').onclick=save;$('station-test').onclick=test;$('station-remove').onclick=async()=>{const item=state.stations.find(s=>s.slot===draftSlot);if(!item||!confirm(`Remove ${item.name}? This removes its saved station, favorite and artwork. Playback of this exact station will stop.`))return;try{render(await api('/api/stations/remove',{slot:draftSlot,revision:state.revision}));feedback('Station removed.');showList();}catch(error){$('station-form-status').textContent=error.message;}};$('directory-submit').onclick=search;$('directory-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search();}});document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{const searchMode=button.dataset.mode==='search';document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b===button));$('directory-search').hidden=!searchMode;});$('station-logo-file').onchange=e=>e.target.files[0]&&loadImage(e.target.files[0]);$('station-logo-url').addEventListener('change',e=>e.target.value&&loadImage(e.target.value));$('m3u-import').onclick=()=>{$('station-editor').hidden=true;$('m3u-editor').hidden=false;$('m3u-editor').scrollIntoView({behavior:'smooth'});};$('m3u-cancel').onclick=showList;$('m3u-preview').onclick=preview;$('m3u-commit').onclick=commit;$('m3u-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>49152){$('m3u-status').textContent='M3U files are limited to 48 KiB.';return;}$('m3u-text').value=await f.text();};refresh();
+$('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showList;$('station-save').onclick=save;$('station-test').onclick=test;$('station-remove').onclick=async()=>{const item=state.stations.find(s=>s.slot===draftSlot);if(!item||!confirm(`Remove ${item.name}? This removes its saved station, favorite and artwork. Playback of this exact station will stop.`))return;try{render(await api('/api/stations/remove',{slot:draftSlot,revision:state.revision}));feedback('Station removed.');showList();}catch(error){$('station-form-status').textContent=error.message;}};$('directory-submit').onclick=search;$('directory-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search();}});document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{const searchMode=button.dataset.mode==='search';document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b===button));$('directory-search').hidden=!searchMode;});$('station-logo-file').onchange=e=>e.target.files[0]&&loadImage(e.target.files[0]);$('station-logo-url').addEventListener('change',e=>e.target.value&&loadImage(e.target.value));$('m3u-import').onclick=()=>{$('station-editor').hidden=true;$('m3u-editor').hidden=false;$('m3u-editor').scrollIntoView({behavior:'smooth'});};$('m3u-cancel').onclick=showList;$('m3u-preview').onclick=preview;$('m3u-commit').onclick=commit;$('m3u-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>4194304){$('m3u-status').textContent='M3U files are limited to 4 MiB.';return;}$('m3u-text').value=await f.text();};refresh();
 })();</script>)JS";
         break;
     }
@@ -906,7 +908,7 @@ void startWebServer() {
         bool valid = false;
         const String json = m3uPreviewJson(text, valid);
         if (!valid) {
-            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 48 KiB limit.\"}");
+            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 4 MiB limit.\"}");
             return;
         }
         server.send(200, "application/json; charset=utf-8", json);
@@ -915,7 +917,7 @@ void startWebServer() {
         if (!hasCurrentStationRevision()) return;
         const String text = server.arg("text");
         if (text.length() > MAX_M3U_TEXT_BYTES) {
-            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 48 KiB limit.\"}");
+            server.send(413, "application/json; charset=utf-8", "{\"error\":\"M3U content exceeds the 4 MiB limit.\"}");
             return;
         }
         std::vector<RadioStation> entries;
