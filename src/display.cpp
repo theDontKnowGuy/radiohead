@@ -852,15 +852,13 @@ uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
 }
 
 void drawHomeClockAtlas(const char* value) {
-    // Align with Home's date/Wi-Fi composition, not the broader content area.
-    constexpr int16_t kRight = 306;
-    constexpr int16_t kTop = 37;
+    // The approved glyph package owns this anchor and the per-glyph geometry.
     int16_t width = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
         if (index >= 0) width += ui_home_clock_advances[index];
     }
-    int16_t penX = kRight - width;
+    int16_t penX = ui_home_clock_right - width;
     constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t glyph = homeClockGlyphIndex(*character);
@@ -871,7 +869,7 @@ void drawHomeClockAtlas(const char* value) {
                 const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
                 if (coverage == 0) continue;
                 const int16_t pixelX = penX + x;
-                const int16_t pixelY = kTop + y;
+                const int16_t pixelY = ui_home_clock_top + y;
                 canvas().drawPixel(pixelX, pixelY, blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
             }
         }

@@ -109,12 +109,17 @@ cell_width, cell_height = clock_manifest["cell_size"]
 if (clock_manifest["alpha_bits"], clock_manifest["scale"], len(clock_data)) != (
         8, 8, len(glyphs) * cell_width * cell_height):
     raise RuntimeError("Invalid Home clock atlas geometry")
+clock_anchor = clock_manifest["anchor"]
+if not (0 <= clock_anchor["right_x"] <= 320 and 0 <= clock_anchor["top_y"] <= 240):
+    raise RuntimeError("Invalid Home clock anchor")
 clock_lines = [", ".join(f"0x{byte:02x}" for byte in clock_data[index:index + 16])
                for index in range(0, len(clock_data), 16)]
 clock_content = "#pragma once\n#include <stdint.h>\n"
 clock_content += f"constexpr uint8_t ui_home_clock_glyph_count = {len(glyphs)};\n"
 clock_content += f"constexpr uint8_t ui_home_clock_cell_width = {cell_width};\n"
 clock_content += f"constexpr uint8_t ui_home_clock_cell_height = {cell_height};\n"
+clock_content += f"constexpr int16_t ui_home_clock_right = {clock_anchor['right_x']};\n"
+clock_content += f"constexpr int16_t ui_home_clock_top = {clock_anchor['top_y']};\n"
 clock_content += "constexpr uint8_t ui_home_clock_advances[] = {" + ", ".join(
     str(advance) for advance in clock_manifest["advances"]) + "};\n"
 clock_content += "const uint8_t ui_home_clock_alpha[] = {\n" + ",\n".join(clock_lines) + "\n};\n"

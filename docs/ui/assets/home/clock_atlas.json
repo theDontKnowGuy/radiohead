@@ -1,14 +1,36 @@
 {
-  "source": "Inter-Bold.otf",
-  "source_sha256": "00fd6f4691ee8884a33b46bf45851b341927c37c30064f558e1befb242971c49",
+  "source": "home-clock-assets",
+  "source_manifest_sha256": "d9804efe5efcb145c764591cee17389cbe4064136a451acaca95609734a844f5",
+  "source_glyph_sha256": {
+    "0.png": "e5cd8057bb32ab24e44a79d2293492e33d12c8103909969ac3bb62e2a3b26a9a",
+    "1.png": "0ec1aa7376746715890d9944784cbf98db73a325eaa652591208561f558da364",
+    "2.png": "fe6424560b53a754f4dd837c4ef0abc6f0aa49940c3bb51dc36a61343f2412e7",
+    "3.png": "0f24e9e3fee4ad9c19d4129d490e5e0fc7021a7746ba8e88101cc3cc2df3a7a6",
+    "4.png": "918330d549393b2737d33f455bfc980d7b4c521024adfdc934a1751be4939032",
+    "5.png": "eb513601bb65830175c9b8f2582046dab27a2a3e667afe5bd555919e49d23a9d",
+    "6.png": "b5bd92731a2cb3e0449c68aa738e7b897d0d44ac821577b67370e00b66cfa433",
+    "7.png": "d9ddc9131e5d69d00c802c28ca8b825f76ff98d9150e810f763fc3566ef47286",
+    "8.png": "319ddc4dded66ef18fa3ab40e21cc11135304168907094ac34a90e9a8cc496cd",
+    "9.png": "89658cf38980737db288ca8fca7b1c91a2304adda3600dd18d25e89850e1c816",
+    "colon.png": "4a61230659e209b8a5aa3e2a1e57446fdb730889307f8b4e445c37770779f796",
+    "hyphen.png": "cb302cd8b6ed102de6aef09e51517597b7632e12a8716c43236dc135497c45e9"
+  },
+  "source_reference_sha256": {
+    "references/14_colon_37.png": "fb32c6250fd558b5142d8e4aaed07632d8d657d564ad508d003a8b95381e9767",
+    "references/00_colon_00.png": "9002a3cddd9caa617b7d0e76a265f7afdb2df8265af14aeed97f12492890cdf5",
+    "references/11_colon_11.png": "4d5ae86997ed557cbf76c81a6850bf29ef2493df89799764d0480f330d338cf9",
+    "references/23_colon_59.png": "b2c0a9acf5a12fee3e0970a44e2e95566c21150cd15f972db2f6d059b70e7d91",
+    "references/dashdash_colon_dashdash.png": "f2f787ce6693ac223fb5554368925ddd3782e6ef5b380368ed82d30e6461c639",
+    "references/home-clock-overlay-14_37.png": "52a30af6d46f98439229c01cead2c78e6a496e927576b6b1f4f4cb9349cfa10d"
+  },
   "pillow": "12.3.0",
   "glyphs": "0123456789:-",
   "scale": 8,
-  "filter": "Lanczos",
+  "filter": "source masks supplied at native resolution",
   "alpha_bits": 8,
   "cell_size": [
-    22,
-    44
+    26,
+    30
   ],
   "advances": [
     21,
@@ -21,136 +43,97 @@
     21,
     21,
     21,
-    10,
-    11
-  ],
-  "x_offsets": [
-    0,
-    5,
-    1,
-    1,
-    0,
-    1,
-    1,
-    2,
-    1,
-    1,
-    3,
-    0
-  ],
-  "y_offsets": [
-    5,
-    6,
-    6,
-    5,
-    6,
-    6,
-    5,
-    6,
-    5,
-    5,
-    15,
-    22
+    11,
+    16
   ],
   "ink_bounds": [
     [
+      1,
       0,
-      5,
-      20,
-      38
-    ],
-    [
-      5,
-      6,
-      16,
-      38
-    ],
-    [
-      1,
-      6,
-      19,
-      38
-    ],
-    [
-      1,
-      5,
-      20,
-      38
-    ],
-    [
-      0,
-      6,
-      20,
-      38
-    ],
-    [
-      1,
-      6,
-      19,
-      38
-    ],
-    [
-      1,
-      5,
-      20,
-      38
-    ],
-    [
-      2,
-      6,
-      19,
-      38
-    ],
-    [
-      1,
-      5,
-      20,
-      38
-    ],
-    [
-      1,
-      5,
-      20,
-      38
+      26,
+      29
     ],
     [
       3,
-      15,
-      7,
-      38
+      0,
+      21,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
     ],
     [
       0,
-      22,
-      11,
-      27
+      0,
+      26,
+      29
+    ],
+    [
+      0,
+      0,
+      26,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
+    ],
+    [
+      1,
+      0,
+      26,
+      29
+    ],
+    [
+      2,
+      7,
+      13,
+      29
+    ],
+    [
+      0,
+      14,
+      16,
+      22
     ]
   ],
-  "measurements": {
-    "digit_ink_height": 33,
-    "widest_digit_ink_width": 20,
-    "digit_advance": 21,
-    "colon_advance": 10,
-    "zero_vertical_stem": 5,
-    "zero_opaque_stem": 3,
-    "sample_10_17_bounds": [
-      217,
-      42,
-      304,
-      75,
-      87,
-      33
-    ],
-    "sample_14_37_bounds": [
-      217,
-      42,
-      304,
-      75,
-      87,
-      33
-    ]
+  "anchor": {
+    "right_x": 304,
+    "top_y": 41
   },
-  "bytes": 11616,
-  "sha256": "5a0079b9cb75497cb548eb8446a446f74242e9810d32cce3b0851fd23759bb9c",
-  "recipe": "Inter Bold is rendered at 8x, cropped to source ink bounds, baseline-aligned, normalized to tabular geometry, Lanczos-downsampled, and alpha-strengthened for an opaque stem core."
+  "measurements": {
+    "sample_14_37_bounds": [
+      212,
+      41,
+      304,
+      70
+    ],
+    "approved_overlay_14_37_sha256": "52a30af6d46f98439229c01cead2c78e6a496e927576b6b1f4f4cb9349cfa10d"
+  },
+  "bytes": 9360,
+  "sha256": "01a6c68dc2cba0e75c646d5b86ef23388f80783aad251acd6b68f065f1887693",
+  "recipe": "Approved Avenir Next Medium glyph masks are copied directly from the supplied native 320x240 Home-clock package; no font is loaded or scaled during conversion."
 }

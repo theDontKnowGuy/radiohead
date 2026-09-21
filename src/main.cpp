@@ -16,10 +16,6 @@
 
 namespace {
 
-// NPR advertises 64 kb/s AAC. Keep several seconds of PSRAM-backed input
-// before live decoding so ordinary Wi-Fi jitter cannot immediately underrun.
-constexpr size_t kStreamPrebufferBytes = 64 * 1024;
-
 bool startSetupAccessPoint() {
     WiFi.mode(WIFI_AP);
     if (!WiFi.softAP("Radio_Setup")) {
@@ -162,7 +158,6 @@ void setup() {
     startWebServer();
 
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
-    audio.setStreamPrebuffer(kStreamPrebufferBytes);
     mediaBegin();
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);

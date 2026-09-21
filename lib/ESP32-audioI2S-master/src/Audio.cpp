@@ -888,10 +888,6 @@ void Audio::setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl) {
     if (timeout_ms_ssl) m_timeout_ms_ssl = timeout_ms_ssl;
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
-void Audio::setStreamPrebuffer(size_t bytes) {
-    m_streamPrebufferSize = bytes;
-}
-// —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 
 /*
     Text to speech API provides a speech endpoint based on our TTS (text-to-speech) model.
@@ -4765,17 +4761,7 @@ void Audio::processWebStream() {
     }
 
     // start audio decoding - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // A single codec frame is sufficient to decode, but it leaves low-bitrate
-    // live streams with no protection from normal Wi-Fi delivery jitter. An
-    // application can opt into a larger reserve; finite streams still start at EOF.
-    size_t playbackThreshold = m_pwst.maxFrameSize;
-    if (m_streamPrebufferSize > playbackThreshold) {
-        playbackThreshold = m_streamPrebufferSize;
-    }
-    if (playbackThreshold >= InBuff.getBufsize()) {
-        playbackThreshold = InBuff.getBufsize() - 1;
-    }
-    if (((InBuff.bufferFilled() > playbackThreshold) || (m_f_allDataReceived)) && !m_f_stream) { // waiting for buffer filled
+    if (((InBuff.bufferFilled() > m_pwst.maxFrameSize) || (m_f_allDataReceived)) && !m_f_stream) { // waiting for buffer filled
         info(*this, evt_info, "stream ready");
         m_f_stream = true; // ready to play the audio data
     }

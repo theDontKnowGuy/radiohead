@@ -56,6 +56,13 @@ int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 // Fixture defaults mirror the persisted Home configuration defaults.
 bool showWeatherOnHome = true, use24HourClock = true;
+unsigned long weatherLastSuccessAt = 0;
+constexpr unsigned long WEATHER_STALE_AFTER_MS = 30UL * 60UL * 1000UL;
+struct FixtureIpAddress { String toString() const { return "192.168.4.1"; } };
+struct FixtureWiFi {
+    String softAPSSID() const { return "Radio_Setup"; }
+    FixtureIpAddress softAPIP() const { return {}; }
+} WiFi;
 String podcastShowTft, owmCity = "Tel Aviv, IL";
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;
@@ -130,9 +137,10 @@ int main(int argc, char** argv) {
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
     assert(ui_home_clock_glyph_count == 12);
-    assert(ui_home_clock_cell_width == 22 && ui_home_clock_cell_height == 44);
+    assert(ui_home_clock_cell_width == 26 && ui_home_clock_cell_height == 30);
     assert(ui_home_clock_advances[0] == 21 && ui_home_clock_advances[9] == 21);
-    assert(ui_home_clock_advances[10] == 10);
+    assert(ui_home_clock_advances[10] == 11);
+    assert(ui_home_clock_right == 304 && ui_home_clock_top == 41);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;

@@ -1,0 +1,76 @@
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -16,6 +16,10 @@
+ 
+ namespace {
+ 
++// NPR advertises 64 kb/s AAC. Keep several seconds of PSRAM-backed input
++// before live decoding so ordinary Wi-Fi jitter cannot immediately underrun.
++constexpr size_t kStreamPrebufferBytes = 64 * 1024;
++
+ bool startSetupAccessPoint() {
+     WiFi.mode(WIFI_AP);
+     if (!WiFi.softAP("Radio_Setup")) {
+@@ -158,6 +162,7 @@ void setup() {
+     startWebServer();
+ 
+     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
++    audio.setStreamPrebuffer(kStreamPrebufferBytes);
+     mediaBegin();
+     audio.setVolume(volCurve[mainVal]);
+     audio.setTone(gB, gM, gT);
+diff --git a/lib/ESP32-audioI2S-master/src/Audio.h b/lib/ESP32-audioI2S-master/src/Audio.h
+--- a/lib/ESP32-audioI2S-master/src/Audio.h
++++ b/lib/ESP32-audioI2S-master/src/Audio.h
+@@ -290,6 +290,9 @@ class Audio {
+     bool             connecttospeech(const char* speech, const char* lang);
+     bool             connecttoFS(fs::FS& fs, const char* path, int32_t fileStartTime = -1);
+     void             setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl);
++    // For continuous web streams, wait for this many input bytes before
++    // starting decode. Zero preserves the library's one-frame startup behavior.
++    void             setStreamPrebuffer(size_t bytes);
+     bool             setAudioPlayTime(uint16_t sec);
+     bool             setTimeOffset(int sec);
+     bool             setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t MCLK = I2S_GPIO_UNUSED);
+@@ -646,6 +649,7 @@ class Audio {
+     uint32_t       m_audioDataStart = 0;              // in bytes
+     OutputSR_t     m_output_sr = SR_ORIGIN;           // output samplerate
+     size_t         m_audioDataSize = 0;               //
++    size_t         m_streamPrebufferSize = 0;         // web-stream startup reserve; zero uses one frame
+     size_t         m_ibuffSize = 0;                   // log buffer size for audio_info()
+     size_t         m_i2s_bytesWritten = 0;            // set in i2s_write() but not used
+     size_t         m_work_words = 0;                  // calculated in setPinout()
+diff --git a/lib/ESP32-audioI2S-master/src/Audio.cpp b/lib/ESP32-audioI2S-master/src/Audio.cpp
+--- a/lib/ESP32-audioI2S-master/src/Audio.cpp
++++ b/lib/ESP32-audioI2S-master/src/Audio.cpp
+@@ -888,6 +888,10 @@ void Audio::setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl) {
+     if (timeout_ms_ssl) m_timeout_ms_ssl = timeout_ms_ssl;
+ }
+ // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
++void Audio::setStreamPrebuffer(size_t bytes) {
++    m_streamPrebufferSize = bytes;
++}
++// —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+ 
+ /*
+     Text to speech API provides a speech endpoint based on our TTS (text-to-speech) model.
+@@ -4761,7 +4765,17 @@ void Audio::processWebStream() {
+     }
+ 
+     // start audio decoding - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+-    if (((InBuff.bufferFilled() > m_pwst.maxFrameSize) || (m_f_allDataReceived)) && !m_f_stream) { // waiting for buffer filled
++    // A single codec frame is sufficient to decode, but it leaves low-bitrate
++    // live streams with no protection from normal Wi-Fi delivery jitter. An
++    // application can opt into a larger reserve; finite streams still start at EOF.
++    size_t playbackThreshold = m_pwst.maxFrameSize;
++    if (m_streamPrebufferSize > playbackThreshold) {
++        playbackThreshold = m_streamPrebufferSize;
++    }
++    if (playbackThreshold >= InBuff.getBufsize()) {
++        playbackThreshold = InBuff.getBufsize() - 1;
++    }
++    if (((InBuff.bufferFilled() > playbackThreshold) || (m_f_allDataReceived)) && !m_f_stream) { // waiting for buffer filled
+         info(*this, evt_info, "stream ready");
+         m_f_stream = true; // ready to play the audio data
+     }

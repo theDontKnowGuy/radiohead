@@ -1,20 +1,22 @@
 # Touch UI implementation status
 
-## 2026-09-21 — Home-clock weight increase
+## 2026-09-21 — Approved Home-clock asset integration
 
-The Home clock atlas moves one source weight from Inter SemiBold to Inter Bold,
-while retaining its 33 px digit height, 20 px maximum digit width, 21 px tabular
-advance, and x=306/y=37 anchor. This increases the large time digits' actual
-prepared glyph coverage without changing their layout, date, background, color,
-or compact page-header clocks.
+The Home clock now uses the supplied `home-clock-assets` package as its source
+of truth: native 26×30 Avenir Next Medium alpha masks, 21/11/16 px digit/colon/
+dash advances, and a `(304,41)` right/top anchor. The converter copies the
+approved masks directly into the firmware atlas with no local font dependency or
+scaling. It verifies all supplied reference strings and the transparent 320×240
+`14:37` overlay byte-for-byte; the required Home ink bounds are x=212…304 and
+y=41…70. Date, background, clock color, and compact page-header clocks remain
+unchanged.
 
-**Visual:** native production fixture refreshed; physical/reference final
-acceptance remains open. **Functional:** `tools/render_ui_fonts.py` and
-`pio run -e esp32s3` pass; the build reports 82,772 B RAM (25.3%) and
-3,239,667 B flash (49.4%). The scoped diff whitespace check passes; the full
-worktree check reports trailing whitespace in unrelated vendored audio-library
-changes. **Hardware:** not flashed; TFT appearance and sustained-audio behavior
-remain unverified.
+**Visual:** the native fixture's approved overlay matches all alpha and visible
+pixel values exactly; physical/reference final acceptance remains open.
+**Functional:** `tools/render_ui_fonts.py` and `pio run -e esp32s3` pass; the
+build reports 82,772 B RAM (25.3%) and 3,265,779 B flash (49.8%). The scoped
+diff whitespace check passes. **Hardware:** not flashed; TFT appearance and
+sustained-audio behavior remain unverified.
 
 ## 2026-09-21 — Fixed Home-clock alpha atlas
 

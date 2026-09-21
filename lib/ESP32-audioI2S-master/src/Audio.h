@@ -290,9 +290,6 @@ class Audio {
     bool             connecttospeech(const char* speech, const char* lang);
     bool             connecttoFS(fs::FS& fs, const char* path, int32_t fileStartTime = -1);
     void             setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl);
-    // For continuous web streams, wait for this many input bytes before starting
-    // decode. Zero preserves the library's one-frame startup behavior.
-    void             setStreamPrebuffer(size_t bytes);
     bool             setAudioPlayTime(uint16_t sec);
     bool             setTimeOffset(int sec);
     bool             setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t MCLK = I2S_GPIO_UNUSED);
@@ -649,7 +646,6 @@ class Audio {
     uint32_t       m_audioDataStart = 0;              // in bytes
     OutputSR_t     m_output_sr = SR_ORIGIN;           // output samplerate
     size_t         m_audioDataSize = 0;               //
-    size_t         m_streamPrebufferSize = 0;         // web-stream startup reserve; zero uses one frame
     size_t         m_ibuffSize = 0;                   // log buffer size for audio_info()
     size_t         m_i2s_bytesWritten = 0;            // set in i2s_write() but not used
     size_t         m_work_words = 0;                  // calculated in setPinout()

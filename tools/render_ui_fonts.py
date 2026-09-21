@@ -47,6 +47,39 @@ try:
 except ImportError:
     print(f'PPM evidence: {out} (install Pillow for PNG copies)')
 else:
+    clock_manifest = __import__('json').loads(
+        (root / 'docs/ui/assets/home/clock_atlas.json').read_text())
+    clock_source = root / 'docs/ui/assets/home/home-clock-assets'
+    clock_reference = Image.open(
+        clock_source / 'references/home-clock-overlay-14_37.png').convert('RGBA')
+    clock_alpha = (root / 'docs/ui/assets/home/clock_atlas.bin').read_bytes()
+    clock_glyphs = clock_manifest['glyphs']
+    cell_width, cell_height = clock_manifest['cell_size']
+    advances = clock_manifest['advances']
+    anchor = clock_manifest['anchor']
+    expected_sha256 = clock_manifest['measurements']['approved_overlay_14_37_sha256']
+    import hashlib
+    assert hashlib.sha256((clock_source / 'references/home-clock-overlay-14_37.png').read_bytes()).hexdigest() == expected_sha256
+    clock_width = sum(advances[clock_glyphs.index(glyph)] for glyph in '14:37')
+    clock_string = Image.new('RGBA', (clock_width, cell_height))
+    pen = 0
+    for glyph in '14:37':
+        glyph_index = clock_glyphs.index(glyph)
+        start = glyph_index * cell_width * cell_height
+        mask = Image.frombytes('L', (cell_width, cell_height),
+                               clock_alpha[start:start + cell_width * cell_height])
+        glyph_image = Image.new('RGBA', (cell_width, cell_height), (245, 245, 245, 0))
+        glyph_image.putalpha(mask)
+        clock_string.alpha_composite(glyph_image, (pen, 0))
+        pen += advances[glyph_index]
+    clock_overlay = Image.new('RGBA', (320, 240))
+    clock_overlay.alpha_composite(clock_string, (anchor['right_x'] - clock_width, anchor['top_y']))
+    # PNG encoders may retain arbitrary RGB values under fully transparent
+    # pixels. Compare alpha everywhere and RGB only where it is visible.
+    assert clock_overlay.getchannel('A').tobytes() == clock_reference.getchannel('A').tobytes()
+    for actual, expected in zip(clock_overlay.get_flattened_data(), clock_reference.get_flattened_data()):
+        if expected[3]:
+            assert actual == expected
     for path in out.glob('*.ppm'):
         Image.open(path).save(path.with_suffix('.png'))
-    print(f'PNG evidence: {out}')
+    print(f'PNG evidence: {out}; approved 14:37 overlay alpha and visible pixels match exactly')
