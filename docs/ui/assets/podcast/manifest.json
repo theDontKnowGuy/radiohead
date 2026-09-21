@@ -1,0 +1,22 @@
+{
+  "pillow": "12.3.0",
+  "background_source": "docs/bg1.png",
+  "source_sha256": "8702f2907f2d0bfd31438a38dc605a3ffbd1b22cf5501fcf5263c0a7b6952cd8",
+  "recipe": "direct 320x240 resize; 14\u201320% black episode-player veil increasing to the right; 115px rounded generic microphone/show graphic at 4x",
+  "assets": {
+    "artwork_placeholder": {
+      "size": [
+        115,
+        115
+      ],
+      "sha256": "da72132ada51afeca9693cedde50ddd6b57a47b7541c89a3bff487346730f4d5"
+    },
+    "background": {
+      "size": [
+        320,
+        240
+      ],
+      "sha256": "f174e29f08e5deb81edcabf7cd031aa96947ba29fee6cfb9fb17fcdaa4ee5350"
+    }
+  }
+}

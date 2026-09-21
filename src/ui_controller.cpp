@@ -370,6 +370,10 @@ void handleTarget(UiTarget target, int value = 0) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ShowRow0);
             const int show = podcastShowAt(state.showOffset + row, state.showFavoritesOnly);
             if (show >= 0) openEpisodes(show);
+        } else if (target >= UiTarget::ShowRowFavorite0 && target <= UiTarget::ShowRowFavorite3) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::ShowRowFavorite0);
+            const int show = podcastShowAt(state.showOffset + row, state.showFavoritesOnly);
+            if (show >= 0) queue(UiCommandKind::TogglePodcastShowFavorite, show);
         }
         break;
     case UiPage::ShowEpisodes:
@@ -398,18 +402,6 @@ void handleTarget(UiTarget target, int value = 0) {
             queue(UiCommandKind::SeekPodcast, 30);
         } else if (target == UiTarget::PodcastProgress) {
             seekPodcastToProgress(value);
-        } else if (target == UiTarget::PodcastOptions) {
-            state.page = UiPage::PodcastOptions;
-            state.podcastOptionsFocus = 0;
-            markDirty();
-        }
-        break;
-    case UiPage::PodcastOptions:
-        if (target == UiTarget::PodcastOptionFavorite) {
-            queue(UiCommandKind::TogglePodcastShowFavorite, state.episodeShow);
-        } else if (target == UiTarget::PodcastOptionsBack) {
-            state.page = UiPage::PodcastPlayer;
-            markDirty();
         }
         break;
     case UiPage::StandbyConfirm:
@@ -473,9 +465,6 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
         markDirty();
     } else if (state.page == UiPage::PodcastPlayer) {
         state.podcastPlayerFocus = constrain(static_cast<int>(state.podcastPlayerFocus) + detents, 0, 2);
-        markDirty();
-    } else if (state.page == UiPage::PodcastOptions) {
-        state.podcastOptionsFocus = constrain(static_cast<int>(state.podcastOptionsFocus) + detents, 0, 1);
         markDirty();
     } else if (state.page == UiPage::StandbyConfirm) {
         state.confirmAcceptFocused = detents > 0;
@@ -560,8 +549,6 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
     } else if (state.page == UiPage::PodcastPlayer) {
         const UiTarget targets[] = {UiTarget::PodcastSeekBack, UiTarget::PodcastPause, UiTarget::PodcastSeekForward};
         handleTarget(targets[state.podcastPlayerFocus]);
-    } else if (state.page == UiPage::PodcastOptions) {
-        handleTarget(state.podcastOptionsFocus == 0 ? UiTarget::PodcastOptionFavorite : UiTarget::PodcastOptionsBack);
     } else if (state.page == UiPage::StandbyConfirm) {
         handleTarget(state.confirmAcceptFocused ? UiTarget::ConfirmStandby : UiTarget::ConfirmCancel);
     }
@@ -591,9 +578,6 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
         openRecordedShows(state.showFavoritesOnly);
     } else if (state.page == UiPage::PodcastPlayer) {
         openEpisodes(state.episodeShow);
-    } else if (state.page == UiPage::PodcastOptions) {
-        state.page = UiPage::PodcastPlayer;
-        markDirty();
     } else {
         closeToHome();
     }

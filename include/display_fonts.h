@@ -8,5 +8,7 @@ bool init();
 const lgfx::IFont* label();
 const lgfx::IFont* caption();
 const lgfx::IFont* homeTitle();
+const lgfx::IFont* recordedHeader();
+const lgfx::IFont* headerClock();
 const lgfx::IFont* smooth(const lgfx::IFont* bitmap);
 }

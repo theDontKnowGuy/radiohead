@@ -69,6 +69,21 @@ weather, OTA flow, and sleep behavior as parts of one product.
 
 ## Change workflow
 
+For configuration, encoder or power work, read
+[the configuration and controls specification](docs/ui/configuration-and-controls-plan.md).
+It records the user's feature removals and supersedes conflicting older alarm,
+timer, preset, customization and encoder requirements, including preservation
+rules for those specifically retired features. Separate power-menu and battery
+power-off implementation decisions remain explicitly open there.
+
+For web configuration work, read the
+[web implementation handoff](docs/ui/web-configuration/README.md) and update its
+[progress ledger](docs/ui/web-configuration/progress.md) before and after each
+package. Reuse the supplied `radiohead.css`, coastal asset, and visual references.
+The mockup is a design reference, not firmware: replace simulated data/actions,
+preserve actual volume/tone bounds, and track visual, functional, and on-device
+evidence separately. Do not reintroduce retired features or the old web palette.
+
 For touchscreen work, inspect `docs/ui/uiconcept.png` and read
 [the visual contract](docs/ui/visual-contract.md), then
 [the UI agent implementation guide](docs/ui/agent-implementation-guide.md).

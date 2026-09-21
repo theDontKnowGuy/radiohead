@@ -12,6 +12,8 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_home_clock_atlas.h"
+#include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
 #include "ui_player_assets.h"
 
@@ -120,7 +122,15 @@ int main(int argc, char** argv) {
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
-    assert(frame.textWidth("14:37", uiFont(&fonts::FreeSansBold24pt7b)) <= 110);
+    assert(ui_home_clock_glyph_count == 12);
+    assert(ui_home_clock_cell_width == 22 && ui_home_clock_cell_height == 44);
+    assert(ui_home_clock_advances[0] == 20 && ui_home_clock_advances[9] == 20);
+    assert(ui_home_clock_advances[10] == 10);
+    int fractionalClockPixels = 0;
+    for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
+        fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
+    }
+    assert(fractionalClockPixels > 100);  // 8-bit Lanczos alpha, not bitmap text.
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));
@@ -142,12 +152,14 @@ int main(int argc, char** argv) {
     UiRenderState playerHitState;
     playerHitState.page = UiPage::Listening;
     assert(uiHitTest(playerHitState, 22, 22) == UiTarget::PlayerBack);
+    assert(uiHitTest(playerHitState, 71, 47) == UiTarget::PlayerBack);
     assert(uiHitTest(playerHitState, 76, 164) == UiTarget::PlayerPrevious);
     assert(uiHitTest(playerHitState, 160, 164) == UiTarget::PlayerStopOrPlay);
     assert(uiHitTest(playerHitState, 244, 164) == UiTarget::PlayerNext);
     assert(uiHitTest(playerHitState, 156, 218) == UiTarget::ListeningVolume);
     UiRenderState stationHitState;
     stationHitState.page = UiPage::Stations;
+    assert(uiHitTest(stationHitState, 71, 47) == UiTarget::ListBack);
     assert(uiHitTest(stationHitState, 150, 68) == UiTarget::ListRow0);
     assert(uiHitTest(stationHitState, 232, 68) == UiTarget::ListRowFavorite0);
     assert(uiHitTest(stationHitState, 150, 212) == UiTarget::ListRow3);
@@ -155,8 +167,15 @@ int main(int argc, char** argv) {
     assert(uiHitTest(stationHitState, 289, 70) == UiTarget::ListPrevious);
     assert(uiHitTest(stationHitState, 289, 160) == UiTarget::ListNext);
     assert(uiHitTest(stationHitState, 160, 214) == UiTarget::ListRow3);
+    UiRenderState stationOptionsHitState;
+    stationOptionsHitState.page = UiPage::StationOptions;
+    assert(uiHitTest(stationOptionsHitState, 71, 47) == UiTarget::OptionsBack);
+    UiRenderState stationInfoHitState;
+    stationInfoHitState.page = UiPage::StationInfo;
+    assert(uiHitTest(stationInfoHitState, 71, 47) == UiTarget::InfoBack);
     UiRenderState favoritesHitState;
     favoritesHitState.page = UiPage::Favorites;
+    assert(uiHitTest(favoritesHitState, 71, 47) == UiTarget::FavoritesBack);
     assert(uiHitTest(favoritesHitState, 82, 65) == UiTarget::FavoritesStationsTab);
     assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
     assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
@@ -168,10 +187,13 @@ int main(int argc, char** argv) {
     UiRenderState showsHitState;
     showsHitState.page = UiPage::RecordedShows;
     assert(uiHitTest(showsHitState, 22, 22) == UiTarget::ShowsBack);
+    assert(uiHitTest(showsHitState, 71, 47) == UiTarget::ShowsBack);
     assert(uiHitTest(showsHitState, 150, 68) == UiTarget::ShowRow0);
+    assert(uiHitTest(showsHitState, 232, 68) == UiTarget::ShowRowFavorite0);
     UiRenderState episodesHitState;
     episodesHitState.page = UiPage::ShowEpisodes;
     episodesHitState.episodeShow = 0;
+    assert(uiHitTest(episodesHitState, 71, 47) == UiTarget::EpisodesBack);
     assert(uiHitTest(episodesHitState, 150, 68) == UiTarget::EpisodeRow0);
     for (const auto& page : {stationHitState, showsHitState, episodesHitState}) {
         assert(uiHitTest(page, kListPagerLeft + 25, kStationListTop) == UiTarget::ListPrevious);
@@ -185,10 +207,13 @@ int main(int argc, char** argv) {
     }
     UiRenderState podcastHitState;
     podcastHitState.page = UiPage::PodcastPlayer;
-    assert(uiHitTest(podcastHitState, 128, 122) == UiTarget::PodcastProgress);
+    assert(uiHitTest(podcastHitState, 71, 47) == UiTarget::PodcastBack);
+    assert(uiHitTest(podcastHitState, 150, 128) == UiTarget::PodcastProgress);
     assert(uiHitTest(podcastHitState, 294, 137) == UiTarget::PodcastProgress);
-    assert(uiHitTest(podcastHitState, 310, 70) == UiTarget::PodcastOptions);
-    assert(uiHitTest(podcastHitState, 160, 190) == UiTarget::PodcastPause);
+    assert(uiHitTest(podcastHitState, 310, 70) == UiTarget::None);
+    assert(uiHitTest(podcastHitState, 82, 194) == UiTarget::PodcastSeekBack);
+    assert(uiHitTest(podcastHitState, 160, 194) == UiTarget::PodcastPause);
+    assert(uiHitTest(podcastHitState, 238, 194) == UiTarget::PodcastSeekForward);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -202,6 +227,10 @@ int main(int argc, char** argv) {
     const std::string dir = argv[1];
     renderHome({}, "15:01", true);
     save((dir + "/home-smooth.ppm").c_str());
+    renderHome({}, "09:58", true);
+    save((dir + "/home-clock-0958.ppm").c_str());
+    renderHome({}, "14:37", true);
+    save((dir + "/home-clock-1437.ppm").c_str());
     assert(audioServiceCalls >= 5); // after background and between all four tiles
     // Exercise all current condition families, not only the partly-cloudy sample.
     for (int id : {800, 804, 500, 211, 601, 741, 999}) {
@@ -283,11 +312,6 @@ int main(int argc, char** argv) {
     save((dir + "/show-episodes.ppm").c_str());
     renderPodcastPlayer(podcastHitState, "15:01", true);
     save((dir + "/podcast-player.ppm").c_str());
-    UiRenderState podcastOptions;
-    podcastOptions.page = UiPage::PodcastOptions;
-    podcastOptions.episodeShow = 0;
-    renderPodcastOptions(podcastOptions, "15:01", true);
-    save((dir + "/podcast-options.ppm").c_str());
     UiRenderState overlay;
     overlay.volumeOverlay = true;
     renderListening(overlay, "15:01", true);

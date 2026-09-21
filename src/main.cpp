@@ -198,17 +198,16 @@ void loop() {
         lastInteraction = now;
     }
 
-    static bool volumeSavePending = false;
     UiCommand command;
     while (uiControllerTakeCommand(command)) {
         switch (command.kind) {
         case UiCommandKind::ChangeVolume:
             setRadioVolumeIndex(mainVal + command.value);
-            volumeSavePending = true;
+            queueSettingsSave();
             break;
         case UiCommandKind::SetVolume:
             setRadioVolumeIndex(command.value);
-            volumeSavePending = true;
+            queueSettingsSave();
             break;
         case UiCommandKind::ToggleMute:
             toggleRadioMute();
@@ -278,10 +277,7 @@ void loop() {
             break;
         }
     }
-    if (volumeSavePending && now - lastVolChange >= 1000) {
-        saveSettings();
-        volumeSavePending = false;
-    }
+    serviceSettingsSave(now);
 
     mediaTick(now);
     updatePowerState(now);
@@ -302,16 +298,10 @@ void loop() {
         lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
         lastRenderedTimeValid = timeValid;
     } else if (lastRenderedTimeValid != timeValid || strcmp(lastRenderedTime, currentTime) != 0) {
-        // Home's large clock sits over the photographic background. Rebuild that
-        // composition once per minute rather than painting a flat rectangle over
-        // it.  Live Stations has the same transparent-header requirement.
-        if (state.page == UiPage::Home || state.page == UiPage::Stations ||
-            state.page == UiPage::PodcastPlayer) {
-            renderRadioUi(state, currentTime, timeValid);
-            if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
-        } else {
-            renderRadioUiClock(currentTime, timeValid);
-        }
+        // Each screen owns its complete header. Rebuild it on a minute change
+        // instead of overlaying the retired legacy status strip on top.
+        renderRadioUi(state, currentTime, timeValid);
+        if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
         strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
         lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
         lastRenderedTimeValid = timeValid;

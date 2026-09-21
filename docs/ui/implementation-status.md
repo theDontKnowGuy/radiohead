@@ -1,5 +1,44 @@
 # Touch UI implementation status
 
+## 2026-09-21 — Fixed Home-clock alpha atlas
+
+The Home clock no longer uses a VLW font. Its reproducible recipe rasterizes
+Inter Medium at 8×, crops actual source-ink bounds, baseline-aligns each glyph,
+Lanczos-downsamples it into 8-bit alpha masks for 0–9, colon, and the
+unavailable-state dash, then modestly strengthens alpha for an opaque core.
+Runtime alpha-blends every glyph pixel over the freshly rendered readable RGB565
+Home canvas, avoiding an assumed-background fringe or any font/sprite scaling.
+The final trial measures 33 px digit ink, a 3 px opaque zero stem, 20 px tabular
+digit advances, a 10 px colon advance, and an 83×33 px `14:37` ink box at
+x=195…278/y=44…77. Its #F5F5F5 clock color, date #D8DDE3, and right edge x=280
+remain unchanged. Compact opaque/list/Recorded Show clocks remain 18 px Roboto
+Regular VLW because this atlas is intentionally Home-specific.
+
+**Visual:** production native [14:37 fixture](../../.pio/ui_native/home-clock-1437.png)
+inspected against the stated 83×33 px target; physical/reference final acceptance
+remains open. **Functional:** `pio run -e esp32s3`, `tools/render_ui_fonts.py`
+(including anti-aliasing checks), and `git diff --check` pass; build reports
+66,492 B RAM (20.3%) and 3,150,355 B flash (48.1%). **Hardware:** not flashed;
+physical TFT appearance, repaint timing, and sustained-audio behavior remain
+unverified.
+
+## 2026-09-21 — Recorded episode player composition
+
+The recorded episode player now uses a 115×115 rounded generic microphone/show
+artwork at x=20/y=47 because no local show image is available. Its dedicated
+background has a 14–20% right-increasing black veil; episode title and published
+date share a right edge at x=305 with RTL-aware text layout. The progress control
+is a 6 px track with an 8 px thumb at y=126, and playback centers move to
+82/160/238 at y=194. The header uses a lighter 20 px regular face with separated
+clock/Wi-Fi geometry. Playback, metadata fetches, persistence, and commands are
+unchanged.
+
+**Visual:** updated native 320×240 production fixture inspected. **Functional:**
+`pio run -e esp32s3`, `tools/render_ui_fonts.py`, and `git diff --check` pass;
+the fixture also asserts the revised progress and 82/160/238 transport targets.
+**Hardware:** not flashed; physical appearance, touch targets, repaint timing,
+and sustained audio remain unverified.
+
 ## 2026-09-21 — Home graphic polish
 
 The Home-specific comparison work is tracked in

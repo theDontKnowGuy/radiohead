@@ -25,4 +25,3 @@ bool drawPngAsset(
     int32_t maxHeight = 0);
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y);
 void renderRadioUi(const UiRenderState& state, const char* currentTime, bool timeValid);
-void renderRadioUiClock(const char* currentTime, bool timeValid);

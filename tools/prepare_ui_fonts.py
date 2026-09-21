@@ -44,9 +44,10 @@ def main():
     roles = [('small', 11, 'Roboto-Medium.otf', 'Medium'),
              ('body', 16, 'Roboto-Regular.otf', 'Regular'),
              ('home_title', 15, 'Roboto-Regular.otf', 'Regular'),
+             ('recorded_header', 20, 'Roboto-Regular.otf', 'Regular'),
              ('title', 22, 'Roboto-Medium.otf', 'Medium'),
              ('temperature', 27, 'RobotoCondensed-Regular.otf', 'Regular Condensed'),
-             ('clock', 34, 'RobotoCondensed-Regular.otf', 'Regular Condensed'),
+             ('header_clock', 18, 'Roboto-Regular.otf', 'Regular'),
              ('label', 11, 'Roboto-Medium.otf', 'Medium'),
              ('caption', 13, 'Roboto-Regular.otf', 'Regular')]
     for name, size, source_name, weight in roles:

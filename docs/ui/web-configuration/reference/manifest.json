@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-21",
+  "source_background": "docs/bg1.png",
+  "source_background_sha256": "8702f2907f2d0bfd31438a38dc605a3ffbd1b22cf5501fcf5263c0a7b6952cd8",
+  "derivative": {
+    "file": "assets/coast.jpg",
+    "width": 960,
+    "height": 720,
+    "jpeg_quality": 73,
+    "recipe": "RGB conversion; proportional thumbnail within 960x720; JPEG quality 73, optimize; no crop or veil baked in. CSS applies the banner veil."
+  },
+  "files": {
+    "README.md": {
+      "bytes": 29048,
+      "sha256": "f45839f53163033526d11c2fdd9d1558ef544f065a1bc2a3649d28d20fc216bd"
+    },
+    "assets/coast.jpg": {
+      "bytes": 128477,
+      "sha256": "3a8e1e4d360ae0b507eae298793cca0af47e01987f1dfaba89013a5673fc623d"
+    },
+    "progress.md": {
+      "bytes": 11386,
+      "sha256": "0234ce093eb3f430a7e9ec6082fb61f84584e17a7bcd3bc7f21415a160237cc6"
+    },
+    "radiohead.css": {
+      "bytes": 22116,
+      "sha256": "9dbc8bafa5247b1670e2eb52676d7879c277fdafe05e0e5e688a94cedde8f1fa"
+    },
+    "reference/appearance.png": {
+      "bytes": 370344,
+      "sha256": "7fc59ad3ff8e170f5e20c3cb60d5d5a1b7303a7f8e757fb9fb12d37b3a41e375"
+    },
+    "reference/css-desktop.png": {
+      "bytes": 221041,
+      "sha256": "84bdb4118c9b1301e58fe6019d119ae935e08869ec1b83b04fcc152f4df35554"
+    },
+    "reference/css-editor-mobile.png": {
+      "bytes": 158776,
+      "sha256": "7f60876ec5ff89ce30e65c46e8cce601d65764e3cf8d2b82802bce64c25cf4b2"
+    },
+    "reference/desktop.png": {
+      "bytes": 237425,
+      "sha256": "ac01191f27732638e83daab23e1ef52531b34c9c8eb14a0a639d5342464753ce"
+    },
+    "reference/handoff-checks.md": {
+      "bytes": 2665,
+      "sha256": "7e3dd18b2298af8bd2dcb035cd4c3510219c7f9f2c5ac1f9e29f1ce9c9ce837e"
+    },
+    "reference/mobile.png": {
+      "bytes": 147416,
+      "sha256": "4cca3466e3e2499f249dba4d155ec662a50cb77464892d6add71582a1502c895"
+    },
+    "reference/mockup-fragment.html": {
+      "bytes": 654920,
+      "sha256": "6d422ed6aa5deb1e165c02754e35a96671774fa96af2b1e7d4a59305edf6dc03"
+    }
+  }
+}

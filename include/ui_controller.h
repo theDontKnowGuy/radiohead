@@ -17,7 +17,6 @@ enum class UiPage : uint8_t {
     RecordedShows,
     ShowEpisodes,
     PodcastPlayer,
-    PodcastOptions,
     StandbyConfirm,
     Unavailable,
 };
@@ -70,6 +69,11 @@ enum class UiTarget : uint8_t {
     ShowRow2,
     ShowRow3,
     ShowRow4,
+    ShowRowFavorite0,
+    ShowRowFavorite1,
+    ShowRowFavorite2,
+    ShowRowFavorite3,
+    ShowRowFavorite4,
     EpisodesBack,
     EpisodeRow0,
     EpisodeRow1,
@@ -81,9 +85,6 @@ enum class UiTarget : uint8_t {
     PodcastSeekBack,
     PodcastSeekForward,
     PodcastProgress,
-    PodcastOptions,
-    PodcastOptionFavorite,
-    PodcastOptionsBack,
     ConfirmCancel,
     ConfirmStandby,
 };
@@ -130,7 +131,6 @@ struct UiRenderState {
     int episodeFocus = 0;
     int episodeOffset = 0;
     uint8_t podcastPlayerFocus = 1;
-    uint8_t podcastOptionsFocus = 0;
     bool standbyConfirm = false;
     bool confirmAcceptFocused = false;
     bool volumeOverlay = false;

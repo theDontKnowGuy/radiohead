@@ -1,5 +1,13 @@
 # Radiohead UI concept: agent implementation guide
 
+**Configuration and controls superseded, 2026-09-21:** follow
+[configuration-and-controls-plan.md](configuration-and-controls-plan.md) for the
+current feature scope and encoder behavior. Its removals override the alarm,
+sleep-timer, EQ-preset, brightness, idle-view, visualizer, language-selector and
+detailed-color requirements below. Clock format/timezone setup is web-only.
+Do not implement P6 as written or restore page-dependent encoder navigation.
+The visual design and unrelated retained behavior below still apply.
+
 **Input direction updated by the user, 2026-09-20:** quick finger-pad button
 response takes priority over swipe scrolling. Buttons now activate on the first
 valid contact, once per press; release only re-arms input. Live Stations, Recorded

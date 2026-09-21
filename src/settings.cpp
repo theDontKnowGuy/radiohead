@@ -11,6 +11,10 @@ constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
 constexpr uint8_t FAVORITES_VERSION = 2;
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
+constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1000;
+
+bool settingsSavePending = false;
+unsigned long settingsSaveQueuedAt = 0;
 
 bool isHexColor(const String& value) {
     if (value.length() != 7 || value[0] != '#') {
@@ -151,6 +155,7 @@ bool saveTouchCalibration(const TouchCalibration& calibration) {
 }
 
 void saveSettings() {
+    settingsSavePending = false;
     pref.begin("radio", false);
     pref.putInt("idx", currentStationIdx);
     pref.putInt("vol", mainVal);
@@ -183,6 +188,17 @@ void saveSettings() {
         pref.putString(("u" + String(i)).c_str(), stations[i].url);
     }
     pref.end();
+}
+
+void queueSettingsSave() {
+    settingsSaveQueuedAt = millis();
+    settingsSavePending = true;
+}
+
+void serviceSettingsSave(unsigned long now) {
+    if (settingsSavePending && now - settingsSaveQueuedAt >= SETTINGS_SAVE_DEBOUNCE_MS) {
+        saveSettings();
+    }
 }
 
 void loadSettings() {

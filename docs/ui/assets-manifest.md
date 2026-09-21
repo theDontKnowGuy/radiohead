@@ -5,7 +5,9 @@
 | Sunset coast background | `docs/bg1.png` supplied by user | `.pio/ui_assets/background_320x240.png`, embedded C array | Base layer on concept fixtures | Source is 1448×1086 sRGB PNG; resampled directly to 320×240 (same 4:3 aspect ratio) with macOS `sips`. The build script emits a PNG byte array using `xxd`; LovyanGFX decodes it once for a full-page render. |
 | Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.80, then a uniform 25% black veil. The original source is retained. |
 | Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four 68×70 restrained, darkened, slightly translucent gradient tiles; a 72×74 low-opacity focus mask; four 40×40 #E8EEF3 icons; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
-| Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 64×64 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
+| Home clock atlas | `tools/prepare_home_clock_atlas.py` with Inter Medium | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | Twelve 22×44 glyph cells (0–9, colon, unavailable-state dash), rendered at 8×, cropped to actual ink bounds, baseline-aligned, Lanczos-downsampled, and alpha-strengthened for an opaque core. Digits use 20 px tabular advances, a 10 px colon, 33 px visible ink, and a 3 px opaque core; `14:37` measures 83×33 px. Firmware blends each alpha pixel with the current native RGB565 canvas, so its edges use the actual sunset rather than a fixed compositing color. |
+| Episode player | `tools/prepare_podcast_assets.py` | `assets/podcast/*.png` → `.pio/ui_assets/ui_podcast_assets.h` | Recorded episode player | Direct 4:3 background with a 14–20% right-increasing black veil; a 115×115 rounded generic microphone/show image is used until actual local show artwork is supplied. |
+| Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 58×58 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
 | List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
 
 The background has no UI text or controls. It is source material only; production
@@ -16,6 +18,13 @@ No generated header is committed. RGB565 ordering remains a physical-device chec
 
 ```sh
 python3 tools/prepare_home_assets.py
+python3 tools/prepare_home_clock_atlas.py --font /path/to/Inter-Medium.otf
+```
+
+### Episode-player asset regeneration
+
+```sh
+python3 tools/prepare_podcast_assets.py
 ```
 
 ### List surface regeneration
@@ -46,11 +55,11 @@ composition while giving the type and controls clear priority.
 
 ## Smooth typography assets (2026-09-19)
 
-`assets/fonts/{small,body,home_title,title,temperature,clock,label,caption}.vlw` are intentional font
+`assets/fonts/{small,body,home_title,recorded_header,title,temperature,header_clock,label,caption}.vlw` are intentional font
 assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need neither a
 system font nor Pillow. Generated C headers remain under `.pio/ui_assets`.
 
-Current Latin source: Roboto Regular/Medium and Roboto Condensed Regular
+Current Latin source: Roboto Regular/Medium plus Roboto Condensed Regular
 2.001101 (2014), from TeX Live's
 `opentype/google/roboto` directory, upstream <https://github.com/google/roboto>.
 The actual OTF metadata identifies Apache License 2.0; see
@@ -72,7 +81,9 @@ RGB/subpixel artwork. Small/body/title/label/caption include printable ASCII, th
 alphabet, degree, ellipsis and replacement symbols; numeric sizes contain the
 digits, minus, colon and degree. The loader overrides VLW's estimated word space
 with the font's measured advance; measurement and drawing use the same value.
-Glyph coverage alone is not Hebrew bidi/niqqud support. The source OTFs/TTFs are
+The Home clock is intentionally excluded from the VLW roles; it uses the
+separate native-size alpha atlas above. Compact headers use non-condensed Regular
+at 18 px. Glyph coverage alone is not Hebrew bidi/niqqud support. The source OTFs/TTFs are
 not embedded in firmware. Fonts are rasterized at their final sizes; there is no
 runtime enlargement of a tiny bitmap.
 

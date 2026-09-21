@@ -9,6 +9,9 @@ bool loadTouchCalibration(TouchCalibration& calibration);
 void loadSettings();
 bool saveTouchCalibration(const TouchCalibration& calibration);
 void saveSettings();
+// Coalesce rapid, user-driven web or encoder changes before touching flash.
+void queueSettingsSave();
+void serviceSettingsSave(unsigned long now);
 
 // Favorites live in their own versioned namespace so legacy radio settings and
 // their keys remain compatible.  Station IDs are catalog slots, not UI rows.

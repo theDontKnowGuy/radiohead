@@ -17,6 +17,8 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_home_clock_atlas.h"
+#include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
 #include "ui_player_assets.h"
 
@@ -379,6 +381,8 @@ constexpr uint16_t kNavy = 0x0822;
 constexpr uint16_t kSurface = 0x10A5;
 constexpr uint16_t kSurfaceRaised = 0x212B;
 constexpr uint16_t kWhite = 0xFFFF;
+constexpr uint16_t kClockText = 0xF7BE;  // #F5F5F5 in RGB565
+constexpr uint16_t kClockDate = 0xD6FB;  // #D8DDE3 in RGB565
 constexpr uint16_t kTextMuted = 0xB596;
 constexpr uint16_t kBlue = 0x13DE;
 constexpr uint16_t kBlueDark = 0x0B16;
@@ -393,6 +397,7 @@ constexpr uint16_t kHomeBlue = 0x09D0;
 constexpr uint16_t kHomeGreen = 0x1266;
 constexpr uint16_t kHomePurple = 0x494E;
 constexpr uint16_t kHomeSlate = 0x2A4B;
+constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 
 #ifndef UI_P2_FIXTURE
 #define UI_P2_FIXTURE 0
@@ -403,6 +408,10 @@ constexpr int16_t kHomeTileWidth = 68;
 constexpr int16_t kHomeTileHeight = 70;
 constexpr int16_t kHomeTileIconSize = 40;
 constexpr int16_t kHomeTileX[] = {7, 86, 165, 244};
+// The visible chevron is small, but its target reaches into the title margin
+// and a little below the header so a normal finger press reliably returns.
+constexpr int16_t kHeaderBackHitWidth = 72;
+constexpr int16_t kHeaderBackHitHeight = 48;
 constexpr int kStationSlotCount = 10;
 constexpr int16_t kStationListTop = 44;
 constexpr int16_t kStationListRowHeight = 48;
@@ -626,8 +635,9 @@ void drawHeaderClock(const char* currentTime, bool timeValid) {
     // Reserve separate clock and Wi-Fi slots; restore the whole old text area.
     canvas().fillRect(214, 0, 106, 42, kNavy);
     canvas().setTextDatum(TR_DATUM);
-    canvas().setTextColor(kWhite);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, 13, uiFont(&fonts::FreeSans9pt7b));
+    canvas().setTextSize(1);  // Exact native VLW pixels; never scale a clock glyph.
+    canvas().setTextColor(kClockText);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, 13, display_fonts::headerClock());
     canvas().drawArc(294, 20, 5, 8, 210, 330, kWhite);
     canvas().drawArc(294, 20, 10, 13, 210, 330, kWhite);
     canvas().fillCircle(294, 26, 2, kWhite);
@@ -651,7 +661,7 @@ void drawHomeHeader(bool timeValid) {
     constexpr int16_t centerY = 22;
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
-    canvas().drawString("Internet Radio", 14, centerY, display_fonts::homeTitle());
+    canvas().drawString("Radiohead>>", 14, centerY, display_fonts::homeTitle());
     char date[16] = "";
     if (timeValid) {
         const time_t now = time(nullptr);
@@ -661,7 +671,7 @@ void drawHomeHeader(bool timeValid) {
         }
     }
     canvas().setTextDatum(MR_DATUM);
-    canvas().setTextColor(kWhite);
+    canvas().setTextColor(kClockDate);
     // The small face's visible letters sit slightly below its line-box center.
     canvas().drawString(date[0] == '\0' ? "" : date, 271, centerY - 1, uiFont(&fonts::Font0));
     if (uiFrameReady) {
@@ -772,6 +782,53 @@ void drawHomeAsset(const uint8_t (&asset)[N], int16_t x, int16_t y) {
     canvas().drawPng(asset, N, x, y);
 }
 
+int8_t homeClockGlyphIndex(char character) {
+    if (character >= '0' && character <= '9') return character - '0';
+    if (character == ':') return 10;
+    return character == '-' ? 11 : -1;
+}
+
+uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
+    if (alpha == 255) return kClockText;
+    const uint16_t inverse = 255U - alpha;
+    const uint16_t red = (((background >> 11) & 0x1FU) * inverse
+        + ((kClockText >> 11) & 0x1FU) * alpha + 127U) / 255U;
+    const uint16_t green = (((background >> 5) & 0x3FU) * inverse
+        + ((kClockText >> 5) & 0x3FU) * alpha + 127U) / 255U;
+    const uint16_t blue = ((background & 0x1FU) * inverse
+        + (kClockText & 0x1FU) * alpha + 127U) / 255U;
+    return static_cast<uint16_t>((red << 11) | (green << 5) | blue);
+}
+
+void drawHomeClockAtlas(const char* value) {
+    constexpr int16_t kRight = 280;
+    constexpr int16_t kTop = 39;
+    int16_t width = 0;
+    for (const char* character = value; *character != '\0'; ++character) {
+        const int8_t index = homeClockGlyphIndex(*character);
+        if (index >= 0) width += ui_home_clock_advances[index];
+    }
+    int16_t penX = kRight - width;
+    constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
+    for (const char* character = value; *character != '\0'; ++character) {
+        const int8_t glyph = homeClockGlyphIndex(*character);
+        if (glyph < 0) continue;
+        const uint8_t* alpha = ui_home_clock_alpha + static_cast<size_t>(glyph) * kCellBytes;
+        for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+            for (uint8_t x = 0; x < ui_home_clock_cell_width; ++x) {
+                const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
+                if (coverage == 0) continue;
+                const int16_t pixelX = penX + x;
+                const int16_t pixelY = kTop + y;
+                canvas().drawPixel(pixelX, pixelY, blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+            }
+        }
+        penX += ui_home_clock_advances[glyph];
+        // Keep the audio stream serviced between bounded 24×34 glyph blends.
+        serviceUiAudio();
+    }
+}
+
 void drawHomeWeatherIcon(int16_t x, int16_t y, bool valid, int id) {
     if (!uiFrameReady) {
         // Use a neutral primitive for unknown/obscured conditions in fallback.
@@ -869,7 +926,9 @@ void drawListHeader(const char* title, const char* currentTime, bool timeValid) 
     canvas().setTextColor(kWhite);
     canvas().drawString(title, kListTitleLeft, 22, uiFont(&fonts::FreeSansBold12pt7b));
     canvas().setTextDatum(MR_DATUM);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, 22, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextSize(1);  // Keep the compact header clock at its VLW size.
+    canvas().setTextColor(kClockText);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, 22, display_fonts::headerClock());
     if (uiFrameReady) {
         canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, 12);
     } else {
@@ -886,25 +945,27 @@ void drawRecordedHeader(const char* currentTime, bool timeValid) {
     canvas().drawLine(30, kHeaderCenterY - 8, 20, kHeaderCenterY, kWhite);
     canvas().drawLine(20, kHeaderCenterY, 30, kHeaderCenterY + 8, kWhite);
     canvas().setTextDatum(ML_DATUM);
-    canvas().setTextColor(kWhite);
-    canvas().drawString("Recorded Show", 42, kHeaderCenterY, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextColor(kHomeText);
+    canvas().drawString("Recorded Show", 42, kHeaderCenterY, display_fonts::recordedHeader());
     canvas().setTextDatum(MR_DATUM);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, kHeaderCenterY, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextSize(1);  // Keep the compact header clock at its VLW size.
+    canvas().setTextColor(kClockText);
+    canvas().drawString(timeValid ? currentTime : "--:--", 268, kHeaderCenterY, display_fonts::headerClock());
     if (uiFrameReady) {
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, kHeaderCenterY - 10);
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 288, kHeaderCenterY - 10);
     } else {
-        canvas().drawArc(294, kHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(294, kHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(294, kHeaderCenterY + 4, 2, kWhite);
+        canvas().drawArc(300, kHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(300, kHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(300, kHeaderCenterY + 4, 2, kWhite);
     }
 }
 
 void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
     const int16_t fill = duration == 0 ? 0 : std::min<int16_t>(width,
         static_cast<int16_t>((static_cast<uint64_t>(elapsed) * width) / duration));
-    canvas().fillRoundRect(x, y, width, 8, 4, kSurfaceRaised);
-    if (fill > 0) canvas().fillRoundRect(x, y, fill, 8, 4, kBlue);
-    canvas().fillCircle(x + fill, y + 4, 7, kWhite);
+    canvas().fillRoundRect(x, y, width, 6, 3, kRecordedProgressTrack);
+    if (fill > 0) canvas().fillRoundRect(x, y, fill, 6, 3, kBlue);
+    canvas().fillCircle(x + fill, y + 3, 4, kWhite);
 }
 
 void drawSkipControl(int16_t x, int16_t y, int seconds, bool forward, bool enabled) {
@@ -925,25 +986,26 @@ void drawSkipControl(int16_t x, int16_t y, int seconds, bool forward, bool enabl
         {18, 10}, {13, 17}, {6, 21}, {-3, 22}, {-11, 18},
         {-17, 12}, {-20, 4}, {-19, -4}, {-15, -10}, {-8, -11},
     };
+    constexpr float kScale = 0.90F;
     const int8_t direction = forward ? -1 : 1;
     for (size_t index = 1; index < sizeof(outer) / sizeof(outer[0]); ++index) {
-        const int16_t outerX0 = x + direction * outer[index - 1][0];
-        const int16_t outerY0 = y + outer[index - 1][1];
-        const int16_t outerX1 = x + direction * outer[index][0];
-        const int16_t outerY1 = y + outer[index][1];
-        const int16_t innerX0 = x + direction * inner[index - 1][0];
-        const int16_t innerY0 = y + inner[index - 1][1];
-        const int16_t innerX1 = x + direction * inner[index][0];
-        const int16_t innerY1 = y + inner[index][1];
+        const int16_t outerX0 = x + direction * roundf(outer[index - 1][0] * kScale);
+        const int16_t outerY0 = y + roundf(outer[index - 1][1] * kScale);
+        const int16_t outerX1 = x + direction * roundf(outer[index][0] * kScale);
+        const int16_t outerY1 = y + roundf(outer[index][1] * kScale);
+        const int16_t innerX0 = x + direction * roundf(inner[index - 1][0] * kScale);
+        const int16_t innerY0 = y + roundf(inner[index - 1][1] * kScale);
+        const int16_t innerX1 = x + direction * roundf(inner[index][0] * kScale);
+        const int16_t innerY1 = y + roundf(inner[index][1] * kScale);
         canvas().fillTriangle(outerX0, outerY0, outerX1, outerY1, innerX1, innerY1, color);
         canvas().fillTriangle(outerX0, outerY0, innerX1, innerY1, innerX0, innerY0, color);
     }
-    canvas().fillTriangle(x + direction * -23, y - 18,
-                          x + direction * -6, y - 25,
-                          x + direction * -6, y - 11, color);
+    canvas().fillTriangle(x + direction * roundf(-23 * kScale), y + roundf(-18 * kScale),
+                          x + direction * roundf(-6 * kScale), y + roundf(-25 * kScale),
+                          x + direction * roundf(-6 * kScale), y + roundf(-11 * kScale), color);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(color);
-    canvas().drawString(String(seconds).c_str(), x, y + 9, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString(String(seconds).c_str(), x, y + 8, uiFont(&fonts::FreeSansBold12pt7b));
 }
 
 void drawPauseOrPlayControl(int16_t x, int16_t y, bool paused) {
@@ -961,6 +1023,40 @@ void drawPauseOrPlayControl(int16_t x, int16_t y, bool paused) {
 template<size_t N>
 void drawPlayerIcon(const uint8_t (&asset)[N], int16_t x, int16_t y) {
     canvas().drawPng(asset, N, x, y);
+}
+
+void drawPodcastArtworkFallback(int16_t x, int16_t y) {
+    canvas().fillRoundRect(x, y, 115, 115, 8, kNavy);
+    canvas().drawRoundRect(x, y, 115, 115, 8, kTextMuted);
+    canvas().fillRoundRect(x + 46, y + 27, 22, 38, 10, kHomeText);
+    canvas().drawArc(x + 37, y + 39, 20, 20, 20, 160, kHomeText);
+    canvas().drawLine(x + 57, y + 79, x + 57, y + 91, kHomeText);
+    canvas().drawLine(x + 43, y + 91, x + 71, y + 91, kHomeText);
+}
+
+void drawPodcastBackground() {
+    if (!canvas().drawPng(ui_podcast_background, sizeof(ui_podcast_background), 0, 0)) {
+        drawBackground();
+    }
+}
+
+void drawPodcastArtwork(int16_t x, int16_t y) {
+    if (uiFrameReady) {
+        canvas().drawPng(ui_podcast_artwork_placeholder, sizeof(ui_podcast_artwork_placeholder), x, y);
+    } else {
+        drawPodcastArtworkFallback(x, y);
+    }
+}
+
+void textRight(const String& value, int16_t right, int16_t y, const lgfx::IFont* font,
+               uint16_t color, int16_t width) {
+    canvas().setFont(font);
+    canvas().setTextColor(color);
+    canvas().setTextDatum(TL_DATUM);
+    const UiTextLayout layout = uiTextLayout(value);
+    const String rendered = layout.rightToLeft ? ellipsizeRightToLeft(layout.visual, width)
+                                               : ellipsize(layout.visual, width);
+    canvas().drawString(rendered.c_str(), right - canvas().textWidth(rendered.c_str()), y);
 }
 
 void drawSlider(int16_t y) {
@@ -1126,7 +1222,7 @@ void renderFavorites(const UiRenderState& state, const char* currentTime, bool t
         }
         if (count == 0) {
             text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
-            text("Use show options to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+            text("Use a show's star to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
         }
         drawListPager(state.favoriteOffset, count, kFavoriteRowsPerPage,
                       kFavoriteListTop, kFavoriteListBottom, false);
@@ -1173,13 +1269,12 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
         drawListCard(kListOuterInset, y, focused);
         drawArtwork(podcastShows[index].tftName, kListOuterInset + 10, y + 8, 32, focused ? kBlueDark : kGreen, false);
         listPrimaryText(podcastShows[index].webName, kListOuterInset + 54, y, 160);
-        canvas().drawLine(kListOuterInset + 230, y + 17, kListOuterInset + 238, y + 24, kWhite);
-        canvas().drawLine(kListOuterInset + 238, y + 24, kListOuterInset + 230, y + 31, kWhite);
+        drawStar(kListOuterInset + 230, y + 24, isPodcastShowFavorite(index));
         ++drawn;
     }
     if (state.showFavoritesOnly && drawn == 0) {
         text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
-        text("Use a show's options to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+        text("Use a show's star to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
     }
     int count = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
@@ -1218,7 +1313,7 @@ void renderShowEpisodes(const UiRenderState& state, const char* currentTime, boo
 }
 
 void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
+    drawPodcastBackground();
     drawRecordedHeader(currentTime, timeValid);
     const PodcastPlaybackSnapshot playback = podcastPlaybackSnapshot();
     const PodcastEpisode* episode = podcastActiveEpisode();
@@ -1226,53 +1321,37 @@ void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bo
         text("Episode unavailable", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
         return;
     }
-    // Match the reference's two-column stack: a substantial artwork anchor at
-    // left and title, episode, progress and timing aligned on one right edge.
-    drawArtwork(podcastShows[playback.showIndex].tftName, 16, 49, 102, kGreen);
-    text(podcastShows[playback.showIndex].webName, 128, 56, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 176);
-    text(episode->title, 128, 87, uiFont(&fonts::FreeSans9pt7b), kWhite, 176);
+    // No show artwork has been supplied in the local catalog, so use the
+    // prepared microphone/show placeholder rather than a colored initials tile.
+    // Keep metadata RTL/right-aligned to one stable edge beside the 115 px art.
+    drawPodcastArtwork(20, 47);
+    textRight(episode->title, 305, 53, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 155);
+    String published = episode->publishedUtc;
+    if (published.length() > 10) published.remove(10);
+    textRight(published.isEmpty() ? String("Date unavailable") : published, 305, 88,
+              homeCaptionFont(), kTextMuted, 155);
     const uint32_t duration = playback.durationSeconds;
-    drawRecordedProgress(128, 122, 166, playback.elapsedSeconds, duration);
-    text(durationLabel(playback.elapsedSeconds), 128, 137, uiFont(&fonts::Font0), kWhite, 66);
+    drawRecordedProgress(150, 126, 150, playback.elapsedSeconds, duration);
+    text(durationLabel(playback.elapsedSeconds), 150, 138, uiFont(&fonts::Font0), kWhite, 66);
     const String remainder = duration == 0 ? String("--:--") : durationLabel(duration - std::min(duration, playback.elapsedSeconds));
-    text("-" + remainder, 238, 137, uiFont(&fonts::Font0), kWhite, 56);
+    textRight("-" + remainder, 300, 138, uiFont(&fonts::Font0), kWhite, 60);
     if (uiFrameReady) {
-        drawPlayerIcon(ui_player_rewind_15, 46, 158);
+        drawPlayerIcon(ui_player_rewind_15, 53, 165);
         if (playback.paused) {
-            drawPlayerIcon(ui_player_play, 124, 154);
+            drawPlayerIcon(ui_player_play, 124, 158);
         } else {
-            drawPlayerIcon(ui_player_pause, 124, 154);
+            drawPlayerIcon(ui_player_pause, 124, 158);
         }
-        drawPlayerIcon(ui_player_forward_30, 210, 158);
+        drawPlayerIcon(ui_player_forward_30, 209, 165);
     } else {
         // A visible primitive fallback is retained for the no-canvas path;
         // normal rendering always uses the supplied artwork above.
-        drawSkipControl(78, 190, 15, false, playback.canSeek);
-        drawPauseOrPlayControl(160, 190, playback.paused);
-        drawSkipControl(242, 190, 30, true, playback.canSeek);
+        drawSkipControl(82, 194, 15, false, playback.canSeek);
+        drawPauseOrPlayControl(160, 194, playback.paused);
+        drawSkipControl(238, 194, 30, true, playback.canSeek);
     }
     // Transport focus is deliberately not an extra white outline: the mockup
     // uses the replay loop and blue primary ring as the visual anchors.
-}
-
-void renderPodcastOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
-    drawHeader(currentTime, timeValid, "Show Options");
-    const int show = state.episodeShow;
-    if (show < 0 || show >= PODCAST_SHOW_COUNT) return;
-    const char* labels[] = {
-        isPodcastShowFavorite(show) ? "Remove Favorite" : "Add to Favorites",
-        "Downloads unavailable",
-        "Back",
-    };
-    for (int row = 0; row < 3; ++row) {
-        const int y = 44 + row * 48;
-        const bool focused = (row == 0 && state.podcastOptionsFocus == 0) ||
-            (row == 2 && state.podcastOptionsFocus == 1);
-        drawListCard(8, y + 3, focused, true);
-        text(labels[row], 28, y + 14, uiFont(&fonts::FreeSans9pt7b), row == 1 ? kTextMuted : kWhite, 238);
-        if (row == 0) drawStar(290, y + 24, isPodcastShowFavorite(show));
-    }
 }
 
 void renderStationOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -1392,9 +1471,17 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         text("Configure on phone", 90, 118, uiFont(&fonts::Font0), kTextMuted, 116);
     }
 
-    canvas().setTextDatum(TR_DATUM);
-    canvas().setTextColor(kWhite);
-    canvas().drawString(timeValid ? currentTime : "--:--", 280, 32, uiFont(&fonts::FreeSansBold24pt7b));
+    if (uiFrameReady) {
+        // The alpha atlas blends against the freshly drawn sunset pixels in the
+        // readable canvas. This avoids color fringes from a precomposited mask.
+        drawHomeClockAtlas(timeValid ? currentTime : "--:--");
+    } else {
+        // SPI-panel readback is unreliable, so retain a legible bitmap fallback
+        // when the PSRAM canvas is unavailable.
+        canvas().setTextDatum(TR_DATUM);
+        canvas().setTextColor(kClockText);
+        canvas().drawString(timeValid ? currentTime : "--:--", 280, 37, &fonts::FreeSansBold24pt7b);
+    }
     // Home is the live-radio destination. Keep its active-station summary
     // prominent instead of linking to a separate live-player page.
     text(station.isEmpty() ? "Now playing" : station, 212, 84,
@@ -1468,7 +1555,7 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, kHomeTileX[2], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeFavorites;
         if (contains(x, y, kHomeTileX[3], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeSettings;
     } else if (state.page == UiPage::Listening) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PlayerBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::PlayerBack;
         if (contains(x, y, 0, 44, 110, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PlayerOptions;
         if (contains(x, y, 52, 140, 48, 48)) return UiTarget::PlayerPrevious;
         if (contains(x, y, 136, 140, 48, 48)) return UiTarget::PlayerStopOrPlay;
@@ -1476,7 +1563,7 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 0, 188, 48, 52)) return UiTarget::ListeningMute;
         if (contains(x, y, 48, 188, 214, 52)) return UiTarget::ListeningVolume;
     } else if (state.page == UiPage::Stations) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ListBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::ListBack;
         const int row = listRowAt(y);
         if (row >= 0 && x >= kListOuterInset + 204) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::ListRowFavorite0) +
@@ -1487,14 +1574,15 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
                 row);
         }
     } else if (state.page == UiPage::StationOptions) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::OptionsBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::OptionsBack;
         if (contains(x, y, 0, 44, 320, 48)) return UiTarget::OptionsFavorite;
         if (contains(x, y, 0, 92, 320, 48)) return UiTarget::OptionsInfo;
         if (contains(x, y, 0, 140, 320, 48)) return UiTarget::OptionsBack;
     } else if (state.page == UiPage::StationInfo) {
-        if (contains(x, y, 0, 188, 320, 52) || contains(x, y, 0, 0, 44, 44)) return UiTarget::InfoBack;
+        if (contains(x, y, 0, 188, 320, 52) ||
+            contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::InfoBack;
     } else if (state.page == UiPage::Favorites) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::FavoritesBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::FavoritesBack;
         if (contains(x, y, 8, 48, 148, 34)) return UiTarget::FavoritesStationsTab;
         if (contains(x, y, 164, 48, 148, 34)) return UiTarget::FavoritesShowsTab;
         if (contains(x, y, kListRailLeft, kFavoriteListTop, kListRailWidth,
@@ -1511,31 +1599,30 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
                 (y - kFavoriteListTop) / kFavoriteListRowHeight);
         }
     } else if (state.page == UiPage::RecordedShows) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::ShowsBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::ShowsBack;
         const int row = listRowAt(y);
+        if (row >= 0 && x >= kListOuterInset + 204) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::ShowRowFavorite0) + row);
+        }
         if (row >= 0) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::ShowRow0) +
                 row);
         }
     } else if (state.page == UiPage::ShowEpisodes) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::EpisodesBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::EpisodesBack;
         const int row = listRowAt(y);
         if (row >= 0) {
             return static_cast<UiTarget>(static_cast<int>(UiTarget::EpisodeRow0) +
                 row);
         }
     } else if (state.page == UiPage::PodcastPlayer) {
-        if (contains(x, y, 0, 0, 44, 44)) return UiTarget::PodcastBack;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::PodcastBack;
         // The wider target makes the 8px track comfortable to tap without
         // stealing the header/back affordance.
-        if (contains(x, y, 120, 104, 184, 50)) return UiTarget::PodcastProgress;
-        if (contains(x, y, 0, 44, 112, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PodcastOptions;
-        if (contains(x, y, 52, 166, 48, 48)) return UiTarget::PodcastSeekBack;
-        if (contains(x, y, 136, 166, 48, 48)) return UiTarget::PodcastPause;
-        if (contains(x, y, 220, 166, 48, 48)) return UiTarget::PodcastSeekForward;
-    } else if (state.page == UiPage::PodcastOptions) {
-        if (contains(x, y, 0, 0, 44, 44) || contains(x, y, 0, 140, 320, 48)) return UiTarget::PodcastOptionsBack;
-        if (contains(x, y, 0, 44, 320, 48)) return UiTarget::PodcastOptionFavorite;
+        if (contains(x, y, 146, 118, 158, 40)) return UiTarget::PodcastProgress;
+        if (contains(x, y, 58, 170, 48, 48)) return UiTarget::PodcastSeekBack;
+        if (contains(x, y, 136, 170, 48, 48)) return UiTarget::PodcastPause;
+        if (contains(x, y, 214, 170, 48, 48)) return UiTarget::PodcastSeekForward;
     } else if (state.page == UiPage::StandbyConfirm) {
         if (contains(x, y, 38, 124, 110, 44)) return UiTarget::ConfirmCancel;
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
@@ -1578,9 +1665,6 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
     case UiPage::PodcastPlayer:
         renderPodcastPlayer(state, currentTime, timeValid);
         break;
-    case UiPage::PodcastOptions:
-        renderPodcastOptions(state, currentTime, timeValid);
-        break;
     case UiPage::StandbyConfirm:
         renderConfirm(state, currentTime, timeValid);
         break;
@@ -1590,10 +1674,4 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
     }
 #endif
     presentCanvas(0, 240);
-}
-
-void renderRadioUiClock(const char* currentTime, bool timeValid) {
-    initCanvas();
-    drawHeaderClock(currentTime, timeValid);
-    presentCanvas(0, 42);
 }

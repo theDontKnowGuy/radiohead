@@ -11,6 +11,7 @@
 #include "display.h"
 #include "media.h"
 #include "settings.h"
+#include "ui_web_assets.h"
 
 namespace {
 
@@ -129,145 +130,262 @@ String pageStart(const String& title, const String& accent = "orange") {
            htmlEscape(title) + "</h1>";
 }
 
-void handleRoot() {
-    String html = pageStart("Internet Radio");
-    html +=
-        "<a href='/weather' class='btn' style='border-color:#FFD700;color:#FFD700'>WEATHER</a>"
-        "<a href='/stations' class='btn' style='border-color:yellow;color:yellow'>STATIONS</a>"
-        "<a href='/programs' class='btn' style='border-color:#00FFFF;color:#00FFFF'>PROGRAMS</a>"
-        "<a href='/audio' class='btn' style='border-color:cyan;color:cyan'>AUDIO</a>"
-        "<a href='/skin' class='btn' style='border-color:magenta;color:magenta'>SKIN</a>";
+enum class WebSection : uint8_t { Stations, Network, Weather, Appearance, Device };
 
-    if (showSpectrum) {
-        html += "<div class='card'><label>VISUAL MODE: </label><select onchange='setVisual(this.value)'>";
-        html += "<option value='1' " + String(visualMode == 1 ? "selected" : "") + ">Spectrum Only</option>";
-        html += "<option value='2' " + String(visualMode == 2 ? "selected" : "") + ">VU Meter Only</option>";
-        html += "<option value='3' " + String(visualMode == 3 ? "selected" : "") + ">Both</option></select></div>";
+const char* sectionPath(WebSection section) {
+    switch (section) {
+    case WebSection::Stations: return "/";
+    case WebSection::Network: return "/network";
+    case WebSection::Weather: return "/weather";
+    case WebSection::Appearance: return "/appearance";
+    case WebSection::Device: return "/device";
     }
-
-    html += "<h3>" + htmlEscape(stations[currentStationIdx].name) + "</h3>"
-        "<div class='card'><a href='/prev' class='btn'>&lt;</a><b> VOLUME </b><a href='/next' class='btn'>&gt;</a>"
-        "<form action='/setvol'><input type='range' name='v' min='0' max='21' value='" + String(mainVal) +
-        "' onchange='this.form.submit()' style='width:90%'></form></div>";
-
-    html += "<div class='card' style='border-color:#00FF00'><b>WIFI SETTINGS</b><br><small>Current: " +
-        htmlEscape(WiFi.status() == WL_CONNECTED ? WiFi.SSID() : String("Disconnected")) +
-        "</small><form action='/setwifi' method='POST'>SSID: <select name='s' id='ssid_list'>"
-        "<option value='" + htmlEscape(st_ssid) + "'>" + htmlEscape(st_ssid) + "</option></select>"
-        " <a href='/scan' class='btn'>SCAN</a><br><br>Pass: "
-        "<input type='password' name='p' autocomplete='new-password' placeholder='Leave blank to keep current'>"
-        "<br><label><input type='checkbox' name='clear_pass'> Clear saved password</label>"
-        "<br><br><input type='submit' value='SAVE & RESTART' class='btn'></form></div>";
-
-    html += "<div class='card' style='border-color:cyan'><b>ALARM</b>"
-        "<form action='/setalarm'>Time: <input type='number' name='h' min='0' max='23' value='" + String(alarmH) +
-        "' style='width:55px'> : <input type='number' name='m' min='0' max='59' value='" + String(alarmM) +
-        "' style='width:55px'><br><br><input type='checkbox' name='active' " +
-        String(alarmActive ? "checked" : "") + "> Enabled<br>"
-        "<input type='submit' value='SAVE ALARM' class='btn'></form></div>";
-
-    html += "<button onclick='toggleVisual()' class='btn' style='border-color:" +
-        String(showSpectrum ? "#00FF00" : "#FF0000") + "'>" +
-        String(showSpectrum ? "VISUAL: ON" : "VISUAL: OFF") + "</button>"
-        "<a href='/update_ui' class='btn'>OTA UPDATE</a>"
-        "<a href='/off' class='btn' style='border-color:red;color:red'>POWER OFF</a>"
-        "<script>function toggleVisual(){fetch('/togglespec').then(()=>location.reload())}"
-        "function setVisual(v){fetch('/setVisual?mode='+v)}"
-        "if(location.search.includes('scan=1'))fetch('/scan_data').then(r=>r.json()).then(d=>{"
-        "let s=document.getElementById('ssid_list');s.innerHTML='';d.forEach(n=>{let o=document.createElement('option');"
-        "o.value=n;o.text=n;s.appendChild(o)})})</script></body></html>";
-    server.send(200, "text/html; charset=utf-8", html);
+    return "/";
 }
 
-void handleStations() {
-    String html = pageStart("Radio Stations", "yellow");
-    html += "<a href='/' class='btn'>BACK TO RADIO</a>"
-        "<div class='card'><h3>Import M3U</h3><form action='/scan_m3u'>"
-        "<input type='text' name='m3u_url' maxlength='512' placeholder='http://.../playlist.m3u'>"
-        "<input type='submit' value='SCAN' class='btn'></form><hr>"
-        "<form method='POST' action='/upload_m3u' enctype='multipart/form-data'>"
-        "<input type='file' name='f' accept='.m3u,.m3u8'><input type='submit' value='UPLOAD' class='btn'></form></div>";
-
-    if (!m3uTempList.empty()) {
-        html += "<div class='card' style='border-color:cyan'><h3>Found:</h3><table>";
-        for (size_t i = 0; i < m3uTempList.size(); ++i) {
-            html += "<tr><td>" + htmlEscape(m3uTempList[i].name) + "</td><td><form action='/apply_manual'>"
-                "<input type='hidden' name='u' value='" + htmlEscape(m3uTempList[i].url) + "'>"
-                "<input type='hidden' name='n' value='" + htmlEscape(m3uTempList[i].name) + "'><select name='s'>";
-            for (int slot = 0; slot < STATION_COUNT; ++slot) {
-                html += "<option value='" + String(slot) + "'>Slot " + String(slot + 1) + "</option>";
-            }
-            html += "</select><input type='submit' value='ADD' class='btn'></form></td></tr>";
-        }
-        html += "</table><a href='/clear_list' class='btn' style='border-color:red'>CLEAR LIST</a></div>";
+const char* sectionDesktopLabel(WebSection section) {
+    switch (section) {
+    case WebSection::Stations: return "Stations";
+    case WebSection::Network: return "Network";
+    case WebSection::Weather: return "Weather &amp; time";
+    case WebSection::Appearance: return "Appearance";
+    case WebSection::Device: return "Device &amp; maintenance";
     }
-
-    html += "<h3>Presets</h3><table>";
-    for (int i = 0; i < STATION_COUNT; ++i) {
-        html += "<tr><form action='/edit'><td>" + String(i + 1) + "</td><td>"
-            "<input type='text' name='name' maxlength='80' value='" + htmlEscape(stations[i].name) + "'><br>"
-            "<input type='text' name='url' maxlength='512' value='" + htmlEscape(stations[i].url) + "'></td><td>"
-            "<input type='hidden' name='id' value='" + String(i) + "'>"
-            "<input type='submit' value='SAVE' class='btn'></td></form></tr>";
-    }
-    html += "</table></body></html>";
-    server.send(200, "text/html; charset=utf-8", html);
+    return "";
 }
 
-void handleSkin() {
-    String html = pageStart("Skin Engine", "magenta");
-    html += "<a href='/' class='btn'>BACK TO RADIO</a><div class='card'><form action='/setskin'>";
-    const auto row = [](const String& label, const String& name, const String& value) {
-        return "<p>" + label + " <input type='color' name='" + name + "' value='" + value + "'></p>";
+const char* sectionMobileLabel(WebSection section) {
+    switch (section) {
+    case WebSection::Stations: return "Stations";
+    case WebSection::Network: return "Network";
+    case WebSection::Weather: return "Weather &amp; time";
+    case WebSection::Appearance: return "Appearance";
+    case WebSection::Device: return "Device";
+    }
+    return "";
+}
+
+const char* sectionIcon(WebSection section) {
+    switch (section) {
+    case WebSection::Stations: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='2'/><path d='M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2M8 8a5.7 5.7 0 0 0 0 8M16 8a5.7 5.7 0 0 1 0 8'/></svg>";
+    case WebSection::Network: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M5 12.5a11 11 0 0 1 14 0M8 16a6.5 6.5 0 0 1 8 0M11.3 19.4a1 1 0 1 1 1.4 0'/></svg>";
+    case WebSection::Weather: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='8' cy='8' r='3'/><path d='M8 1v2m0 10v2m7-7h-2M3 8H1m12 7a4 4 0 0 1 7.7 1.5A3.5 3.5 0 0 1 20 23H9.5a4.5 4.5 0 0 1 3.5-8Z'/></svg>";
+    case WebSection::Appearance: return "<svg viewBox='0 0 24 24' aria-hidden='true'><rect x='3' y='4' width='18' height='16' rx='2'/><circle cx='8' cy='9' r='1.4'/><path d='m4 18 5.4-5.4 3.3 3.3 2.3-2.3L20 18'/></svg>";
+    case WebSection::Device: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M12 2v4m0 12v4M4.9 4.9l2.8 2.8m8.6 8.6 2.8 2.8M2 12h4m12 0h4M4.9 19.1l2.8-2.8m8.6-8.6 2.8-2.8'/><circle cx='12' cy='12' r='4'/></svg>";
+    }
+    return "";
+}
+
+String connectionState() {
+    if (isAP) return "Setup mode";
+    if (WiFi.status() == WL_CONNECTED) return "Connected";
+    return st_ssid.isEmpty() ? "Not configured" : "Disconnected";
+}
+
+String localAddress() {
+    return isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+}
+
+String currentPlaybackName() {
+    if (podcastMode) {
+        const PodcastEpisode* episode = podcastActiveEpisode();
+        if (episode != nullptr && !episode->title.isEmpty()) return episode->title;
+    }
+    if (currentStationIdx >= 0 && currentStationIdx < STATION_COUNT &&
+        !stations[currentStationIdx].name.isEmpty()) {
+        return stations[currentStationIdx].name;
+    }
+    return "Nothing playing";
+}
+
+String playbackLabel() {
+    switch (mediaPlaybackState()) {
+    case PlaybackState::Connecting: return "Connecting…";
+    case PlaybackState::Playing: return isStationMuted() ? "Muted" : "Now playing";
+    case PlaybackState::Failed: return "Stream error";
+    case PlaybackState::Stopped: return "Nothing playing";
+    }
+    return "Nothing playing";
+}
+
+uint32_t playerRevision() {
+    // This is a deterministic optimistic-concurrency token for the small,
+    // shared player state.  It changes for encoder/TFT as well as web edits,
+    // without persisting an artificial revision counter.
+    uint32_t revision = 2166136261UL;
+    const uint8_t values[] = {
+        static_cast<uint8_t>(mainVal),
+        static_cast<uint8_t>(radioMuted),
+        static_cast<uint8_t>(gB + 15),
+        static_cast<uint8_t>(gM + 15),
+        static_cast<uint8_t>(gT + 15),
     };
-    html += row("Header Bar", "top", currentSkin.hexTop);
-    html += row("Clock", "clk", currentSkin.hexClk);
-    html += row("Header Info", "hinf", currentSkin.hexHInfo);
-    html += row("Background", "bot", currentSkin.hexBottom);
-    html += row("Main Text", "txt", currentSkin.hexMain);
-    html += row("Accent Text", "acc", currentSkin.hexAccent);
-    html += row("WiFi/Signal", "wifi", currentSkin.hexWifi);
-    html += row("Selector", "sel", currentSkin.hexSel);
-    html += "<input type='submit' value='APPLY & SAVE' class='btn'>"
-        "<a href='/defaultskin' class='btn' style='border-color:red'>RESET DEFAULT</a></form></div></body></html>";
-    server.send(200, "text/html", html);
+    for (const uint8_t value : values) {
+        revision ^= value;
+        revision *= 16777619UL;
+    }
+    return revision & 0x7fffffffUL;
 }
 
-void handleWeatherPage() {
-    String html = pageStart("Weather Settings", "#FFD700");
-    html += "<a href='/' class='btn'>BACK TO RADIO</a><div class='card'><form action='/setweather' method='POST'>"
-        "<b>City, Country:</b><br><input type='text' name='city' maxlength='80' value='" + htmlEscape(owmCity) +
-        "'><br><b>OWM API Key:</b><br><input type='password' name='key' maxlength='128' "
-        "autocomplete='new-password' placeholder='Leave blank to keep current'>"
-        "<br><label><input type='checkbox' name='clear_key'> Clear saved API key</label>"
-        "<br><b>Unit:</b><br><input type='radio' name='u' value='C' " +
-        String(useCelsius ? "checked" : "") + "> Celsius "
-        "<input type='radio' name='u' value='F' " + String(!useCelsius ? "checked" : "") +
-        "> Fahrenheit<br><br><input type='submit' value='APPLY' class='btn'></form></div></body></html>";
-    server.send(200, "text/html", html);
+const char* playbackStateName() {
+    switch (mediaPlaybackState()) {
+    case PlaybackState::Connecting: return "connecting";
+    case PlaybackState::Playing: return radioMuted ? "muted" : "playing";
+    case PlaybackState::Failed: return "failed";
+    case PlaybackState::Stopped: return "stopped";
+    }
+    return "stopped";
 }
 
-void handleAudioPage() {
-    String html = pageStart("Audio Settings", "cyan");
-    html += "<a href='/' class='btn'>BACK TO RADIO</a><div class='card'><b>PRESETS</b><br>"
-        "<a href='/setpreset?p=rock' class='btn'>ROCK</a><a href='/setpreset?p=pop' class='btn'>POP</a>"
-        "<a href='/setpreset?p=jazz' class='btn'>JAZZ</a><a href='/setpreset?p=flat' class='btn'>FLAT</a></div>"
-        "<div class='card'><b>3-BAND EQ</b><form action='/seteq'>"
-        "<p>Bass <input type='range' name='b' min='-15' max='15' value='" + String(gB) + "'></p>"
-        "<p>Mid <input type='range' name='m' min='-15' max='15' value='" + String(gM) + "'></p>"
-        "<p>Treble <input type='range' name='t' min='-15' max='15' value='" + String(gT) + "'></p>"
-        "<input type='submit' value='APPLY' class='btn'></form></div></body></html>";
-    server.send(200, "text/html", html);
+String playerStateJson() {
+    String json;
+    json.reserve(240);
+    json = "{\"revision\":" + String(playerRevision()) +
+        ",\"volume\":" + String(mainVal) +
+        ",\"muted\":" + String(radioMuted ? "true" : "false") +
+        ",\"bass\":" + String(gB) +
+        ",\"mid\":" + String(gM) +
+        ",\"treble\":" + String(gT) +
+        ",\"state\":\"" + String(playbackStateName()) +
+        "\",\"name\":\"" + jsonEscape(currentPlaybackName()) + "\"}";
+    return json;
 }
 
-void handleUpdatePage() {
-    server.send(
-        200,
-        "text/html",
-        pageStart("Firmware Update") +
-            "<form method='POST' action='/update' enctype='multipart/form-data'>"
-            "<input type='file' name='update'><br><br><input type='submit' value='START UPDATE'></form></body></html>");
+void sendPlayerState(int statusCode = 200) {
+    server.send(statusCode, "application/json; charset=utf-8", playerStateJson());
 }
+
+bool hasCurrentPlayerRevision() {
+    int requestRevision = 0;
+    if (!parseIntegerArg("revision", 0, 2147483647, requestRevision)) {
+        server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid player revision\"}");
+        return false;
+    }
+    if (static_cast<uint32_t>(requestRevision) != playerRevision()) {
+        sendPlayerState(409);
+        return false;
+    }
+    return true;
+}
+
+void appendNavigation(String& html, WebSection selected) {
+    constexpr WebSection sections[] = {
+        WebSection::Stations, WebSection::Network, WebSection::Weather,
+        WebSection::Appearance, WebSection::Device,
+    };
+    html += "<nav class='rh-nav' aria-label='Settings sections'>";
+    for (const WebSection section : sections) {
+        html += "<a href='" + String(sectionPath(section)) + "' class='rh-navlink'";
+        if (section == selected) html += " aria-current='page'";
+        html += ">" + String(sectionIcon(section)) + "<span class='rh-desktoplabel'>" +
+            String(sectionDesktopLabel(section)) + "</span><span class='rh-mobiletitle'>" +
+            String(sectionMobileLabel(section)) + "</span></a>";
+    }
+    html += "</nav>";
+}
+
+void appendSectionContent(String& html, WebSection section) {
+    switch (section) {
+    case WebSection::Stations: {
+        int savedCount = 0;
+        for (int slot = 0; slot < STATION_COUNT; ++slot) {
+            if (!stations[slot].name.isEmpty() || !stations[slot].url.isEmpty()) ++savedCount;
+        }
+        html += "<div class='rh-pagehead'><div><h1>Stations</h1><p>A familiar collection. A new discovery.</p></div></div>"
+            "<section class='rh-list' aria-labelledby='saved-stations'><div class='rh-listhead'><h2 id='saved-stations'>Saved on your radio</h2><span>" +
+            String(savedCount) + " / " + String(STATION_COUNT) + " stations</span></div>";
+        if (savedCount == 0) {
+            html += "<p class='rh-empty'>No saved stations. Add your first station above.</p>";
+        } else {
+            for (int slot = 0; slot < STATION_COUNT; ++slot) {
+                const RadioStation& station = stations[slot];
+                if (station.name.isEmpty() && station.url.isEmpty()) continue;
+                const String name = station.name.isEmpty() ? station.url : station.name;
+                html += "<div class='rh-station'><div class='rh-art' aria-hidden='true'>" +
+                    htmlEscape(name.substring(0, 1)) + "</div><div><div class='rh-stationname'><bdi>" +
+                    htmlEscape(name) + "</bdi>";
+                if (slot == mediaPlayingStation()) html += "<span class='rh-playing'>Playing</span>";
+                html += "</div><p class='rh-stationdesc' dir='ltr'>" + htmlEscape(station.url) +
+                    "</p></div></div>";
+            }
+        }
+        html += "</section><p class='rh-footnote'>Favorites appear on your radio, too.</p>";
+        break;
+    }
+    case WebSection::Network:
+        html += "<div class='rh-pagehead'><div><h1>Network</h1><p>Keep your radio connected.</p></div></div>"
+            "<section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>"
+            "<dt>Status</dt><dd>" + htmlEscape(connectionState()) + "</dd><dt>Network</dt><dd><bdi>" +
+            htmlEscape(WiFi.status() == WL_CONNECTED ? WiFi.SSID() : st_ssid) +
+            "</bdi></dd><dt>Address</dt><dd dir='ltr'>" + htmlEscape(localAddress()) +
+            "</dd></dl></section>";
+        break;
+    case WebSection::Weather:
+        html += "<div class='rh-pagehead'><div><h1>Weather &amp; time</h1><p>A little local context for your radio.</p></div></div>"
+            "<section class='rh-box' aria-labelledby='weather-status'><h2 id='weather-status'>Weather on your radio</h2><dl class='rh-data'>"
+            "<dt>Location</dt><dd><bdi>" + htmlEscape(owmCity) + "</bdi></dd><dt>Units</dt><dd>" +
+            String(useCelsius ? "Celsius" : "Fahrenheit") + "</dd></dl></section>";
+        break;
+    case WebSection::Appearance:
+        html += "<div class='rh-pagehead'><div><h1>Appearance</h1><p>Keep the radio readable, day and night.</p></div></div>"
+            "<section class='rh-box'><h2>On your radio</h2><p class='rh-muted'>Automatic dimming, supported themes and touch calibration are set on the radio itself.</p></section>";
+        break;
+    case WebSection::Device:
+        html += "<div class='rh-pagehead'><div><h1>Device &amp; maintenance</h1><p>Device information and safe maintenance.</p></div></div>"
+            "<section class='rh-box'><h2>Radio</h2><dl class='rh-data'><dt>Connection</dt><dd>" +
+            htmlEscape(connectionState()) + "</dd><dt>Address</dt><dd dir='ltr'>" +
+            htmlEscape(localAddress()) + "</dd></dl></section>";
+        break;
+    }
+}
+
+void handleConfigShell(WebSection section) {
+    String html;
+    html.reserve(9400);
+    html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
+        "<link rel='stylesheet' href='/ui/radiohead.css'></head><body class='radiohead-page'><div id='rh-config'>"
+        "<header class='rh-top'><div class='rh-brand'><span class='rh-brand-mark' aria-hidden='true'>⌁</span>radiohead <span class='rh-muted'>/ settings</span></div>"
+        "<div class='rh-topmeta'><span>" + htmlEscape(connectionState()) + "</span><span dir='ltr'>" +
+        htmlEscape(localAddress()) + "</span></div></header><div class='rh-layout'><aside class='rh-sidebar'>";
+    appendNavigation(html, section);
+    html += "<div class='rh-device'><span class='rh-online' aria-hidden='true'></span>" +
+        htmlEscape(connectionState()) + "<strong>radiohead</strong><span dir='ltr'>" + htmlEscape(localAddress()) +
+        "</span></div></aside><main class='rh-main'><section class='rh-hero' aria-label='Current playback'><div><span class='rh-eyebrow'>" +
+        playbackLabel() + "</span><h2 class='rh-playingname'><bdi>" + htmlEscape(currentPlaybackName()) +
+        "</bdi></h2>";
+    if (!songTitle.isEmpty() && mediaPlaybackState() == PlaybackState::Playing && !podcastMode) {
+        html += "<p class='rh-muted'><bdi>" + htmlEscape(songTitle) + "</bdi></p>";
+    }
+    html += "</div><div class='rh-volume'><button class='rh-iconbutton' type='button' id='mute-button' data-role='mute' aria-label='" +
+        String(radioMuted ? "Unmute radio" : "Mute radio") + "' aria-pressed='" +
+        String(radioMuted ? "true" : "false") + "'><svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 10v4h4l5 4V6l-5 4H4Z'/><path d='M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11'/></svg></button>"
+        "<label for='volume-input'>Volume</label><input id='volume-input' type='range' min='0' max='21' value='" +
+        String(mainVal) + "' aria-describedby='player-status'><output id='volume-value' for='volume-input'>" +
+        String(mainVal) + " / 21</output></div></section><p class='rh-sr-only' id='player-status' aria-live='polite'></p>";
+    appendSectionContent(html, section);
+    html += "</main></div><section class='rh-eq'><details><summary>Sound · custom tone</summary><div class='rh-eqgrid'>"
+        "<label class='rh-field' for='tone-bass'><span>Bass <output id='tone-bass-value'>" + String(gB) +
+        "</output></span><input id='tone-bass' type='range' min='-15' max='15' value='" + String(gB) + "'></label>"
+        "<label class='rh-field' for='tone-mid'><span>Mid <output id='tone-mid-value'>" + String(gM) +
+        "</output></span><input id='tone-mid' type='range' min='-15' max='15' value='" + String(gM) + "'></label>"
+        "<label class='rh-field' for='tone-treble'><span>Treble <output id='tone-treble-value'>" + String(gT) +
+        "</output></span><input id='tone-treble' type='range' min='-15' max='15' value='" + String(gT) + "'></label>"
+        "</div></details></section></div><script>"
+        "(()=>{const volume=document.getElementById('volume-input'),value=document.getElementById('volume-value'),mute=document.getElementById('mute-button'),"
+        "status=document.getElementById('player-status'),bass=document.getElementById('tone-bass'),mid=document.getElementById('tone-mid'),treble=document.getElementById('tone-treble');"
+        "const tones=[bass,mid,treble],toneValues=['tone-bass-value','tone-mid-value','tone-treble-value'].map(id=>document.getElementById(id));let revision=" + String(playerRevision()) + ",volumeTimer=0,toneTimer=0,writing=false,pendingRequest=null;"
+        "const show=(message)=>{status.textContent=message};const reflect=(state)=>{revision=state.revision;if(document.activeElement!==volume)volume.value=state.volume;value.textContent=state.volume+' / 21';"
+        "mute.setAttribute('aria-pressed',state.muted);mute.setAttribute('aria-label',state.muted?'Unmute radio':'Mute radio');tones.forEach((tone,index)=>{if(document.activeElement!==tone)tone.value=[state.bass,state.mid,state.treble][index];toneValues[index].textContent=[state.bass,state.mid,state.treble][index]})};"
+        "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show('Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
+        "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>request('/api/player/volume',new URLSearchParams({volume:volume.value})),140)});"
+        "mute.addEventListener('click',()=>request('/api/player/mute',new URLSearchParams()));"
+        "tones.forEach((tone,index)=>tone.addEventListener('input',()=>{toneValues[index].textContent=tone.value;clearTimeout(toneTimer);toneTimer=setTimeout(()=>request('/api/player/tone',new URLSearchParams({bass:bass.value,mid:mid.value,treble:treble.value})),180)}));"
+        "setInterval(async()=>{if(writing||document.hidden)return;try{const response=await fetch('/api/player',{cache:'no-store'});if(response.ok)reflect(await response.json())}catch(_){show('Radio connection lost.')}} ,3000)})();</script></body></html>";
+    server.send(200, "text/html; charset=utf-8", html);
+}
+
+void handleRoot() { handleConfigShell(WebSection::Stations); }
 
 void handleUpdateUpload() {
     HTTPUpload& upload = server.upload();
@@ -427,11 +545,60 @@ void handleM3UUpload() {
 
 void startWebServer() {
     server.on("/", handleRoot);
-    server.on("/stations", handleStations);
-    server.on("/skin", handleSkin);
-    server.on("/audio", handleAudioPage);
-    server.on("/weather", handleWeatherPage);
-    server.on("/update_ui", handleUpdatePage);
+    server.on("/stations", [] { handleConfigShell(WebSection::Stations); });
+    server.on("/network", [] { handleConfigShell(WebSection::Network); });
+    server.on("/weather", [] { handleConfigShell(WebSection::Weather); });
+    server.on("/appearance", [] { handleConfigShell(WebSection::Appearance); });
+    server.on("/device", [] { handleConfigShell(WebSection::Device); });
+    server.on("/audio", [] { redirectTo("/"); });
+    server.on("/skin", [] { redirectTo("/appearance"); });
+    server.on("/update_ui", [] { redirectTo("/device"); });
+    server.on("/ui/radiohead.css", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "public, max-age=86400");
+        server.send_P(200, "text/css; charset=utf-8",
+            reinterpret_cast<const char*>(ui_web_configuration_css), ui_web_configuration_css_len);
+    });
+    server.on("/ui/assets/coast.jpg", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "public, max-age=86400");
+        server.send_P(200, "image/jpeg",
+            reinterpret_cast<const char*>(ui_web_configuration_coast_jpg), ui_web_configuration_coast_jpg_len);
+    });
+    server.on("/api/player", HTTP_GET, [] { sendPlayerState(); });
+    server.on("/api/player/volume", HTTP_POST, [] {
+        int volume = 0;
+        if (!hasCurrentPlayerRevision()) return;
+        if (!parseIntegerArg("volume", 0, 21, volume)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid volume\"}");
+            return;
+        }
+        setRadioVolumeIndex(volume);
+        queueSettingsSave();
+        sendPlayerState();
+    });
+    server.on("/api/player/mute", HTTP_POST, [] {
+        if (!hasCurrentPlayerRevision()) return;
+        toggleRadioMute();
+        sendPlayerState();
+    });
+    server.on("/api/player/tone", HTTP_POST, [] {
+        int bass = 0;
+        int mid = 0;
+        int treble = 0;
+        if (!hasCurrentPlayerRevision()) return;
+        if (!parseIntegerArg("bass", -15, 15, bass) ||
+            !parseIntegerArg("mid", -15, 15, mid) ||
+            !parseIntegerArg("treble", -15, 15, treble)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid tone\"}");
+            return;
+        }
+        gB = bass;
+        gM = mid;
+        gT = treble;
+        audio.setTone(gB, gM, gT);
+        forceRedraw = true;
+        queueSettingsSave();
+        sendPlayerState();
+    });
     server.on("/programs", handlePrograms);
     server.on("/episodes", handleEpisodes);
 
