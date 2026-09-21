@@ -37,7 +37,12 @@
     ],
     "glyphs": {
       "0": {
+        "cell_size": [
+          26,
+          32
+        ],
         "advance": 24,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
           0,
@@ -46,16 +51,26 @@
         ]
       },
       "1": {
-        "advance": 16,
+        "cell_size": [
+          11,
+          28
+        ],
+        "advance": 15,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
-          1,
-          26,
-          29
+          0,
+          11,
+          28
         ]
       },
       "2": {
+        "cell_size": [
+          24,
+          32
+        ],
         "advance": 24,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
           0,
@@ -64,34 +79,54 @@
         ]
       },
       "3": {
+        "cell_size": [
+          20,
+          30
+        ],
         "advance": 22,
+        "draw_y_from_cell_top": -1,
         "ink_bounds_in_cell": [
           0,
           0,
-          26,
+          20,
           30
         ]
       },
       "4": {
+        "cell_size": [
+          22,
+          28
+        ],
         "advance": 25,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
-          1,
-          26,
-          29
+          0,
+          22,
+          28
         ]
       },
       "5": {
+        "cell_size": [
+          25,
+          31
+        ],
         "advance": 24,
+        "draw_y_from_cell_top": 1,
         "ink_bounds_in_cell": [
           0,
-          1,
+          0,
           25,
-          32
+          31
         ]
       },
       "6": {
+        "cell_size": [
+          25,
+          32
+        ],
         "advance": 25,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
           0,
@@ -100,16 +135,26 @@
         ]
       },
       "7": {
-        "advance": 26,
+        "cell_size": [
+          18,
+          28
+        ],
+        "advance": 25,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
-          1,
+          0,
           18,
-          29
+          28
         ]
       },
       "8": {
+        "cell_size": [
+          25,
+          32
+        ],
         "advance": 25,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
           0,
@@ -118,7 +163,12 @@
         ]
       },
       "9": {
+        "cell_size": [
+          25,
+          32
+        ],
         "advance": 25,
+        "draw_y_from_cell_top": 0,
         "ink_bounds_in_cell": [
           0,
           0,
@@ -127,21 +177,31 @@
         ]
       },
       ":": {
+        "cell_size": [
+          7,
+          22
+        ],
         "advance": 9,
+        "draw_y_from_cell_top": 7,
         "ink_bounds_in_cell": [
           0,
           0,
-          26,
-          30
+          7,
+          22
         ]
       },
       "-": {
+        "cell_size": [
+          18,
+          9
+        ],
         "advance": 17,
+        "draw_y_from_cell_top": 13,
         "ink_bounds_in_cell": [
           0,
-          13,
+          0,
           18,
-          22
+          9
         ]
       }
     }
@@ -156,20 +216,20 @@
     "14:37": {
       "file": "references/14_colon_37.png",
       "canvas_size": [
-        98,
+        96,
         32
       ],
       "ink_bounds": [
         0,
         0,
-        90,
-        30
+        89,
+        29
       ],
       "intended_ink_bounds_at_home_anchor": [
-        211,
+        212,
         40,
         301,
-        70
+        69
       ]
     },
     "00:00": {
@@ -194,20 +254,20 @@
     "11:11": {
       "file": "references/11_colon_11.png",
       "canvas_size": [
-        73,
+        69,
         32
       ],
       "ink_bounds": [
         0,
         0,
-        69,
-        30
+        65,
+        29
       ],
       "intended_ink_bounds_at_home_anchor": [
-        232,
+        236,
         40,
         301,
-        70
+        69
       ]
     },
     "23:59": {
@@ -237,26 +297,26 @@
       ],
       "ink_bounds": [
         0,
-        0,
+        7,
         76,
-        30
+        29
       ],
       "intended_ink_bounds_at_home_anchor": [
         225,
         40,
         301,
-        70
+        62
       ]
     }
   },
   "acceptance": {
     "overlay": "references/home-clock-overlay-14_37.png",
     "overlay_ink_bounds": [
-      211,
+      212,
       40,
       301,
-      70
+      69
     ],
-    "validation": "The overlay is assembled byte-for-byte from the source-derived dynamic 1/4/:/3/7 glyph cells."
+    "validation": "The overlay is assembled entirely from individual source-derived 1/4/:/3/7 glyph masks; no rectangular source crops or background pixels remain."
   }
 }

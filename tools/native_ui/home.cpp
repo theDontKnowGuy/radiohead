@@ -42,6 +42,7 @@ UiRenderState homeFocused(uint8_t index) {
 }
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false, alarmActive = true;
+uint16_t autoDimSeconds = 30;
 int mainVal = 12, alarmH = 7, alarmM = 30;
 String songTitle = "פרק 15 - 15 בספטמבר 2025";
 bool isStationMuted() { return false; }
@@ -62,7 +63,11 @@ struct FixtureIpAddress { String toString() const { return "192.168.4.1"; } };
 struct FixtureWiFi {
     String softAPSSID() const { return "Radio_Setup"; }
     FixtureIpAddress softAPIP() const { return {}; }
+    FixtureIpAddress localIP() const { return {}; }
 } WiFi;
+bool configuredLocalTime(time_t utcTime, tm& localTime) {
+    return localtime_r(&utcTime, &localTime) != nullptr;
+}
 String podcastShowTft, owmCity = "Tel Aviv, IL";
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;
@@ -146,6 +151,47 @@ int main(int argc, char** argv) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
     }
     assert(fractionalClockPixels > 100);  // 8-bit Lanczos alpha, not bitmap text.
+    // The source package deliberately overlaps cells. Exercise the production
+    // renderer directly and verify that it composes alpha before its one RGB565
+    // blend, rather than painting each overlapping cell twice.
+    constexpr int kClockTestWidth = 128;
+    uint8_t expectedClockAlpha[kClockTestWidth * 32] = {};
+    int clockWidth = 0;
+    for (const char* character = "14:37"; *character; ++character) {
+        clockWidth += ui_home_clock_advances[homeClockGlyphIndex(*character)];
+    }
+    int clockPen = 0;
+    for (const char* character = "14:37"; *character; ++character) {
+        const int glyph = homeClockGlyphIndex(*character);
+        const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
+        for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+            for (int x = 0; x < ui_home_clock_cell_width && clockPen + x < clockWidth; ++x) {
+                const uint8_t source = glyphAlpha[y * ui_home_clock_cell_width + x];
+                uint8_t& destination = expectedClockAlpha[y * kClockTestWidth + clockPen + x];
+                destination = static_cast<uint8_t>(source +
+                    (static_cast<uint16_t>(destination) * (255U - source) + 127U) / 255U);
+            }
+        }
+        clockPen += ui_home_clock_advances[glyph];
+    }
+    int inkRight = 0;
+    int inkTop = ui_home_clock_cell_height;
+    for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+        for (int x = 0; x < clockWidth; ++x) {
+            if (expectedClockAlpha[y * kClockTestWidth + x] == 0) continue;
+            inkRight = std::max(inkRight, x + 1);
+            inkTop = std::min(inkTop, y);
+        }
+    }
+    frame.fillScreen(0x0000);
+    drawHomeClockAtlas("14:37");
+    for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+        for (int x = 0; x < clockWidth; ++x) {
+            const uint8_t alpha = expectedClockAlpha[y * kClockTestWidth + x];
+            assert(frame.readPixel(ui_home_clock_ink_right - inkRight + x,
+                                   ui_home_clock_ink_top - inkTop + y) == blendClockPixel(0x0000, alpha));
+        }
+    }
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));
@@ -229,6 +275,21 @@ int main(int argc, char** argv) {
     assert(uiHitTest(podcastHitState, 82, 194) == UiTarget::PodcastSeekBack);
     assert(uiHitTest(podcastHitState, 160, 194) == UiTarget::PodcastPause);
     assert(uiHitTest(podcastHitState, 238, 194) == UiTarget::PodcastSeekForward);
+    UiRenderState settingsHitState;
+    settingsHitState.page = UiPage::Settings;
+    assert(uiHitTest(settingsHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(settingsHitState, 160, 72) == UiTarget::SettingsAudio);
+    assert(uiHitTest(settingsHitState, 160, 120) == UiTarget::SettingsDisplay);
+    assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsDevice);
+    UiRenderState toneHitState;
+    toneHitState.page = UiPage::SettingsAudio;
+    assert(uiHitTest(toneHitState, 164, 72) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 256, 118) == UiTarget::ToneMidIncrease);
+    assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
+    UiRenderState deviceHitState;
+    deviceHitState.page = UiPage::SettingsDevice;
+    assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceCalibration);
+    assert(uiHitTest(deviceHitState, 160, 203) == UiTarget::DeviceFactoryReset);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -333,6 +394,17 @@ int main(int argc, char** argv) {
     save((dir + "/volume-smooth.ppm").c_str());
     renderConfirm({}, "15:01", true);
     save((dir + "/confirm-smooth.ppm").c_str());
+    renderSettings(settingsHitState, "15:01", true);
+    save((dir + "/settings-smooth.ppm").c_str());
+    renderToneSettings(toneHitState, "15:01", true);
+    save((dir + "/settings-audio-smooth.ppm").c_str());
+    UiRenderState displaySettings;
+    displaySettings.page = UiPage::SettingsDisplay;
+    displaySettings.dimSecondsDraft = 60;
+    renderDisplaySettings(displaySettings, "15:01", true);
+    save((dir + "/settings-display-smooth.ppm").c_str());
+    renderDeviceSettings(deviceHitState, "15:01", true);
+    save((dir + "/settings-device-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.
     weatherDataValid = true;
     tempC = 30;

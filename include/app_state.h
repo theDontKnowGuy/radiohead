@@ -120,7 +120,7 @@ extern float tempC;
 extern int weatherID;
 extern bool useCelsius;
 // Weather and clock settings are shared by the web and TFT renderers.  The
-// timezone ID is resolved through the bounded POSIX-rule table in settings.cpp.
+// timezone ID is resolved through the bounded rule table in settings.cpp.
 extern bool showWeatherOnHome;
 extern bool use24HourClock;
 extern String timeZoneId;
@@ -140,6 +140,10 @@ extern int gB;
 extern int gM;
 extern int gT;
 extern bool showSpectrum;
+// Automatic dimming is a small, device-local preference.  It is expressed in
+// seconds so both the settings UI and the main-loop deadline avoid hidden
+// presentation-unit conversions.
+extern uint16_t autoDimSeconds;
 extern bool isDimmed;
 extern volatile bool forceRedraw;
 extern volatile unsigned long lastInteraction;

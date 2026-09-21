@@ -8,5 +8,9 @@ constexpr int STATION_COUNT = 10;
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;
 extern int currentStationIdx;
+extern int gB;
+extern int gM;
+extern int gT;
+extern uint16_t autoDimSeconds;
 extern int podcastEpisodeCount;
 inline unsigned long millis() { return 0; }

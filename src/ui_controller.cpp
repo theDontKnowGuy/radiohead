@@ -39,6 +39,13 @@ void queue(UiCommandKind kind, int value = 0) {
     }
 }
 
+void queueTone(int bass, int mid, int treble) {
+    if (!hasPendingCommand) {
+        pendingCommand = {UiCommandKind::ApplyTone, bass, mid, treble};
+        hasPendingCommand = true;
+    }
+}
+
 void openStations() {
     state.page = UiPage::Stations;
     const int count = playableStationCount();
@@ -148,6 +155,52 @@ void openPodcastPlayer(int showIndex, int episodeIndex) {
     markDirty();
 }
 
+void openSettings() {
+    state.page = UiPage::Settings;
+    state.settingsConfirmAction = 0;
+    markDirty();
+}
+
+void openToneSettings() {
+    state.page = UiPage::SettingsAudio;
+    state.toneBassDraft = gB;
+    state.toneMidDraft = gM;
+    state.toneTrebleDraft = gT;
+    markDirty();
+}
+
+void openDisplaySettings() {
+    state.page = UiPage::SettingsDisplay;
+    state.dimSecondsDraft = normalizeAutoDimSeconds(autoDimSeconds);
+    markDirty();
+}
+
+void openDeviceSettings(bool clearFailure = false) {
+    state.page = UiPage::SettingsDevice;
+    if (clearFailure) state.deviceActionFailed = false;
+    markDirty();
+}
+
+void openSettingsConfirmation(uint8_t action) {
+    state.page = UiPage::SettingsConfirm;
+    state.settingsConfirmAction = action;
+    markDirty();
+}
+
+uint16_t adjustedDimSeconds(uint16_t current, int direction) {
+    static constexpr uint16_t kChoices[] = {15, 30, 60, 120};
+    int selected = 0;
+    for (int index = 0; index < static_cast<int>(sizeof(kChoices) / sizeof(kChoices[0])); ++index) {
+        if (kChoices[index] == current) {
+            selected = index;
+            break;
+        }
+    }
+    selected = constrain(selected + direction, 0,
+                         static_cast<int>(sizeof(kChoices) / sizeof(kChoices[0])) - 1);
+    return kChoices[selected];
+}
+
 void seekPodcastToProgress(int touchX) {
     const PodcastPlaybackSnapshot playback = podcastPlaybackSnapshot();
     if (!playback.canSeek || playback.durationSeconds == 0) return;
@@ -161,20 +214,6 @@ void seekPodcastToProgress(int touchX) {
     const int commandSeconds = delta > INT_MAX ? INT_MAX :
         (delta < INT_MIN ? INT_MIN : static_cast<int>(delta));
     if (commandSeconds != 0) queue(UiCommandKind::SeekPodcast, commandSeconds);
-    markDirty();
-}
-
-enum class UnavailableDestination : uint8_t {
-    Generic,
-    RecordedShows,
-    Favorites,
-    Settings,
-    StationOptions,
-};
-
-void openUnavailable(UnavailableDestination destination = UnavailableDestination::Generic) {
-    state.page = UiPage::Unavailable;
-    state.unavailableDestination = static_cast<uint8_t>(destination);
     markDirty();
 }
 
@@ -204,7 +243,7 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target == UiTarget::HomeRecordedShows) {
             openRecordedShows();
         } else if (target == UiTarget::HomeSettings) {
-            openUnavailable(UnavailableDestination::Settings);
+            openSettings();
         }
         break;
     case UiPage::Listening:
@@ -360,6 +399,83 @@ void handleTarget(UiTarget target, int value = 0) {
         }
         closeToHome();
         break;
+    case UiPage::Settings:
+        if (target == UiTarget::SettingsBack) {
+            closeToHome();
+        } else if (target == UiTarget::SettingsAudio) {
+            openToneSettings();
+        } else if (target == UiTarget::SettingsDisplay) {
+            openDisplaySettings();
+        } else if (target == UiTarget::SettingsDevice) {
+            openDeviceSettings(true);
+        }
+        break;
+    case UiPage::SettingsAudio:
+        if (target == UiTarget::SettingsBack || target == UiTarget::ToneCancel) {
+            openSettings();
+        } else if (target == UiTarget::ToneBassDecrease) {
+            state.toneBassDraft = constrain(state.toneBassDraft - 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneBassIncrease) {
+            state.toneBassDraft = constrain(state.toneBassDraft + 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneMidDecrease) {
+            state.toneMidDraft = constrain(state.toneMidDraft - 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneMidIncrease) {
+            state.toneMidDraft = constrain(state.toneMidDraft + 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneTrebleDecrease) {
+            state.toneTrebleDraft = constrain(state.toneTrebleDraft - 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneTrebleIncrease) {
+            state.toneTrebleDraft = constrain(state.toneTrebleDraft + 1, -15, 15);
+            markDirty();
+        } else if (target == UiTarget::ToneSave) {
+            queueTone(state.toneBassDraft, state.toneMidDraft, state.toneTrebleDraft);
+            openSettings();
+        }
+        break;
+    case UiPage::SettingsDisplay:
+        if (target == UiTarget::SettingsBack || target == UiTarget::DimCancel) {
+            openSettings();
+        } else if (target == UiTarget::DimDecrease) {
+            state.dimSecondsDraft = adjustedDimSeconds(state.dimSecondsDraft, -1);
+            markDirty();
+        } else if (target == UiTarget::DimIncrease) {
+            state.dimSecondsDraft = adjustedDimSeconds(state.dimSecondsDraft, 1);
+            markDirty();
+        } else if (target == UiTarget::DimSave) {
+            queue(UiCommandKind::ApplyAutoDim, state.dimSecondsDraft);
+            openSettings();
+        }
+        break;
+    case UiPage::SettingsDevice:
+        if (target == UiTarget::SettingsBack) {
+            openSettings();
+        } else if (target == UiTarget::DeviceCalibration) {
+            queue(UiCommandKind::StartTouchCalibration);
+        } else if (target == UiTarget::DeviceAbout) {
+            state.page = UiPage::SettingsAbout;
+            markDirty();
+        } else if (target == UiTarget::DeviceRestart) {
+            openSettingsConfirmation(1);
+        } else if (target == UiTarget::DeviceFactoryReset) {
+            openSettingsConfirmation(2);
+        }
+        break;
+    case UiPage::SettingsAbout:
+        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) openDeviceSettings();
+        break;
+    case UiPage::SettingsConfirm:
+        if (target == UiTarget::SettingsConfirmAccept) {
+            if (state.settingsConfirmAction == 1) queue(UiCommandKind::RestartDevice);
+            if (state.settingsConfirmAction == 2) queue(UiCommandKind::FactoryResetDevice);
+            openDeviceSettings();
+        } else if (target == UiTarget::SettingsConfirmCancel) {
+            openDeviceSettings();
+        }
+        break;
     case UiPage::Unavailable:
         closeToHome();
         break;
@@ -457,6 +573,12 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
 
 void uiControllerSetAlarmActive(bool active) {
     alarmIsActive = active;
+}
+
+void uiControllerReportDeviceActionFailure() {
+    state.page = UiPage::SettingsDevice;
+    state.deviceActionFailed = true;
+    markDirty();
 }
 
 void uiControllerTick(unsigned long now) {

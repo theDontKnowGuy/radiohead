@@ -719,7 +719,7 @@ void drawHomeHeader(bool timeValid, const String& station) {
     if (timeValid) {
         const time_t now = time(nullptr);
         tm localTime = {};
-        if (localtime_r(&now, &localTime) != nullptr) {
+        if (configuredLocalTime(now, localTime)) {
             strftime(date, sizeof(date), "%a, %d %b", &localTime);
         }
     }
@@ -916,7 +916,15 @@ void drawHomeClockAtlas(const char* value) {
             if (coverage == 0) continue;
             const int16_t pixelX = originX + x;
             const int16_t pixelY = originY + y;
-            canvas().drawPixel(pixelX, pixelY, blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+            if (uiFrameReady) {
+                canvas().drawPixel(pixelX, pixelY,
+                                   blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+            } else if (coverage >= 128) {
+                // The direct TFT path cannot safely read the sunset background
+                // back for alpha blending. Paint the already-composed source
+                // mask once, rather than falling back to a second font renderer.
+                canvas().drawPixel(pixelX, pixelY, kClockText);
+            }
         }
         // Keep the audio stream serviced during the bounded final blend.
         if ((y & 0x07U) == 0x07U) serviceUiAudio();
@@ -1511,6 +1519,117 @@ void renderStationInfo(const UiRenderState& state, const char* currentTime, bool
     footerButton(0, 320, "Back");
 }
 
+void drawSettingsRow(int16_t y, const String& title, const String& detail, bool danger = false) {
+    const uint16_t color = danger ? kRed : kSurface;
+    drawListCard(8, y, false, true);
+    text(title, 24, y + 8, uiFont(&fonts::FreeSans9pt7b), danger ? kRed : kWhite, 175);
+    text(detail, 24, y + 25, uiFont(&fonts::Font0), kTextMuted, 190);
+    text(">", 286, y + 14, uiFont(&fonts::FreeSansBold12pt7b), color, 16);
+}
+
+void drawEditorControl(int16_t y, const char* label, int value) {
+    text(label, 24, y + 12, uiFont(&fonts::FreeSans9pt7b), kWhite, 104);
+    canvas().fillRoundRect(142, y, 44, 40, 6, kSlate);
+    canvas().fillRoundRect(234, y, 44, 40, 6, kBlue);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("-", 164, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString("+", 256, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
+    const String valueLabel = String(value);
+    canvas().drawString(valueLabel.c_str(), 210, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
+}
+
+void drawEditorFooter() {
+    canvas().fillRoundRect(16, 190, 136, 40, 6, kSlate);
+    canvas().fillRoundRect(168, 190, 136, 40, 6, kBlue);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Cancel", 84, 210, uiFont(&fonts::Font0));
+    canvas().drawString("Save", 236, 210, uiFont(&fonts::Font0));
+}
+
+void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    (void)state;
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Settings");
+    drawSettingsRow(52, "Audio", "Bass, mid and treble");
+    drawSettingsRow(100, "Display", String("Dim after ") + String(autoDimSeconds) + " seconds");
+    drawSettingsRow(148, "Device", "Calibration, about and reset");
+    text("Wi-Fi, weather and time are configured on the web.", 18, 210,
+         uiFont(&fonts::Font0), kTextMuted, 286);
+}
+
+void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Audio");
+    drawEditorControl(52, "Bass", state.toneBassDraft);
+    drawEditorControl(98, "Mid", state.toneMidDraft);
+    drawEditorControl(144, "Treble", state.toneTrebleDraft);
+    drawEditorFooter();
+}
+
+void renderDisplaySettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Display");
+    canvas().fillRoundRect(16, 62, 288, 94, 10, kSurface);
+    text("Automatic dimming", 32, 78, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 240);
+    text("Dim after", 32, 112, uiFont(&fonts::Font0), kTextMuted, 100);
+    canvas().fillRoundRect(142, 96, 44, 40, 6, kSlate);
+    canvas().fillRoundRect(234, 96, 44, 40, 6, kBlue);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("-", 164, 116, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString("+", 256, 116, uiFont(&fonts::FreeSansBold12pt7b));
+    const String dimLabel = String(state.dimSecondsDraft) + " sec";
+    canvas().drawString(dimLabel.c_str(), 210, 116, uiFont(&fonts::FreeSansBold12pt7b));
+    text("The screen stays awake while music plays.", 32, 164,
+         uiFont(&fonts::Font0), kTextMuted, 250);
+    drawEditorFooter();
+}
+
+void renderDeviceSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    (void)state;
+    drawBackground();
+    drawHeader(currentTime, timeValid, "Device");
+    drawSettingsRow(48, "Touch calibration", "Measure this screen");
+    drawSettingsRow(93, "About", "Address and firmware");
+    drawSettingsRow(138, "Restart", "Stops playback briefly");
+    drawSettingsRow(183, "Factory reset",
+                    state.deviceActionFailed ? "Reset failed - settings kept" : "Keeps touch calibration", true);
+}
+
+void renderSettingsAbout(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    (void)state;
+    drawBackground();
+    drawHeader(currentTime, timeValid, "About");
+    text("Radiohead internet radio", 22, 60, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 274);
+    text(String("Address: ") + (isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString()),
+         22, 94, uiFont(&fonts::Font0), kTextMuted, 274);
+    text(String("Firmware: ") + __DATE__ + " " + __TIME__, 22, 120,
+         uiFont(&fonts::Font0), kTextMuted, 274);
+    text("Firmware updates use the web interface.", 22, 146,
+         uiFont(&fonts::Font0), kTextMuted, 274);
+    footerButton(0, 320, "Back");
+}
+
+void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    renderSettings({}, currentTime, timeValid);
+    const bool factoryReset = state.settingsConfirmAction == 2;
+    canvas().fillRoundRect(27, 54, 266, 132, 12, kWhite);
+    text(factoryReset ? "Factory reset radio?" : "Restart radio?", 48, 76,
+         uiFont(&fonts::FreeSansBold12pt7b), kNavy, 226);
+    text(factoryReset ? "This removes settings and stations." : "Playback will stop briefly.",
+         48, 110, uiFont(&fonts::Font0), kSurfaceRaised, 226);
+    text(factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
+         48, 130, uiFont(&fonts::Font0), kSurfaceRaised, 226);
+    canvas().fillRoundRect(45, 142, 104, 36, 6, kSlate);
+    canvas().fillRoundRect(171, 142, 104, 36, 6, factoryReset ? kRed : kBlue);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Cancel", 97, 160, uiFont(&fonts::Font0));
+    canvas().drawString(factoryReset ? "Reset" : "Restart", 223, 160, uiFont(&fonts::Font0));
+}
+
 void renderConfirm(const UiRenderState& state, const char* currentTime, bool timeValid) {
     renderListening({}, currentTime, timeValid);
     canvas().fillRoundRect(27, 56, 266, 128, 12, kWhite);
@@ -1590,17 +1709,10 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         text("Configure on phone", 90, 118, uiFont(&fonts::Font0), kTextMuted, 116);
     }
 
-    if (uiFrameReady && use24HourClock) {
-        // The alpha atlas blends against the freshly drawn sunset pixels in the
-        // readable canvas. This avoids color fringes from a precomposited mask.
-        drawHomeClockAtlas(timeValid ? currentTime : "--:--");
-    } else {
-        // SPI-panel readback is unreliable, so retain a legible bitmap fallback
-        // when the PSRAM canvas is unavailable.
-        canvas().setTextDatum(TR_DATUM);
-        canvas().setTextColor(kClockText);
-        canvas().drawString(timeValid ? currentTime : "--:--", 306, 40, &fonts::FreeSansBold24pt7b);
-    }
+    // One renderer owns the Home clock in both PSRAM and direct-TFT modes.
+    // A user-selected 12-hour value remains supported because the atlas is
+    // laid out from the actual digits, not a fixed 24-hour string width.
+    drawHomeClockAtlas(timeValid ? currentTime : "--:--");
     // A strict 4-column grid: identical tiles, wider breathing gaps and one baseline.
     drawHomeTile(kHomeTileX[0], kHomeBlue, "Live Radio", nullptr, 0);
     drawHomeTile(kHomeTileX[1], kHomeGreen, "Recorded", "Shows", 1);
@@ -1741,6 +1853,43 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
     } else if (state.page == UiPage::StandbyConfirm) {
         if (contains(x, y, 38, 124, 110, 44)) return UiTarget::ConfirmCancel;
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
+    } else if (state.page == UiPage::Settings) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
+        if (contains(x, y, 8, 52, 304, 42)) return UiTarget::SettingsAudio;
+        if (contains(x, y, 8, 100, 304, 42)) return UiTarget::SettingsDisplay;
+        if (contains(x, y, 8, 148, 304, 42)) return UiTarget::SettingsDevice;
+    } else if (state.page == UiPage::SettingsAudio) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
+        if (x >= 142 && x < 186) {
+            if (y >= 52 && y < 92) return UiTarget::ToneBassDecrease;
+            if (y >= 98 && y < 138) return UiTarget::ToneMidDecrease;
+            if (y >= 144 && y < 184) return UiTarget::ToneTrebleDecrease;
+        }
+        if (x >= 234 && x < 278) {
+            if (y >= 52 && y < 92) return UiTarget::ToneBassIncrease;
+            if (y >= 98 && y < 138) return UiTarget::ToneMidIncrease;
+            if (y >= 144 && y < 184) return UiTarget::ToneTrebleIncrease;
+        }
+        if (contains(x, y, 16, 190, 136, 40)) return UiTarget::ToneCancel;
+        if (contains(x, y, 168, 190, 136, 40)) return UiTarget::ToneSave;
+    } else if (state.page == UiPage::SettingsDisplay) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
+        if (contains(x, y, 142, 96, 44, 40)) return UiTarget::DimDecrease;
+        if (contains(x, y, 234, 96, 44, 40)) return UiTarget::DimIncrease;
+        if (contains(x, y, 16, 190, 136, 40)) return UiTarget::DimCancel;
+        if (contains(x, y, 168, 190, 136, 40)) return UiTarget::DimSave;
+    } else if (state.page == UiPage::SettingsDevice) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
+        if (contains(x, y, 8, 48, 304, 40)) return UiTarget::DeviceCalibration;
+        if (contains(x, y, 8, 93, 304, 40)) return UiTarget::DeviceAbout;
+        if (contains(x, y, 8, 138, 304, 40)) return UiTarget::DeviceRestart;
+        if (contains(x, y, 8, 183, 304, 40)) return UiTarget::DeviceFactoryReset;
+    } else if (state.page == UiPage::SettingsAbout) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
+            contains(x, y, 0, 188, 320, 52)) return UiTarget::AboutBack;
+    } else if (state.page == UiPage::SettingsConfirm) {
+        if (contains(x, y, 45, 142, 104, 36)) return UiTarget::SettingsConfirmCancel;
+        if (contains(x, y, 171, 142, 104, 36)) return UiTarget::SettingsConfirmAccept;
     } else if (state.page == UiPage::Unavailable) {
         if (contains(x, y, 0, 0, 320, 240)) return UiTarget::ListBack;
     }
@@ -1782,6 +1931,24 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::StandbyConfirm:
         renderConfirm(state, currentTime, timeValid);
+        break;
+    case UiPage::Settings:
+        renderSettings(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsAudio:
+        renderToneSettings(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsDisplay:
+        renderDisplaySettings(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsDevice:
+        renderDeviceSettings(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsAbout:
+        renderSettingsAbout(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsConfirm:
+        renderSettingsConfirmation(state, currentTime, timeValid);
         break;
     case UiPage::Unavailable:
         renderUnavailable(state, currentTime, timeValid);

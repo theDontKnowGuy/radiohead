@@ -1,24 +1,50 @@
 # Touch UI implementation status
 
+## 2026-09-21 — Settings: local Audio, Display and Device slice
+
+The Home Settings tile now opens a local Settings hub rather than an unavailable
+message. This slice provides touch-only navigation to Audio, Display and Device:
+Audio has bounded −15…15 bass/mid/treble drafts with explicit Save/Cancel;
+Display has a saved automatic-dim timeout limited to 15/30/60/120 seconds;
+Device provides touch calibration, an About page with the real local address,
+and separately confirmed Restart and Factory Reset actions. Factory reset uses
+the existing documented reset scope and retains touch calibration. The encoder
+remains global volume/mute/power control throughout these pages. Wi-Fi, weather
+and time remain browser configuration rather than appearing as inactive TFT rows.
+
+**Visual:** inspected native 320×240 production-path fixtures for Settings,
+Audio, Display and Device in `.pio/ui_native/settings-*-smooth.png`; they use the
+shared coastal/navy renderer and 44 px editor targets. **Functional:**
+`python3 tools/check_touch_input.py`, `python3 tools/render_ui_fonts.py`,
+`pio run -e esp32s3`, and `git diff --check` pass. The build reports 86,876 B
+RAM (26.5%) and 3,274,307 B flash (50.0%). **Hardware:** not flashed; physical
+touch targets, audio continuity during navigation/calibration, reboot persistence,
+dimming, restart and factory-reset confirmation remain unverified.
+
 ## 2026-09-21 — Source-matched Home-clock asset integration
 
 The Home clock now uses the supplied source-matched `home-clock-assets` package
-as its source of truth: native 26×32 alpha masks, per-glyph advances, and a
-visible-ink anchor `(301,40)`. The source-derived `1`, `3`, `4`, `7`, and colon
-retain their mockup tracing; the remaining supplied glyphs remain part of the
-same dynamic atlas. The converter copies the masks directly with no local font
-dependency or scaling. It verifies all supplied reference strings and the
-transparent 320×240 `14:37` overlay byte-for-byte; the required Home ink bounds
-are x=211…301 and y=40…70. Date, background, clock color, and compact
+as its source of truth: tight native alpha masks with declared y placement,
+per-glyph advances, and a visible-ink anchor `(301,40)`. The source-derived
+`1`, `3`, `4`, `7`, and colon retain their mockup tracing; the remaining supplied
+glyphs remain part of the same dynamic atlas. The converter pads each source
+mask into its fixed atlas cell with no local font dependency or scaling. It
+verifies all supplied reference strings and the transparent 320×240 `14:37`
+overlay byte-for-byte; the required Home ink bounds are x=212…301 and y=40…69.
+Date, background, clock color, and compact
 page-header clocks remain unchanged. At runtime, the firmware first composes
 overlapping glyph-cell alpha into one bounded 128×32 mask, then blends each
 final clock pixel once over the fresh Home canvas; this follows the package's
-required composition rule and prevents doubled strokes at cell overlaps.
+required composition rule and prevents doubled strokes at cell overlaps. The
+no-PSRAM direct-TFT fallback now uses that same composed atlas once, with an
+opaque 128-level alpha cutoff because TFT readback cannot reliably blend an
+anti-aliased edge over the sunset background; it no longer invokes the old
+`FreeSansBold24` clock renderer.
 
 **Visual:** the native fixture's approved overlay matches all alpha and visible
 pixel values exactly; physical/reference final acceptance remains open.
 **Functional:** `tools/render_ui_fonts.py` and `pio run -e esp32s3` pass; the
-build reports 86,852 B RAM (26.5%) and 3,274,255 B flash (50.0%). The scoped
+build reports 86,876 B RAM (26.5%) and 3,274,307 B flash (50.0%). The scoped
 diff whitespace check passes. **Hardware:** not flashed; TFT appearance and
 sustained-audio behavior remain unverified.
 

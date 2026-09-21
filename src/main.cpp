@@ -92,7 +92,7 @@ void updatePowerState(unsigned long now) {
         volumeBarVisible = false;
     }
 
-    if (now - lastInteraction > 30000 && !isAlarming) {
+    if (now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL && !isAlarming) {
         if (!isDimmed) {
             setBrightness(20);
             isDimmed = true;
@@ -190,7 +190,7 @@ void loop() {
     struct tm timeInfo = {};
     const time_t wallClock = time(nullptr);
     const bool timeValid =
-        wallClock >= 1483228800 && localtime_r(&wallClock, &timeInfo) != nullptr;
+        wallClock >= 1483228800 && configuredLocalTime(wallClock, timeInfo);
     char currentTime[12];
     if (timeValid) {
         formatConfiguredClock(currentTime, sizeof(currentTime), timeInfo);
@@ -293,6 +293,38 @@ void loop() {
                 // A failed save must not show a favorite that will disappear on reboot.
                 togglePodcastShowFavorite(command.value);
                 Serial.println("Unable to save show favorite");
+            }
+            forceRedraw = true;
+            break;
+        case UiCommandKind::ApplyTone:
+            gB = constrain(command.value, -15, 15);
+            gM = constrain(command.secondary, -15, 15);
+            gT = constrain(command.tertiary, -15, 15);
+            audio.setTone(gB, gM, gT);
+            saveSettings();
+            forceRedraw = true;
+            break;
+        case UiCommandKind::ApplyAutoDim:
+            autoDimSeconds = normalizeAutoDimSeconds(command.value);
+            // A newly committed timeout starts from this explicit interaction,
+            // rather than immediately dimming because an older timeout expired.
+            lastInteraction = now;
+            saveSettings();
+            forceRedraw = true;
+            break;
+        case UiCommandKind::StartTouchCalibration:
+            // Calibration is intentionally an explicit maintenance flow. It is
+            // the one local operation that must temporarily take over the TFT.
+            initializeTouchCalibration();
+            lastInteraction = millis();
+            forceRedraw = true;
+            break;
+        case UiCommandKind::RestartDevice:
+            ESP.restart();
+            break;
+        case UiCommandKind::FactoryResetDevice:
+            if (!factoryReset()) {
+                uiControllerReportDeviceActionFailure();
             }
             forceRedraw = true;
             break;

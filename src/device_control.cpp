@@ -60,8 +60,9 @@ void goToSleep() {
 
     uint64_t sleepTimeUs = 0;
     if (alarmActive) {
-        struct tm timeInfo;
-        if (getLocalTime(&timeInfo)) {
+        const time_t wallClock = time(nullptr);
+        struct tm timeInfo = {};
+        if (wallClock >= 1483228800 && configuredLocalTime(wallClock, timeInfo)) {
             const long nowSeconds = timeInfo.tm_hour * 3600 + timeInfo.tm_min * 60 + timeInfo.tm_sec;
             const long alarmSeconds = alarmH * 3600 + alarmM * 60;
             const long difference = alarmSeconds > nowSeconds

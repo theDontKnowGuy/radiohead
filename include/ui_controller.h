@@ -18,6 +18,12 @@ enum class UiPage : uint8_t {
     ShowEpisodes,
     PodcastPlayer,
     StandbyConfirm,
+    Settings,
+    SettingsAudio,
+    SettingsDisplay,
+    SettingsDevice,
+    SettingsAbout,
+    SettingsConfirm,
     Unavailable,
 };
 
@@ -87,6 +93,29 @@ enum class UiTarget : uint8_t {
     PodcastProgress,
     ConfirmCancel,
     ConfirmStandby,
+    SettingsBack,
+    SettingsAudio,
+    SettingsDisplay,
+    SettingsDevice,
+    ToneBassDecrease,
+    ToneBassIncrease,
+    ToneMidDecrease,
+    ToneMidIncrease,
+    ToneTrebleDecrease,
+    ToneTrebleIncrease,
+    ToneSave,
+    ToneCancel,
+    DimDecrease,
+    DimIncrease,
+    DimSave,
+    DimCancel,
+    DeviceCalibration,
+    DeviceAbout,
+    DeviceRestart,
+    DeviceFactoryReset,
+    AboutBack,
+    SettingsConfirmCancel,
+    SettingsConfirmAccept,
 };
 
 enum class UiCommandKind : uint8_t {
@@ -106,11 +135,18 @@ enum class UiCommandKind : uint8_t {
     SeekPodcast,
     TogglePodcastShowFavorite,
     EnterStandby,
+    ApplyTone,
+    ApplyAutoDim,
+    StartTouchCalibration,
+    RestartDevice,
+    FactoryResetDevice,
 };
 
 struct UiCommand {
     UiCommandKind kind = UiCommandKind::None;
     int value = 0;
+    int secondary = 0;
+    int tertiary = 0;
 };
 
 struct UiRenderState {
@@ -141,6 +177,13 @@ struct UiRenderState {
     uint8_t unavailableDestination = 0;
     bool playerControlFocus = false;
     uint8_t playerFocus = 3;
+    int toneBassDraft = 0;
+    int toneMidDraft = 0;
+    int toneTrebleDraft = 0;
+    uint16_t dimSecondsDraft = 30;
+    // 0 is none, 1 is restart, 2 is factory reset.
+    uint8_t settingsConfirmAction = 0;
+    bool deviceActionFailed = false;
     bool dirty = true;
 };
 
@@ -151,6 +194,7 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed);
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed);
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
 void uiControllerSetAlarmActive(bool active);
+void uiControllerReportDeviceActionFailure();
 void uiControllerTick(unsigned long now);
 bool uiControllerTakeCommand(UiCommand& command);
 UiRenderState uiControllerRenderState();

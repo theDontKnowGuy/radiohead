@@ -129,6 +129,7 @@ int gB = 0;
 int gM = 0;
 int gT = 0;
 bool showSpectrum = true;
+uint16_t autoDimSeconds = 30;
 bool isDimmed = false;
 volatile bool forceRedraw = false;
 volatile unsigned long lastInteraction = 0;

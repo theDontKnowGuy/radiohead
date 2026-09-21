@@ -5,6 +5,14 @@
 #include <cstdio>
 
 int currentStationIdx = 0;
+int gB = 0, gM = 0, gT = 0;
+uint16_t autoDimSeconds = 30;
+uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
+    for (const uint16_t option : {15, 30, 60, 120}) {
+        if (seconds == option) return option;
+    }
+    return 30;
+}
 int podcastEpisodeCount = 8;
 bool ready = true;
 bool favoriteEnabled = false;
@@ -176,6 +184,48 @@ int main() {
     assert(uiControllerRenderState().page == favoritePage);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
     favoriteEnabled = false;
+
+    // Settings are touch-owned. Editors keep drafts until Save, while the
+    // global encoder contract remains volume/mute/power on these pages.
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::Settings);
+    uiControllerTap(UiTarget::SettingsAudio, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::SettingsAudio);
+    uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
+    uiControllerTap(UiTarget::ToneTrebleDecrease, 0, 0, false);
+    assert(uiControllerRenderState().toneBassDraft == 1);
+    assert(uiControllerRenderState().toneTrebleDraft == -1);
+    uiControllerTap(UiTarget::ToneCancel, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::Settings);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::SettingsAudio, 0, 0, false);
+    uiControllerTap(UiTarget::ToneMidIncrease, 0, 0, false);
+    uiControllerTap(UiTarget::ToneSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone &&
+           command.value == 0 && command.secondary == 1 && command.tertiary == 0);
+    uiControllerTap(UiTarget::SettingsDisplay, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 30);
+    uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 60);
+    uiControllerTap(UiTarget::DimCancel, 0, 0, false);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::SettingsDisplay, 0, 0, false);
+    uiControllerTap(UiTarget::DimDecrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 15);
+    uiControllerTap(UiTarget::DimSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim && command.value == 15);
+    uiControllerTap(UiTarget::SettingsDevice, 0, 0, false);
+    uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::SettingsConfirm);
+    uiControllerTap(UiTarget::SettingsConfirmCancel, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::SettingsDevice);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerTap(UiTarget::DeviceRestart, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsConfirmAccept, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::RestartDevice);
+    uiControllerTurn(1, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 1);
 
     // A consumed wake press stays consumed after the display wakes.
     uiControllerBegin();

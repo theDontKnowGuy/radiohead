@@ -265,9 +265,11 @@ action if supported. Placeholder when configured: **Configured · enter a new ke
 to replace**. Empty input keeps the old key; never return it in page/state/logs.
 
 Clock panel: **Time zone**, friendly region/city names, **Clock format** with
-**24-hour · 14:37** and **12-hour · 2:37 PM** examples. Explain **Used for weather
-only. The time zone is set separately.** Regional zones must handle daylight saving
-with the device's actual time implementation; no fixed-offset substitution.
+**24-hour · 14:37** and **12-hour · 2:37 PM** examples. Explain that this is the
+weather location's time zone and also drives the radio clock. Automatically match
+only unambiguous supported `city,country` locations; otherwise retain an explicit
+region choice. Regional zones must handle daylight saving with the device's actual
+time implementation; no fixed-offset substitution.
 
 One **Cancel** / **Save changes** applies the weather/time editing unit. Validate
 before committing; make partial outcomes explicit if backend atomicity is

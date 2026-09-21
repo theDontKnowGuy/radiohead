@@ -697,11 +697,11 @@ $('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid'
             "<details><summary>Provider access</summary><p class='rh-muted'>OpenWeather is the supported provider.</p><label class='rh-field'><span>API key <small id='weather-key-help'></small></span><input id='weather-key' type='password' maxlength='128' autocomplete='new-password'></label><label class='rh-inlinecheck'><input id='weather-clear-key' type='checkbox'>Clear the stored API key</label></details></section>"
             "<section class='rh-box' aria-labelledby='clock-settings'><h2 id='clock-settings'>Clock</h2><label class='rh-field'><span>Time zone</span><select id='weather-timezone'>";
         appendTimeZoneOptions(html);
-        html += "</select></label><label class='rh-field'><span>Clock format</span><select id='weather-clock'><option value='24'>24-hour · 14:37</option><option value='12'>12-hour · 2:37 PM</option></select></label><p class='rh-note'>Used for weather only. The time zone is set separately.</p><div class='rh-footer'><span class='rh-formstatus' id='weather-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='weather-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='weather-save'>Save changes</button></div></section><script>";
+        html += "</select></label><label class='rh-field'><span>Clock format</span><select id='weather-clock'><option value='24'>24-hour · 14:37</option><option value='12'>12-hour · 2:37 PM</option></select></label><p class='rh-note'>This is the time zone for the weather location and the radio clock. Exact supported city,country locations select it automatically; otherwise choose the matching region.</p><div class='rh-footer'><span class='rh-formstatus' id='weather-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='weather-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='weather-save'>Save changes</button></div></section><script>";
         html += R"JS((()=>{const $=id=>document.getElementById(id),api=(path,body)=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});let state=null;
 function apply(s){state=s;$('weather-location').value=s.location;$('weather-units').value=s.units;$('weather-visible').checked=s.visible;$('weather-timezone').value=s.timezone;$('weather-clock').value=s.clock24?'24':'12';$('weather-key').value='';$('weather-clear-key').checked=false;$('weather-key-help').textContent=s.keyConfigured?'Configured · enter a new key to replace':'Enter an OpenWeather API key.';}
 async function refresh(){try{apply(await fetch('/api/weather',{cache:'no-store'}).then(r=>r.json()))}catch(_){$('weather-form-status').textContent='Radio connection lost.';}}
-async function save(){const location=$('weather-location').value.trim(),key=$('weather-key').value;if(!location){$('weather-form-status').textContent='Enter a city or city,country location.';$('weather-location').focus();return;}const keyAction=$('weather-clear-key').checked?'clear':key?'replace':'keep';try{const data=await api('/api/weather/save',{revision:state.revision,location,units:$('weather-units').value,visible:$('weather-visible').checked?'1':'0',timezone:$('weather-timezone').value,clock:$('weather-clock').value,key,keyAction});apply(data);$('weather-form-status').textContent=data.refreshing?'Settings saved. Weather refresh is in progress.':'Settings saved. Weather refresh was requested; availability is reported separately.';}catch(error){$('weather-form-status').textContent=error.message;}}
+async function save(){const location=$('weather-location').value.trim(),key=$('weather-key').value;if(!location){$('weather-form-status').textContent='Enter a city or city,country location.';$('weather-location').focus();return;}const keyAction=$('weather-clear-key').checked?'clear':key?'replace':'keep',requestedZone=$('weather-timezone').value;try{const data=await api('/api/weather/save',{revision:state.revision,location,units:$('weather-units').value,visible:$('weather-visible').checked?'1':'0',timezone:requestedZone,clock:$('weather-clock').value,key,keyAction});apply(data);const zoneNote=data.timezone!==requestedZone?' Time zone matched to the weather location.':'';$('weather-form-status').textContent=(data.refreshing?'Settings saved. Weather refresh is in progress.':'Settings saved. Weather refresh was requested; availability is reported separately.')+zoneNote;}catch(error){$('weather-form-status').textContent=error.message;}}
 $('weather-save').onclick=save;$('weather-cancel').onclick=()=>{if(state){apply(state);$('weather-form-status').textContent='Draft discarded.';}};refresh();setInterval(async()=>{if(document.hidden)return;try{const next=await fetch('/api/weather',{cache:'no-store'}).then(r=>r.json());if(state&&next.revision===state.revision){state=next;if(next.refreshing)$('weather-form-status').textContent='Weather refresh is in progress.';else if(!next.available)$('weather-form-status').textContent='Settings are saved; weather is currently unavailable.';}}catch(_){}},3500);})();</script>)JS";
         break;
     case WebSection::Appearance:
@@ -1206,9 +1206,11 @@ void startWebServer() {
         const String clock = server.arg("clock");
         const String key = server.arg("key");
         const String keyAction = server.arg("keyAction");
+        const char* locationTimeZone = timeZoneForWeatherLocation(location);
+        const String effectiveTimeZone = locationTimeZone == nullptr ? timezone : String(locationTimeZone);
         if (!isPrintableSettingText(location, 80) || (units != "C" && units != "F") ||
             (visible != "0" && visible != "1") || (clock != "12" && clock != "24") ||
-            !isSupportedTimeZone(timezone) || key.length() > 128 ||
+            !isSupportedTimeZone(effectiveTimeZone) || key.length() > 128 ||
             (keyAction != "keep" && keyAction != "replace" && keyAction != "clear")) {
             server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid weather or clock settings.\"}");
             return;
@@ -1223,7 +1225,7 @@ void startWebServer() {
         useCelsius = units == "C";
         showWeatherOnHome = visible == "1";
         use24HourClock = clock == "24";
-        timeZoneId = timezone;
+        timeZoneId = effectiveTimeZone;
         if (keyAction == "clear") owmKey = "";
         else if (keyAction == "replace") owmKey = key;
         if (!saveWeatherTimeSettings()) {
@@ -1479,7 +1481,11 @@ void startWebServer() {
         const String oldCity = owmCity;
         const String oldKey = owmKey;
         const bool oldUnits = useCelsius;
+        const String oldTimezone = timeZoneId;
         owmCity = city;
+        if (const char* locationTimeZone = timeZoneForWeatherLocation(city)) {
+            timeZoneId = locationTimeZone;
+        }
         if (server.hasArg("clear_key")) {
             owmKey = "";
         } else if (!key.isEmpty()) {
@@ -1490,10 +1496,12 @@ void startWebServer() {
             owmCity = oldCity;
             owmKey = oldKey;
             useCelsius = oldUnits;
+            timeZoneId = oldTimezone;
             server.send(500, "text/plain", "Weather settings could not be saved");
             return;
         }
         ++weatherConfigurationEpoch;
+        applyConfiguredTimeZone();
         invalidateWeatherData();
         redirectTo("/weather");
     });

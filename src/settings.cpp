@@ -17,6 +17,7 @@ constexpr uint8_t WEATHER_TIME_VERSION = 1;
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
 constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1000;
+constexpr uint16_t AUTO_DIM_SECONDS[] = {15, 30, 60, 120};
 constexpr size_t STATION_ARTWORK_PAYLOAD_BYTES = (32 * 32 + 64 * 64 + 88 * 88) * 2;
 constexpr size_t STATION_ARTWORK_HEADER_BYTES = 16;
 constexpr size_t STATION_ARTWORK_PACKAGE_BYTES = STATION_ARTWORK_HEADER_BYTES + STATION_ARTWORK_PAYLOAD_BYTES;
@@ -33,6 +34,19 @@ size_t artworkUploadBytes = 0;
 bool artworkUploadFailed = false;
 uint32_t artworkContentEpoch[STATION_COUNT] = {};
 
+uint16_t nearestAutoDimSeconds(uint16_t seconds) {
+    uint16_t nearest = AUTO_DIM_SECONDS[0];
+    uint16_t distance = seconds > nearest ? seconds - nearest : nearest - seconds;
+    for (const uint16_t option : AUTO_DIM_SECONDS) {
+        const uint16_t optionDistance = seconds > option ? seconds - option : option - seconds;
+        if (optionDistance < distance) {
+            nearest = option;
+            distance = optionDistance;
+        }
+    }
+    return nearest;
+}
+
 constexpr TimeZoneOption TIME_ZONES[] = {
     {"UTC", "UTC", "UTC0"},
     // This is the historic rule already hard-coded by the firmware.  Keeping
@@ -42,7 +56,34 @@ constexpr TimeZoneOption TIME_ZONES[] = {
     {"America/New_York", "America · New York", "EST5EDT,M3.2.0,M11.1.0"},
     {"America/Los_Angeles", "America · Los Angeles", "PST8PDT,M3.2.0,M11.1.0"},
     {"Asia/Tokyo", "Asia · Tokyo", "JST-9"},
+    // Newlib's POSIX grammar cannot represent Israel's Friday-on-or-after the
+    // 23rd March transition. configuredLocalTime() supplies that DST rule.
+    {"Asia/Jerusalem", "Asia · Jerusalem", "IST-2"},
     {"Australia/Sydney", "Australia · Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+};
+
+struct WeatherLocationZone {
+    const char* normalizedLocation;
+    const char* timeZone;
+};
+
+// Only exact city/country matches are automatic. City names such as London
+// or Sydney are ambiguous without their country, so an unmatched location
+// retains the user's explicit zone rather than guessing.
+constexpr WeatherLocationZone WEATHER_LOCATION_ZONES[] = {
+    {"budapest,hu", "Europe/Paris"},
+    {"paris,fr", "Europe/Paris"},
+    {"london,gb", "Europe/London"},
+    {"london,uk", "Europe/London"},
+    {"newyork,us", "America/New_York"},
+    {"losangeles,us", "America/Los_Angeles"},
+    {"tokyo,jp", "Asia/Tokyo"},
+    {"sydney,au", "Australia/Sydney"},
+    {"jerusalem,il", "Asia/Jerusalem"},
+    {"telaviv,il", "Asia/Jerusalem"},
+    {"haifa,il", "Asia/Jerusalem"},
+    {"beersheva,il", "Asia/Jerusalem"},
+    {"eilat,il", "Asia/Jerusalem"},
 };
 
 const TimeZoneOption* findTimeZone(const String& id) {
@@ -50,6 +91,50 @@ const TimeZoneOption* findTimeZone(const String& id) {
         if (id == option.id) return &option;
     }
     return nullptr;
+}
+
+bool leapYear(int year) {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+int daysInMonth(int year, int month) {
+    static constexpr uint8_t DAYS[] = {31, 28, 31, 30, 31, 30,
+                                       31, 31, 30, 31, 30, 31};
+    return DAYS[month - 1] + (month == 2 && leapYear(year) ? 1 : 0);
+}
+
+// Days since 1970-01-01, using the proleptic Gregorian calendar. This keeps
+// daylight-saving calculations independent of the active process TZ.
+int64_t daysFromCivil(int year, unsigned month, unsigned day) {
+    year -= month <= 2;
+    const int era = (year >= 0 ? year : year - 399) / 400;
+    const unsigned yearOfEra = static_cast<unsigned>(year - era * 400);
+    const unsigned adjustedMonth = month > 2 ? month - 3 : month + 9;
+    const unsigned dayOfYear = (153 * adjustedMonth + 2) / 5 + day - 1;
+    const unsigned dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+    return era * 146097 + static_cast<int>(dayOfEra) - 719468;
+}
+
+int weekday(int year, int month, int day) {
+    int result = static_cast<int>((daysFromCivil(year, month, day) + 4) % 7);
+    return result < 0 ? result + 7 : result;  // Sunday is zero.
+}
+
+time_t utcTimestamp(int year, int month, int day, int hour) {
+    return static_cast<time_t>(daysFromCivil(year, month, day) * 86400 + hour * 3600);
+}
+
+bool jerusalemDaylightSaving(time_t utcTime) {
+    tm utc = {};
+    if (gmtime_r(&utcTime, &utc) == nullptr) return false;
+    const int year = utc.tm_year + 1900;
+    const int marchFriday = 23 + (5 - weekday(year, 3, 23) + 7) % 7;
+    const int octoberLastSunday = daysInMonth(year, 10) - weekday(year, 10, daysInMonth(year, 10));
+    // tzdb's post-2013 Zion rule is 02:00 local wall time. The spring
+    // transition is standard UTC+2; the autumn transition is DST UTC+3.
+    const time_t begins = utcTimestamp(year, 3, marchFriday, 2) - 2 * 3600;
+    const time_t ends = utcTimestamp(year, 10, octoberLastSunday, 2) - 3 * 3600;
+    return utcTime >= begins && utcTime < ends;
 }
 
 String artworkPath(int stationIndex, const char* suffix = "") {
@@ -141,6 +226,10 @@ bool isValidTouchCalibration(const TouchCalibration& calibration) {
 
 }  // namespace
 
+uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
+    return nearestAutoDimSeconds(seconds);
+}
+
 const TimeZoneOption* supportedTimeZones(size_t& count) {
     count = sizeof(TIME_ZONES) / sizeof(TIME_ZONES[0]);
     return TIME_ZONES;
@@ -148,6 +237,16 @@ const TimeZoneOption* supportedTimeZones(size_t& count) {
 
 bool isSupportedTimeZone(const String& id) {
     return findTimeZone(id) != nullptr;
+}
+
+const char* timeZoneForWeatherLocation(const String& location) {
+    String normalized = location;
+    normalized.toLowerCase();
+    normalized.replace(" ", "");
+    for (const WeatherLocationZone& candidate : WEATHER_LOCATION_ZONES) {
+        if (normalized == candidate.normalizedLocation) return candidate.timeZone;
+    }
+    return nullptr;
 }
 
 void applyConfiguredTimeZone() {
@@ -158,6 +257,17 @@ void applyConfiguredTimeZone() {
     }
     setenv("TZ", option->posixRule, 1);
     tzset();
+}
+
+bool configuredLocalTime(time_t utcTime, tm& localTime) {
+    if (timeZoneId != "Asia/Jerusalem") {
+        return localtime_r(&utcTime, &localTime) != nullptr;
+    }
+    const bool daylightSaving = jerusalemDaylightSaving(utcTime);
+    const time_t localWallClock = utcTime + (daylightSaving ? 3 : 2) * 3600;
+    if (gmtime_r(&localWallClock, &localTime) == nullptr) return false;
+    localTime.tm_isdst = daylightSaving ? 1 : 0;
+    return true;
 }
 
 void formatConfiguredClock(char* destination, size_t destinationSize, const tm& value) {
@@ -501,6 +611,7 @@ void saveSettings() {
     pref.putInt("bass", gB);
     pref.putInt("mid", gM);
     pref.putInt("treb", gT);
+    pref.putUShort("dimSec", autoDimSeconds);
     pref.putBool("spec", showSpectrum);
     pref.putInt("almH", alarmH);
     pref.putInt("almM", alarmM);
@@ -551,6 +662,7 @@ void loadSettings() {
     gB = pref.getInt("bass", 0);
     gM = pref.getInt("mid", 0);
     gT = pref.getInt("treb", 0);
+    autoDimSeconds = normalizeAutoDimSeconds(pref.getUShort("dimSec", 30));
     showSpectrum = pref.getBool("spec", true);
     alarmH = pref.getInt("almH", 7);
     alarmM = pref.getInt("almM", 0);
@@ -580,6 +692,11 @@ void loadSettings() {
     }
     if (!isSupportedTimeZone(timeZoneId)) {
         timeZoneId = "Europe/Paris";
+    }
+    // Migrate known city/country locations to their matching rule set.  This
+    // fixes devices that previously inherited the Central European default.
+    if (const char* locationTimeZone = timeZoneForWeatherLocation(owmCity)) {
+        timeZoneId = locationTimeZone;
     }
     currentSkin.hexTop = pref.getString("cTop", "#000000");
     currentSkin.hexBottom = pref.getString("cBot", "#000000");

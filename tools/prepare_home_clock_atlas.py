@@ -71,20 +71,28 @@ def main():
         path = SOURCE / "glyphs" / filename
         require(path.is_file(), f"Missing glyph source: {path}")
         image = Image.open(path).convert("RGBA")
-        require(image.size == (cell_width, cell_height), f"Unexpected glyph size: {path}")
+        glyph_spec = cells["glyphs"][glyph]
+        source_size = tuple(glyph_spec.get("cell_size", (cell_width, cell_height)))
+        draw_y = glyph_spec.get("draw_y_from_cell_top", 0)
+        require(image.size == source_size, f"Unexpected glyph size: {path}")
+        require(0 < source_size[0] <= cell_width and 0 < source_size[1] <= cell_height and
+                -source_size[1] < draw_y and draw_y < cell_height,
+                f"Invalid glyph placement: {path}")
         pixels = image.load()
-        for y in range(cell_height):
-            for x in range(cell_width):
+        for y in range(source_size[1]):
+            for x in range(source_size[0]):
                 red, green, blue, opacity = pixels[x, y]
                 require(opacity == 0 or (red, green, blue) == (245, 245, 245),
                         f"Glyph color differs from #F5F5F5: {path}")
-        expected = cells["glyphs"][glyph]["ink_bounds_in_cell"]
+        expected = glyph_spec["ink_bounds_in_cell"]
         measured = alpha_bounds(image)
         require(measured == expected, f"Glyph ink bounds differ from manifest: {path}")
-        images[glyph] = image
-        alpha.extend(image.getchannel("A").tobytes())
-        advances.append(cells["glyphs"][glyph]["advance"])
-        bounds.append(measured)
+        atlas_cell = Image.new("RGBA", (cell_width, cell_height))
+        atlas_cell.alpha_composite(image, (0, draw_y))
+        images[glyph] = atlas_cell
+        alpha.extend(atlas_cell.getchannel("A").tobytes())
+        advances.append(glyph_spec["advance"])
+        bounds.append(alpha_bounds(atlas_cell))
         hashes[filename] = sha256(path)
 
     references = source_manifest["reference_strings"]

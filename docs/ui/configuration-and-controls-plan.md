@@ -92,7 +92,7 @@ if scan-tested, a QR code. Never include credentials in that code.
 | Automatic dimming | Device; TFT timeout setting | Retained from the initial proposal. No brightness-level editor or separate idle/clock mode. Preserve existing dim/wake behavior until this setting is implemented. |
 | Prepared theme selection | TFT, only for supported themes | Retained from the initial proposal; do not invent a theme collection. One supported theme needs no selector. Arbitrary color editing is removed. |
 | Custom background upload | Web | Retained explicitly; see section 4. |
-| Clock format and time zone | Web | 12/24-hour choice and user-friendly timezone selection. TFT displays the resulting time. Preserve the current timezone as the migration default; do not infer it from the concept's example city. |
+| Clock format and time zone | Web | 12/24-hour choice and user-friendly timezone selection. TFT displays the resulting time. A recognized unambiguous weather `city,country` location selects its matching implemented zone; otherwise retain the explicit zone choice. The former Central European rule remains the migration default. |
 | Weather units and Home visibility | TFT; existing web units equivalent | Celsius/Fahrenheit and weather on/off. Keep unavailable/stale weather states honest. |
 | Weather location | Web | Search or text entry; TFT shows the chosen location. |
 | Weather API key/provider setup | Web | Keep secrets out of returned pages, display, logs and artifacts. |

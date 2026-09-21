@@ -28,12 +28,22 @@ void saveSettings();
 void queueSettingsSave();
 void serviceSettingsSave(unsigned long now);
 
-// Keep the existing Central European rule as the migration default.  The
-// table intentionally contains only zones whose current DST/no-DST behavior
-// can be represented by the ESP32's POSIX timezone implementation.
+// The TFT exposes only these measured, bounded automatic-dim choices.  Keep
+// old or corrupt persisted values on a predictable supported value.
+uint16_t normalizeAutoDimSeconds(uint16_t seconds);
+
+// Keep the existing Central European rule as the migration default. The table
+// contains only zones with an implemented deterministic DST/no-DST rule.
 const TimeZoneOption* supportedTimeZones(size_t& count);
 bool isSupportedTimeZone(const String& id);
+// Returns a safe, unambiguous timezone match for a supported city/country
+// weather location, or nullptr when the location needs an explicit choice.
+const char* timeZoneForWeatherLocation(const String& location);
 void applyConfiguredTimeZone();
+// Converts UTC using the selected rule set.  Most entries use newlib's POSIX
+// TZ support; zones with rules it cannot express use deterministic firmware
+// calculations instead.
+bool configuredLocalTime(time_t utcTime, tm& localTime);
 void formatConfiguredClock(char* destination, size_t destinationSize, const tm& value);
 
 // These operations write only the settings they own.  They never return a
