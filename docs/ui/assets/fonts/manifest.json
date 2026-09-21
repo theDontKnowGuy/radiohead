@@ -30,11 +30,11 @@
       "source_sha256": "c9556b475c2f0f0f566216b2158c191218206c016c522ef0537e46e03bca232f",
       "fallback": "DejaVuSans.ttf",
       "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
-      "pixels": 15,
+      "pixels": 18,
       "weight": "Regular",
       "space_width": 4,
-      "bytes": 13980,
-      "sha256": "cc0863eb548a062edad84d9505ca57c4a2f8df2b6f7339676b77c523b905ea07"
+      "bytes": 18450,
+      "sha256": "a63fa78268d695c36fa832833594fbfc9df64ea00834ec54e99e70829006d5b6"
     },
     "recorded_header": {
       "source": "Roboto-Regular.otf",
@@ -90,6 +90,17 @@
       "space_width": 2,
       "bytes": 8677,
       "sha256": "d11715c8bbe288f3cca2c5f93a5c12be72beab9b0f22c4dc8ee137adf5bdb237"
+    },
+    "home_label": {
+      "source": "Roboto-Medium.otf",
+      "source_sha256": "9595d4065558fb7bed2aeef6296025342de48f3bc36a7c75885ba763f644bad7",
+      "fallback": "DejaVuSans.ttf",
+      "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
+      "pixels": 11,
+      "weight": "Medium",
+      "space_width": 3,
+      "bytes": 9292,
+      "sha256": "cc83358cc6ac47132268cd89dc4a15535604407c30dc824d4f7d0881d1fba80a"
     },
     "caption": {
       "source": "Roboto-Regular.otf",

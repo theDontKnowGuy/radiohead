@@ -446,11 +446,11 @@ constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 #define UI_P2_FIXTURE 0
 #endif
 
-constexpr int16_t kHomeTileY = 154;
-constexpr int16_t kHomeTileWidth = 66;
+constexpr int16_t kHomeTileY = 149;
+constexpr int16_t kHomeTileWidth = 72;
 constexpr int16_t kHomeTileHeight = 70;
-constexpr int16_t kHomeTileIconSize = 44;
-constexpr int16_t kHomeTileX[] = {7, 86, 165, 244};
+constexpr int16_t kHomeTileIconSize = 40;
+constexpr int16_t kHomeTileX[] = {7, 85, 163, 241};
 // The visible chevron is small, but its target reaches into the title margin
 // and a little below the header so a normal finger press reliably returns.
 constexpr int16_t kHeaderBackHitWidth = 72;
@@ -480,7 +480,7 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 constexpr int16_t kListPrimaryTextTop = 11;
 
 const lgfx::IFont* homeLabelFont() {
-    return uiFrameReady ? display_fonts::label() : &fonts::Font0;
+    return uiFrameReady ? display_fonts::homeLabel() : &fonts::Font0;
 }
 
 const lgfx::IFont* homeCaptionFont() {
@@ -703,18 +703,19 @@ void drawHomeHeader(bool timeValid, const String& station) {
     // photo is part of this screen's composition. Other pages retain drawHeader.
     constexpr int16_t centerY = 22;
     if (uiFrameReady) {
-        canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 14, 12);
+        canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 12, 10);
     } else {
-        canvas().drawRoundRect(16, 18, 12, 8, 2, kHomeText);
-        canvas().drawLine(18, 17, 26, 13, kHomeText);
-        canvas().fillCircle(19, 22, 1, kHomeText);
-        canvas().fillCircle(25, 22, 1, kHomeText);
+        canvas().drawRoundRect(14, 18, 15, 10, 3, kHomeText);
+        canvas().drawLine(17, 16, 27, 12, kHomeText);
+        canvas().fillCircle(19, 23, 2, kHomeText);
+        canvas().fillCircle(25, 23, 2, kHomeText);
     }
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
-    canvas().drawString("Radiohead", 34, centerY, uiFont(&fonts::FreeSans9pt7b));
-    text((station.isEmpty() ? String("Live Radio") : station) + " • Live Radio",
-         34, 31, uiFont(&fonts::Font0), kTextMuted, 158);
+    canvas().drawString("Radiohead", 38, centerY, display_fonts::homeTitle());
+    const char* source = podcastMode ? "Recorded Show" : "Live Radio";
+    text((station.isEmpty() ? String(source) : station) + " • " + source,
+         34, 31, uiFont(&fonts::Font0), kTextMuted, 166);
     char date[16] = "";
     if (timeValid) {
         const time_t now = time(nullptr);
@@ -1519,24 +1520,62 @@ void renderStationInfo(const UiRenderState& state, const char* currentTime, bool
     footerButton(0, 320, "Back");
 }
 
-void drawSettingsRow(int16_t y, const String& title, const String& detail, bool danger = false) {
-    const uint16_t color = danger ? kRed : kSurface;
-    drawListCard(8, y, false, true);
-    text(title, 24, y + 8, uiFont(&fonts::FreeSans9pt7b), danger ? kRed : kWhite, 175);
-    text(detail, 24, y + 25, uiFont(&fonts::Font0), kTextMuted, 190);
-    text(">", 286, y + 14, uiFont(&fonts::FreeSansBold12pt7b), color, 16);
+void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhite) {
+    switch (kind) {
+    case 0:  // Network
+        canvas().drawArc(x, y - 2, 7, 10, 210, 330, color);
+        canvas().drawArc(x, y - 2, 13, 16, 210, 330, color);
+        canvas().fillCircle(x, y + 5, 2, color);
+        break;
+    case 1:  // Display
+        canvas().drawRoundRect(x - 13, y - 9, 26, 18, 3, color);
+        canvas().drawLine(x - 5, y + 13, x + 5, y + 13, color);
+        canvas().drawLine(x, y + 9, x, y + 13, color);
+        break;
+    case 2:  // Audio
+        canvas().fillTriangle(x - 13, y - 5, x - 5, y - 5, x - 5, y + 5, color);
+        canvas().fillRect(x - 5, y - 9, 5, 18, color);
+        canvas().drawArc(x + 1, y, 6, 9, 300, 60, color);
+        canvas().drawArc(x + 1, y, 11, 14, 300, 60, color);
+        break;
+    case 3:  // Weather & time
+        canvas().drawCircle(x - 5, y - 4, 6, color);
+        canvas().fillCircle(x + 5, y + 4, 7, color);
+        canvas().fillCircle(x - 3, y + 5, 6, color);
+        break;
+    default:  // Device
+        canvas().drawCircle(x, y, 13, color);
+        canvas().fillCircle(x, y - 6, 2, color);
+        canvas().fillRect(x - 1, y - 1, 3, 9, color);
+        break;
+    }
+}
+
+void drawSettingsChevron(int16_t x, int16_t y, uint16_t color = kWhite) {
+    for (int16_t offset = -1; offset <= 1; ++offset) {
+        canvas().drawLine(x - 5, y - 9 + offset, x + 4, y + offset, color);
+        canvas().drawLine(x + 4, y + offset, x - 5, y + 9 + offset, color);
+    }
+}
+
+void drawSettingsListRow(int16_t y, const char* label, uint8_t icon, bool danger = false) {
+    drawListCard(kListOuterInset, y, false);
+    drawSettingsGlyph(icon, kListOuterInset + 22, y + 23, danger ? kRed : kWhite);
+    listPrimaryText(label, kListOuterInset + 50, y, 150);
+    drawSettingsChevron(kListOuterInset + 226, y + 23, danger ? kRed : kWhite);
 }
 
 void drawEditorControl(int16_t y, const char* label, int value) {
-    text(label, 24, y + 12, uiFont(&fonts::FreeSans9pt7b), kWhite, 104);
-    canvas().fillRoundRect(142, y, 44, 40, 6, kSlate);
-    canvas().fillRoundRect(234, y, 44, 40, 6, kBlue);
+    drawListCard(kListOuterInset, y, false);
+    listPrimaryText(label, kListOuterInset + 16, y, 112);
+    const String valueLabel = String(value);
+    text(valueLabel, 128, y + 12, uiFont(&fonts::FreeSans9pt7b), kWhite, 24);
+    canvas().fillRoundRect(158, y + 5, 36, 36, 6, kSlate);
+    canvas().fillRoundRect(208, y + 5, 36, 36, 6, kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("-", 164, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
-    canvas().drawString("+", 256, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
-    const String valueLabel = String(value);
-    canvas().drawString(valueLabel.c_str(), 210, y + 20, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString("-", 176, y + 23, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("+", 226, y + 23, uiFont(&fonts::FreeSans9pt7b));
 }
 
 void drawEditorFooter() {
@@ -1549,75 +1588,91 @@ void drawEditorFooter() {
 }
 
 void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    (void)state;
     drawBackground();
-    drawHeader(currentTime, timeValid, "Settings");
-    drawSettingsRow(52, "Audio", "Bass, mid and treble");
-    drawSettingsRow(100, "Display", String("Dim after ") + String(autoDimSeconds) + " seconds");
-    drawSettingsRow(148, "Device", "Calibration, about and reset");
-    text("Wi-Fi, weather and time are configured on the web.", 18, 210,
-         uiFont(&fonts::Font0), kTextMuted, 286);
+    drawListHeader("Settings", currentTime, timeValid);
+    static constexpr const char* kLabels[] = {
+        "Wi-Fi", "Display", "Audio", "Weather & Time", "Device",
+    };
+    for (int row = 0; row < kStationRowsPerPage; ++row) {
+        const int item = state.settingsOffset + row;
+        if (item >= static_cast<int>(sizeof(kLabels) / sizeof(kLabels[0]))) break;
+        drawSettingsListRow(kStationListTop + row * kStationListRowHeight,
+                            kLabels[item], static_cast<uint8_t>(item));
+    }
+    drawListPager(state.settingsOffset, sizeof(kLabels) / sizeof(kLabels[0]), kStationRowsPerPage);
 }
 
 void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Audio");
-    drawEditorControl(52, "Bass", state.toneBassDraft);
-    drawEditorControl(98, "Mid", state.toneMidDraft);
-    drawEditorControl(144, "Treble", state.toneTrebleDraft);
+    drawListHeader("Audio", currentTime, timeValid);
+    drawEditorControl(44, "Bass", state.toneBassDraft);
+    drawEditorControl(92, "Mid", state.toneMidDraft);
+    drawEditorControl(140, "Treble", state.toneTrebleDraft);
     drawEditorFooter();
 }
 
 void renderDisplaySettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Display");
-    canvas().fillRoundRect(16, 62, 288, 94, 10, kSurface);
-    text("Automatic dimming", 32, 78, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 240);
-    text("Dim after", 32, 112, uiFont(&fonts::Font0), kTextMuted, 100);
-    canvas().fillRoundRect(142, 96, 44, 40, 6, kSlate);
-    canvas().fillRoundRect(234, 96, 44, 40, 6, kBlue);
+    drawListHeader("Display", currentTime, timeValid);
+    drawListCard(kListOuterInset, 68, false);
+    text("Auto dimming", kListOuterInset + 16, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
+    text("After", kListOuterInset + 16, 99, uiFont(&fonts::Font0), kTextMuted, 48);
+    const String dimLabel = String(state.dimSecondsDraft) + " sec";
+    text(dimLabel, 78, 95, uiFont(&fonts::FreeSans9pt7b), kWhite, 64);
+    canvas().fillRoundRect(158, 73, 36, 36, 6, kSlate);
+    canvas().fillRoundRect(208, 73, 36, 36, 6, kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("-", 164, 116, uiFont(&fonts::FreeSansBold12pt7b));
-    canvas().drawString("+", 256, 116, uiFont(&fonts::FreeSansBold12pt7b));
-    const String dimLabel = String(state.dimSecondsDraft) + " sec";
-    canvas().drawString(dimLabel.c_str(), 210, 116, uiFont(&fonts::FreeSansBold12pt7b));
-    text("The screen stays awake while music plays.", 32, 164,
+    canvas().drawString("-", 176, 91, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString("+", 226, 91, uiFont(&fonts::FreeSans9pt7b));
+    text("The screen wakes on touch or control input.", 24, 132,
          uiFont(&fonts::Font0), kTextMuted, 250);
     drawEditorFooter();
 }
 
 void renderDeviceSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    (void)state;
     drawBackground();
-    drawHeader(currentTime, timeValid, "Device");
-    drawSettingsRow(48, "Touch calibration", "Measure this screen");
-    drawSettingsRow(93, "About", "Address and firmware");
-    drawSettingsRow(138, "Restart", "Stops playback briefly");
-    drawSettingsRow(183, "Factory reset",
-                    state.deviceActionFailed ? "Reset failed - settings kept" : "Keeps touch calibration", true);
+    drawListHeader("Device", currentTime, timeValid);
+    drawSettingsListRow(44, "Touch calibration", 4);
+    drawSettingsListRow(92, "About", 4);
+    drawSettingsListRow(140, "Restart", 4);
+    drawSettingsListRow(188, state.deviceActionFailed ? "Reset failed" : "Factory reset", 4, true);
+    drawListPager(0, 4, kStationRowsPerPage);
 }
 
 void renderSettingsAbout(const UiRenderState& state, const char* currentTime, bool timeValid) {
     (void)state;
     drawBackground();
-    drawHeader(currentTime, timeValid, "About");
-    text("Radiohead internet radio", 22, 60, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 274);
+    drawListHeader("About", currentTime, timeValid);
+    drawListCard(kListOuterInset, 62, false, true);
+    text("Radiohead internet radio", 24, 76, uiFont(&fonts::FreeSans9pt7b), kWhite, 260);
     text(String("Address: ") + (isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString()),
-         22, 94, uiFont(&fonts::Font0), kTextMuted, 274);
-    text(String("Firmware: ") + __DATE__ + " " + __TIME__, 22, 120,
-         uiFont(&fonts::Font0), kTextMuted, 274);
-    text("Firmware updates use the web interface.", 22, 146,
-         uiFont(&fonts::Font0), kTextMuted, 274);
+         24, 102, uiFont(&fonts::Font0), kTextMuted, 260);
+    text("Firmware updates use the web interface.", 24, 128,
+         uiFont(&fonts::Font0), kTextMuted, 260);
+    footerButton(0, 320, "Back");
+}
+
+void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    const bool network = state.settingsWebHandoff == 0;
+    drawBackground();
+    drawListHeader(network ? "Network" : "Weather & Time", currentTime, timeValid);
+    drawListCard(kListOuterInset, 66, false, true);
+    text(network ? "Configure Wi-Fi on your phone." : "Configure location and time on your phone.",
+         24, 82, uiFont(&fonts::FreeSans9pt7b), kWhite, 260);
+    const String address = isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+    text(String("Open ") + address, 24, 112, uiFont(&fonts::FreeSans9pt7b), kBlueFocus, 260);
+    text("Passwords and API keys stay off this screen.", 24, 142,
+         uiFont(&fonts::Font0), kTextMuted, 260);
     footerButton(0, 320, "Back");
 }
 
 void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    renderSettings({}, currentTime, timeValid);
+    renderSettings(state, currentTime, timeValid);
     const bool factoryReset = state.settingsConfirmAction == 2;
     canvas().fillRoundRect(27, 54, 266, 132, 12, kWhite);
     text(factoryReset ? "Factory reset radio?" : "Restart radio?", 48, 76,
-         uiFont(&fonts::FreeSansBold12pt7b), kNavy, 226);
+         uiFont(&fonts::FreeSans9pt7b), kNavy, 226);
     text(factoryReset ? "This removes settings and stations." : "Playback will stop briefly.",
          48, 110, uiFont(&fonts::Font0), kSurfaceRaised, 226);
     text(factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
@@ -1701,8 +1756,8 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         if (!uiFrameReady) {
             canvas().drawCircle(84 + canvas().textWidth(temperatureText), 81, 2, kWhite);
         }
-        text(homeCityLabel(owmCity), 76, 86, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 76, 100, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), 76, 88, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 76, 104, homeCaptionFont(), kWhite, 106);
     } else if (showWeatherOnHome) {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
@@ -1771,6 +1826,10 @@ void renderP2Fixture(const UiRenderState& state, const char* currentTime, bool t
 }  // namespace
 
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
+    if (state.page == UiPage::Settings &&
+        contains(x, y, kListRailLeft, kStationListTop, kListRailWidth, kListRailHeight)) {
+        return y < kStationListTop + kListRailHeight / 2 ? UiTarget::SettingsPrevious : UiTarget::SettingsNext;
+    }
     if ((state.page == UiPage::Stations || state.page == UiPage::RecordedShows ||
          state.page == UiPage::ShowEpisodes) &&
         contains(x, y, kListRailLeft, kStationListTop, kListRailWidth, kListRailHeight)) {
@@ -1855,38 +1914,43 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
     } else if (state.page == UiPage::Settings) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (contains(x, y, 8, 52, 304, 42)) return UiTarget::SettingsAudio;
-        if (contains(x, y, 8, 100, 304, 42)) return UiTarget::SettingsDisplay;
-        if (contains(x, y, 8, 148, 304, 42)) return UiTarget::SettingsDevice;
+        const int row = listRowAt(y);
+        if (row >= 0 && x < kListRailLeft) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::SettingsRow0) + row);
+        }
     } else if (state.page == UiPage::SettingsAudio) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (x >= 142 && x < 186) {
-            if (y >= 52 && y < 92) return UiTarget::ToneBassDecrease;
-            if (y >= 98 && y < 138) return UiTarget::ToneMidDecrease;
-            if (y >= 144 && y < 184) return UiTarget::ToneTrebleDecrease;
+        if (x >= 154 && x < 198) {
+            if (y >= 44 && y < 90) return UiTarget::ToneBassDecrease;
+            if (y >= 92 && y < 138) return UiTarget::ToneMidDecrease;
+            if (y >= 140 && y < 186) return UiTarget::ToneTrebleDecrease;
         }
-        if (x >= 234 && x < 278) {
-            if (y >= 52 && y < 92) return UiTarget::ToneBassIncrease;
-            if (y >= 98 && y < 138) return UiTarget::ToneMidIncrease;
-            if (y >= 144 && y < 184) return UiTarget::ToneTrebleIncrease;
+        if (x >= 204 && x < 248) {
+            if (y >= 44 && y < 90) return UiTarget::ToneBassIncrease;
+            if (y >= 92 && y < 138) return UiTarget::ToneMidIncrease;
+            if (y >= 140 && y < 186) return UiTarget::ToneTrebleIncrease;
         }
         if (contains(x, y, 16, 190, 136, 40)) return UiTarget::ToneCancel;
         if (contains(x, y, 168, 190, 136, 40)) return UiTarget::ToneSave;
     } else if (state.page == UiPage::SettingsDisplay) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (contains(x, y, 142, 96, 44, 40)) return UiTarget::DimDecrease;
-        if (contains(x, y, 234, 96, 44, 40)) return UiTarget::DimIncrease;
+        if (contains(x, y, 154, 64, 44, 52)) return UiTarget::DimDecrease;
+        if (contains(x, y, 204, 64, 44, 52)) return UiTarget::DimIncrease;
         if (contains(x, y, 16, 190, 136, 40)) return UiTarget::DimCancel;
         if (contains(x, y, 168, 190, 136, 40)) return UiTarget::DimSave;
     } else if (state.page == UiPage::SettingsDevice) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (contains(x, y, 8, 48, 304, 40)) return UiTarget::DeviceCalibration;
-        if (contains(x, y, 8, 93, 304, 40)) return UiTarget::DeviceAbout;
-        if (contains(x, y, 8, 138, 304, 40)) return UiTarget::DeviceRestart;
-        if (contains(x, y, 8, 183, 304, 40)) return UiTarget::DeviceFactoryReset;
+        const int row = listRowAt(y);
+        if (row == 0) return UiTarget::DeviceCalibration;
+        if (row == 1) return UiTarget::DeviceAbout;
+        if (row == 2) return UiTarget::DeviceRestart;
+        if (row == 3) return UiTarget::DeviceFactoryReset;
     } else if (state.page == UiPage::SettingsAbout) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
             contains(x, y, 0, 188, 320, 52)) return UiTarget::AboutBack;
+    } else if (state.page == UiPage::SettingsWebHandoff) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
+            contains(x, y, 0, 188, 320, 52)) return UiTarget::SettingsBack;
     } else if (state.page == UiPage::SettingsConfirm) {
         if (contains(x, y, 45, 142, 104, 36)) return UiTarget::SettingsConfirmCancel;
         if (contains(x, y, 171, 142, 104, 36)) return UiTarget::SettingsConfirmAccept;
@@ -1946,6 +2010,9 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::SettingsAbout:
         renderSettingsAbout(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsWebHandoff:
+        renderSettingsWebHandoff(state, currentTime, timeValid);
         break;
     case UiPage::SettingsConfirm:
         renderSettingsConfirmation(state, currentTime, timeValid);

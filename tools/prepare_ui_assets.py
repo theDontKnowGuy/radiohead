@@ -63,7 +63,7 @@ if not web_asset_header.exists() or web_asset_header.read_text() != web_asset_co
 font_header = output / "ui_font_assets.h"
 font_dir = project / "docs/ui/assets/fonts"
 manifest = json.loads((font_dir / "manifest.json").read_text())
-expected_fonts = {"small", "body", "title", "temperature", "header_clock", "label", "caption", "home_title", "recorded_header"}
+expected_fonts = {"small", "body", "title", "temperature", "header_clock", "label", "home_label", "caption", "home_title", "recorded_header"}
 if set(manifest["fonts"]) != expected_fonts:
     raise RuntimeError("Missing UI font assets; see tools/prepare_ui_fonts.py")
 arrays = ["#pragma once\n#include <stdint.h>\n"]

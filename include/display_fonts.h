@@ -6,6 +6,7 @@
 namespace display_fonts {
 bool init();
 const lgfx::IFont* label();
+const lgfx::IFont* homeLabel();
 const lgfx::IFont* caption();
 const lgfx::IFont* homeTitle();
 const lgfx::IFont* recordedHeader();

@@ -1,23 +1,44 @@
 # Touch UI implementation status
 
-## 2026-09-21 — Settings: local Audio, Display and Device slice
+## 2026-09-21 — Home visual improvement round
 
-The Home Settings tile now opens a local Settings hub rather than an unavailable
-message. This slice provides touch-only navigation to Audio, Display and Device:
-Audio has bounded −15…15 bass/mid/treble drafts with explicit Save/Cancel;
-Display has a saved automatic-dim timeout limited to 15/30/60/120 seconds;
-Device provides touch calibration, an About page with the real local address,
-and separately confirmed Restart and Factory Reset actions. Factory reset uses
-the existing documented reset scope and retains touch calibration. The encoder
-remains global volume/mute/power control throughout these pages. Wi-Fi, weather
-and time remain browser configuration rather than appearing as inactive TFT rows.
+Home now uses a brighter, warmer 4:3 coast treatment (92% source saturation
+and a uniform 16% black veil) so the supplied sunset remains visible without
+losing text contrast. Its four navigation destinations are a 72×70 px row at
+`x=7/85/163/241`, `y=149`: dense blue, green, purple and slate gradients with
+visible borders, 40 px icons, 11 px medium labels and the same 72×70 px touch
+regions. The header uses a 20 px radio mark and an 18 px title; its subtitle
+now says `Recorded Show` while recorded playback is active instead of always
+claiming Live Radio. The weather city and condition have separate baselines
+for easier scanning. The dynamic source-matched clock atlas was retained; its
+existing approved `14:37` alpha-overlay validation continues to cover its
+placement and compositing.
+
+**Visual:** inspected the native 320×240 production-path fixture at
+`.pio/ui_native/home-smooth.png`. **Functional:** `pio run -e esp32s3`,
+`python3 tools/render_ui_fonts.py`, and `git diff --check` pass. The build
+reports 86,972 B RAM (26.5%) and 3,294,127 B flash (50.3%). **Hardware:** not
+flashed; physical TFT color/legibility, touch target comfort and sustained
+audio repaint behavior remain unverified.
+
+## 2026-09-21 — Settings: concept-aligned paged list and local slice
+
+The Home Settings tile now opens a touch-only, four-row paged list using the
+same right-side rail, page thumb, translucent cards, white primitives and
+chevrons as Recorded Shows. It has Wi-Fi, Display, Audio, Weather & Time and
+Device rows; Wi-Fi and Weather & Time lead to an honest browser handoff showing
+the current local address rather than inert controls. Audio has bounded −15…15
+bass/mid/treble drafts with explicit Save/Cancel; Display has a saved automatic-
+dim timeout limited to 15/30/60/120 seconds; Device provides touch calibration,
+About, separately confirmed Restart and Factory Reset. Factory reset retains
+touch calibration. The encoder remains global volume/mute/power throughout.
 
 **Visual:** inspected native 320×240 production-path fixtures for Settings,
 Audio, Display and Device in `.pio/ui_native/settings-*-smooth.png`; they use the
 shared coastal/navy renderer and 44 px editor targets. **Functional:**
 `python3 tools/check_touch_input.py`, `python3 tools/render_ui_fonts.py`,
-`pio run -e esp32s3`, and `git diff --check` pass. The build reports 86,876 B
-RAM (26.5%) and 3,274,307 B flash (50.0%). **Hardware:** not flashed; physical
+`pio run -e esp32s3`, and `git diff --check` pass. The build reports 86,892 B
+RAM (26.5%) and 3,280,667 B flash (50.1%). **Hardware:** not flashed; physical
 touch targets, audio continuity during navigation/calibration, reboot persistence,
 dimming, restart and factory-reset confirmation remain unverified.
 

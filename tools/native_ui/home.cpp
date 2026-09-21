@@ -135,9 +135,9 @@ int main(int argc, char** argv) {
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
     const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
     assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
-    // Fit the actual Home labels into their 66 px tiles with 3 px side insets.
+    // Fit the actual Home labels into their 72 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
-        assert(frame.textWidth(label, display_fonts::label()) <= 60);
+        assert(frame.textWidth(label, display_fonts::homeLabel()) <= 66);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
@@ -196,6 +196,9 @@ int main(int argc, char** argv) {
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));
     assert(metrics.x_advance == 2); // source's space, not the VLW line-height guess
+    display_fonts::homeLabel()->getDefaultMetric(&metrics);
+    assert(display_fonts::homeLabel()->updateFontMetric(&metrics, ' '));
+    assert(metrics.x_advance == 3);
     for (uint16_t code = 0x5D0; code <= 0x5EA; ++code) {
         assert(display_fonts::caption()->updateFontMetric(&metrics, code));
     }
@@ -207,7 +210,7 @@ int main(int argc, char** argv) {
         const UiTarget target = static_cast<UiTarget>(static_cast<int>(UiTarget::HomeLiveRadio) + i);
         assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth / 2, kHomeTileY + 35) == target);
         assert(uiHitTest({}, kHomeTileX[i], kHomeTileY) == target);
-        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth - 1, kHomeTileY + 69) == target);
+        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth - 1, kHomeTileY + kHomeTileHeight - 1) == target);
     }
     assert(frame.textWidth("GALATZ", uiFont(&fonts::FreeSansBold12pt7b)) <= 91);
     UiRenderState playerHitState;
@@ -278,13 +281,14 @@ int main(int argc, char** argv) {
     UiRenderState settingsHitState;
     settingsHitState.page = UiPage::Settings;
     assert(uiHitTest(settingsHitState, 22, 22) == UiTarget::SettingsBack);
-    assert(uiHitTest(settingsHitState, 160, 72) == UiTarget::SettingsAudio);
-    assert(uiHitTest(settingsHitState, 160, 120) == UiTarget::SettingsDisplay);
-    assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsDevice);
+    assert(uiHitTest(settingsHitState, 160, 72) == UiTarget::SettingsRow0);
+    assert(uiHitTest(settingsHitState, 160, 120) == UiTarget::SettingsRow1);
+    assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsRow2);
+    assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
     assert(uiHitTest(toneHitState, 164, 72) == UiTarget::ToneBassDecrease);
-    assert(uiHitTest(toneHitState, 256, 118) == UiTarget::ToneMidIncrease);
+    assert(uiHitTest(toneHitState, 226, 118) == UiTarget::ToneMidIncrease);
     assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
@@ -303,6 +307,8 @@ int main(int argc, char** argv) {
     const std::string dir = argv[1];
     renderHome({}, "15:01", true);
     save((dir + "/home-smooth.ppm").c_str());
+    renderHome({}, "15:56", true);
+    save((dir + "/home-clock-1556.ppm").c_str());
     renderHome({}, "09:58", true);
     save((dir + "/home-clock-0958.ppm").c_str());
     renderHome({}, "14:37", true);
@@ -396,6 +402,10 @@ int main(int argc, char** argv) {
     save((dir + "/confirm-smooth.ppm").c_str());
     renderSettings(settingsHitState, "15:01", true);
     save((dir + "/settings-smooth.ppm").c_str());
+    UiRenderState settingsSecondPage = settingsHitState;
+    settingsSecondPage.settingsOffset = 1;
+    renderSettings(settingsSecondPage, "15:01", true);
+    save((dir + "/settings-page-two-smooth.ppm").c_str());
     renderToneSettings(toneHitState, "15:01", true);
     save((dir + "/settings-audio-smooth.ppm").c_str());
     UiRenderState displaySettings;
@@ -405,6 +415,11 @@ int main(int argc, char** argv) {
     save((dir + "/settings-display-smooth.ppm").c_str());
     renderDeviceSettings(deviceHitState, "15:01", true);
     save((dir + "/settings-device-smooth.ppm").c_str());
+    UiRenderState restartConfirm;
+    restartConfirm.page = UiPage::SettingsConfirm;
+    restartConfirm.settingsConfirmAction = 1;
+    renderSettingsConfirmation(restartConfirm, "15:01", true);
+    save((dir + "/settings-restart-confirm-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.
     weatherDataValid = true;
     tempC = 30;

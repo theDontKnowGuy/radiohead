@@ -43,12 +43,13 @@ def main():
     alphabet = sorted(set(range(33, 127)) | set(range(0x5D0, 0x5EB)) | {0xB0, 0x2022, 0x2026, 0xFFFD})
     roles = [('small', 11, 'Roboto-Medium.otf', 'Medium'),
              ('body', 16, 'Roboto-Regular.otf', 'Regular'),
-             ('home_title', 15, 'Roboto-Regular.otf', 'Regular'),
+             ('home_title', 18, 'Roboto-Regular.otf', 'Regular'),
              ('recorded_header', 20, 'Roboto-Regular.otf', 'Regular'),
              ('title', 22, 'Roboto-Medium.otf', 'Medium'),
              ('temperature', 28, 'Roboto-Medium.otf', 'Medium'),
              ('header_clock', 18, 'Roboto-Regular.otf', 'Regular'),
              ('label', 10, 'Roboto-Medium.otf', 'Medium'),
+             ('home_label', 11, 'Roboto-Medium.otf', 'Medium'),
              ('caption', 13, 'Roboto-Regular.otf', 'Regular')]
     for name, size, source_name, weight in roles:
         source = args.font_dir / source_name

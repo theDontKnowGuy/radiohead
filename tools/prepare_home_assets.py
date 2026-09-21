@@ -12,9 +12,9 @@ from PIL import Image, ImageDraw, ImageEnhance, __version__
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/ui/assets/home'
 S = 4
-TILE_WIDTH = 66
+TILE_WIDTH = 72
 TILE_HEIGHT = 70
-ICON_SIZE = 44
+ICON_SIZE = 40
 OUT.mkdir(parents=True, exist_ok=True)
 
 
@@ -45,32 +45,33 @@ def finish(name, image):
 
 source = ROOT / 'docs/bg1.png'
 bg = Image.open(source).convert('RGB').resize((320,240),Image.Resampling.LANCZOS)
-bg = ImageEnhance.Color(bg).enhance(0.80)
-# Home is laid out over a busy photo. Apply the requested 25% black veil evenly
-# so the horizon remains recognizable without competing with text and controls.
+bg = ImageEnhance.Color(bg).enhance(0.92)
+# Keep the supplied sunset warm and recognizable. A light veil still gives
+# dynamic white type a stable reading surface without turning the coast navy.
 for y in range(240):
     for x in range(320):
         rgb = bg.getpixel((x, y))
-        bg.putpixel((x, y), tuple(round(c * 0.75) for c in rgb))
+        bg.putpixel((x, y), tuple(round(c * 0.84) for c in rgb))
 save('background', bg)
 
-for name,top,bottom in [('radio',(17,99,160),(12,66,120)),('shows',(26,113,72),(16,85,52)),
-                        ('favorites',(111,70,161),(76,45,121)),('settings',(67,99,122),(46,73,91))]:
+for name,top,bottom in [('radio',(25,129,236),(7,85,190)),('shows',(33,167,101),(9,109,60)),
+                        ('favorites',(151,76,211),(92,39,156)),('settings',(73,111,141),(43,71,98))]:
     image,d=drawing(TILE_WIDTH,TILE_HEIGHT)
     mask=Image.new('L',image.size)
     ImageDraw.Draw(mask).rounded_rectangle(box((0,0,TILE_WIDTH-.25,TILE_HEIGHT-.25)),radius=8*S,fill=255)
     for y in range(TILE_HEIGHT*S):
         t=y/(TILE_HEIGHT*S-1)
-        # Bake a 22% dark layer into the restrained gradient, then leave a
-        # little transparency for the supplied sunset to read through it.
-        color=tuple(round((a+(b-a)*t)*0.73) for a,b in zip(top,bottom))+(235,)
+        # The category colors are a primary Home navigation cue. Keep them
+        # dense enough to read over the brighter coast while retaining a small
+        # amount of the photograph through the prepared surface.
+        color=tuple(round((a+(b-a)*t)*0.93) for a,b in zip(top,bottom))+(248,)
         d.line((0,y,TILE_WIDTH*S,y),fill=color)
-    image.putalpha(mask.point(lambda value: value * 235 // 255))
-    d.rounded_rectangle(box((0.6,0.6,TILE_WIDTH-.9,TILE_HEIGHT-.9)),radius=7.5*S,outline=(210,225,235,58),width=S)
+    image.putalpha(mask.point(lambda value: value * 248 // 255))
+    d.rounded_rectangle(box((0.6,0.6,TILE_WIDTH-.9,TILE_HEIGHT-.9)),radius=7.5*S,outline=(220,235,245,110),width=S)
     finish('tile_'+name,image)
 
 image,d=drawing(TILE_WIDTH + 4,TILE_HEIGHT + 4)
-d.rounded_rectangle(box((0.8,0.8,TILE_WIDTH + 2.7,TILE_HEIGHT + 2.7)),radius=10*S,outline=(150,190,215,95),width=round(1.1*S))
+d.rounded_rectangle(box((0.8,0.8,TILE_WIDTH + 2.7,TILE_HEIGHT + 2.7)),radius=10*S,outline=(190,225,245,140),width=round(1.1*S))
 finish('focus',image)
 
 white=(255,255,255,255)
@@ -106,10 +107,10 @@ for kind in ['radio','shows','favorites','settings']:
 
 # Compact brand mark used only by the Home product header.  It shares the
 # Home icon's soft off-white and high-resolution edge treatment.
-image,d=drawing(16,16)
-d.rounded_rectangle(box((2.0,6.0,14.0,14.0)),radius=2.1*S,outline=icon,width=round(1.5*S))
-line(d,[(4.3,5.2),(12.0,1.7)],icon,1.5)
-for x in [5.2,10.8]: d.ellipse(box((x-1.25,9.0,x+1.25,11.5)),fill=icon)
+image,d=drawing(20,20)
+d.rounded_rectangle(box((2.0,8.0,18.0,18.0)),radius=2.7*S,outline=icon,width=round(1.8*S))
+line(d,[(4.8,6.5),(15.4,2.0)],icon,1.8)
+for x in [6.3,13.7]: d.ellipse(box((x-1.55,11.5,x+1.55,14.5)),fill=icon)
 finish('brand_radio',image)
 
 image,d=drawing(24,19)
@@ -141,7 +142,7 @@ for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
 
 manifest={'pillow':__version__,'background_source':'docs/bg1.png',
           'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.80, uniform 25% black veil; 66x70 tiles with restrained darkened, slightly translucent gradients; 44px icons and 16px Home brand radio mark from original geometry at 4x',
+          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 72x70 category tiles with dense, slightly translucent gradients and visible borders; 40px icons and 20px Home brand radio mark from original geometry at 4x',
           'assets':{}}
 for p in sorted(OUT.glob('*.png')):
     with Image.open(p) as im: size=list(im.size)

@@ -3,8 +3,8 @@
 | Asset | Source | Build output | Use | Notes |
 | --- | --- | --- | --- | --- |
 | Sunset coast background | `docs/bg1.png` supplied by user | `.pio/ui_assets/background_320x240.png`, embedded C array | Base layer on concept fixtures | Source is 1448×1086 sRGB PNG; resampled directly to 320×240 (same 4:3 aspect ratio) with macOS `sips`. The build script emits a PNG byte array using `xxd`; LovyanGFX decodes it once for a full-page render. |
-| Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.80, then a uniform 25% black veil. The original source is retained. |
-| Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four identical 66×70 restrained, darkened, slightly translucent gradient tiles; a 70×74 low-opacity focus mask; four 44×44 #E8EEF3 icons; a 16×16 radio brand mark; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
+| Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.92, then a uniform 16% black veil. The original source is retained. |
+| Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four identical 72×70 dense, slightly translucent category-gradient tiles; a 76×74 visible focus mask; four 40×40 #E8EEF3 icons; a 20×20 radio brand mark; 24×19 Wi-Fi; eight 64×56 weather assets. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
 | Home clock atlas | Supplied source-matched `assets/home/home-clock-assets/` package; native mockup masks plus Inter SemiBold-derived missing glyphs | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | Twelve approved tight native-pixel RGBA masks (0–9, colon, unavailable-state dash) carry their declared y placement into a fixed 26×32 alpha atlas—no system font is loaded, scaled, or substituted. Advances are per-glyph (9…25 px). The package aligns visible ink, not transparent cells, to anchor `(301,40)`; `14:37` has ink bounds x=212…301/y=40…69. The converter validates each supplied string plus every visible pixel and alpha value in the full 320×240 transparent `14:37` overlay before it writes the atlas. Firmware blends every alpha pixel with the current native RGB565 canvas, so edges use the actual sunset rather than a fixed compositing color. |
 | Episode player | `tools/prepare_podcast_assets.py` | `assets/podcast/*.png` → `.pio/ui_assets/ui_podcast_assets.h` | Recorded episode player | Direct 4:3 background with a 14–20% right-increasing black veil; a 115×115 rounded generic microphone/show image is used until actual local show artwork is supplied. |
 | Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 58×58 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
@@ -49,13 +49,13 @@ readable PSRAM canvas, never the TFT. If that canvas is unavailable, Home uses
 the opaque toned background and native primitive/bitmap fallback. Icons are
 original programmatic geometry, not downloaded weather-provider artwork.
 
-The Home background uses a uniform 25% black veil after modest desaturation. This
+The Home background uses a uniform 16% black veil after modest desaturation. This
 is artwork treatment, not white-balance compensation; it preserves the 4:3 source
 composition while giving the type and controls clear priority.
 
 ## Smooth typography assets (2026-09-19)
 
-`assets/fonts/{small,body,home_title,recorded_header,title,temperature,header_clock,label,caption}.vlw` are intentional font
+`assets/fonts/{small,body,home_title,recorded_header,title,temperature,header_clock,label,home_label,caption}.vlw` are intentional font
 assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need neither a
 system font nor Pillow. Generated C headers remain under `.pio/ui_assets`.
 
@@ -77,7 +77,7 @@ python3 tools/prepare_ui_fonts.py --font-dir /path/to/roboto/otf --fallback-font
 ```
 
 The VLW files store big-endian metrics and 8-bit grayscale glyph coverage, not
-RGB/subpixel artwork. Small/body/title/label/caption include printable ASCII, the Hebrew
+RGB/subpixel artwork. Small/body/title/label/home_label/caption include printable ASCII, the Hebrew
 alphabet, degree, bullet, ellipsis and replacement symbols; numeric sizes contain the
 digits, minus, colon and degree. The loader overrides VLW's estimated word space
 with the font's measured advance; measurement and drawing use the same value.

@@ -25,6 +25,17 @@ source image.
 | 11 | Soften icons and inactive text to light gray/white rather than pure white. | Done: prepared Home icons and runtime labels use #E8EEF3. | Native fixture inspected: pass. Physical TFT pending. |
 | 12 | Scale the 4:3 supplied background directly to 320×240 with no crop. | Done: the asset recipe uses a direct 320×240 Lanczos resize; no crop/zoom stage exists. | Deterministic recipe and native framing: pass. Physical TFT pending. |
 
+## 2026-09-21 implementation revision
+
+The physical-screen comparison reopened the following prior choices. Home now
+uses a 16% veil at 92% saturation, 72×70 tiles at `x=7/85/163/241`, `y=149`,
+40 px icons, and a dedicated 11 px Home label font so list typography remains
+unchanged. The tile gradients and borders are stronger category cues. The
+brand mark is 20 px and the title uses the dedicated 18 px Home title font.
+Weather city/condition baselines are `y=88/104`; the source-matched dynamic
+clock atlas is retained because its reference overlay already validates its
+ink placement and alpha composition.
+
 ## Verification required
 
 Run `python3 tools/prepare_home_assets.py`, regenerate the documented font

@@ -23,6 +23,7 @@ enum class UiPage : uint8_t {
     SettingsDisplay,
     SettingsDevice,
     SettingsAbout,
+    SettingsWebHandoff,
     SettingsConfirm,
     Unavailable,
 };
@@ -94,6 +95,12 @@ enum class UiTarget : uint8_t {
     ConfirmCancel,
     ConfirmStandby,
     SettingsBack,
+    SettingsPrevious,
+    SettingsNext,
+    SettingsRow0,
+    SettingsRow1,
+    SettingsRow2,
+    SettingsRow3,
     SettingsAudio,
     SettingsDisplay,
     SettingsDevice,
@@ -177,6 +184,9 @@ struct UiRenderState {
     uint8_t unavailableDestination = 0;
     bool playerControlFocus = false;
     uint8_t playerFocus = 3;
+    int settingsOffset = 0;
+    // 0 is Network, 1 is Weather & Time; both are real browser handoffs.
+    uint8_t settingsWebHandoff = 0;
     int toneBassDraft = 0;
     int toneMidDraft = 0;
     int toneTrebleDraft = 0;

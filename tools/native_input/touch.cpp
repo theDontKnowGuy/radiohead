@@ -190,7 +190,7 @@ int main() {
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
-    uiControllerTap(UiTarget::SettingsAudio, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsAudio);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
     uiControllerTap(UiTarget::ToneTrebleDecrease, 0, 0, false);
@@ -199,23 +199,25 @@ int main() {
     uiControllerTap(UiTarget::ToneCancel, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
     assert(!uiControllerTakeCommand(command));
-    uiControllerTap(UiTarget::SettingsAudio, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, 0, false);
     uiControllerTap(UiTarget::ToneSave, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone &&
            command.value == 0 && command.secondary == 1 && command.tertiary == 0);
-    uiControllerTap(UiTarget::SettingsDisplay, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 30);
     uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 60);
     uiControllerTap(UiTarget::DimCancel, 0, 0, false);
     assert(!uiControllerTakeCommand(command));
-    uiControllerTap(UiTarget::SettingsDisplay, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
     uiControllerTap(UiTarget::DimDecrease, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 15);
     uiControllerTap(UiTarget::DimSave, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim && command.value == 15);
-    uiControllerTap(UiTarget::SettingsDevice, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsNext, 0, 0, false);
+    assert(uiControllerRenderState().settingsOffset == 1);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsConfirm);
     uiControllerTap(UiTarget::SettingsConfirmCancel, 0, 0, false);

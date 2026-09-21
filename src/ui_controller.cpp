@@ -13,6 +13,7 @@ constexpr int kFavoriteRowsPerPage = 3;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
+constexpr int kSettingsItemCount = 5;
 
 UiRenderState state;
 UiCommand pendingCommand;
@@ -20,6 +21,10 @@ bool hasPendingCommand = false;
 int pendingVolumeDelta = 0;
 bool alarmIsActive = false;
 unsigned long volumeOverlayUntil = 0;
+
+void openToneSettings();
+void openDisplaySettings();
+void openDeviceSettings(bool clearFailure);
 
 void markDirty() {
     state.dirty = true;
@@ -155,10 +160,28 @@ void openPodcastPlayer(int showIndex, int episodeIndex) {
     markDirty();
 }
 
-void openSettings() {
+void openSettings(bool fromHome = false) {
     state.page = UiPage::Settings;
+    if (fromHome) state.settingsOffset = 0;
     state.settingsConfirmAction = 0;
     markDirty();
+}
+
+void openSettingsWebHandoff(uint8_t handoff) {
+    state.page = UiPage::SettingsWebHandoff;
+    state.settingsWebHandoff = handoff;
+    markDirty();
+}
+
+void openSettingsItem(int item) {
+    switch (item) {
+    case 0: openSettingsWebHandoff(0); break;  // Network
+    case 1: openDisplaySettings(); break;
+    case 2: openToneSettings(); break;
+    case 3: openSettingsWebHandoff(1); break;  // Weather & Time
+    case 4: openDeviceSettings(true); break;
+    default: break;
+    }
 }
 
 void openToneSettings() {
@@ -243,7 +266,7 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target == UiTarget::HomeRecordedShows) {
             openRecordedShows();
         } else if (target == UiTarget::HomeSettings) {
-            openSettings();
+            openSettings(true);
         }
         break;
     case UiPage::Listening:
@@ -402,12 +425,12 @@ void handleTarget(UiTarget target, int value = 0) {
     case UiPage::Settings:
         if (target == UiTarget::SettingsBack) {
             closeToHome();
-        } else if (target == UiTarget::SettingsAudio) {
-            openToneSettings();
-        } else if (target == UiTarget::SettingsDisplay) {
-            openDisplaySettings();
-        } else if (target == UiTarget::SettingsDevice) {
-            openDeviceSettings(true);
+        } else if (target == UiTarget::SettingsPrevious || target == UiTarget::SettingsNext) {
+            uiControllerPage(target == UiTarget::SettingsNext ? 1 : -1, 0, false);
+        } else if (target >= UiTarget::SettingsRow0 && target <= UiTarget::SettingsRow3) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::SettingsRow0);
+            const int item = state.settingsOffset + row;
+            if (item < kSettingsItemCount) openSettingsItem(item);
         }
         break;
     case UiPage::SettingsAudio:
@@ -466,6 +489,9 @@ void handleTarget(UiTarget target, int value = 0) {
         break;
     case UiPage::SettingsAbout:
         if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) openDeviceSettings();
+        break;
+    case UiPage::SettingsWebHandoff:
+        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) openSettings();
         break;
     case UiPage::SettingsConfirm:
         if (target == UiTarget::SettingsConfirmAccept) {
@@ -557,6 +583,10 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
         offset = &state.favoriteOffset;
         count = state.favoriteShowsTab ? podcastShowCount(true) : favoriteStationCount();
         rows = kFavoriteRowsPerPage;
+        break;
+    case UiPage::Settings:
+        offset = &state.settingsOffset;
+        count = kSettingsItemCount;
         break;
     default:
         return;
