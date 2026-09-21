@@ -41,11 +41,15 @@ def main():
     manifest = {'family': 'Roboto 2.001101 (2014)', 'pillow': __version__,
                 'freetype': features.version_module('freetype2'), 'fonts': {}}
     alphabet = sorted(set(range(33, 127)) | set(range(0x5D0, 0x5EB)) | {0xB0, 0x2026, 0xFFFD})
-    roles = [('small', 11, 'Medium'), ('body', 16, 'Regular'), ('title', 22, 'Medium'),
-             ('temperature', 32, 'Regular'), ('clock', 34, 'Bold'),
-             ('label', 13, 'Medium'), ('caption', 13, 'Regular')]
-    for name, size, weight in roles:
-        source = args.font_dir / f'Roboto-{weight}.otf'
+    roles = [('small', 11, 'Roboto-Medium.otf', 'Medium'),
+             ('body', 16, 'Roboto-Regular.otf', 'Regular'),
+             ('title', 22, 'Roboto-Medium.otf', 'Medium'),
+             ('temperature', 32, 'RobotoCondensed-Bold.otf', 'Bold Condensed'),
+             ('clock', 46, 'RobotoCondensed-Bold.otf', 'Bold Condensed'),
+             ('label', 13, 'Roboto-Medium.otf', 'Medium'),
+             ('caption', 13, 'Roboto-Regular.otf', 'Regular')]
+    for name, size, source_name, weight in roles:
+        source = args.font_dir / source_name
         fallback = args.fallback_font_dir / 'DejaVuSans.ttf'
         chars = alphabet if size <= 22 else sorted(map(ord, '-0123456789:°'))
         data, space = generate(source, size, chars, fallback)

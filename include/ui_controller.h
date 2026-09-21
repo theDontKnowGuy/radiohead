@@ -28,7 +28,6 @@ enum class UiTarget : uint8_t {
     HomeRecordedShows,
     HomeFavorites,
     HomeSettings,
-    HomeNowPlaying,
     ListeningStation,
     ListeningMute,
     ListeningVolume,

@@ -90,13 +90,6 @@ void openFavorites() {
     markDirty();
 }
 
-void openPlayer() {
-    state.page = UiPage::Listening;
-    state.playerControlFocus = false;
-    state.playerFocus = 3;
-    markDirty();
-}
-
 void openStationOptions() {
     state.page = UiPage::StationOptions;
     state.optionStation = currentStationIdx >= 0 && currentStationIdx < STATION_COUNT
@@ -195,7 +188,9 @@ void selectFocusedStation() {
     const int slot = playableStationSlotAt(state.stationFocus);
     if (slot >= 0) {
         queue(UiCommandKind::SelectStation, slot);
-        openPlayer();
+        // Home already shows the active station, so selecting a live stream
+        // returns there instead of opening the redundant live-player page.
+        closeToHome();
     }
 }
 
@@ -254,8 +249,6 @@ void handleTarget(UiTarget target, int value = 0) {
     case UiPage::Home:
         if (target == UiTarget::HomeLiveRadio) {
             openStations();
-        } else if (target == UiTarget::HomeNowPlaying) {
-            openPlayer();
         } else if (target == UiTarget::HomeFavorites) {
             openFavorites();
         } else if (target == UiTarget::HomeRecordedShows) {
@@ -327,7 +320,7 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target == UiTarget::OptionsInfo) {
             openStationInfo();
         } else if (target == UiTarget::OptionsBack) {
-            openPlayer();
+            closeToHome();
         }
         break;
     case UiPage::StationInfo:
@@ -357,7 +350,7 @@ void handleTarget(UiTarget target, int value = 0) {
             const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
             if (!state.favoriteShowsTab && slot >= 0) {
                 queue(UiCommandKind::SelectStation, slot);
-                openPlayer();
+                closeToHome();
             } else if (state.favoriteShowsTab) {
                 const int show = podcastShowAt(state.favoriteOffset + row, true);
                 if (show >= 0) openEpisodes(show);
@@ -545,7 +538,7 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
             if (slot >= 0) {
                 if ((state.favoriteFocus & 1) == 0) {
                     queue(UiCommandKind::SelectStation, slot);
-                    openPlayer();
+                    closeToHome();
                 } else {
                     queue(UiCommandKind::ToggleStationFavorite, slot);
                 }

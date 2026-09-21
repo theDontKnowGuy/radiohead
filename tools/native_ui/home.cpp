@@ -120,6 +120,7 @@ int main(int argc, char** argv) {
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
+    assert(frame.textWidth("14:37", uiFont(&fonts::FreeSansBold24pt7b)) <= 110);
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));
@@ -128,7 +129,7 @@ int main(int argc, char** argv) {
         assert(display_fonts::caption()->updateFontMetric(&metrics, code));
     }
     // Geometry and input use the production hit-test and controller state types.
-    assert(uiHitTest({}, 250, 50) == UiTarget::HomeNowPlaying);
+    assert(uiHitTest({}, 250, 50) == UiTarget::None);
     assert(uiHitTest({}, 250, 140) == UiTarget::None);
     assert(uiHitTest({}, 81, 200) == UiTarget::None);
     for (int i = 0; i < 4; ++i) {
@@ -137,6 +138,7 @@ int main(int argc, char** argv) {
         assert(uiHitTest({}, 8 + i*78, kHomeTileY) == target);
         assert(uiHitTest({}, 8 + i*78 + 69, kHomeTileY + 69) == target);
     }
+    assert(frame.textWidth("GALATZ", uiFont(&fonts::FreeSansBold12pt7b)) <= 91);
     UiRenderState playerHitState;
     playerHitState.page = UiPage::Listening;
     assert(uiHitTest(playerHitState, 22, 22) == UiTarget::PlayerBack);

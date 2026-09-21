@@ -394,10 +394,6 @@ constexpr uint16_t kSlate = 0x4391;
 
 constexpr int16_t kHomeTileY = 154;
 constexpr int16_t kHomeTileHeight = 70;
-constexpr int16_t kHomePlayerX = 198;
-constexpr int16_t kHomePlayerY = 36;
-constexpr int16_t kHomePlayerWidth = 110;
-constexpr int16_t kHomePlayerHeight = 70;
 constexpr int kStationSlotCount = 10;
 constexpr int16_t kStationListTop = 44;
 constexpr int16_t kStationListRowHeight = 48;
@@ -1367,13 +1363,16 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d", static_cast<int>(roundf(displayedTemperature)));
+        // The temperature VLW's visible glyph starts 7 px below its top
+        // datum. Offset it so the rendered digits—not just their line box—
+        // align with the visible top of the weather artwork at y=58.
         text(uiFrameReady ? String(temperatureText) + "°" : String(temperatureText),
-             90, 65, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
+             90, 51, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
         if (!uiFrameReady) {
             canvas().drawCircle(94 + canvas().textWidth(temperatureText), 71, 2, kWhite);
         }
-        text(homeCityLabel(owmCity), 90, 101, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 90, 118, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), 90, 82, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 90, 99, homeCaptionFont(), kWhite, 106);
     } else {
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
@@ -1382,10 +1381,11 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
 
     canvas().setTextDatum(TR_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString(timeValid ? currentTime : "--:--", 303, 40, uiFont(&fonts::FreeSansBold24pt7b));
-    // Keep a visible return-to-player target after the Home title becomes fixed.
-    text(station.isEmpty() ? "Now playing" : station, 212, 84, uiFont(&fonts::Font0), kWhite, 91);
-    canvas().fillTriangle(201, 87, 201, 93, 206, 90, kWhite);
+    canvas().drawString(timeValid ? currentTime : "--:--", 303, 28, uiFont(&fonts::FreeSansBold24pt7b));
+    // Home is the live-radio destination. Keep its active-station summary
+    // prominent instead of linking to a separate live-player page.
+    text(station.isEmpty() ? "Now playing" : station, 212, 84,
+         uiFont(&fonts::FreeSansBold12pt7b), kWhite, 91);
     drawHomeTile(8, kBlue, "Live Radio", nullptr, 0);
     drawHomeTile(86, kGreen, "Recorded", "Shows", 1);
     drawHomeTile(164, kPurple, "Favorites", nullptr, 2);
@@ -1450,7 +1450,6 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         return y < kStationListTop + kListRailHeight / 2 ? UiTarget::ListPrevious : UiTarget::ListNext;
     }
     if (state.page == UiPage::Home) {
-        if (contains(x, y, kHomePlayerX, kHomePlayerY, kHomePlayerWidth, kHomePlayerHeight)) return UiTarget::HomeNowPlaying;
         if (contains(x, y, 8, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeLiveRadio;
         if (contains(x, y, 86, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeRecordedShows;
         if (contains(x, y, 164, kHomeTileY, 72, kHomeTileHeight)) return UiTarget::HomeFavorites;

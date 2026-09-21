@@ -34,29 +34,29 @@
       "weight": "Medium",
       "space_width": 5,
       "bytes": 25852,
-      "sha256": "2d41befce1fe0bb41d970223dd9fc068fb5df74405672e8fa798f9ddf339682b"
+      "sha256": "67c857a66480928cd0f1f7f41a35e75d92516b2cf95954ebc5a8c45302cfbdaf"
     },
     "temperature": {
-      "source": "Roboto-Regular.otf",
-      "source_sha256": "c9556b475c2f0f0f566216b2158c191218206c016c522ef0537e46e03bca232f",
+      "source": "RobotoCondensed-Bold.otf",
+      "source_sha256": "794e78f50d489854910a0fc2efb3629b10b29a0f4b0cab64b26c3eb6a042a090",
       "fallback": "DejaVuSans.ttf",
       "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
       "pixels": 32,
-      "weight": "Regular",
-      "space_width": 8,
-      "bytes": 5247,
-      "sha256": "d94ba544ba2e62ea29860388d432db52eefdf718cfeea293b128aca52677efd0"
+      "weight": "Bold Condensed",
+      "space_width": 7,
+      "bytes": 4847,
+      "sha256": "aee5ed76afaaedaf27c1c6772a473f4cc412e03886b5eff130d768185cc92591"
     },
     "clock": {
-      "source": "Roboto-Bold.otf",
-      "source_sha256": "60ea65e6c33297b61348629096dd6648e5912c04b52561a51ab73fce268decfc",
+      "source": "RobotoCondensed-Bold.otf",
+      "source_sha256": "794e78f50d489854910a0fc2efb3629b10b29a0f4b0cab64b26c3eb6a042a090",
       "fallback": "DejaVuSans.ttf",
       "fallback_sha256": "08ca98e69d9d8fa1065584b4f9ab7d49b6205abea6572b90e171b254845bb990",
-      "pixels": 34,
-      "weight": "Bold",
-      "space_width": 8,
-      "bytes": 5946,
-      "sha256": "c6214b7553da20a6053084dd91185ec34040b2b9bee0646ee8c265f8245f7f9f"
+      "pixels": 46,
+      "weight": "Bold Condensed",
+      "space_width": 11,
+      "bytes": 9506,
+      "sha256": "34ca452738ec5492ec8b58eb0a71a0cdcb9868bd58d06db3f552ca33b6e96c2a"
     },
     "label": {
       "source": "Roboto-Medium.otf",
@@ -67,7 +67,7 @@
       "weight": "Medium",
       "space_width": 3,
       "bytes": 11531,
-      "sha256": "4a39f25c6f14b13ab0874ea274ee1e96c05058adcf9397629e46e7878e972d2f"
+      "sha256": "df7b3a8bb547dbc7bc164750c1cadbed718dc0f4ef918832b54a8432555ce96c"
     },
     "caption": {
       "source": "Roboto-Regular.otf",
@@ -78,7 +78,7 @@
       "weight": "Regular",
       "space_width": 3,
       "bytes": 11455,
-      "sha256": "98040512443f1f4d168e43b1b85eea24b43f22f1c1d7bff139bf17fd138558ed"
+      "sha256": "6c0050994241b4fd48a04bf16e075940f2bf658f8746fe5a1be86efeed8d2087"
     }
   }
 }

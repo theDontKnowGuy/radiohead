@@ -50,7 +50,8 @@ white-balance compensation; the user confirmed physical white is correct.
 assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need neither a
 system font nor Pillow. Generated C headers remain under `.pio/ui_assets`.
 
-Current Latin source: Roboto Regular/Medium/Bold 2.001101 (2014), from TeX Live's
+Current Latin source: Roboto Regular/Medium/Bold and Roboto Condensed Bold
+2.001101 (2014), from TeX Live's
 `opentype/google/roboto` directory, upstream <https://github.com/google/roboto>.
 The actual OTF metadata identifies Apache License 2.0; see
 `assets/fonts/LICENSE-Roboto.txt` and `NOTICE-Roboto.txt`. The Hebrew alphabet

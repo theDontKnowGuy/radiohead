@@ -670,7 +670,7 @@ acceptance. No whole-screen image presentation mode is being restored.
 
 | Screen / reference panel | Native renderer evidence | Visual result | Functional result | Hardware result |
 | --- | --- | --- | --- | --- |
-| Home / 1 | Native source implemented; new photo pending | Pre-correction photo failed comparison: opaque middle cards hid the sunset composition. Corrected native Home is awaiting a 320 × 240 device comparison. | Home navigation/Now Playing target compiled; no new device interaction result | Pre-correction photo only; no post-correction visual, touch or audio result |
+| Home / 1 | Native source implemented; new photo pending | Pre-correction photo failed comparison: opaque middle cards hid the sunset composition. Corrected native Home is awaiting a 320 × 240 device comparison. | Home-first live-station return compiled; no new device interaction result | Pre-correction photo only; no post-correction visual, touch or audio result |
 | Live Stations / 2 | None recorded for concept rendering | Fail: current slice uses cream/olive presentation | Partial implementation; acceptance not verified | Not verified |
 | Live Player / 3 | None recorded for concept rendering | Fail: current Listening composition differs | Partial implementation; acceptance not verified | Not verified |
 | Volume overlay / 11 | None recorded | Not verified; concept overlay missing | Volume behavior exists; overlay not verified | Not verified |
@@ -679,3 +679,26 @@ acceptance. No whole-screen image presentation mode is being restored.
 Future agents must attach evidence locations and record deviations with reasons,
 updating visual, functional and hardware results separately. Do not infer physical
 success from compilation, screenshots of the reference, or this table's existence.
+
+## 2026-09-21 — Home-first live radio
+
+The user requested that live-station selection return to Home rather than open
+the separate Listening page. The controller still queues the same bounded
+`SelectStation` command, then returns to Home; this applies to station-list and
+favorite-station selections. The Home active-station summary is no longer a
+touch target. This changes navigation only, not the playback command, station
+identity, or persistence behavior.
+
+Home now uses its 22 px title face for the active-station summary. The
+temperature uses a regenerated 32 px Roboto Condensed Bold asset; its 7 px top glyph
+bearing is compensated so the rendered digits align with the weather art at
+y=58. The city and condition captions are moved up to y=82 and y=99. The clock
+uses a taller, narrower 46 px Roboto Condensed Bold asset at y=28, preserving
+room above the active station summary.
+
+`pio run -e esp32s3`, `python3 tools/check_touch_input.py`,
+`tools/render_ui_fonts.py`, and `git diff --check` pass. The firmware reports
+66,308 B RAM (20.2%) and 2,782,871 B flash (42.5%). Native Home renders,
+including 104°F and long-label cases, were inspected from `.pio/ui_native/`.
+These are compiler/native-render results only; this revision has not been
+flashed, so playback continuity and TFT appearance remain unverified on device.

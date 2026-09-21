@@ -7,10 +7,11 @@
 int currentStationIdx = 0;
 int podcastEpisodeCount = 8;
 bool ready = true;
+bool favoriteEnabled = false;
 int playableStationCount() { return 10; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 10 ? i : -1; }
 int selectedPlayableStationIndex() { return 0; }
-bool isStationFavorite(int) { return false; }
+bool isStationFavorite(int slot) { return favoriteEnabled && slot == 0; }
 bool isPodcastShowFavorite(int i) { return i % 2 == 0; }
 bool podcastEpisodesReadyFor(int show) { return ready && show == 0; }
 PodcastPlaybackSnapshot podcastPlaybackSnapshot() { return {}; }
@@ -138,6 +139,29 @@ int main() {
     assert(uiControllerRenderState().stationFocus == 9);
     assert(uiControllerRenderState().stationOffset == 6);
     assert(!uiControllerTakeCommand(command));
+
+    // A live-station selection starts playback, then returns to the Home
+    // summary rather than opening the separate Listening page.
+    uiControllerTap(UiTarget::ListRow0, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 6);
+    assert(!uiControllerTakeCommand(command));
+
+    // Favorite-station touch and encoder selections take the same Home-first
+    // route as the regular station list.
+    favoriteEnabled = true;
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
+    uiControllerTap(UiTarget::FavoritesRow0, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
+    uiControllerPush(0, false);  // Move encoder focus from the Stations tab to its first row.
+    uiControllerPush(0, false);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
+    favoriteEnabled = false;
 
     // A consumed wake press stays consumed after the display wakes.
     uiControllerBegin();
