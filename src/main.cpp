@@ -9,6 +9,7 @@
 #include "app_state.h"
 #include "device_control.h"
 #include "display.h"
+#include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
 #include "ui_controller.h"
@@ -16,34 +17,45 @@
 
 namespace {
 
-bool startSetupAccessPoint() {
-    WiFi.mode(WIFI_AP);
-    if (!WiFi.softAP("Radio_Setup")) {
+bool startSetupAccessPoint(SetupAccessReason reason) {
+    // Retain the station interface for the configuration page's asynchronous
+    // network scan while presenting the open setup AP.
+    WiFi.disconnect(false, false);
+    WiFi.mode(WIFI_AP_STA);
+    if (!WiFi.softAP(kSetupAccessPointSsid)) {
         Serial.println("[wifi] setup access point failed to start");
         return false;
     }
     isAP = true;
+    setupAccessReason = reason;
     Serial.print("[wifi] setup access point: ");
     Serial.println(WiFi.softAPIP());
     return true;
 }
 
 void connectToNetwork() {
-    if (!st_ssid.isEmpty()) {
-        WiFi.begin(st_ssid.c_str(), st_pass.c_str());
-        int retryCount = 0;
-        while (WiFi.status() != WL_CONNECTED && retryCount < 30) {
-            delay(500);
-            ++retryCount;
-        }
-        Serial.println(WiFi.localIP());
-    }
-
-    if (WiFi.status() != WL_CONNECTED) {
-        startSetupAccessPoint();
+    if (st_ssid.isEmpty()) {
+        startSetupAccessPoint(SetupAccessReason::NoCredentials);
         return;
     }
 
+    WiFi.mode(WIFI_STA);
+    // This must precede WiFi.begin() so the DHCP request and the mDNS responder
+    // agree on the radio's name.
+    WiFi.setHostname(kRadioMdnsHostname);
+    WiFi.begin(st_ssid.c_str(), st_pass.c_str());
+    int retryCount = 0;
+    while (WiFi.status() != WL_CONNECTED && retryCount < 30) {
+        delay(500);
+        ++retryCount;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        startSetupAccessPoint(SetupAccessReason::ConnectionFailed);
+        return;
+    }
+
+    Serial.println(WiFi.localIP());
     configTime(0, 0, ntpServer);
     applyConfiguredTimeZone();
 }
@@ -144,7 +156,7 @@ void setup() {
     pinMode(PIN_SW, INPUT_PULLUP);
     const bool setupRequestedAtBoot = digitalRead(PIN_SW) == LOW;
     if (setupRequestedAtBoot) {
-        startSetupAccessPoint();
+        startSetupAccessPoint(SetupAccessReason::Requested);
     }
     initializeTouchCalibration();
     loadSettings();
@@ -156,6 +168,14 @@ void setup() {
         connectToNetwork();
     }
     startWebServer();
+    if (!isAP) {
+        showConfigurationQrScreen();
+        const unsigned long configurationScreenStartedAt = millis();
+        while (millis() - configurationScreenStartedAt < 10000) {
+            server.handleClient();
+            delay(2);
+        }
+    }
 
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
     mediaBegin();
@@ -172,6 +192,9 @@ void setup() {
     xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0);
     lastInteraction = millis();
     uiControllerBegin();
+    if (!isAP) {
+        firmwareUpdater.begin(firmwareAutoUpdate);
+    }
     forceRedraw = true;
 }
 
@@ -359,6 +382,7 @@ void loop() {
     const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
     const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
         !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
+    const bool homeStationTitleDue = state.page == UiPage::Home && homeStationTitleRefreshDue(now);
     if (state.dirty || forceRedraw || podcastProgressDue) {
         renderRadioUi(state, currentTime, timeValid);
         forceRedraw = false;
@@ -375,5 +399,7 @@ void loop() {
         strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
         lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
         lastRenderedTimeValid = timeValid;
+    } else if (homeStationTitleDue) {
+        renderHomeStationTitleTick();
     }
 }

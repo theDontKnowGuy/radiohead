@@ -1,24 +1,69 @@
 #include "app_state.h"
 
+#include "device_control.h"
 #include "xpt2046_sampling.h"
+
+namespace {
+#if TOUCH_DEBUG_ENABLED
+// Summarize EVERY production frame, including rejected light contacts. No
+// second SPI transaction, pressure threshold, retry or serial wait is added.
+void recordTouchAdc(const xpt2046_sampling::AxisQuality& x,
+                    const xpt2046_sampling::AxisQuality& y) {
+    static unsigned long reportedAt = 0;
+    static unsigned frames = 0, xRail = 0, yRail = 0, xSparse = 0, ySparse = 0;
+    static unsigned xNoise = 0, yNoise = 0, accepted = 0;
+    ++frames;
+    xRail += x.valid == 0;
+    yRail += y.valid == 0;
+    xSparse += x.valid == 1;
+    ySparse += y.valid == 1;
+    xNoise += x.valid >= 2 && x.cluster < 2;
+    yNoise += y.valid >= 2 && y.cluster < 2;
+    accepted += x.cluster >= 2 && y.cluster >= 2;
+    const unsigned long now = millis();
+    if (now - reportedAt < 1000) return;
+    char report[240];
+    const int length = snprintf(report, sizeof(report),
+        "TouchADC frames=%u accepted=%u rail_xy=%u,%u sparse_xy=%u,%u noise_xy=%u,%u last_x=%u:%u/%u/%u last_y=%u:%u/%u/%u\n",
+        frames, accepted, xRail, yRail, xSparse, ySparse, xNoise, yNoise,
+        x.minimum, x.maximum, x.valid, x.cluster,
+        y.minimum, y.maximum, y.valid, y.cluster);
+    if (length > 0 && length < static_cast<int>(sizeof(report)) && Serial &&
+        Serial.availableForWrite() >= length) {
+        Serial.write(reinterpret_cast<const uint8_t*>(report), length);
+    }
+    reportedAt = now;
+    frames = xRail = yRail = xSparse = ySparse = xNoise = yNoise = accepted = 0;
+}
+#endif
+}  // namespace
 
 uint_fast8_t LightTouchXPT2046::getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) {
     if (!point || count == 0 || !_inited) return 0;
     point->size = 0;
 
-    uint8_t data[xpt2046_sampling::kFrameBytes];
+    uint8_t data[xpt2046_sampling::kBufferBytes];
     xpt2046_sampling::prepare(data);
 
     lgfx::spi::beginTransaction(_cfg.spi_host, _cfg.freq, 0);
     if (_cfg.pin_cs >= 0) lgfx::gpio_lo(_cfg.pin_cs);
-    lgfx::spi::readBytes(_cfg.spi_host, data, sizeof(data));
+    lgfx::spi::readBytes(_cfg.spi_host, data, xpt2046_sampling::kFrameBytes);
     if (_cfg.pin_cs >= 0) lgfx::gpio_hi(_cfg.pin_cs);
     lgfx::spi::endTransaction(_cfg.spi_host);
 
     uint16_t x = 0;
     uint16_t y = 0;
-    if (!xpt2046_sampling::readAxis(data, y) ||
-        !xpt2046_sampling::readAxis(data + xpt2046_sampling::kAxisBytes, x)) return 0;
+#if TOUCH_DEBUG_ENABLED
+    xpt2046_sampling::AxisQuality xQuality, yQuality;
+    const bool yValid = xpt2046_sampling::readAxis(data, y, &yQuality);
+    const bool xValid = xpt2046_sampling::readAxis(
+        data + xpt2046_sampling::kAxisBytes, x, &xQuality);
+    recordTouchAdc(xQuality, yQuality);
+#else
+    const bool yValid = xpt2046_sampling::readAxis(data, y);
+    const bool xValid = xpt2046_sampling::readAxis(data + xpt2046_sampling::kAxisBytes, x);
+#endif
+    if (!xValid || !yValid) return 0;
     point->x = x;
     point->y = y;
     point->size = 1;
@@ -153,3 +198,5 @@ unsigned long alarmStartMillis = 0;
 String st_ssid;
 String st_pass;
 bool isAP = false;
+bool firmwareAutoUpdate = true;
+SetupAccessReason setupAccessReason = SetupAccessReason::NoCredentials;

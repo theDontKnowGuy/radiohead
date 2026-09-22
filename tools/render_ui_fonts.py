@@ -5,6 +5,7 @@ optional (converts PPM evidence to PNG). No SDL installation/window is needed.
 """
 from pathlib import Path
 import os
+import re
 import subprocess
 
 root = Path(__file__).resolve().parents[1]
@@ -17,7 +18,12 @@ start = source.index('constexpr uint16_t kNavy')
 end = source.index('}  // namespace', start)
 hit_start = source.index('UiTarget uiHitTest(')
 hit_end = source.index('void renderRadioUi(', hit_start)
-(out / 'home_layout.inc').write_text(source[start:end] + source[hit_start:hit_end])
+layout = source[start:end]
+# QR networking is tested in the firmware build. The Home fixture deliberately
+# substitutes its handoff renderer so it can keep compiling the production Home
+# layout without pulling Wi-Fi/app-state headers into its host-only seam.
+layout = re.sub(r'// NETWORK_QR_BEGIN.*?// NETWORK_QR_END\n', '', layout, flags=re.DOTALL)
+(out / 'home_layout.inc').write_text(layout + source[hit_start:hit_end])
 includes = [f'-I{path}' for path in [lgfx, root / 'include', root / 'tools/native_ui', root / '.pio/ui_assets', out]]
 cpp = [lgfx / f'lgfx/v1/{name}.cpp' for name in ['LGFXBase', 'LGFX_Sprite', 'lgfx_fonts']]
 cpp += list((lgfx / 'lgfx/v1/misc').glob('*.cpp'))

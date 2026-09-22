@@ -28,6 +28,18 @@ constexpr int STATION_COUNT = 10;
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;
 
+// Network identity is intentionally fixed: the QR badges are generated from
+// these values and the mDNS responder must use the same hostname.
+constexpr const char* kRadioMdnsHostname = "radio";
+constexpr const char* kRadioMdnsAddress = "radio.local";
+constexpr const char* kSetupAccessPointSsid = "Radio_Setup";
+
+enum class SetupAccessReason : uint8_t {
+    Requested,
+    NoCredentials,
+    ConnectionFailed,
+};
+
 struct RadioStation {
     String name;
     String url;
@@ -167,3 +179,7 @@ extern unsigned long alarmStartMillis;
 extern String st_ssid;
 extern String st_pass;
 extern bool isAP;
+// GitHub release updates default to automatic installation. The owner can
+// switch to ask-first mode from Device & maintenance.
+extern bool firmwareAutoUpdate;
+extern SetupAccessReason setupAccessReason;

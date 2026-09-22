@@ -11,9 +11,11 @@
 #include <time.h>
 
 #include "app_state.h"
+#include "ConfigQrCode.h"
 #include "display_fonts.h"
 #include "media.h"
 #include "settings.h"
+#include "SetupWifiQrCode.h"
 #include "ui_controller.h"
 #include "ui_text.h"
 #include "ui_background_asset.h"
@@ -442,6 +444,120 @@ constexpr uint16_t kHomePurple = 0x494E;
 constexpr uint16_t kHomeSlate = 0x2A4B;
 constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 
+// NETWORK_QR_BEGIN
+struct QrGrid {
+    const uint8_t* modules;
+    int size;
+    int quietZone;
+    int stride;
+};
+
+constexpr bool sameText(const char* left, const char* right) {
+    return *left == *right && (*left == '\0' || sameText(left + 1, right + 1));
+}
+
+constexpr bool startsWith(const char* text, const char* prefix) {
+    return *prefix == '\0' || (*text == *prefix && startsWith(text + 1, prefix + 1));
+}
+
+constexpr const char* skipPrefix(const char* text, const char* prefix) {
+    return *prefix == '\0' ? text : skipPrefix(text + 1, prefix + 1);
+}
+
+constexpr bool setupPayloadMatches(const char* payload) {
+    constexpr const char* prefix = "WIFI:T:nopass;S:";
+    constexpr const char* suffix = ";;";
+    return startsWith(payload, prefix) &&
+        startsWith(skipPrefix(payload, prefix), kSetupAccessPointSsid) &&
+        sameText(skipPrefix(skipPrefix(payload, prefix), kSetupAccessPointSsid), suffix);
+}
+
+static_assert(startsWith(ConfigQrCode::Url, "http://") &&
+                  sameText(ConfigQrCode::Url + 7, kRadioMdnsAddress),
+              "Config QR and mDNS name disagree; run tools/generate_network_qr_codes.py");
+static_assert(startsWith(kRadioMdnsAddress, kRadioMdnsHostname) &&
+                  sameText(skipPrefix(kRadioMdnsAddress, kRadioMdnsHostname), ".local"),
+              "mDNS address must be the hostname plus .local");
+static_assert(setupPayloadMatches(SetupWifiQrCode::Payload),
+              "Setup QR and AP SSID disagree; run tools/generate_network_qr_codes.py");
+
+constexpr QrGrid kConfigQr = {ConfigQrCode::Modules, ConfigQrCode::Size,
+                               ConfigQrCode::QuietZone, ConfigQrCode::Stride};
+constexpr QrGrid kSetupWifiQr = {SetupWifiQrCode::Modules, SetupWifiQrCode::Size,
+                                  SetupWifiQrCode::QuietZone, SetupWifiQrCode::Stride};
+
+int qrBadgeSide(const QrGrid& qr, int maximum) {
+    const int modules = qr.size + 2 * qr.quietZone;
+    return (maximum / modules) * modules;
+}
+
+bool qrDark(const QrGrid& qr, int x, int y) {
+    const uint8_t packed = pgm_read_byte(&qr.modules[y * qr.stride + x / 8]);
+    return (packed >> (7 - (x % 8))) & 1U;
+}
+
+void drawQrBadge(const QrGrid& qr, int x, int y, int maximum) {
+    const int side = qrBadgeSide(qr, maximum);
+    const int modules = qr.size + 2 * qr.quietZone;
+    const int scale = side / modules;
+    if (scale < 1) return;
+
+    // A QR is camera-readable, so use opaque black/white whole-pixel modules
+    // instead of the interface's translucent surfaces or antialiased scaling.
+    canvas().fillRoundRect(x, y, side, side, 2 * scale, TFT_BLACK);
+    const int codeX = x + qr.quietZone * scale;
+    const int codeY = y + qr.quietZone * scale;
+    canvas().startWrite();
+    for (int row = 0; row < qr.size; ++row) {
+        int runStart = -1;
+        for (int column = 0; column <= qr.size; ++column) {
+            const bool dark = column < qr.size && qrDark(qr, column, row);
+            if (dark && runStart < 0) {
+                runStart = column;
+            } else if (!dark && runStart >= 0) {
+                canvas().fillRect(codeX + runStart * scale, codeY + row * scale,
+                                  (column - runStart) * scale, scale, kWhite);
+                runStart = -1;
+            }
+        }
+    }
+    canvas().endWrite();
+}
+
+const char* setupReasonText() {
+    switch (setupAccessReason) {
+    case SetupAccessReason::ConnectionFailed: return "Couldn't join saved Wi-Fi";
+    case SetupAccessReason::Requested: return "Wi-Fi setup requested";
+    case SetupAccessReason::NoCredentials: return "No Wi-Fi network saved";
+    }
+    return "Wi-Fi setup";
+}
+
+void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font,
+          uint16_t color, int16_t width);
+
+void drawNetworkQrHandoff(bool connected) {
+    const QrGrid& qr = connected ? kConfigQr : kSetupWifiQr;
+    const int qrSide = qrBadgeSide(qr, 148);
+    drawQrBadge(qr, (160 - qrSide) / 2, 48 + (148 - qrSide) / 2, 148);
+
+    canvas().fillRoundRect(164, 54, 148, 142, 8, kSurface);
+    if (connected) {
+        text("Scan to configure", 176, 70, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
+        text(kRadioMdnsAddress, 176, 98, uiFont(&fonts::FreeSansBold12pt7b), kBlueFocus, 124);
+        text("If it does not open:", 176, 130, uiFont(&fonts::Font0), kTextMuted, 124);
+        text(WiFi.localIP().toString(), 176, 148, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
+        text("Use the Network page", 176, 174, uiFont(&fonts::Font0), kTextMuted, 124);
+    } else {
+        text(setupReasonText(), 176, 68, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
+        text("Scan to join", 176, 96, uiFont(&fonts::FreeSansBold12pt7b), kBlueFocus, 124);
+        text(kSetupAccessPointSsid, 176, 122, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
+        text("Then open", 176, 150, uiFont(&fonts::Font0), kTextMuted, 124);
+        text(WiFi.softAPIP().toString(), 176, 168, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
+    }
+}
+// NETWORK_QR_END
+
 #ifndef UI_P2_FIXTURE
 #define UI_P2_FIXTURE 0
 #endif
@@ -487,12 +603,125 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 // a single-line label optically centered in a 46 px list card.
 constexpr int16_t kListPrimaryTextTop = 11;
 
+constexpr int16_t kHomeStationTitleLeft = 34;
+constexpr int16_t kHomeStationTitleTop = 30;
+constexpr int16_t kHomeStationTitleWidth = 166;
+constexpr int16_t kHomeStationTitleHeight = 14;
+constexpr unsigned long kHomeStationTitleRestMs = 3000;
+constexpr unsigned long kHomeStationTitlePixelsPerSecond = 25;
+constexpr unsigned long kHomeStationTitleTickMs = 40;
+
+struct HomeStationTitleMarquee {
+    String identity;
+    String visual;
+    int16_t width = 0;
+    unsigned long cycleStartedAt = 0;
+    unsigned long nextRefreshAt = 0;
+    bool overflows = false;
+};
+
+HomeStationTitleMarquee homeStationTitleMarquee;
+// The full Home canvas lives in PSRAM. Retaining just the subtitle backdrop
+// lets the marquee repaint a 14 px band instead of pushing a new full frame.
+uint16_t homeStationTitleBackdrop[kHomeStationTitleWidth * kHomeStationTitleHeight];
+bool homeStationTitleBackdropReady = false;
+
 const lgfx::IFont* homeLabelFont() {
     return uiFrameReady ? display_fonts::homeLabel() : &fonts::Font0;
 }
 
 const lgfx::IFont* homeCaptionFont() {
     return uiFrameReady ? display_fonts::caption() : &fonts::Font0;
+}
+
+void captureHomeStationTitleBackdrop() {
+    if (!uiFrameReady) {
+        homeStationTitleBackdropReady = false;
+        return;
+    }
+    canvas().readRect(kHomeStationTitleLeft, kHomeStationTitleTop,
+                      kHomeStationTitleWidth, kHomeStationTitleHeight,
+                      homeStationTitleBackdrop);
+    homeStationTitleBackdropReady = true;
+}
+
+void restoreHomeStationTitleBackdrop() {
+    if (uiFrameReady && homeStationTitleBackdropReady) {
+        canvas().pushImage(kHomeStationTitleLeft, kHomeStationTitleTop,
+                           kHomeStationTitleWidth, kHomeStationTitleHeight,
+                           homeStationTitleBackdrop);
+        return;
+    }
+
+    // Without the PSRAM canvas, redraw only the clipped photo region rather
+    // than relying on unreliable TFT readback.
+    canvas().setClipRect(kHomeStationTitleLeft, kHomeStationTitleTop,
+                         kHomeStationTitleWidth, kHomeStationTitleHeight);
+    canvas().drawPng(ui_home_background, sizeof(ui_home_background), 0, 0);
+    canvas().clearClipRect();
+}
+
+unsigned long homeStationTitleOffset(unsigned long now) {
+    if (!homeStationTitleMarquee.overflows) return 0;
+    const unsigned long travel = homeStationTitleMarquee.width - kHomeStationTitleWidth;
+    const unsigned long scrollMs = std::max<unsigned long>(1,
+        travel * 1000UL / kHomeStationTitlePixelsPerSecond);
+    const unsigned long cycleMs = kHomeStationTitleRestMs + scrollMs + kHomeStationTitleRestMs;
+    unsigned long phase = (now - homeStationTitleMarquee.cycleStartedAt) % cycleMs;
+    if (phase <= kHomeStationTitleRestMs) return 0;
+    phase -= kHomeStationTitleRestMs;
+    if (phase >= scrollMs) return travel;
+    return phase * travel / scrollMs;
+}
+
+void scheduleHomeStationTitleRefresh(unsigned long now) {
+    if (!homeStationTitleMarquee.overflows) return;
+    const unsigned long travel = homeStationTitleMarquee.width - kHomeStationTitleWidth;
+    const unsigned long scrollMs = std::max<unsigned long>(1,
+        travel * 1000UL / kHomeStationTitlePixelsPerSecond);
+    const unsigned long cycleMs = kHomeStationTitleRestMs + scrollMs + kHomeStationTitleRestMs;
+    const unsigned long phase = (now - homeStationTitleMarquee.cycleStartedAt) % cycleMs;
+    if (phase < kHomeStationTitleRestMs) {
+        homeStationTitleMarquee.nextRefreshAt = now + (kHomeStationTitleRestMs - phase);
+    } else if (phase < kHomeStationTitleRestMs + scrollMs) {
+        homeStationTitleMarquee.nextRefreshAt = now + kHomeStationTitleTickMs;
+    } else {
+        homeStationTitleMarquee.nextRefreshAt = now + (cycleMs - phase);
+    }
+}
+
+void prepareHomeStationTitle(const String& station, const char* source, unsigned long now) {
+    String identity = station.isEmpty() ? String(source) : station;
+    identity += " • ";
+    identity += source;
+    if (identity == homeStationTitleMarquee.identity) return;
+
+    canvas().setFont(uiFont(&fonts::Font0));
+    const UiTextLayout layout = uiTextLayout(identity);
+    homeStationTitleMarquee.identity = identity;
+    homeStationTitleMarquee.visual = layout.visual;
+    homeStationTitleMarquee.width = canvas().textWidth(layout.visual.c_str());
+    homeStationTitleMarquee.overflows = homeStationTitleMarquee.width > kHomeStationTitleWidth;
+    homeStationTitleMarquee.cycleStartedAt = now;
+    homeStationTitleMarquee.nextRefreshAt = now;
+    scheduleHomeStationTitleRefresh(now);
+}
+
+void drawHomeStationTitle(unsigned long now) {
+    restoreHomeStationTitleBackdrop();
+    const int16_t offset = static_cast<int16_t>(homeStationTitleOffset(now));
+    canvas().setFont(uiFont(&fonts::Font0));
+    canvas().setTextColor(kTextMuted);
+    canvas().setTextDatum(TL_DATUM);
+    // This header deliberately stays left-anchored even when its content is
+    // Hebrew. The generic RTL helper right-aligns bounded labels, which would
+    // make this subtitle drift toward the clock.
+    canvas().setClipRect(kHomeStationTitleLeft, kHomeStationTitleTop,
+                         kHomeStationTitleWidth, kHomeStationTitleHeight);
+    canvas().drawString(homeStationTitleMarquee.visual.c_str(),
+                        kHomeStationTitleLeft - offset, kHomeStationTitleTop);
+    canvas().clearClipRect();
+    scheduleHomeStationTitleRefresh(now);
 }
 
 bool contains(int16_t x, int16_t y, int16_t left, int16_t top, int16_t width, int16_t height) {
@@ -722,8 +951,9 @@ void drawHomeHeader(bool timeValid, const String& station) {
     canvas().setTextDatum(ML_DATUM);
     canvas().drawString("Radiohead", 38, centerY, display_fonts::homeTitle());
     const char* source = podcastMode ? "Recorded Show" : "Live Radio";
-    text((station.isEmpty() ? String(source) : station) + " • " + source,
-         34, 31, uiFont(&fonts::Font0), kTextMuted, 166);
+    captureHomeStationTitleBackdrop();
+    prepareHomeStationTitle(station, source, millis());
+    drawHomeStationTitle(millis());
     char date[16] = "";
     if (timeValid) {
         const time_t now = time(nullptr);
@@ -867,7 +1097,7 @@ void drawHomeClockAtlas(const char* value) {
     // transparent cell rectangle, to the design anchor. Its cells deliberately
     // overlap, so compose their alpha first and blend the finished clock once.
     constexpr int16_t kHomeClockMaxWidth = 128;
-    constexpr uint8_t kHomeClockMaxHeight = 32;
+    constexpr uint8_t kHomeClockMaxHeight = 36;
     int16_t width = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
@@ -928,10 +1158,12 @@ void drawHomeClockAtlas(const char* value) {
             if (uiFrameReady) {
                 canvas().drawPixel(pixelX, pixelY,
                                    blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
-            } else if (coverage >= 128) {
+            } else if (coverage > 0) {
                 // The direct TFT path cannot safely read the sunset background
-                // back for alpha blending. Paint the already-composed source
-                // mask once, rather than falling back to a second font renderer.
+                // back for alpha blending. Keep every source-mask edge pixel
+                // rather than discarding its light coverage: the old >=128
+                // threshold made the intended clock look thin on a panel
+                // using this fallback. The mask remains composed exactly once.
                 canvas().drawPixel(pixelX, pixelY, kClockText);
             }
         }
@@ -1244,10 +1476,7 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
     drawBackground();
     drawHeader(currentTime, timeValid, isAP ? "Setup" : "Live Radio");
     if (isAP) {
-        canvas().fillRoundRect(12, 55, 296, 120, 8, kSurface);
-        text("Connect on your phone", 28, 78, uiFont(&fonts::FreeSans9pt7b), kWhite);
-        text(WiFi.softAPSSID(), 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 250);
-        text(WiFi.softAPIP().toString(), 28, 142, uiFont(&fonts::FreeSans9pt7b), kTextMuted);
+        drawNetworkQrHandoff(false);
     } else {
         const String station = activeStationName();
         drawArtwork(station, 12, 54, 88, kBlue, true, currentStationIdx);
@@ -1684,6 +1913,10 @@ void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTim
     const bool network = state.settingsWebHandoff == 0;
     drawBackground();
     drawListHeader(network ? "Network" : "Weather & Time", currentTime, timeValid);
+    if (network) {
+        drawNetworkQrHandoff(!isAP);
+        return;
+    }
     drawListCard(kListOuterInset, 66, false, true);
     text(network ? "Configure Wi-Fi on your phone." : "Configure location and time on your phone.",
          24, 82, uiFont(&fonts::FreeSans9pt7b), kWhite, 260);
@@ -1853,6 +2086,17 @@ void renderP2Fixture(const UiRenderState& state, const char* currentTime, bool t
 }
 
 }  // namespace
+
+bool homeStationTitleRefreshDue(unsigned long now) {
+    return homeStationTitleMarquee.overflows &&
+        static_cast<long>(now - homeStationTitleMarquee.nextRefreshAt) >= 0;
+}
+
+void renderHomeStationTitleTick() {
+    if (!homeStationTitleMarquee.overflows) return;
+    drawHomeStationTitle(millis());
+    presentCanvas(kHomeStationTitleTop, kHomeStationTitleHeight);
+}
 
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
     if (state.page == UiPage::Settings &&
@@ -2070,6 +2314,14 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         canvas().setTextColor(kWhite);
         canvas().drawString(percent, 160, 181, uiFont(&fonts::Font0));
     }
+    presentCanvas(0, 240);
+}
+
+void showConfigurationQrScreen() {
+    initCanvas();
+    drawBackground();
+    drawHeader("--:--", false, "Configure radio", false);
+    drawNetworkQrHandoff(true);
     presentCanvas(0, 240);
 }
 

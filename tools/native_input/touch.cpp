@@ -32,13 +32,15 @@ int mediaPlayingStation() { return -1; }
 // independent axes and no-contact rejection; they do not simulate panel physics.
 void checkRawSampling() {
     using namespace xpt2046_sampling;
-    uint8_t data[kFrameBytes];
+    uint8_t data[kBufferBytes];
     prepare(data);
     for (unsigned i = 0; i < kConversionsPerAxis; ++i) {
         assert(data[2 * i] == 0x91 && data[kAxisBytes + 2 * i] == 0xD1);
         assert(data[2 * i + 1] == 0 && data[kAxisBytes + 2 * i + 1] == 0);
     }
     assert(data[kFrameBytes - 1] == 0x80);
+    static_assert(kBufferBytes >= ((kFrameBytes + 3) & ~3u), "SPI word copy must fit");
+    for (unsigned i = kFrameBytes; i < kBufferBytes; ++i) assert(data[i] == 0);
     auto put = [&](unsigned axis, unsigned i, uint16_t value) {
         const unsigned offset = axis * kAxisBytes + 2 * i + 1;
         data[offset] = (value << 3) >> 8;
@@ -51,23 +53,31 @@ void checkRawSampling() {
     }
     // Early readings agree, but must be discarded after an axis switch.
     uint16_t x = 0, y = 0;
-    assert(!readAxis(data, y));
+    AxisQuality quality;
+    assert(!readAxis(data, y, &quality));
+    assert(quality.valid == 0 && quality.cluster == 0);
+    assert(quality.minimum == 4095 && quality.maximum == 4095);
     assert(!readAxis(data + kAxisBytes, x));
     // The valid pair may arrive at different times on each axis.
     put(0, 4, 1600); put(0, 8, 1608);
     put(1, 6, 2400); put(1, 9, 2412);
-    assert(readAxis(data, y) && y == 1604);
+    assert(readAxis(data, y, &quality) && y == 1604);
+    assert(quality.valid == 2 && quality.cluster == 2);
+    assert(quality.minimum == 1600 && quality.maximum == 4095);
     assert(readAxis(data + kAxisBytes, x) && x == 2406);
     // One valid reading or widely inconsistent readings are insufficient.
     put(0, 8, 4095);
-    assert(!readAxis(data, y));
+    assert(!readAxis(data, y, &quality));
+    assert(quality.valid == 1 && quality.cluster == 1);
     put(0, 8, 2600);
-    assert(!readAxis(data, y));
+    assert(!readAxis(data, y, &quality));
+    assert(quality.valid == 2 && quality.cluster == 1);
     // A broad finger contact can have a good cluster plus a repeated spike.
     // The old closest-pair rule incorrectly chose 900 instead of about 2000.
     const uint16_t clustered[] = {900, 900, 2000, 2004, 1996, 2002, 1998};
     for (unsigned i = 0; i < 7; ++i) put(0, i + kSettlingConversions, clustered[i]);
-    assert(readAxis(data, y) && y == 2000);
+    assert(readAxis(data, y, &quality) && y == 2000);
+    assert(quality.valid == 7 && quality.cluster == 5);
     for (auto& byte : data) byte = 0;
     assert(!readAxis(data, y) && !readAxis(data + kAxisBytes, x));
     for (auto& byte : data) byte = 255;

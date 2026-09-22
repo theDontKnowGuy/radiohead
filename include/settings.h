@@ -52,6 +52,7 @@ void formatConfiguredClock(char* destination, size_t destinationSize, const tm& 
 bool saveWiFiCredentials(const String& ssid, const String& password);
 bool clearWiFiCredentials();
 bool saveWeatherTimeSettings();
+bool saveFirmwareAutoUpdate(bool enabled);
 
 // Favorites live in their own versioned namespace so legacy radio settings and
 // their keys remain compatible.  Station IDs are catalog slots, not UI rows.

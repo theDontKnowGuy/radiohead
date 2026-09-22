@@ -9,10 +9,20 @@ constexpr unsigned kConversionsPerAxis = 10;
 constexpr unsigned kSettlingConversions = 3;
 constexpr unsigned kAxisBytes = 2 * kConversionsPerAxis;
 constexpr unsigned kFrameBytes = 2 * kAxisBytes + 1;
+// LovyanGFX's ESP32 SPI helper copies whole words into its FIFO, even when
+// fewer bytes are clocked. Keep the backing storage rounded up as well.
+constexpr unsigned kBufferBytes = (kFrameBytes + 3) & ~3u;
 constexpr uint16_t kMaximumPairDelta = 150;
 
-inline void prepare(uint8_t (&data)[kFrameBytes]) {
-    for (unsigned i = 0; i < kFrameBytes; ++i) data[i] = 0;
+struct AxisQuality {
+    uint16_t minimum = 4095;
+    uint16_t maximum = 0;
+    unsigned valid = 0;
+    unsigned cluster = 0;
+};
+
+inline void prepare(uint8_t (&data)[kBufferBytes]) {
+    for (unsigned i = 0; i < kBufferBytes; ++i) data[i] = 0;
     for (unsigned i = 0; i < kConversionsPerAxis; ++i) {
         // Differential 12-bit conversions, PD0=1: drivers stay on until the
         // channel changes. Preserve the existing driver's X/Y orientation.
@@ -22,14 +32,24 @@ inline void prepare(uint8_t (&data)[kFrameBytes]) {
     data[kFrameBytes - 1] = 0x80;  // Finish powered down, as in LovyanGFX.
 }
 
-inline bool readAxis(const uint8_t* data, uint16_t& coordinate) {
+inline bool readAxis(const uint8_t* data, uint16_t& coordinate,
+                     AxisQuality* quality = nullptr) {
+    if (quality) *quality = AxisQuality{};
     uint16_t values[kConversionsPerAxis - kSettlingConversions];
     unsigned count = 0;
     for (unsigned i = kSettlingConversions; i < kConversionsPerAxis; ++i) {
         const uint16_t value = (uint16_t(data[2 * i + 1]) << 8 | data[2 * i + 2]) >> 3;
+        if (quality) {
+            if (value < quality->minimum) quality->minimum = value;
+            if (value > quality->maximum) quality->maximum = value;
+        }
         // Retain the previous rail/no-contact guard. Do not turn floating or
         // saturated ADC readings into taps by merely lowering every threshold.
         if (value > 128 && value <= 3968) values[count++] = value;
+    }
+    if (quality) {
+        quality->valid = count;
+        quality->cluster = count;
     }
     if (count < 2) return false;
     // Prefer the largest consistent group, not the closest pair: two matching
@@ -55,6 +75,7 @@ inline bool readAxis(const uint8_t* data, uint16_t& coordinate) {
             bestSpan = span;
         }
     }
+    if (quality) quality->cluster = bestCount;
     if (bestCount < 2) return false;
     coordinate = (values[bestStart + (bestCount - 1) / 2] +
                   values[bestStart + bestCount / 2]) / 2;

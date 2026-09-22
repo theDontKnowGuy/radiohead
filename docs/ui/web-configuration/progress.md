@@ -38,12 +38,32 @@ copying or declaring unrelated TFT packages complete.
 | W5 | Wi-Fi scan/hidden/security/password/connect/forget/recovery | W1/W2 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/display.cpp` | Async scan and loop-serviced connect/recovery compile; F7/H4 device evidence remains open. |
 | W6 | Weather/provider access, units/visibility, timezone and 12/24-hour settings | W1/W2; configuration C3 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/display.cpp`, `src/device_control.cpp` | Exact weather-location matching and rule-based DST compile; F8/H1/H5 device evidence remains open. |
 | W7 | Custom background file/framing/preview/default/atomic commit | W1/W2; configuration C4 | not started | — | Define independent asset budget, close F9/H2/H3. |
-| W8 | Device info, diagnostics, OTA, restart/reset; release verification | W1/W2; W3–W7 for final release | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/device_control.cpp`, `src/settings.cpp`, `src/display.cpp`, `radiohead.css` | Device panel/routes compile; F11–F13 and H1–H7 still require browser/device evidence. |
+| W8 | Device info, diagnostics, OTA, restart/reset; release verification | W1/W2; W3–W7 for final release | ready for review | `/root` · 2026-09-22 · `src/web_server.cpp`, `src/firmware_updater.cpp`, `src/settings.cpp`, `src/display.cpp`, `scripts/release.sh` | Browser upload/recovery and GitHub release OTA compile; F11–F13/H6 and real release-channel checks remain unverified on hardware. |
+| W9 | mDNS discovery plus QR setup/configuration handoffs | W5; native Network handoff | ready for review | `/root` · 2026-09-22 · `src/main.cpp`, `src/web_server.cpp`, `src/display.cpp`, `tools/generate_network_qr_codes.py` | `radio.local`, both generated QR badges and the 10-second boot handoff compile; phone/TFT/device discovery scans remain pending. |
 
 Do not treat W8 as requiring all features before starting its independent device
 pages. Its **release completion** depends on the other packages. Existing
 configuration-removal and discovery packages retain their own ownership; link
 their work instead of implementing duplicate persistence/state machines.
+
+### 2026-09-22 — W9 mDNS and QR handoffs
+
+- `radio.local` is advertised with an HTTP mDNS service after a successful
+  station join. The hostname is set before DHCP. Setup AP mode intentionally
+  remains a local `Radio_Setup` network and does not promise `radio.local`.
+- Two generated, compile-time QR module grids encode `http://radio.local` and
+  the open-AP `WIFI:T:nopass;S:Radio_Setup;;` payload. Static assertions tie
+  them to the shared network constants; rerun
+  `python3 tools/generate_network_qr_codes.py` after changing either constant.
+- A connected radio shows the configuration QR for ten seconds at boot while
+  still servicing HTTP. The Network TFT handoff repeats the configuration QR;
+  setup mode instead shows the Wi-Fi-join QR with the precise no-credentials,
+  connection-failed, or manually requested reason and the AP address.
+- **Visual:** not verified on a QR-specific native fixture or physical TFT.
+  **Functional:** `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+  `git diff --check` pass. Build: 89,540 B RAM (27.3%) and 3,352,219 B flash
+  (51.2%). **Device:** not verified; scan both QR codes, resolve `radio.local`,
+  test the 15-second failed-join transition and test a no-credential boot.
 
 ## Evidence matrix
 
@@ -211,3 +231,11 @@ Next concrete action:
 - Device result + measurements: not verified. Do not test reset on valuable settings without a scoped test device.
 - Remaining failures / blockers: F11–F13, H1–H7 and final release completion remain open. Test invalid/oversized/aborted OTA, write failure, browser disconnect, reboot/version re-read, storage/power contention, restart persistence, failed reset storage handling and calibration retention. The retained alarm/visualizer runtime cleanup remains configuration package C1 work; only their web mutations were made inert here.
 - Next concrete action: flash a disposable test device; run the F11–F13/H6 matrix and record browser, TFT and serial evidence separately before declaring W8 complete.
+
+### 2026-09-22 — W8 GitHub release-channel follow-up
+
+- State and affected files: Added `include/FirmwareVersion.h`, pinned GitHub roots in `include/UpdateRootCAs.h`, the low-priority `src/firmware_updater.cpp` worker, release-policy persistence in `settings`, Device-page release controls, PlatformIO build identity, and `scripts/release.sh`. Existing browser `.bin` upload remains the local recovery path.
+- Implemented behavior: On a connected station the worker waits two minutes after boot, then polls GitHub's `releases/latest/download/manifest.json` hourly or on request. It validates semantic version, per-build image selection, HTTPS GitHub host, manifest MD5 format, image length and inactive-slot capacity before downloading. The image is written to the inactive OTA slot and only restarted after `Update.end()` verifies its manifest MD5. Automatic installation defaults on; an owner can persist ask-first mode and explicitly install a checked release.
+- Dependency decisions / actual endpoint changes: Added `GET /api/update/status` and `POST /api/update/check`, `/install`, `/auto`. The update task owns remote TLS/download work so `audio.loop()` and HTTP service remain on the Arduino loop. No Jev/runtime AI was added: release/version ordering, bounds, URL allow-listing, digests and policy persistence are deterministic; the TypeSafe documentation reader was unavailable in this environment.
+- Functional result + exact checks/revision: `pio run -e esp32s3` passed with 94,236 B / 327,680 B RAM (28.8%) and 3,353,555 B / 6,553,600 B flash (51.2%). GitHub publishing has not been run by this work.
+- Device result + measurements: not verified. Validate pinned-TLS manifest fetch, no-release/up-to-date/manual/automatic paths, corrupt digest/length/URL rejection, interrupted download, reboot into the inactive slot, rollback behavior, browser status transitions, audio continuity and TLS heap under concurrent weather/podcast activity.

@@ -35,6 +35,7 @@ const lgfx::IFont* uiFont(const lgfx::IFont* font) {
 }
 unsigned audioServiceCalls = 0;
 void serviceUiAudio() { ++audioServiceCalls; }
+void drawNetworkQrHandoff(bool) {}
 UiRenderState homeFocused(uint8_t index) {
     UiRenderState state;
     state.homeFocus = index;

@@ -36,6 +36,10 @@ void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
     const int length = snprintf(report, sizeof(report),
         "Touch polls=%u raw=%u panel=%u press=%u release=%u max_gap_ms=%lu read_us=%lu\n",
         polls, contacts, panelContacts, begins, releases, maxGap, maxReadUs);
+    // The ADC report may have just occupied the USB buffer. Keep this window
+    // until a later poll has room, rather than losing all mapping/event evidence.
+    if (length > 0 && length < static_cast<int>(sizeof(report)) && Serial &&
+        Serial.availableForWrite() < length) return;
     if (length > 0 && length < static_cast<int>(sizeof(report)) && Serial &&
         Serial.availableForWrite() >= length) {
         Serial.write(reinterpret_cast<const uint8_t*>(report), length);

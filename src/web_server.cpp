@@ -1,6 +1,7 @@
 #include "web_server.h"
 
 #include <Update.h>
+#include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cerrno>
 #include <cctype>
@@ -10,6 +11,8 @@
 #include "app_state.h"
 #include "device_control.h"
 #include "display.h"
+#include "FirmwareVersion.h"
+#include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
 #include "ui_web_assets.h"
@@ -201,7 +204,7 @@ String localAddress() {
 }
 
 bool webMaintenanceBusy() {
-    return otaUploadStarted || webRestartAction == WebRestartAction::FirmwareUpdate;
+    return otaUploadStarted || webRestartAction == WebRestartAction::FirmwareUpdate || firmwareUpdater.isBusy();
 }
 
 bool scheduleWebRestart(WebRestartAction action) {
@@ -226,6 +229,8 @@ String deviceStateJson() {
     json.reserve(560);
     json = "{\"name\":\"radiohead\",\"connection\":\"" + jsonEscape(connectionState()) +
         "\",\"address\":\"" + jsonEscape(localAddress()) +
+        "\",\"firmwareVersion\":\"" + jsonEscape(FIRMWARE_VERSION) +
+        "\",\"firmwareReleased\":\"" + jsonEscape(FIRMWARE_RELEASED) +
         "\",\"firmwareBuild\":\"" + jsonEscape(String(__DATE__) + " " + __TIME__) +
         "\",\"hardware\":\"" + jsonEscape(String(ESP.getChipModel())) +
         "\",\"uptimeSeconds\":" + String(millis() / 1000UL) +
@@ -239,6 +244,20 @@ String deviceStateJson() {
         ",\"touchCalibrationSaved\":" + String(calibrationSaved ? "true" : "false") +
         ",\"serviceTiming\":\"Not measured\",\"logs\":\"Not available\""
         ",\"updateInProgress\":" + String(webMaintenanceBusy() ? "true" : "false") + "}";
+    return json;
+}
+
+String firmwareUpdateStatusJson() {
+    const FirmwareUpdater::Snapshot update = firmwareUpdater.snapshot();
+    String json;
+    json.reserve(420);
+    json = "{\"status\":\"" + String(FirmwareUpdater::statusName(update.status)) +
+        "\",\"message\":\"" + jsonEscape(update.message) +
+        "\",\"version\":\"" + jsonEscape(update.availableVersion) +
+        "\",\"notes\":\"" + jsonEscape(update.notes) +
+        "\",\"awaitingConfirmation\":" + String(update.awaitingConfirmation ? "true" : "false") +
+        ",\"autoInstall\":" + String(update.autoInstall ? "true" : "false") +
+        ",\"busy\":" + String(update.busy ? "true" : "false") + "}";
     return json;
 }
 
@@ -320,10 +339,14 @@ bool saveWiFiAndScheduleRestart(const String& ssid, const String& password) {
 }
 
 void enterSetupRecovery(const char* message) {
+    // A radio that deliberately leaves its LAN must not advertise radio.local
+    // from the temporary setup network.
+    MDNS.end();
     WiFi.disconnect(false, false);
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("Radio_Setup");
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP(kSetupAccessPointSsid);
     isAP = true;
+    setupAccessReason = SetupAccessReason::NoCredentials;
     networkMessage = message;
     forceRedraw = true;
 }
@@ -712,6 +735,7 @@ $('weather-save').onclick=save;$('weather-cancel').onclick=()=>{if(state){apply(
         html += "<div class='rh-pagehead'><div><h1>Device &amp; maintenance</h1><p>Device information and safe maintenance.</p></div></div>"
             "<section class='rh-box'><h2>Radio</h2><dl class='rh-data' id='device-about'><dt>Status</dt><dd>Loading…</dd></dl></section>"
             "<section class='rh-box'><details><summary>Open diagnostics</summary><p class='rh-muted'>Only measured device state is shown. Credentials are never included.</p><dl class='rh-data' id='device-diagnostics'></dl></details></section>"
+            "<section class='rh-box' aria-labelledby='release-update'><h2 id='release-update'>Release updates</h2><p class='rh-muted'>The radio checks the official GitHub release channel hourly. Firmware and its manifest are fetched only over GitHub TLS and the image digest is verified before restart.</p><label class='rh-field'><span><input id='release-auto' type='checkbox'> Download and install updates automatically</span></label><div class='rh-footer'><span class='rh-formstatus' id='release-status' role='status'>Checking update status…</span><button class='rh-button' id='release-check' data-maintenance-action type='button'>Check now</button><button class='rh-button rh-primary' id='release-install' data-maintenance-action type='button' hidden>Install update</button></div></section>"
             "<section class='rh-box' aria-labelledby='firmware-update'><h2 id='firmware-update'>Firmware update</h2><p class='rh-muted'>Choose a firmware .bin, review it, then start the update. Keep power connected until the update is complete.</p>"
             "<label class='rh-upload' for='firmware-file'><input id='firmware-file' type='file' accept='.bin,application/octet-stream'>Choose firmware .bin</label><p class='rh-note' id='firmware-review'>Choose a file to review its name and size.</p>"
             "<div class='rh-footer'><span class='rh-formstatus' id='firmware-status' role='status'>No update selected.</span><button class='rh-button rh-primary' id='firmware-start' data-maintenance-action type='button' disabled>Review update</button></div></section>"
@@ -723,7 +747,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const bytes=n=>n===0?'0 B':['B','KiB','MiB','GiB'].reduce((text,u,i)=>n>=1024&&i<3?(n/=1024,`${n.toFixed(n<10?1:0)} ${['B','KiB','MiB','GiB'][i+1]}`):text,`${n} B`);
 const row=(name,value,ltr=false)=>`<dt>${esc(name)}</dt><dd${ltr?' dir="ltr"':''}>${esc(value)}</dd>`;
 function setBusy(busy){document.querySelectorAll('[data-maintenance-action]').forEach(button=>button.disabled=busy);$('firmware-file').disabled=busy;}
-function render(data){state=data;$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
+function render(data){state=data;$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware version',`${data.firmwareVersion} · ${data.firmwareReleased}`)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
 async function refresh(){try{render(await fetch('/api/device',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){$('firmware-status').textContent=error.message;}}
 function closeDialog(){const dialog=$('device-dialog');dialog.hidden=true;$('device-reset-confirm').value='';$('device-reset-label').hidden=true;if(lastFocus)lastFocus.focus();}
 function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Touch calibration remains. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':'The radio will validate and write the selected firmware, then restart. Keep power connected until it reconnects.';$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
@@ -731,6 +755,13 @@ async function post(path,body={}){const response=await fetch(path,{method:'POST'
 function updateFile(){file=$('firmware-file').files[0]||null;if(!file){$('firmware-review').textContent='Choose a file to review its name and size.';$('firmware-start').disabled=true;return;}const enough=!state||!state.freeSketchBytes||file.size<=state.freeSketchBytes;$('firmware-review').textContent=`${file.name} · ${bytes(file.size)}. Compatibility is checked by the radio while writing.`;$('firmware-start').disabled=!enough;if(!enough)$('firmware-status').textContent='This file is larger than the currently reported free update space.';else $('firmware-status').textContent='Ready to review update.';}
 function upload(){if(!file)return;setBusy(true);$('firmware-status').textContent='Sending firmware to the radio…';const form=new FormData();form.set('firmware',file,file.name);const request=new XMLHttpRequest();request.open('POST','/api/device/ota');request.upload.onprogress=e=>{if(e.lengthComputable)$('firmware-status').textContent=`Sending firmware to the radio… ${Math.round(e.loaded*100/e.total)}%`;};request.onerror=()=>{$('firmware-status').textContent='The browser connection was lost. Reopen the radio after it restarts.';};request.onload=()=>{let data={};try{data=JSON.parse(request.responseText)}catch(_){data={error:'The radio returned an invalid response.'};}if(request.status>=200&&request.status<300){$('firmware-status').textContent='Firmware was written. The radio is restarting; reconnect, then confirm its firmware build.';}else{$('firmware-status').textContent=data.error||'Firmware update failed; the radio kept its current firmware.';setBusy(false);}};request.send(form);}
 $('firmware-file').onchange=updateFile;$('firmware-start').onclick=()=>file&&openDialog('update');$('device-restart').onclick=()=>openDialog('restart');$('device-reset').onclick=()=>openDialog('reset');$('device-dialog-cancel').onclick=closeDialog;$('device-dialog').onclick=e=>{if(e.target===$('device-dialog'))closeDialog();};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('device-dialog').hidden){e.preventDefault();closeDialog();}});$('device-dialog-confirm').onclick=async()=>{try{if(dialogAction==='reset'){if($('device-reset-confirm').value!=='RESET'){$('device-reset-confirm').focus();return;}$('firmware-status').textContent='Factory reset accepted. The radio is restarting.';await post('/api/device/factory-reset',{confirm:'RESET'});}else if(dialogAction==='restart'){$('firmware-status').textContent='Restart accepted. Waiting for the radio to reconnect.';await post('/api/device/restart');}else upload();closeDialog();setBusy(true);}catch(error){$('firmware-status').textContent=error.message;setBusy(false);closeDialog();}};refresh();})();</script>)JS";
+        html += R"JS(<script>(()=>{const $=id=>document.getElementById(id);let remoteBusy=false;
+async function request(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
+function renderRemote(data){remoteBusy=!!data.busy;$('release-auto').checked=!!data.autoInstall;$('release-auto').disabled=remoteBusy;$('release-check').disabled=remoteBusy;$('release-install').hidden=!data.awaitingConfirmation;$('release-install').disabled=remoteBusy;$('release-status').textContent=data.message||(data.status==='idle'?'No release check has run yet.':'Update status unavailable.');if(data.notes&&data.awaitingConfirmation)$('release-status').textContent+=` ${data.notes}`;}
+async function refreshRemote(){try{renderRemote(await fetch('/api/update/status',{cache:'no-store'}).then(r=>r.json()));}catch(_){$('release-status').textContent='Release update status is unavailable.';}}
+$('release-check').onclick=async()=>{try{renderRemote(await request('/api/update/check'));setTimeout(refreshRemote,500);}catch(error){$('release-status').textContent=error.message;}};
+$('release-install').onclick=async()=>{if(!confirm('Download, verify and install this release now? The radio will restart.'))return;try{renderRemote(await request('/api/update/install'));setTimeout(refreshRemote,500);}catch(error){$('release-status').textContent=error.message;}};
+$('release-auto').onchange=async()=>{try{renderRemote(await request('/api/update/auto',{enabled:$('release-auto').checked?'1':'0'}));}catch(error){$('release-auto').checked=!$('release-auto').checked;$('release-status').textContent=error.message;}};refreshRemote();setInterval(()=>{if(!document.hidden&&!remoteBusy)refreshRemote();},5000);})();</script>)JS";
         break;
     }
 }
@@ -1162,6 +1193,40 @@ void startWebServer() {
     server.on("/api/weather", HTTP_GET, [] { sendWeatherState(); });
     server.on("/api/device", HTTP_GET, [] {
         server.send(200, "application/json; charset=utf-8", deviceStateJson());
+    });
+    server.on("/api/update/status", HTTP_GET, [] {
+        server.send(200, "application/json; charset=utf-8", firmwareUpdateStatusJson());
+    });
+    server.on("/api/update/check", HTTP_POST, [] {
+        if (webMaintenanceBusy()) {
+            sendMaintenanceBusy();
+            return;
+        }
+        firmwareUpdater.requestCheckNow();
+        server.send(202, "application/json; charset=utf-8", firmwareUpdateStatusJson());
+    });
+    server.on("/api/update/install", HTTP_POST, [] {
+        if (!firmwareUpdater.requestInstallNow()) {
+            server.send(409, "application/json; charset=utf-8",
+                        "{\"error\":\"No checked release is waiting to install.\"}");
+            return;
+        }
+        server.send(202, "application/json; charset=utf-8", firmwareUpdateStatusJson());
+    });
+    server.on("/api/update/auto", HTTP_POST, [] {
+        const String enabled = server.arg("enabled");
+        if ((enabled != "0" && enabled != "1") || webMaintenanceBusy()) {
+            if (webMaintenanceBusy()) sendMaintenanceBusy();
+            else server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid update policy.\"}");
+            return;
+        }
+        const bool autoInstall = enabled == "1";
+        if (!saveFirmwareAutoUpdate(autoInstall)) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Could not save update policy.\"}");
+            return;
+        }
+        firmwareUpdater.setAutoInstall(autoInstall);
+        server.send(200, "application/json; charset=utf-8", firmwareUpdateStatusJson());
     });
     server.on("/api/device/restart", HTTP_POST, [] {
         if (!scheduleWebRestart(WebRestartAction::Restart)) {
@@ -1669,4 +1734,12 @@ void startWebServer() {
     });
 
     server.begin();
+    if (!isAP && WiFi.status() == WL_CONNECTED) {
+        if (MDNS.begin(kRadioMdnsHostname)) {
+            MDNS.addService("http", "tcp", 80);
+            Serial.printf("[wifi] mDNS responder: http://%s.local\n", kRadioMdnsHostname);
+        } else {
+            Serial.println("[wifi] mDNS responder failed to start");
+        }
+    }
 }

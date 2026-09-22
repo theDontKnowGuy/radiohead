@@ -321,6 +321,14 @@ bool saveWeatherTimeSettings() {
     return versionSaved;
 }
 
+bool saveFirmwareAutoUpdate(bool enabled) {
+    if (!pref.begin("radio", false)) return false;
+    const bool saved = pref.putBool("autoUpdate", enabled) == sizeof(bool);
+    pref.end();
+    if (saved) firmwareAutoUpdate = enabled;
+    return saved;
+}
+
 bool saveFavorites() {
     if (!pref.begin("favorites", false)) {
         return false;
@@ -616,6 +624,7 @@ void saveSettings() {
     pref.putInt("almH", alarmH);
     pref.putInt("almM", alarmM);
     pref.putBool("almA", alarmActive);
+    pref.putBool("autoUpdate", firmwareAutoUpdate);
     pref.putString("cTop", currentSkin.hexTop);
     pref.putString("cBot", currentSkin.hexBottom);
     pref.putString("cMain", currentSkin.hexMain);
@@ -669,6 +678,7 @@ void loadSettings() {
     alarmActive = pref.getBool("almA", false);
     st_ssid = pref.getString("ssid", "");
     st_pass = pref.getString("pass", "");
+    firmwareAutoUpdate = pref.getBool("autoUpdate", true);
     owmCity = pref.getString("owmCity", "Budapest,HU");
     owmKey = pref.getString("owmKey", "");
     useCelsius = pref.getBool("useCelsius", true);

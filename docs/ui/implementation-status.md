@@ -1,5 +1,61 @@
 # Touch UI implementation status
 
+## 2026-09-22 — Finger sensitivity reopened; acquisition diagnostics
+
+**Hardware acceptance remains failed:** the user reports excellent fingernail
+response but excessive force for a finger pad. History/source inspection found
+the previous pressure-gate bypass, 250 kHz same-axis acquisition, largest-cluster
+filter and immediate button activation still present. This is not evidence of
+which firmware is installed, nor proof that timing elsewhere has not regressed.
+
+Fixed a concrete buffer over-read in the application wrapper: LovyanGFX 1.2.21's
+ESP32 `spi::readBytes()` copies `(len + 3) & ~3` bytes to its FIFO. The 41-byte
+transfer therefore needs 44 backing bytes. The buffer is now padded and zeroed;
+the wire transfer remains 41 bytes. No evidence links this defect to pressure.
+
+The existing `TOUCH_DEBUG_ENABLED=1` now also reports rejected acquisition frames:
+all-rail, single-valid-sample, inconsistent-coordinate and accepted counts per
+axis, plus the last frame's range and cluster sizes. The old `raw` counter is
+post-filter and could not make this distinction. Mapping/event reports defer
+without blocking when the ADC report has just occupied the USB output buffer.
+Normal firmware retains diagnostics off. No thresholds, clock, calibration,
+UI layout, touch targets, pins, persistence or vendored files changed here.
+
+[The diagnostic protocol](touch-diagnosis.md) and
+`tools/capture_touch_diagnostics.py` provide labeled idle/nail/light-pad/firm-pad
+captures and explicitly exclude unrelated serial logs. A real finger comparison
+is still required before choosing another sensitivity adjustment or concluding
+that a panel replacement is necessary.
+
+**Verification:** production host touch/controller tests and `git diff --check`
+pass. A pseudo-terminal smoke check verified capture of both diagnostic streams
+and exclusion of other logs. Normal and diagnostic ESP32-S3 builds pass in
+separate build directories after the initial shared build lost object files
+during concurrent work. Normal: **89,540 B RAM, 3,352,179 B flash**. Diagnostic:
+**89,604 B RAM, 3,353,675 B flash** (+64 B RAM/+1,496 B flash). These are shared
+worktree build snapshots including unrelated ongoing network work, not isolated
+touch-feature size deltas. No visual change requires new render evidence.
+
+**Device:** USB ESP32 detected at `/dev/cu.usbmodem2101`; neither build was flashed
+in this task. Finger response, idle false activations, edges and audio continuity
+are unverified. The capture needs a person applying the labeled contacts. No live
+Jev call was used; this is deterministic hardware diagnosis. TypeSafe live docs
+were inaccessible, so the local skill's design guidance was applied.
+
+## 2026-09-22 — Network QR setup and configuration handoffs
+
+Connected startup now presents a `radio.local` configuration QR for ten seconds;
+the Network settings page repeats it. No saved Wi-Fi credentials, a failed
+15-second connection attempt, or explicit boot setup instead presents an open
+`Radio_Setup` join QR, the AP address, and the reason. Both badges retain the
+sunset/navy/blue screen language, while their QR modules are pure black/white
+whole pixels for camera contrast.
+
+**Visual:** not verified on a QR-specific native fixture. **Functional:**
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and `git diff --check`
+pass. **Hardware:** not flashed; physical TFT readability, phone QR decoding,
+AP join, `http://radio.local` resolution, and failed-join timing remain open.
+
 ## 2026-09-21 — Settings Wi-Fi and Audio icon clarity
 
 The Settings Wi-Fi row now reuses the same prepared Wi-Fi asset as the page

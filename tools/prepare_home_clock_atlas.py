@@ -49,7 +49,7 @@ def main():
     source_manifest_path = SOURCE / "manifest.json"
     require(source_manifest_path.is_file(), f"Missing approved Home-clock package: {source_manifest_path}")
     source_manifest = json.loads(source_manifest_path.read_text())
-    require(source_manifest.get("format_version") == 2, "Unsupported Home-clock package format")
+    require(source_manifest.get("format_version") in (2, 3), "Unsupported Home-clock package format")
     require(source_manifest.get("canvas") == {"width": 320, "height": 240, "units": "pixels"},
             "Home-clock package must target exactly 320x240")
     require(source_manifest.get("clock_color", {}).get("hex") == "#F5F5F5",
@@ -73,9 +73,11 @@ def main():
         image = Image.open(path).convert("RGBA")
         glyph_spec = cells["glyphs"][glyph]
         source_size = tuple(glyph_spec.get("cell_size", (cell_width, cell_height)))
+        draw_x = glyph_spec.get("draw_x_from_cell_left", 0)
         draw_y = glyph_spec.get("draw_y_from_cell_top", 0)
         require(image.size == source_size, f"Unexpected glyph size: {path}")
         require(0 < source_size[0] <= cell_width and 0 < source_size[1] <= cell_height and
+                0 <= draw_x and draw_x + source_size[0] <= cell_width and
                 -source_size[1] < draw_y and draw_y < cell_height,
                 f"Invalid glyph placement: {path}")
         pixels = image.load()
@@ -88,7 +90,7 @@ def main():
         measured = alpha_bounds(image)
         require(measured == expected, f"Glyph ink bounds differ from manifest: {path}")
         atlas_cell = Image.new("RGBA", (cell_width, cell_height))
-        atlas_cell.alpha_composite(image, (0, draw_y))
+        atlas_cell.alpha_composite(image, (draw_x, draw_y))
         images[glyph] = atlas_cell
         alpha.extend(atlas_cell.getchannel("A").tobytes())
         advances.append(glyph_spec["advance"])
