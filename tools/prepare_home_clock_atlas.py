@@ -7,6 +7,7 @@ the firmware's compact 8-bit alpha atlas without rescaling or font rendering.
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 from PIL import Image, __version__
 
@@ -34,7 +35,15 @@ def require(condition, message):
 
 
 def compose(text, images, advances, cell_height, right, top):
-    width = sum(advances[GLYPHS.index(glyph)] for glyph in text)
+    # A glyph can intentionally overhang its advance.  Size the temporary
+    # composition for that visible final overhang instead of clipping it at
+    # the sum of advances (for example the right edge of 18:30's final zero).
+    pen = 0
+    visible_right = 0
+    for glyph in text:
+        visible_right = max(visible_right, pen + alpha_bounds(images[glyph])[2])
+        pen += advances[GLYPHS.index(glyph)]
+    width = max(pen, visible_right)
     result = Image.new("RGBA", (width, cell_height))
     pen = 0
     for glyph in text:
@@ -46,6 +55,7 @@ def compose(text, images, advances, cell_height, right, top):
 
 
 def main():
+    refresh_references = "--refresh-references" in sys.argv[1:]
     source_manifest_path = SOURCE / "manifest.json"
     require(source_manifest_path.is_file(), f"Missing approved Home-clock package: {source_manifest_path}")
     source_manifest = json.loads(source_manifest_path.read_text())
@@ -103,6 +113,13 @@ def main():
         reference = SOURCE / details["file"]
         require(reference.is_file(), f"Missing reference string: {reference}")
         composed, _ = compose(text, images, advances, cell_height, right, top)
+        if refresh_references:
+            ink = alpha_bounds(composed)
+            details["canvas_size"] = list(composed.size)
+            details["ink_bounds"] = ink
+            details["intended_ink_bounds_at_home_anchor"] = [
+                right - ink[2], top, right, top + ink[3] - ink[1]]
+            composed.save(reference)
         expected = Image.open(reference).convert("RGBA")
         require(composed.size == tuple(details["canvas_size"]), f"Reference geometry differs: {reference}")
         require(composed.tobytes() == expected.tobytes(), f"Glyph composition differs: {reference}")
@@ -113,6 +130,11 @@ def main():
     ink_14_37 = alpha_bounds(composed_14_37)
     overlay = Image.new("RGBA", (320, 240))
     overlay.alpha_composite(composed_14_37, (right - ink_14_37[2], top - ink_14_37[1]))
+    if refresh_references:
+        overlay.save(overlay_path)
+        source_manifest["acceptance"]["overlay_ink_bounds"] = [
+            right - ink_14_37[2], top, right, top + ink_14_37[3] - ink_14_37[1]]
+        source_manifest_path.write_text(json.dumps(source_manifest, indent=2) + "\n")
     expected_overlay = Image.open(overlay_path).convert("RGBA")
     require(overlay.tobytes() == expected_overlay.tobytes(), "14:37 overlay differs from approved reference")
     reference_hashes[source_manifest["acceptance"]["overlay"]] = sha256(overlay_path)

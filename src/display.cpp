@@ -51,6 +51,11 @@ String weatherKeySnapshot;
 time_t weatherLastSuccess = 0;
 unsigned long weatherLastSuccessAt = 0;
 constexpr unsigned long WEATHER_STALE_AFTER_MS = 30UL * 60UL * 1000UL;
+// The audio decoder owns a priority-2 task on core 0.  TLS setup and JSON
+// parsing may run for milliseconds at a time, so keep weather's background
+// network work on the Arduino loop core instead of starving IDLE0.
+constexpr BaseType_t NETWORK_WORKER_CORE = ARDUINO_RUNNING_CORE;
+constexpr UBaseType_t NETWORK_WORKER_PRIORITY = 1;
 bool firmwareUpdateOverlayActive = false;
 uint8_t firmwareUpdatePercent = 0;
 
@@ -264,9 +269,9 @@ void updateWeatherData() {
                     "Weather",
                     8192,
                     nullptr,
-                    1,
+                    NETWORK_WORKER_PRIORITY,
                     nullptr,
-                    0) != pdPASS) {
+                    NETWORK_WORKER_CORE) != pdPASS) {
                 weatherFetchInProgress = false;
             } else {
                 lastWeatherUpdate = millis();
@@ -1097,19 +1102,25 @@ void drawHomeClockAtlas(const char* value) {
     // transparent cell rectangle, to the design anchor. Its cells deliberately
     // overlap, so compose their alpha first and blend the finished clock once.
     constexpr int16_t kHomeClockMaxWidth = 128;
-    constexpr uint8_t kHomeClockMaxHeight = 36;
+    constexpr uint8_t kHomeClockMaxHeight = 32;
     int16_t width = 0;
+    int16_t composedWidth = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
-        if (index >= 0) width += ui_home_clock_advances[index];
+        if (index < 0) continue;
+        // Advancing by a glyph's metric does not guarantee that its visible
+        // right edge stays inside that metric. Reserve its complete cell so a
+        // final zero (or any future overhanging glyph) cannot be cropped.
+        composedWidth = std::max<int16_t>(composedWidth, width + ui_home_clock_cell_width);
+        width += ui_home_clock_advances[index];
     }
-    if (width <= 0 || width > kHomeClockMaxWidth ||
+    if (width <= 0 || composedWidth > kHomeClockMaxWidth ||
         ui_home_clock_cell_height > kHomeClockMaxHeight) return;
 
     constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
     static uint8_t composedAlpha[kHomeClockMaxWidth * kHomeClockMaxHeight];
     for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-        for (int16_t x = 0; x < width; ++x) {
+        for (int16_t x = 0; x < composedWidth; ++x) {
             composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] = 0;
         }
     }
@@ -1120,7 +1131,7 @@ void drawHomeClockAtlas(const char* value) {
         if (glyph < 0) continue;
         const uint8_t* alpha = ui_home_clock_alpha + static_cast<size_t>(glyph) * kCellBytes;
         for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-            for (uint8_t x = 0; x < ui_home_clock_cell_width && penX + x < width; ++x) {
+            for (uint8_t x = 0; x < ui_home_clock_cell_width && penX + x < composedWidth; ++x) {
                 const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
                 if (coverage == 0) continue;
                 uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + penX + x];
@@ -1137,7 +1148,7 @@ void drawHomeClockAtlas(const char* value) {
     int16_t inkRight = 0;
     int16_t inkBottom = 0;
     for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-        for (int16_t x = 0; x < width; ++x) {
+        for (int16_t x = 0; x < composedWidth; ++x) {
             if (composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] == 0) continue;
             if (x < inkLeft) inkLeft = x;
             if (y < inkTop) inkTop = y;
@@ -1150,7 +1161,7 @@ void drawHomeClockAtlas(const char* value) {
     const int16_t originX = ui_home_clock_ink_right - inkRight;
     const int16_t originY = ui_home_clock_ink_top - inkTop;
     for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-        for (int16_t x = 0; x < width; ++x) {
+        for (int16_t x = 0; x < composedWidth; ++x) {
             const uint8_t coverage = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x];
             if (coverage == 0) continue;
             const int16_t pixelX = originX + x;
@@ -1158,12 +1169,10 @@ void drawHomeClockAtlas(const char* value) {
             if (uiFrameReady) {
                 canvas().drawPixel(pixelX, pixelY,
                                    blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
-            } else if (coverage > 0) {
+            } else if (coverage >= 128) {
                 // The direct TFT path cannot safely read the sunset background
-                // back for alpha blending. Keep every source-mask edge pixel
-                // rather than discarding its light coverage: the old >=128
-                // threshold made the intended clock look thin on a panel
-                // using this fallback. The mask remains composed exactly once.
+                // back for alpha blending. Paint the already-composed source
+                // mask once, rather than falling back to a second font renderer.
                 canvas().drawPixel(pixelX, pixelY, kClockText);
             }
         }

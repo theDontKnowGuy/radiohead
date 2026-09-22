@@ -165,45 +165,64 @@ int main(int argc, char** argv) {
     assert(fractionalClockPixels > 100);  // 8-bit Lanczos alpha, not bitmap text.
     // The source package deliberately overlaps cells. Exercise the production
     // renderer directly and verify that it composes alpha before its one RGB565
-    // blend, rather than painting each overlapping cell twice.
+    // blend, including a last glyph whose visible ink extends past its advance.
     constexpr int kClockTestWidth = 128;
-    uint8_t expectedClockAlpha[kClockTestWidth * 32] = {};
-    int clockWidth = 0;
-    for (const char* character = "14:37"; *character; ++character) {
-        clockWidth += ui_home_clock_advances[homeClockGlyphIndex(*character)];
-    }
-    int clockPen = 0;
-    for (const char* character = "14:37"; *character; ++character) {
-        const int glyph = homeClockGlyphIndex(*character);
-        const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
+    auto assertClock = [&](const char* value) {
+        uint8_t expectedClockAlpha[kClockTestWidth * 32] = {};
+        int clockWidth = 0;
+        int composedWidth = 0;
+        for (const char* character = value; *character; ++character) {
+            const int glyph = homeClockGlyphIndex(*character);
+            composedWidth = std::max(composedWidth, clockWidth + ui_home_clock_cell_width);
+            clockWidth += ui_home_clock_advances[glyph];
+        }
+        assert(composedWidth <= kClockTestWidth);
+        int clockPen = 0;
+        for (const char* character = value; *character; ++character) {
+            const int glyph = homeClockGlyphIndex(*character);
+            const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
+            for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+                for (int x = 0; x < ui_home_clock_cell_width && clockPen + x < composedWidth; ++x) {
+                    const uint8_t source = glyphAlpha[y * ui_home_clock_cell_width + x];
+                    uint8_t& destination = expectedClockAlpha[y * kClockTestWidth + clockPen + x];
+                    destination = static_cast<uint8_t>(source +
+                        (static_cast<uint16_t>(destination) * (255U - source) + 127U) / 255U);
+                }
+            }
+            clockPen += ui_home_clock_advances[glyph];
+        }
+        int inkRight = 0;
+        int inkTop = ui_home_clock_cell_height;
         for (int y = 0; y < ui_home_clock_cell_height; ++y) {
-            for (int x = 0; x < ui_home_clock_cell_width && clockPen + x < clockWidth; ++x) {
-                const uint8_t source = glyphAlpha[y * ui_home_clock_cell_width + x];
-                uint8_t& destination = expectedClockAlpha[y * kClockTestWidth + clockPen + x];
-                destination = static_cast<uint8_t>(source +
-                    (static_cast<uint16_t>(destination) * (255U - source) + 127U) / 255U);
+            for (int x = 0; x < composedWidth; ++x) {
+                if (expectedClockAlpha[y * kClockTestWidth + x] == 0) continue;
+                inkRight = std::max(inkRight, x + 1);
+                inkTop = std::min(inkTop, y);
             }
         }
-        clockPen += ui_home_clock_advances[glyph];
-    }
-    int inkRight = 0;
-    int inkTop = ui_home_clock_cell_height;
-    for (int y = 0; y < ui_home_clock_cell_height; ++y) {
-        for (int x = 0; x < clockWidth; ++x) {
-            if (expectedClockAlpha[y * kClockTestWidth + x] == 0) continue;
-            inkRight = std::max(inkRight, x + 1);
-            inkTop = std::min(inkTop, y);
+        frame.fillScreen(0x0000);
+        drawHomeClockAtlas(value);
+        for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+            for (int x = 0; x < composedWidth; ++x) {
+                const uint8_t alpha = expectedClockAlpha[y * kClockTestWidth + x];
+                assert(frame.readPixel(ui_home_clock_ink_right - inkRight + x,
+                                       ui_home_clock_ink_top - inkTop + y) == blendClockPixel(0x0000, alpha));
+            }
         }
-    }
-    frame.fillScreen(0x0000);
-    drawHomeClockAtlas("14:37");
-    for (int y = 0; y < ui_home_clock_cell_height; ++y) {
-        for (int x = 0; x < clockWidth; ++x) {
-            const uint8_t alpha = expectedClockAlpha[y * kClockTestWidth + x];
-            assert(frame.readPixel(ui_home_clock_ink_right - inkRight + x,
-                                   ui_home_clock_ink_top - inkTop + y) == blendClockPixel(0x0000, alpha));
+    };
+    assertClock("14:37");
+    assertClock("18:30");  // Regression: final zero must retain its right edge.
+    assertClock("18:32");
+    const auto glyphTop = [](int glyph) {
+        const uint8_t* alpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
+        for (int y = 0; y < ui_home_clock_cell_height; ++y) {
+            for (int x = 0; x < ui_home_clock_cell_width; ++x) {
+                if (alpha[y * ui_home_clock_cell_width + x] != 0) return y;
+            }
         }
-    }
+        return static_cast<int>(ui_home_clock_cell_height);
+    };
+    assert(glyphTop(homeClockGlyphIndex('2')) == glyphTop(homeClockGlyphIndex('3')));
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));

@@ -1,27 +1,27 @@
 {
   "source": "home-clock-assets",
-  "source_manifest_sha256": "04cbe9fe4ea1a1a5a2e9a5a43ebd12fbeb7b92be222ef59e6e2e65f51e3cf189",
+  "source_manifest_sha256": "5ff7a1ee669e9959086a09e3954cbec27663043c51bbacccd14c574cc88aa908",
   "source_glyph_sha256": {
-    "0.png": "71708a2753e016bad1aeab3288a9f3392ecccd88ed1b7c95df57df6469a93260",
-    "1.png": "678a274cd0bc8d6d46d35a1d6bb1edbd2ef6b611e01e67e5195deefd4db708f1",
-    "2.png": "25fcac1634cc0775b72c83da763c881b2e1e9617fb88cfe60ebc6c92e1e8fff5",
-    "3.png": "e107fc817b1008e88d1b73ea333a39c43e444d4cbea7de8cf0299d7c2c205141",
-    "4.png": "f23f1fad1835e7551a0d2648347d62805a323e7d6bcc9df4b17e8285ad5cc683",
-    "5.png": "57d3387ca435200c6a6df985545dcf2c36dbb71400dd18b669bc2c6a79d11dde",
-    "6.png": "a35cb722b5a1c200fa2e359219cd6534a8b648add827ad19d32923875f137749",
-    "7.png": "2b95d66e50d1d17baf7d156dc390eefe0b6dcf4976749f96291138b7d471b2af",
-    "8.png": "f375ceb7df91ac2a7580d605fd538fb9bfaec122fde185490ce633498c765f87",
-    "9.png": "c7ba2ef7a305e11e138e5e196a819a3c4be3d3a68a0a84c892dd42c99b2207e8",
-    "colon.png": "88a5a36cc19f94e144c86b296d0ae1ee7294a3f0745c82ba10fcbbb65074b601",
-    "hyphen.png": "827769f7fd2430a934965beb74e5fe8496aebfbaee24c6183652bb3425726868"
+    "0.png": "58c641ec3043dcb880f854388111df093f2b29591aae2726c80dba4c7296d069",
+    "1.png": "d987a5017a04bb24b2b1a97c7ab1759bf8acde2ffaa59a71e39d6456bd163180",
+    "2.png": "578c450ad090afbaed864b024e74bc3abe51c8aae46fa215e1d5bf6c4f7750ee",
+    "3.png": "a7b9a6a414e278c6df2e882e2131715906eec22e5e4173e6b85b95e75e60a17b",
+    "4.png": "52b26aabed30a23aef5cb31433a78e9b11826336fa3757578e636b2a4fcf04ef",
+    "5.png": "affab3237296b1751640b00a8dd5faaff350cbe4359d1f528ec5626cee1c9d86",
+    "6.png": "85cb723a54122e892b8d7bf43c4758dbcd10f9683d91839c2cb1000e794df116",
+    "7.png": "aa9e52eff58c9abb19566a7ea645ff6765b58de9ff0893aca19962e6a561b186",
+    "8.png": "5482634e821f871a36134c88da4e5fe6dc389f772cf828db3d1f59bf6b092557",
+    "9.png": "4545a8271f9d40cbc7c28de5016342aa21d6b82923294969350df69fcb1531ab",
+    "colon.png": "c7ef7309f4e683fb261a022bd5eb2697cd8e854df39648a563257ec1b01581ef",
+    "hyphen.png": "e401a2ec411f7fa5aa02e05fe610b084daa9800314b0c97340b80b44089b30bb"
   },
   "source_reference_sha256": {
-    "references/14_colon_37.png": "77f8cc08743a366b7bc2fa6e3c8bf4a23fe17b597877bdd62281d506e9d804bd",
-    "references/00_colon_00.png": "14a2e195c13dc11af196ed2df4ae4a4d35f73b7c62d0b5cff0096c4af6f81f4d",
-    "references/11_colon_11.png": "661e5e85b4c32f4c6353dfcb689437c7848c8928d932c11d1013c91ca547bb52",
-    "references/23_colon_59.png": "0315c68b12ba856904c1ae748074506bfe43b614731586b682ba2668880f06a1",
-    "references/dashdash_colon_dashdash.png": "238924268228cef3057febc7bd6a60aae114e47cce3eff19ef5533373b5d29bf",
-    "references/home-clock-overlay-14_37.png": "1ac5b3fa32b836a8d293d39f81a2adacb664d788935df31ef18c6027cbba1e77"
+    "references/14_colon_37.png": "3d7d8ccdcf22d31f872e592f84dfe12dc4014827475e0f2541240f7fffaf0d97",
+    "references/00_colon_00.png": "57fedf005926c4f58098750077feb00cd11473ba3ce84151ae184a02468f06db",
+    "references/11_colon_11.png": "f243af5fc0a45c17cbf04f7b51c485762834e8bc4fa7ff2406b1b1b856004a6e",
+    "references/23_colon_59.png": "0b055f84a67bc7a86e1329675bbbe8d9a804fca8ecd01dc1d0b6b014196b2480",
+    "references/dashdash_colon_dashdash.png": "a7e02ab858b7f40fa6dd9f863fdd4d3d5ff9c6960c83553df307b586ff26d20e",
+    "references/home-clock-overlay-14_37.png": "3c474be0e45313e0270bb22a64183e2bc9d8a94e3bdc5fd1b9e75e4002a04b0a"
   },
   "pillow": "12.3.0",
   "glyphs": "0123456789:-",
@@ -29,8 +29,8 @@
   "filter": "source masks supplied at native resolution",
   "alpha_bits": 8,
   "cell_size": [
-    30,
-    36
+    26,
+    32
   ],
   "advances": [
     24,
@@ -48,76 +48,76 @@
   ],
   "ink_bounds": [
     [
-      1,
-      1,
-      29,
-      35
-    ],
-    [
-      1,
-      1,
-      14,
-      31
-    ],
-    [
-      1,
-      1,
-      27,
-      35
-    ],
-    [
-      1,
       0,
-      23,
+      0,
+      26,
       32
     ],
     [
-      1,
+      0,
+      0,
+      11,
+      28
+    ],
+    [
+      0,
+      0,
+      24,
+      32
+    ],
+    [
+      0,
+      0,
+      20,
+      29
+    ],
+    [
+      0,
+      0,
+      22,
+      28
+    ],
+    [
+      0,
       1,
       25,
-      31
-    ],
-    [
-      1,
-      2,
-      28,
-      35
-    ],
-    [
-      1,
-      1,
-      28,
-      35
-    ],
-    [
-      1,
-      1,
-      21,
-      31
-    ],
-    [
-      1,
-      1,
-      28,
-      35
-    ],
-    [
-      1,
-      1,
-      28,
-      35
-    ],
-    [
-      1,
-      8,
-      10,
       32
     ],
     [
-      1,
-      14,
-      21,
-      25
+      0,
+      0,
+      25,
+      32
+    ],
+    [
+      0,
+      0,
+      18,
+      28
+    ],
+    [
+      0,
+      0,
+      25,
+      32
+    ],
+    [
+      0,
+      0,
+      25,
+      32
+    ],
+    [
+      0,
+      7,
+      7,
+      29
+    ],
+    [
+      0,
+      13,
+      18,
+      22
     ]
   ],
   "ink_anchor": {
@@ -126,14 +126,14 @@
   },
   "measurements": {
     "sample_14_37_bounds": [
-      209,
+      212,
       40,
       301,
-      72
+      69
     ],
-    "approved_overlay_14_37_sha256": "1ac5b3fa32b836a8d293d39f81a2adacb664d788935df31ef18c6027cbba1e77"
+    "approved_overlay_14_37_sha256": "3c474be0e45313e0270bb22a64183e2bc9d8a94e3bdc5fd1b9e75e4002a04b0a"
   },
-  "bytes": 12960,
-  "sha256": "44c60551bef6cd998865ad3da89f7eb8844b4b4ac8db025aca0474e431a1b6a3",
+  "bytes": 9984,
+  "sha256": "968e353dabab8c6ba284b71f00037b4f8e53a1eae2f7949667c4e3791b94f2ab",
   "recipe": "Approved source-matched glyph masks are copied directly from the supplied native 320x240 Home-clock package; no font is loaded or scaled during conversion. Runtime placement uses the package's visible-ink anchor."
 }
