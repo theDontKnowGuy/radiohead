@@ -205,6 +205,15 @@ void loop() {
     updateWeatherData();
 
     const unsigned long now = millis();
+    // The update worker publishes only discrete state changes. Sampling its
+    // revision avoids locking its String state in the hot audio path while
+    // still repainting the TFT when a manual release becomes available.
+    static uint32_t lastFirmwareUpdateRevision = 0;
+    const uint32_t firmwareUpdateRevision = firmwareUpdater.statusRevision();
+    if (firmwareUpdateRevision != lastFirmwareUpdateRevision) {
+        lastFirmwareUpdateRevision = firmwareUpdateRevision;
+        forceRedraw = true;
+    }
     const bool displayWasDimmed = isDimmed;
     const ButtonEvent buttonEvent = pollEncoderButton(now);
     int16_t touchX = 0;
@@ -347,6 +356,20 @@ void loop() {
             saveSettings();
             forceRedraw = true;
             break;
+        case UiCommandKind::RequestFirmwareUpdateCheck:
+            firmwareUpdater.requestCheckNow();
+            forceRedraw = true;
+            break;
+        case UiCommandKind::SetFirmwareAutoInstall: {
+            const bool enabled = command.value != 0;
+            if (!saveFirmwareAutoUpdate(enabled)) {
+                Serial.println("Could not save firmware update policy");
+                break;
+            }
+            firmwareUpdater.setAutoInstall(enabled);
+            forceRedraw = true;
+            break;
+        }
         case UiCommandKind::StartTouchCalibration:
             // Calibration is intentionally an explicit maintenance flow. It is
             // the one local operation that must temporarily take over the TFT.

@@ -1,139 +1,65 @@
 {
-  "source": "home-clock-assets",
-  "source_manifest_sha256": "5ff7a1ee669e9959086a09e3954cbec27663043c51bbacccd14c574cc88aa908",
-  "source_glyph_sha256": {
-    "0.png": "58c641ec3043dcb880f854388111df093f2b29591aae2726c80dba4c7296d069",
-    "1.png": "d987a5017a04bb24b2b1a97c7ab1759bf8acde2ffaa59a71e39d6456bd163180",
-    "2.png": "578c450ad090afbaed864b024e74bc3abe51c8aae46fa215e1d5bf6c4f7750ee",
-    "3.png": "a7b9a6a414e278c6df2e882e2131715906eec22e5e4173e6b85b95e75e60a17b",
-    "4.png": "52b26aabed30a23aef5cb31433a78e9b11826336fa3757578e636b2a4fcf04ef",
-    "5.png": "affab3237296b1751640b00a8dd5faaff350cbe4359d1f528ec5626cee1c9d86",
-    "6.png": "85cb723a54122e892b8d7bf43c4758dbcd10f9683d91839c2cb1000e794df116",
-    "7.png": "aa9e52eff58c9abb19566a7ea645ff6765b58de9ff0893aca19962e6a561b186",
-    "8.png": "5482634e821f871a36134c88da4e5fe6dc389f772cf828db3d1f59bf6b092557",
-    "9.png": "4545a8271f9d40cbc7c28de5016342aa21d6b82923294969350df69fcb1531ab",
-    "colon.png": "c7ef7309f4e683fb261a022bd5eb2697cd8e854df39648a563257ec1b01581ef",
-    "hyphen.png": "e401a2ec411f7fa5aa02e05fe610b084daa9800314b0c97340b80b44089b30bb"
-  },
-  "source_reference_sha256": {
-    "references/14_colon_37.png": "3d7d8ccdcf22d31f872e592f84dfe12dc4014827475e0f2541240f7fffaf0d97",
-    "references/00_colon_00.png": "57fedf005926c4f58098750077feb00cd11473ba3ce84151ae184a02468f06db",
-    "references/11_colon_11.png": "f243af5fc0a45c17cbf04f7b51c485762834e8bc4fa7ff2406b1b1b856004a6e",
-    "references/23_colon_59.png": "0b055f84a67bc7a86e1329675bbbe8d9a804fca8ecd01dc1d0b6b014196b2480",
-    "references/dashdash_colon_dashdash.png": "a7e02ab858b7f40fa6dd9f863fdd4d3d5ff9c6960c83553df307b586ff26d20e",
-    "references/home-clock-overlay-14_37.png": "3c474be0e45313e0270bb22a64183e2bc9d8a94e3bdc5fd1b9e75e4002a04b0a"
-  },
-  "pillow": "12.3.0",
+  "source": "home-clock-assets/v3-heavier",
+  "source_manifest_sha256": "7b86789f58b5c5762ec1dfbaeeb53fe964ea83d1a68d5cfff3cc32ec2aed118b",
   "glyphs": "0123456789:-",
-  "scale": 8,
-  "filter": "source masks supplied at native resolution",
+  "alpha_source": "glyphs_alpha (supplied 8-bit grayscale masks)",
+  "rgba_source": "glyphs_rgba (supplied #F5F5F5 straight-alpha validation copies)",
+  "source_alpha_sha256": {
+    "0.png": "0bca4dd5e4ec83886671749fee2e6dff9e7bed136dd0637ee69d37c86b60262f",
+    "1.png": "431c27d217777e7bad80328a5321dd0d6b045fef483d18bf152b952f4a68382f",
+    "2.png": "c05d3e1a6dd5d42ba51a386e56197cc44ecca123222ec24baae1f0238f646d55",
+    "3.png": "8cd29396d9d5bb94a6f37efc54b963a7ede15a62a1d6251074faf989a0e074d1",
+    "4.png": "3a9f9d84f643598f8ecd382f163354b50607598dbf28232d1d712c389c781852",
+    "5.png": "a41ba4fbfb578e56d03a31d70e48d4668e8206d2e83cea7caeb567e3752e707a",
+    "6.png": "56bb59f9dfcc14345a206069f6a0056b8ac8e4c17c61f519cabbb4147134a22f",
+    "7.png": "6c20129e7771769f6a4bfddb2dce1667bb5764c28ac60883306f056925ac629d",
+    "8.png": "5280cc1c62406ca3be2e4b124e4fb3b7244312f5b1af031bb45b409c473798af",
+    "9.png": "4ac3a6bfe736a85402c3d156ac659b47cf2e42b5e1cc824e6a8a7e7211d685a4",
+    "colon.png": "f06238c1cbe2e91e8ebc3c1873615d94899bfc04c2b1e7bdb6e33f2559ea96fe",
+    "hyphen.png": "4cc9b3f308ed74561f6f2d7349d299643fa19f1a0b0531c3a39ff3cb6d987283"
+  },
+  "source_rgba_sha256": {
+    "0.png": "a9b374eddfb33e102c5ccfc961a33933a10a164b2145f605cc06edfa1d0267f3",
+    "1.png": "2be2f41e6ad10eebeee31b58b6b4eb228f7c16a7d81049dbc1960a1395bfd787",
+    "2.png": "a25453af4e9bd5fce39b1b1c809d13cb1ba174503a3728ca832ae44a195c6182",
+    "3.png": "6c11260ed693018c85927bb03d93529a789a2176406cc5a17f4695d3a227e816",
+    "4.png": "70ebf609854426ee80d2418575cff6bce3fb02922fa471cfd6b936b7020bc851",
+    "5.png": "c3f168f5ec7a9e98ac3d67901a5f1136b433d270646ae0e6920c7ccf643b8e64",
+    "6.png": "14ae43568c8fb0c9670b06ba86d62d12e03312a0eca8e431273dfa0fd5daa101",
+    "7.png": "9ce6e418af3d27c12867fe8fe131ea45a295725ceefc870bc7038dd94f1785f9",
+    "8.png": "529f1d7ab5759b113437f9017c66c2219c2007ddec609896767543c69a1d89cb",
+    "9.png": "22762549657569615e51a65f7eba90a156146edb9edd44babea8913eb3334f36",
+    "colon.png": "fd0069832de13d8162355d3e915a12b8ba2399a19f42fe0fcd6ea7efb43b0736",
+    "hyphen.png": "e3070f1d9f44c3025b0e4f2fe61b99de795aa72067738b45717496939daf9dd6"
+  },
   "alpha_bits": 8,
   "cell_size": [
-    26,
-    32
+    32,
+    38
   ],
-  "advances": [
-    24,
-    15,
-    24,
-    22,
-    25,
-    24,
-    25,
-    25,
-    25,
-    25,
-    9,
-    17
+  "baseline_y": 33,
+  "color": "#F5F5F5",
+  "advance_scale": 10000,
+  "advance_units": [
+    235938,
+    140781,
+    216875,
+    226719,
+    238281,
+    219219,
+    224219,
+    199219,
+    223281,
+    224219,
+    87500,
+    162656
   ],
-  "ink_bounds": [
-    [
-      0,
-      0,
-      26,
-      32
-    ],
-    [
-      0,
-      0,
-      11,
-      28
-    ],
-    [
-      0,
-      0,
-      24,
-      32
-    ],
-    [
-      0,
-      0,
-      20,
-      29
-    ],
-    [
-      0,
-      0,
-      22,
-      28
-    ],
-    [
-      0,
-      1,
-      25,
-      32
-    ],
-    [
-      0,
-      0,
-      25,
-      32
-    ],
-    [
-      0,
-      0,
-      18,
-      28
-    ],
-    [
-      0,
-      0,
-      25,
-      32
-    ],
-    [
-      0,
-      0,
-      25,
-      32
-    ],
-    [
-      0,
-      7,
-      7,
-      29
-    ],
-    [
-      0,
-      13,
-      18,
-      22
-    ]
-  ],
+  "tracking_units": 2500,
   "ink_anchor": {
     "right_x": 301,
-    "top_y": 40
+    "top_y": 41
   },
-  "measurements": {
-    "sample_14_37_bounds": [
-      212,
-      40,
-      301,
-      69
-    ],
-    "approved_overlay_14_37_sha256": "3c474be0e45313e0270bb22a64183e2bc9d8a94e3bdc5fd1b9e75e4002a04b0a"
-  },
-  "bytes": 9984,
-  "sha256": "968e353dabab8c6ba284b71f00037b4f8e53a1eae2f7949667c4e3791b94f2ab",
-  "recipe": "Approved source-matched glyph masks are copied directly from the supplied native 320x240 Home-clock package; no font is loaded or scaled during conversion. Runtime placement uses the package's visible-ink anchor."
+  "bytes": 14592,
+  "sha256": "b82122f35b9dee8063821127d9e9ab5a317221b88a67476b5e025adae02ce3ca",
+  "recipe": "The supplied v3-heavier alpha masks are packed without resampling or modification. Runtime composes them with manifest advances/tracking, aligns visible ink to the manifest anchor, and blends #F5F5F5 with straight alpha."
 }

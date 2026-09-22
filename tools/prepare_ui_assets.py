@@ -106,10 +106,13 @@ if hashlib.sha256(clock_data).hexdigest() != clock_manifest["sha256"]:
     raise RuntimeError("Home clock atlas hash mismatch; run tools/prepare_home_clock_atlas.py")
 glyphs = clock_manifest["glyphs"]
 cell_width, cell_height = clock_manifest["cell_size"]
-if (clock_manifest["alpha_bits"], clock_manifest["scale"], len(clock_data)) != (
-        8, 8, len(glyphs) * cell_width * cell_height):
+if (clock_manifest["alpha_bits"], clock_manifest["advance_scale"], len(clock_data)) != (
+        8, 10000, len(glyphs) * cell_width * cell_height):
     raise RuntimeError("Invalid Home clock atlas geometry")
 clock_anchor = clock_manifest["ink_anchor"]
+if (clock_manifest["color"], clock_manifest["baseline_y"], cell_width, cell_height) != (
+        "#F5F5F5", 33, 32, 38):
+    raise RuntimeError("Unexpected Home clock package metrics")
 if not (0 <= clock_anchor["right_x"] <= 320 and 0 <= clock_anchor["top_y"] <= 240):
     raise RuntimeError("Invalid Home clock anchor")
 clock_lines = [", ".join(f"0x{byte:02x}" for byte in clock_data[index:index + 16])
@@ -118,10 +121,13 @@ clock_content = "#pragma once\n#include <stdint.h>\n"
 clock_content += f"constexpr uint8_t ui_home_clock_glyph_count = {len(glyphs)};\n"
 clock_content += f"constexpr uint8_t ui_home_clock_cell_width = {cell_width};\n"
 clock_content += f"constexpr uint8_t ui_home_clock_cell_height = {cell_height};\n"
+clock_content += f"constexpr uint8_t ui_home_clock_baseline_y = {clock_manifest['baseline_y']};\n"
 clock_content += f"constexpr int16_t ui_home_clock_ink_right = {clock_anchor['right_x']};\n"
 clock_content += f"constexpr int16_t ui_home_clock_ink_top = {clock_anchor['top_y']};\n"
-clock_content += "constexpr uint8_t ui_home_clock_advances[] = {" + ", ".join(
-    str(advance) for advance in clock_manifest["advances"]) + "};\n"
+clock_content += f"constexpr int32_t ui_home_clock_advance_scale = {clock_manifest['advance_scale']};\n"
+clock_content += "constexpr int32_t ui_home_clock_advance_units[] = {" + ", ".join(
+    str(advance) for advance in clock_manifest["advance_units"]) + "};\n"
+clock_content += f"constexpr int32_t ui_home_clock_tracking_units = {clock_manifest['tracking_units']};\n"
 clock_content += "const uint8_t ui_home_clock_alpha[] = {\n" + ",\n".join(clock_lines) + "\n};\n"
 clock_header = output / "ui_home_clock_atlas.h"
 if not clock_header.exists() or clock_header.read_text() != clock_content:

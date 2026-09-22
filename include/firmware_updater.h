@@ -32,10 +32,14 @@ public:
 
     void begin(bool autoInstall);
     void setAutoInstall(bool enabled);
-    void requestCheckNow();
+    // Queues a manifest check and returns immediately. The caller must poll
+    // snapshot() for the outcome; a TLS handshake never belongs on a web
+    // request or the audio loop.
+    bool requestCheckNow();
     bool requestInstallNow();
     [[nodiscard]] Snapshot snapshot() const;
     [[nodiscard]] bool isBusy() const { return busy.load(); }
+    [[nodiscard]] uint32_t statusRevision() const { return stateRevision.load(); }
     [[nodiscard]] static const char* statusName(Status status);
 
 private:
@@ -57,6 +61,7 @@ private:
     std::atomic<bool> autoInstall{true};
     std::atomic<bool> releaseAvailable{false};
     std::atomic<bool> installRequested{false};
+    std::atomic<uint32_t> stateRevision{0};
     TaskHandle_t taskHandle = nullptr;
     SemaphoreHandle_t stateMutex = nullptr;
     Release pendingRelease;

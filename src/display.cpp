@@ -13,6 +13,7 @@
 #include "app_state.h"
 #include "ConfigQrCode.h"
 #include "display_fonts.h"
+#include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
 #include "SetupWifiQrCode.h"
@@ -438,6 +439,7 @@ constexpr uint16_t kBlue = 0x13DE;
 constexpr uint16_t kBlueDark = 0x0B16;
 constexpr uint16_t kBlueFocus = 0x8E5F;
 constexpr uint16_t kRed = 0xF945;
+constexpr uint16_t kAmber = 0xFD20;
 constexpr uint16_t kGreen = 0x154B;
 constexpr uint16_t kPurple = 0x8218;
 constexpr uint16_t kSlate = 0x4391;
@@ -969,8 +971,10 @@ void drawHomeHeader(bool timeValid, const String& station) {
     }
     canvas().setTextDatum(MR_DATUM);
     canvas().setTextColor(kClockDate);
-    // The small face's visible letters sit slightly below its line-box center.
-    canvas().drawString(date[0] == '\0' ? "" : date, 271, centerY - 1, uiFont(&fonts::Font0));
+    // The reference treats the day/date as a readable, light caption—not the
+    // 11 px utility face. Keep it close to Wi-Fi while preserving its larger
+    // 13 px optical height.
+    canvas().drawString(date[0] == '\0' ? "" : date, 280, centerY - 1, display_fonts::caption());
     if (uiFrameReady) {
         // Visible Wi-Fi pixels span local y=4..16: optical center is y=10.
         canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 287, centerY - 10);
@@ -1098,23 +1102,25 @@ uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
 }
 
 void drawHomeClockAtlas(const char* value) {
-    // The approved glyph package aligns visible ink, rather than its
-    // transparent cell rectangle, to the design anchor. Its cells deliberately
-    // overlap, so compose their alpha first and blend the finished clock once.
-    constexpr int16_t kHomeClockMaxWidth = 128;
-    constexpr uint8_t kHomeClockMaxHeight = 32;
-    int16_t width = 0;
+    // The supplied v3 cells share a y=33 baseline. Their visible ink—not their
+    // 32x38 cells or nominal advances—aligns to the manifest's top/right anchor.
+    // Compose first so overlapping straight-alpha masks are blended once against
+    // the actual RGB565 Home frame.
+    constexpr int16_t kHomeClockMaxWidth = 160;
+    constexpr uint8_t kHomeClockMaxHeight = 38;
+    static_assert(ui_home_clock_baseline_y == 33, "Home clock baseline must match its package");
+    static_assert(kClockText == 0xF7BE, "Home clock color must remain #F5F5F5");
+    int32_t penUnits = 0;
     int16_t composedWidth = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeClockGlyphIndex(*character);
         if (index < 0) continue;
-        // Advancing by a glyph's metric does not guarantee that its visible
-        // right edge stays inside that metric. Reserve its complete cell so a
-        // final zero (or any future overhanging glyph) cannot be cropped.
-        composedWidth = std::max<int16_t>(composedWidth, width + ui_home_clock_cell_width);
-        width += ui_home_clock_advances[index];
+        const int16_t glyphX = static_cast<int16_t>((penUnits + ui_home_clock_advance_scale / 2) /
+                                                    ui_home_clock_advance_scale);
+        composedWidth = std::max<int16_t>(composedWidth, glyphX + ui_home_clock_cell_width);
+        penUnits += ui_home_clock_advance_units[index] + ui_home_clock_tracking_units;
     }
-    if (width <= 0 || composedWidth > kHomeClockMaxWidth ||
+    if (penUnits <= 0 || composedWidth > kHomeClockMaxWidth ||
         ui_home_clock_cell_height > kHomeClockMaxHeight) return;
 
     constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
@@ -1125,25 +1131,27 @@ void drawHomeClockAtlas(const char* value) {
         }
     }
 
-    int16_t penX = 0;
+    penUnits = 0;
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t glyph = homeClockGlyphIndex(*character);
         if (glyph < 0) continue;
+        const int16_t glyphX = static_cast<int16_t>((penUnits + ui_home_clock_advance_scale / 2) /
+                                                    ui_home_clock_advance_scale);
         const uint8_t* alpha = ui_home_clock_alpha + static_cast<size_t>(glyph) * kCellBytes;
         for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-            for (uint8_t x = 0; x < ui_home_clock_cell_width && penX + x < composedWidth; ++x) {
+            for (uint8_t x = 0; x < ui_home_clock_cell_width && glyphX + x < composedWidth; ++x) {
                 const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
                 if (coverage == 0) continue;
-                uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + penX + x];
+                uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + glyphX + x];
                 composed = static_cast<uint8_t>(coverage +
                     (static_cast<uint16_t>(composed) * (255U - coverage) + 127U) / 255U);
             }
         }
-        penX += ui_home_clock_advances[glyph];
+        penUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
         serviceUiAudio();
     }
 
-    int16_t inkLeft = width;
+    int16_t inkLeft = composedWidth;
     int16_t inkTop = ui_home_clock_cell_height;
     int16_t inkRight = 0;
     int16_t inkBottom = 0;
@@ -1898,11 +1906,43 @@ void renderDisplaySettings(const UiRenderState& state, const char* currentTime, 
 void renderDeviceSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     drawListHeader("Device", currentTime, timeValid);
-    drawSettingsListRow(44, "Touch calibration", 4);
-    drawSettingsListRow(92, "About", 4);
+    drawSettingsListRow(44, "Firmware updates", 4);
+    drawSettingsListRow(92, "Touch calibration", 4);
     drawSettingsListRow(140, "Restart", 4);
     drawSettingsListRow(188, state.deviceActionFailed ? "Reset failed" : "Factory reset", 4, true);
     drawListPager(0, 4, kStationRowsPerPage);
+}
+
+void renderFirmwareSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    (void)state;
+    const FirmwareUpdater::Snapshot update = firmwareUpdater.snapshot();
+    drawBackground();
+    drawListHeader("Firmware updates", currentTime, timeValid);
+
+    drawListCard(8, 52, false, true);
+    text(update.busy ? "Checking GitHub releases..." : "Check for updates", 24, 64,
+         uiFont(&fonts::FreeSans9pt7b), kWhite, 246);
+    text(update.busy ? "Please wait; audio keeps playing." : "Check the official release channel now.",
+         24, 86, uiFont(&fonts::Font0), kTextMuted, 246);
+
+    drawListCard(8, 108, false, true);
+    text("Update mode", 24, 120, uiFont(&fonts::FreeSans9pt7b), kWhite, 120);
+    text(update.autoInstall ? "Automatic" : "Manual (web install)", 24, 142,
+         uiFont(&fonts::Font0), update.autoInstall ? kBlueFocus : kAmber, 228);
+
+    if (update.awaitingConfirmation) {
+        canvas().fillRoundRect(8, 164, 304, 20, 5, kAmber);
+        canvas().setTextDatum(MC_DATUM);
+        canvas().setTextColor(kNavy);
+        canvas().drawString("UPDATE AVAILABLE", 160, 174, uiFont(&fonts::Font0));
+    } else {
+        text(update.message.isEmpty() ? "No update check has run yet." : update.message,
+             24, 168, uiFont(&fonts::Font0), kTextMuted, 270);
+    }
+    // Keep the previous device information reachable even though the Device
+    // list now needs its first row for the firmware flow.
+    footerButton(0, 160, "About");
+    footerButton(160, 160, "Back");
 }
 
 void renderSettingsAbout(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2033,6 +2073,15 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
         text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
         text("Configure on phone", 90, 118, uiFont(&fonts::Font0), kTextMuted, 116);
+    }
+
+    // Manual-update mode needs an on-device prompt as well as the browser's
+    // Install button; otherwise a release can wait forever unnoticed.
+    if (firmwareUpdater.snapshot().awaitingConfirmation) {
+        canvas().fillRoundRect(96, 124, 216, 18, 5, kAmber);
+        canvas().setTextDatum(MC_DATUM);
+        canvas().setTextColor(kNavy);
+        canvas().drawString("UPDATE AVAILABLE", 204, 133, uiFont(&fonts::Font0));
     }
 
     // One renderer owns the Home clock in both PSRAM and direct-TFT modes.
@@ -2223,10 +2272,16 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
     } else if (state.page == UiPage::SettingsDevice) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
         const int row = listRowAt(y);
-        if (row == 0) return UiTarget::DeviceCalibration;
-        if (row == 1) return UiTarget::DeviceAbout;
+        if (row == 0) return UiTarget::DeviceFirmware;
+        if (row == 1) return UiTarget::DeviceCalibration;
         if (row == 2) return UiTarget::DeviceRestart;
         if (row == 3) return UiTarget::DeviceFactoryReset;
+    } else if (state.page == UiPage::SettingsFirmware) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
+            contains(x, y, 160, 188, 160, 52)) return UiTarget::SettingsBack;
+        if (contains(x, y, 0, 188, 160, 52)) return UiTarget::DeviceAbout;
+        if (contains(x, y, 8, 52, 304, 48)) return UiTarget::FirmwareCheckNow;
+        if (contains(x, y, 8, 108, 304, 48)) return UiTarget::FirmwareToggleAutoInstall;
     } else if (state.page == UiPage::SettingsAbout) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
             contains(x, y, 0, 188, 320, 52)) return UiTarget::AboutBack;
@@ -2289,6 +2344,9 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::SettingsDevice:
         renderDeviceSettings(state, currentTime, timeValid);
+        break;
+    case UiPage::SettingsFirmware:
+        renderFirmwareSettings(state, currentTime, timeValid);
         break;
     case UiPage::SettingsAbout:
         renderSettingsAbout(state, currentTime, timeValid);

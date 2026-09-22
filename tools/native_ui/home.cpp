@@ -143,10 +143,12 @@ int main(int argc, char** argv) {
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
     assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
     assert(ui_home_clock_glyph_count == 12);
-    assert(ui_home_clock_cell_width == 26 && ui_home_clock_cell_height == 32);
-    assert(ui_home_clock_advances[0] == 24 && ui_home_clock_advances[9] == 25);
-    assert(ui_home_clock_advances[10] == 9);
-    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
+    assert(ui_home_clock_cell_width == 32 && ui_home_clock_cell_height == 38);
+    assert(ui_home_clock_baseline_y == 33);
+    assert(ui_home_clock_advance_scale == 10000 && ui_home_clock_tracking_units == 2500);
+    assert(ui_home_clock_advance_units[0] == 235938 && ui_home_clock_advance_units[9] == 224219);
+    assert(ui_home_clock_advance_units[10] == 87500 && ui_home_clock_advance_units[11] == 162656);
+    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 41);
     // Home icon PNGs have unequal transparent padding, so the renderer aligns
     // their visible ink rather than their canvas origins.
     assert(kHomeTileIconVisibleTop == kHomeTileY + 8);
@@ -163,33 +165,36 @@ int main(int argc, char** argv) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
     }
     assert(fractionalClockPixels > 100);  // 8-bit Lanczos alpha, not bitmap text.
-    // The source package deliberately overlaps cells. Exercise the production
-    // renderer directly and verify that it composes alpha before its one RGB565
-    // blend, including a last glyph whose visible ink extends past its advance.
-    constexpr int kClockTestWidth = 128;
+    // Exercise the production renderer directly: it must retain the supplied
+    // fractional advances/tracking, compose alpha, then blend once in RGB565.
+    constexpr int kClockTestWidth = 160;
     auto assertClock = [&](const char* value) {
-        uint8_t expectedClockAlpha[kClockTestWidth * 32] = {};
-        int clockWidth = 0;
+        uint8_t expectedClockAlpha[kClockTestWidth * 38] = {};
+        int32_t clockPenUnits = 0;
         int composedWidth = 0;
         for (const char* character = value; *character; ++character) {
             const int glyph = homeClockGlyphIndex(*character);
-            composedWidth = std::max(composedWidth, clockWidth + ui_home_clock_cell_width);
-            clockWidth += ui_home_clock_advances[glyph];
+            const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
+                ui_home_clock_advance_scale;
+            composedWidth = std::max(composedWidth, glyphX + ui_home_clock_cell_width);
+            clockPenUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
         }
         assert(composedWidth <= kClockTestWidth);
-        int clockPen = 0;
+        clockPenUnits = 0;
         for (const char* character = value; *character; ++character) {
             const int glyph = homeClockGlyphIndex(*character);
+            const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
+                ui_home_clock_advance_scale;
             const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
             for (int y = 0; y < ui_home_clock_cell_height; ++y) {
-                for (int x = 0; x < ui_home_clock_cell_width && clockPen + x < composedWidth; ++x) {
+                for (int x = 0; x < ui_home_clock_cell_width && glyphX + x < composedWidth; ++x) {
                     const uint8_t source = glyphAlpha[y * ui_home_clock_cell_width + x];
-                    uint8_t& destination = expectedClockAlpha[y * kClockTestWidth + clockPen + x];
+                    uint8_t& destination = expectedClockAlpha[y * kClockTestWidth + glyphX + x];
                     destination = static_cast<uint8_t>(source +
                         (static_cast<uint16_t>(destination) * (255U - source) + 127U) / 255U);
                 }
             }
-            clockPen += ui_home_clock_advances[glyph];
+            clockPenUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
         }
         int inkRight = 0;
         int inkTop = ui_home_clock_cell_height;
@@ -211,18 +216,33 @@ int main(int argc, char** argv) {
         }
     };
     assertClock("14:37");
-    assertClock("18:30");  // Regression: final zero must retain its right edge.
+    assertClock("00:00");
+    assertClock("--:--");
     assertClock("18:32");
-    const auto glyphTop = [](int glyph) {
+    const auto glyphVerticalCenterTwice = [](int glyph) {
         const uint8_t* alpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
+        int top = ui_home_clock_cell_height;
+        int bottom = 0;
         for (int y = 0; y < ui_home_clock_cell_height; ++y) {
             for (int x = 0; x < ui_home_clock_cell_width; ++x) {
-                if (alpha[y * ui_home_clock_cell_width + x] != 0) return y;
+                if (alpha[y * ui_home_clock_cell_width + x] == 0) continue;
+                top = std::min(top, y);
+                bottom = std::max(bottom, y + 1);
             }
         }
-        return static_cast<int>(ui_home_clock_cell_height);
+        return top + bottom;
     };
-    assert(glyphTop(homeClockGlyphIndex('2')) == glyphTop(homeClockGlyphIndex('3')));
+    int centerMin = 2 * ui_home_clock_cell_height;
+    int centerMax = 0;
+    for (char digit = '0'; digit <= '9'; ++digit) {
+        const int center = glyphVerticalCenterTwice(homeClockGlyphIndex(digit));
+        centerMin = std::min(centerMin, center);
+        centerMax = std::max(centerMax, center);
+    }
+    // The source digits have different tight crop heights. Their visual
+    // centers must nevertheless agree to within half a native pixel.
+    assert(centerMax - centerMin <= 1);
+    assert(frame.textWidth("Wed, 30 Sep", display_fonts::caption()) <= 80);
     lgfx::FontMetrics metrics;
     display_fonts::label()->getDefaultMetric(&metrics);
     assert(display_fonts::label()->updateFontMetric(&metrics, ' '));

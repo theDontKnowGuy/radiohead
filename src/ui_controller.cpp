@@ -33,6 +33,7 @@ constexpr unsigned long kToneRepeatMs = 120;
 void openToneSettings();
 void openDisplaySettings();
 void openDeviceSettings(bool clearFailure);
+void openFirmwareSettings();
 
 void markDirty() {
     state.dirty = true;
@@ -228,6 +229,11 @@ void openDisplaySettings() {
 void openDeviceSettings(bool clearFailure = false) {
     state.page = UiPage::SettingsDevice;
     if (clearFailure) state.deviceActionFailed = false;
+    markDirty();
+}
+
+void openFirmwareSettings() {
+    state.page = UiPage::SettingsFirmware;
     markDirty();
 }
 
@@ -501,15 +507,28 @@ void handleTarget(UiTarget target, int value = 0) {
     case UiPage::SettingsDevice:
         if (target == UiTarget::SettingsBack) {
             openSettings();
+        } else if (target == UiTarget::DeviceFirmware) {
+            openFirmwareSettings();
         } else if (target == UiTarget::DeviceCalibration) {
             queue(UiCommandKind::StartTouchCalibration);
-        } else if (target == UiTarget::DeviceAbout) {
-            state.page = UiPage::SettingsAbout;
-            markDirty();
         } else if (target == UiTarget::DeviceRestart) {
             openSettingsConfirmation(1);
         } else if (target == UiTarget::DeviceFactoryReset) {
             openSettingsConfirmation(2);
+        }
+        break;
+    case UiPage::SettingsFirmware:
+        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) {
+            openDeviceSettings();
+        } else if (target == UiTarget::DeviceAbout) {
+            state.page = UiPage::SettingsAbout;
+            markDirty();
+        } else if (target == UiTarget::FirmwareCheckNow) {
+            queue(UiCommandKind::RequestFirmwareUpdateCheck);
+            markDirty();
+        } else if (target == UiTarget::FirmwareToggleAutoInstall) {
+            queue(UiCommandKind::SetFirmwareAutoInstall, firmwareAutoUpdate ? 0 : 1);
+            markDirty();
         }
         break;
     case UiPage::SettingsAbout:

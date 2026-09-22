@@ -67,6 +67,7 @@ void FirmwareUpdater::begin(bool shouldAutoInstall) {
 
 void FirmwareUpdater::setAutoInstall(bool enabled) {
     autoInstall.store(enabled);
+    stateRevision.fetch_add(1);
     // A release may have been held in ask-first mode when the owner changes
     // policy. Do not strand it: make the switch take effect immediately.
     if (enabled && taskHandle != nullptr && releaseAvailable.load() && !busy.exchange(true)) {
@@ -75,10 +76,11 @@ void FirmwareUpdater::setAutoInstall(bool enabled) {
     }
 }
 
-void FirmwareUpdater::requestCheckNow() {
-    if (taskHandle == nullptr || releaseAvailable.load() || busy.exchange(true)) return;
+bool FirmwareUpdater::requestCheckNow() {
+    if (taskHandle == nullptr || releaseAvailable.load() || busy.exchange(true)) return false;
     setStatus(Status::Checking, "Checking GitHub releases");
     xTaskNotifyGive(taskHandle);
+    return true;
 }
 
 bool FirmwareUpdater::requestInstallNow() {
@@ -301,6 +303,7 @@ void FirmwareUpdater::setStatus(Status status, const String& message) {
         statusMessage = message;
         xSemaphoreGive(stateMutex);
     }
+    stateRevision.fetch_add(1);
     if (status == Status::Failed) Serial.printf("[update] %s\n", message.c_str());
 }
 
