@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'docs/ui/assets/home'
 SCALE = 8
 ADVANCE_SCALE = 10000
+# Preserve the approved clock layout metrics across Pillow/FreeType releases.
+# The source outline is regenerated for the colon, but every glyph keeps its
+# existing pen advance so this change cannot shift the clock horizontally.
+CLOCK_ADVANCE_UNITS = (255000, 152500, 235000, 245000, 257500, 237500,
+                       242500, 215000, 241250, 242500, 95000, 176250)
 
 
 def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
@@ -29,7 +34,12 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
         if glyph == '°':
             face = ImageFont.truetype(str(source), degree_size * SCALE)
         mask = Image.new('L', (cell[0] * SCALE, cell[1] * SCALE))
-        ImageDraw.Draw(mask).text((2 * SCALE, baseline * SCALE), glyph,
+        # The colon's lower dot looks bottom-heavy when it shares the digits'
+        # baseline. Rasterize it five native pixels higher to align the ink
+        # center with the digits; all other glyphs
+        # keep the common baseline and their existing outlines and advances.
+        glyph_baseline = baseline - 5 if role == 'clock' and glyph == ':' else baseline
+        ImageDraw.Draw(mask).text((2 * SCALE, glyph_baseline * SCALE), glyph,
                                   font=face, fill=255, anchor='ls')
         if thickening:
             mask = mask.filter(ImageFilter.MaxFilter(2 * thickening + 1))
@@ -43,7 +53,8 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
             # and leaves three clear pixels after the final numeral.
             mask.paste(cropped, (5, 6))
         masks.append(mask)
-        advances.append(round(face.getlength(glyph) / SCALE * ADVANCE_SCALE))
+        advances.append(CLOCK_ADVANCE_UNITS[len(advances)] if role == 'clock'
+                        else round(face.getlength(glyph) / SCALE * ADVANCE_SCALE))
     data = b''.join(mask.tobytes() for mask in masks)
     manifest = {
         'source': 'https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip',
@@ -60,6 +71,8 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
         'sha256': hashlib.sha256(data).hexdigest(),
         'recipe': 'Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.',
     }
+    if role == 'clock':
+        manifest['colon_baseline_offset_px'] = -5
     if role == 'temperature':
         degree_mask = masks[glyphs.index('°')]
         degree_bounds = degree_mask.getbbox()
@@ -77,11 +90,14 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--font-dir', type=Path, required=True)
+    parser.add_argument('--clock-only', action='store_true',
+                        help='regenerate only the Home clock atlas')
     args = parser.parse_args()
     generate(args.font_dir, 'clock', 40, 'SemiBold', [36, 42], 36,
              {'right_x': 301, 'top_y': 40}, 3)
-    generate(args.font_dir, 'temperature', 30, 'SemiBold', [28, 34], 29,
-             {'left_x': 82, 'top_y': 70}, 0)
+    if not args.clock_only:
+        generate(args.font_dir, 'temperature', 30, 'SemiBold', [28, 34], 29,
+                 {'left_x': 82, 'top_y': 70}, 0)
 
 
 if __name__ == '__main__':

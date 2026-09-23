@@ -38,6 +38,36 @@ const lgfx::IFont* uiFont(const lgfx::IFont* font) {
 unsigned audioServiceCalls = 0;
 void serviceUiAudio() { ++audioServiceCalls; }
 void drawNetworkQrHandoff(bool) {}
+void drawConfigurationQrBadge(int x, int y, int maximum) {
+    constexpr int modules = 33;
+    const int side = (maximum / modules) * modules;
+    frame.fillRoundRect(x, y, side, side, 8, TFT_WHITE);
+    const int scale = side / modules;
+    const int originX = x;
+    const int originY = y;
+    auto finder = [&](int moduleX, int moduleY) {
+        frame.fillRect(originX + moduleX * scale, originY + moduleY * scale,
+                       7 * scale, 7 * scale, TFT_BLACK);
+        frame.fillRect(originX + (moduleX + 1) * scale, originY + (moduleY + 1) * scale,
+                       5 * scale, 5 * scale, TFT_WHITE);
+        frame.fillRect(originX + (moduleX + 2) * scale, originY + (moduleY + 2) * scale,
+                       3 * scale, 3 * scale, TFT_BLACK);
+    };
+    finder(4, 4);
+    finder(22, 4);
+    finder(4, 22);
+    for (int row = 4; row < 29; ++row) {
+        for (int column = 4; column < 29; ++column) {
+            const bool finderArea =
+                (row < 11 && column < 11) || (row < 11 && column >= 22) ||
+                (row >= 22 && column < 11);
+            if (!finderArea && ((row * 7 + column * 11 + row * column) % 5 < 2)) {
+                frame.fillRect(originX + column * scale, originY + row * scale,
+                               scale, scale, TFT_BLACK);
+            }
+        }
+    }
+}
 UiRenderState homeFocused(uint8_t index) {
     UiRenderState state;
     state.homeFocus = index;
@@ -46,6 +76,7 @@ UiRenderState homeFocused(uint8_t index) {
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false, alarmActive = true;
 uint16_t autoDimSeconds = 30;
+constexpr const char* kRadioMdnsAddress = "radio.local";
 // The production layout now reads firmware-update status on Home. Keep that
 // unrelated state inert in this visual fixture without pulling OTA networking
 // or persistence into the host test binary.
@@ -159,6 +190,24 @@ int main(int argc, char** argv) {
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    const auto visibleLeft = [](const char* value, int16_t x, int16_t y,
+                                const lgfx::IFont* font, lgfx::textdatum_t datum) {
+        frame.fillScreen(TFT_BLACK);
+        frame.setTextColor(TFT_WHITE);
+        frame.setTextDatum(datum);
+        frame.drawString(value, x, y, font);
+        for (int16_t pixelX = 0; pixelX < 320; ++pixelX) {
+            for (int16_t pixelY = 0; pixelY < 60; ++pixelY) {
+                if (frame.readPixel(pixelX, pixelY) != TFT_BLACK) return pixelX;
+            }
+        }
+        return static_cast<int16_t>(-1);
+    };
+    // Equal drawing coordinates did not make the two font faces optically
+    // flush. Verify the one-pixel subtitle inset against the shared R glyph.
+    assert(visibleLeft("R", 38, 22, display_fonts::homeTitle(), ML_DATUM) ==
+           visibleLeft("R", kHomeStationTitleLeft, kHomeStationTitleTop,
+                       uiFont(&fonts::Font0), TL_DATUM));
     const UiTextLayout mixed = uiTextLayout("פרק 15 - 15 בספטמבר 2025");
     assert(mixed.rightToLeft);
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
@@ -175,8 +224,9 @@ int main(int argc, char** argv) {
         assert(frame.textWidth(label, display_fonts::homeLabel()) <= 66);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
-    assert(kHomeStationTitleLeft == 38);
-    assert(kHomeStationTitleLeft + kHomeStationTitleWidth == 200);
+    assert(kHomeStationTitleLeft == 39);
+    assert(kHomeStationTitleRight == 190);
+    assert(kHomeStationTitleLeft + kHomeStationTitleWidth == kHomeStationTitleRight);
     assert(ui_home_clock_glyph_count == 12);
     assert(ui_home_clock_cell_width == 36 && ui_home_clock_cell_height == 42);
     assert(ui_home_clock_baseline_y == 36);
@@ -368,6 +418,8 @@ int main(int argc, char** argv) {
         centerMin = std::min(centerMin, center);
         centerMax = std::max(centerMax, center);
     }
+    assert(glyphVerticalCenterTwice(homeNumeralGlyphIndex(':')) ==
+           glyphVerticalCenterTwice(homeNumeralGlyphIndex('0')));
     // The source digits have different tight crop heights. Their visual
     // centers must nevertheless agree to within half a native pixel.
     assert(centerMax - centerMin <= 1);
@@ -512,6 +564,10 @@ int main(int argc, char** argv) {
     assert(homeStationTitleMarquee.sourceSuffix == " • Live Radio");
     assert(homeStationTitleMarquee.stationWidth > 0);
     save((dir + "/home-hebrew-station.ppm").c_str());
+    currentStationIdx = 2;
+    renderHome({}, "12:05", true);
+    assert(homeStationTitleMarquee.overflows);
+    save((dir + "/home-long-station.ppm").c_str());
     currentStationIdx = 0;
     renderHome({}, "15:56", true);
     save((dir + "/home-clock-1556.ppm").c_str());
@@ -659,9 +715,8 @@ int main(int argc, char** argv) {
     unavailable.unavailableDestination = 4;
     renderUnavailable(unavailable, "15:01", true);
     save((dir + "/unavailable-smooth.ppm").c_str());
-    frame.fillScreen(TFT_BLACK);
-    drawPageHeader("Configure radio", "--:--", false, false);
-    save((dir + "/configure-header-smooth.ppm").c_str());
+    drawConfigurationBootScreen("192.168.11.199");
+    save((dir + "/configuration-boot-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.
     weatherDataValid = true;
     tempC = 30;

@@ -5,8 +5,8 @@
   "license": "SIL Open Font License 1.1; ../fonts/Inter-LICENSE.txt",
   "native_size_px": 40,
   "weight": "SemiBold",
-  "pillow": "12.1.1",
-  "freetype": "2.14.1",
+  "pillow": "12.3.0",
+  "freetype": "2.14.3",
   "supersampling": 8,
   "optical_thickening_px_per_side": 0.375,
   "glyphs": "0123456789:-",
@@ -38,6 +38,7 @@
     "top_y": 40
   },
   "bytes": 18144,
-  "sha256": "053dfbdf7c68403c76e95deec52f15e3f4af3a986d68cb359a40b3a271267e73",
-  "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled."
+  "sha256": "b738d56e1aebfd896d5acb38d5db0119161b2fa556a6a28c76da86c40d4fe105",
+  "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.",
+  "colon_baseline_offset_px": -5
 }

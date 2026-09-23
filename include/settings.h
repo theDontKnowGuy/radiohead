@@ -32,12 +32,12 @@ void serviceSettingsSave(unsigned long now);
 // old or corrupt persisted values on a predictable supported value.
 uint16_t normalizeAutoDimSeconds(uint16_t seconds);
 
-// Keep the existing Central European rule as the migration default. The table
-// contains only zones with an implemented deterministic DST/no-DST rule.
+// The table contains only zones with an implemented deterministic DST/no-DST
+// rule. New and untouched legacy-placeholder installs use Asia/Jerusalem.
 const TimeZoneOption* supportedTimeZones(size_t& count);
 bool isSupportedTimeZone(const String& id);
-// Returns a safe, unambiguous timezone match for a supported city/country
-// weather location, or nullptr when the location needs an explicit choice.
+// Returns a safe, unambiguous timezone match for a supported weather location,
+// or nullptr when the location needs an explicit choice.
 const char* timeZoneForWeatherLocation(const String& location);
 void applyConfiguredTimeZone();
 // Converts UTC using the selected rule set.  Most entries use newlib's POSIX

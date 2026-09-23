@@ -1,6 +1,6 @@
 # Web configuration implementation progress
 
-Last updated: 2026-09-21.
+Last updated: 2026-09-23.
 
 **Current state: design handoff and reusable CSS supplied; production integration
 not started by this task.** Existing endpoints are partial building blocks, not
@@ -36,7 +36,7 @@ copying or declaring unrelated TFT packages complete.
 | W3 | Stations CRUD/favorites, discovery/manual flows, test playback and previewed M3U | W1/W2; discovery package 1 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/media.cpp` | Compiled contracts and browser flow; F3–F5/device checks remain open. |
 | W4 | Station artwork acquisition, browser preparation and durable identity-safe storage | W3; discovery packages 2/3 | ready for review | `/root` · 2026-09-21 · `src/settings.cpp`, `src/display.cpp`, `src/web_server.cpp` | RGB565 package/identity-safe lifecycle compiles; F6/H2/H3 require device evidence. |
 | W5 | Wi-Fi scan/hidden/security/password/connect/forget/recovery | W1/W2 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/display.cpp` | Async scan and loop-serviced connect/recovery compile; F7/H4 device evidence remains open. |
-| W6 | Weather/provider access, units/visibility, timezone and 12/24-hour settings | W1/W2; configuration C3 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/display.cpp`, `src/device_control.cpp` | Exact weather-location matching and rule-based DST compile; F8/H1/H5 device evidence remains open. |
+| W6 | Weather/provider access, units/visibility, timezone and 12/24-hour settings | W1/W2; configuration C3 | ready for review | `/root` · 2026-09-23 · `src/settings.cpp`, `src/app_state.cpp`, `include/settings.h` | Tel Aviv/Jerusalem is now the new-install and untouched-placeholder default; DST boundaries and build pass, while physical-device verification remains open. |
 | W7 | Custom background file/framing/preview/default/atomic commit | W1/W2; configuration C4 | not started | — | Define independent asset budget, close F9/H2/H3. |
 | W8 | Device info, diagnostics, OTA, restart/reset; release verification | W1/W2; W3–W7 for final release | ready for review | `/root` · 2026-09-22 · `src/web_server.cpp`, `src/firmware_updater.cpp`, `src/settings.cpp`, `src/display.cpp`, `scripts/release.sh` | Browser upload/recovery and GitHub release OTA compile; F11–F13/H6 and real release-channel checks remain unverified on hardware. |
 | W9 | mDNS discovery plus QR setup/configuration handoffs | W5; native Network handoff | ready for review | `/root` · 2026-09-22 · `src/main.cpp`, `src/web_server.cpp`, `src/display.cpp`, `tools/generate_network_qr_codes.py` | `radio.local`, both generated QR badges and the 10-second boot handoff compile; phone/TFT/device discovery scans remain pending. |
@@ -64,6 +64,24 @@ their work instead of implementing duplicate persistence/state machines.
   `git diff --check` pass. Build: 89,540 B RAM (27.3%) and 3,352,219 B flash
   (51.2%). **Device:** not verified; scan both QR codes, resolve `radio.local`,
   test the 15-second failed-join transition and test a no-credential boot.
+
+### 2026-09-23 — W6 Tel Aviv timezone default and DST follow-up
+
+- New installs now default to `Asia/Jerusalem`. Version-1 installs that still
+  have the untouched Budapest/Europe-Paris placeholder pair migrate in memory
+  to Jerusalem, while explicitly configured non-placeholder zones remain
+  unchanged. Plain `Tel Aviv`, `Tel Aviv,IL`, and `Tel Aviv,Israel` weather
+  locations select the same implemented Jerusalem rule.
+- The existing post-2013 Israel DST calculation remains unchanged. An hourly
+  comparison with the host IANA `Asia/Jerusalem` data passed for 2024–2037,
+  including the 2026 transitions at `2026-03-27T00:00:00Z` and
+  `2026-10-24T23:00:00Z`.
+- **Visual:** not applicable; no layout changed. **Functional:**
+  `pio run -e esp32s3` passed at 96,780 B / 327,680 B RAM (29.5%) and
+  3,381,299 B / 6,553,600 B flash (51.6%); `git diff --check` passed.
+  **Device:** not verified; flash the radio, confirm its existing placeholder
+  settings show UTC+3 during Israeli DST, reboot once, and exercise both DST
+  boundaries before closing F8/H1/H5.
 
 ## Evidence matrix
 

@@ -13,7 +13,9 @@ namespace {
 
 constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
 constexpr uint8_t FAVORITES_VERSION = 2;
-constexpr uint8_t WEATHER_TIME_VERSION = 1;
+constexpr uint8_t WEATHER_TIME_VERSION = 2;
+constexpr const char* DEFAULT_TIME_ZONE_ID = "Asia/Jerusalem";
+constexpr const char* LEGACY_WEATHER_LOCATION = "Budapest,HU";
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
 constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1000;
@@ -49,8 +51,6 @@ uint16_t nearestAutoDimSeconds(uint16_t seconds) {
 
 constexpr TimeZoneOption TIME_ZONES[] = {
     {"UTC", "UTC", "UTC0"},
-    // This is the historic rule already hard-coded by the firmware.  Keeping
-    // it as the default preserves users' stored behavior during migration.
     {"Europe/Paris", "Europe · Paris", "CET-1CEST,M3.5.0,M10.5.0/3"},
     {"Europe/London", "Europe · London", "GMT0BST,M3.5.0/1,M10.5.0/2"},
     {"America/New_York", "America · New York", "EST5EDT,M3.2.0,M11.1.0"},
@@ -58,7 +58,7 @@ constexpr TimeZoneOption TIME_ZONES[] = {
     {"Asia/Tokyo", "Asia · Tokyo", "JST-9"},
     // Newlib's POSIX grammar cannot represent Israel's Friday-on-or-after the
     // 23rd March transition. configuredLocalTime() supplies that DST rule.
-    {"Asia/Jerusalem", "Asia · Jerusalem", "IST-2"},
+    {"Asia/Jerusalem", "Asia · Jerusalem / Tel Aviv", "IST-2"},
     {"Australia/Sydney", "Australia · Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
 };
 
@@ -67,9 +67,9 @@ struct WeatherLocationZone {
     const char* timeZone;
 };
 
-// Only exact city/country matches are automatic. City names such as London
-// or Sydney are ambiguous without their country, so an unmatched location
-// retains the user's explicit zone rather than guessing.
+// Only exact, unambiguous matches are automatic. City names such as London or
+// Sydney need their country; Tel Aviv is also accepted alone for the radio's
+// local default. An unmatched location retains the user's explicit zone.
 constexpr WeatherLocationZone WEATHER_LOCATION_ZONES[] = {
     {"budapest,hu", "Europe/Paris"},
     {"paris,fr", "Europe/Paris"},
@@ -80,7 +80,9 @@ constexpr WeatherLocationZone WEATHER_LOCATION_ZONES[] = {
     {"tokyo,jp", "Asia/Tokyo"},
     {"sydney,au", "Australia/Sydney"},
     {"jerusalem,il", "Asia/Jerusalem"},
+    {"telaviv", "Asia/Jerusalem"},
     {"telaviv,il", "Asia/Jerusalem"},
+    {"telaviv,israel", "Asia/Jerusalem"},
     {"haifa,il", "Asia/Jerusalem"},
     {"beersheva,il", "Asia/Jerusalem"},
     {"eilat,il", "Asia/Jerusalem"},
@@ -252,7 +254,7 @@ const char* timeZoneForWeatherLocation(const String& location) {
 void applyConfiguredTimeZone() {
     const TimeZoneOption* option = findTimeZone(timeZoneId);
     if (option == nullptr) {
-        timeZoneId = "Europe/Paris";
+        timeZoneId = DEFAULT_TIME_ZONE_ID;
         option = findTimeZone(timeZoneId);
     }
     setenv("TZ", option->posixRule, 1);
@@ -666,6 +668,8 @@ void serviceSettingsSave(unsigned long now) {
 
 void loadSettings() {
     pref.begin("radio", true);
+    const bool hasStoredWeatherLocation = pref.isKey("owmCity");
+    const uint8_t storedWeatherTimeVersion = pref.getUChar("wtVer", 0);
     currentStationIdx = pref.getInt("idx", 0);
     mainVal = pref.getInt("vol", 5);
     gB = pref.getInt("bass", 0);
@@ -682,11 +686,11 @@ void loadSettings() {
     owmCity = pref.getString("owmCity", "Budapest,HU");
     owmKey = pref.getString("owmKey", "");
     useCelsius = pref.getBool("useCelsius", true);
-    // Missing W6 keys deliberately retain the old behavior: weather visible,
-    // 24-hour clock, and the previous Central European DST rule.
+    // Missing W6 keys retain the old visibility and 24-hour clock behavior,
+    // but use the radio's Tel Aviv locale for the clock.
     showWeatherOnHome = pref.getBool("weatherHome", true);
     use24HourClock = pref.getBool("clock24", true);
-    timeZoneId = pref.getString("timezone", "Europe/Paris");
+    timeZoneId = pref.getString("timezone", DEFAULT_TIME_ZONE_ID);
 
     if (st_ssid.length() > 32) {
         st_ssid = "";
@@ -701,12 +705,21 @@ void loadSettings() {
         owmKey = "";
     }
     if (!isSupportedTimeZone(timeZoneId)) {
-        timeZoneId = "Europe/Paris";
+        timeZoneId = DEFAULT_TIME_ZONE_ID;
     }
-    // Migrate known city/country locations to their matching rule set.  This
+    // Migrate known unambiguous locations to their matching rule set. This
     // fixes devices that previously inherited the Central European default.
-    if (const char* locationTimeZone = timeZoneForWeatherLocation(owmCity)) {
-        timeZoneId = locationTimeZone;
+    if (hasStoredWeatherLocation) {
+        if (const char* locationTimeZone = timeZoneForWeatherLocation(owmCity)) {
+            timeZoneId = locationTimeZone;
+        }
+    }
+    // W6 originally persisted its Budapest/Europe-Paris placeholders even when
+    // the owner never chose a zone. Move only that untouched legacy pair to the
+    // actual device locale; an explicitly configured non-placeholder zone stays.
+    if (storedWeatherTimeVersion < WEATHER_TIME_VERSION &&
+        owmCity == LEGACY_WEATHER_LOCATION && timeZoneId == "Europe/Paris") {
+        timeZoneId = DEFAULT_TIME_ZONE_ID;
     }
     currentSkin.hexTop = pref.getString("cTop", "#000000");
     currentSkin.hexBottom = pref.getString("cBot", "#000000");

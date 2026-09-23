@@ -66,7 +66,7 @@ must stay consistent with their TFT equivalents.
 | Tone −10…10, labelled dB | Existing `/seteq` accepts **−15…15** for each band. Preserve values and bounds. Use numeric levels unless the installed library's dB interpretation is verified. |
 | Instant successful test/save/connect/update | Render request, validation, actual completion, failure and reconnect states from real responses. |
 | Sample `.example` URLs and canned search results | Only real directory results or user-entered stream URLs. Do not invent endpoints. |
-| A short illustrative timezone list and Tel Aviv default | Support the implemented timezone set with friendly names and search/filter if needed. Preserve saved timezone on migration; no location inference from artwork. |
+| A short illustrative timezone list and Tel Aviv default | Support the implemented timezone set with friendly names and search/filter if needed. Use `Asia/Jerusalem` for new and untouched legacy-placeholder installs, preserve explicitly configured non-placeholder zones, and do not infer location from artwork. |
 | Every sample Wi-Fi network requires eight characters | Use scanned security type. Open networks have no password. Preserve intentional empty/unchanged/clear semantics for saved credentials. |
 | One provider rendered as a selector | Show the supported provider as text when there is only one; do not invent alternatives. |
 | Mockup image input limit of 8 MB and M3U limit of 256 KB | These are demo checks, not device budgets. Apply the discovery plan's artwork limits; specify and test independent background/import budgets before enabling uploads. |
