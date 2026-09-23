@@ -44,6 +44,20 @@ UiRenderState homeFocused(uint8_t index) {
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false, alarmActive = true;
 uint16_t autoDimSeconds = 30;
+// The production layout now reads firmware-update status on Home. Keep that
+// unrelated state inert in this visual fixture without pulling OTA networking
+// or persistence into the host test binary.
+class FirmwareUpdater {
+public:
+    struct Snapshot {
+        bool busy = false;
+        bool autoInstall = false;
+        bool awaitingConfirmation = false;
+        String message;
+    };
+    Snapshot snapshot() const { return {}; }
+};
+FirmwareUpdater firmwareUpdater;
 int mainVal = 12, alarmH = 7, alarmM = 30;
 String songTitle = "פרק 15 - 15 בספטמבר 2025";
 bool isStationMuted() { return false; }
@@ -351,8 +365,13 @@ int main(int argc, char** argv) {
     assert(uiHitTest(toneHitState, 304, 162) == UiTarget::None);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
-    assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceCalibration);
+    assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceFirmware);
+    assert(uiHitTest(deviceHitState, 160, 116) == UiTarget::DeviceCalibration);
     assert(uiHitTest(deviceHitState, 160, 203) == UiTarget::DeviceFactoryReset);
+    UiRenderState firmwareHitState;
+    firmwareHitState.page = UiPage::SettingsFirmware;
+    assert(uiHitTest(firmwareHitState, 160, 68) == UiTarget::FirmwareCheckNow);
+    assert(uiHitTest(firmwareHitState, 160, 124) == UiTarget::FirmwareToggleAutoInstall);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
