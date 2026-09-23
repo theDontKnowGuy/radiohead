@@ -12,9 +12,9 @@ from PIL import Image, ImageDraw, ImageEnhance, __version__
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/ui/assets/home'
 S = 4
-TILE_WIDTH = 72
-TILE_HEIGHT = 70
-ICON_SIZE = 34
+TILE_WIDTH = 74
+TILE_HEIGHT = 74
+ICON_SIZE = 38
 OUT.mkdir(parents=True, exist_ok=True)
 
 
@@ -142,7 +142,7 @@ for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
 
 manifest={'pillow':__version__,'background_source':'docs/bg1.png',
           'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 72x70 category tiles with dense, slightly translucent gradients and visible borders; 34px icons and 20px Home brand radio mark from original geometry at 4x',
+          'recipe':'direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 74x74 square category tiles with dense, slightly translucent gradients and visible borders; 38px icons and 20px Home brand radio mark from original geometry at 4x',
           'assets':{}}
 for p in sorted(OUT.glob('*.png')):
     with Image.open(p) as im: size=list(im.size)

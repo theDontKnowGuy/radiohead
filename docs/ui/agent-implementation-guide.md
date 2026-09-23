@@ -158,7 +158,7 @@ No responsive browser units or raw coordinates copied from the contact sheet.
 | Standard list | y=44…239; four 46 px cards with 2 px gaps. Right rail x=258…319 runs y=44…239; Up is at its top, Down is at its bottom. |
 | Favorites variant | Header 44 px, Stations/Shows tabs 44 px, two 48 px rows, footer 56 px. Do not squeeze tabs into the standard three-row layout. |
 | Favorite on a row | Rightmost 44 px owns the star action; row body ends before it. Row touch never invokes both actions. |
-| Home destinations | Four 72 × 64 targets at x=8,86,164,242; y=168…231. Two-line labels for Recorded Shows. Header/weather occupy the area above. |
+| Home destinations | Four square 74 × 74 targets at x=3,83,163,243; y=163…236. Two-line labels for Recorded Shows. Keep the 6 px inter-card gaps noninteractive; header/weather occupy the area above. |
 | Home player return | When audio exists, a labeled 44 px-high Now Playing target can occupy y=120…163; do not put decoration over its target. |
 | Live player content | y=44…139; artwork up to 88 × 88 at x=12, y=48; metadata to its right; reserve a separate favorite/options target. |
 | Live transport | y=140…187; three 48 × 48 targets at x=52,136,220. Previous, Stop/Play, Next. |

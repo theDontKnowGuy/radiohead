@@ -19,7 +19,7 @@ constexpr const char* LEGACY_WEATHER_LOCATION = "Budapest,HU";
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
 constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1000;
-constexpr uint16_t AUTO_DIM_SECONDS[] = {15, 30, 60, 120};
+constexpr uint16_t AUTO_DIM_SECONDS[] = {15, 30, 60, 120, 300};
 constexpr size_t STATION_ARTWORK_PAYLOAD_BYTES = (32 * 32 + 64 * 64 + 88 * 88) * 2;
 constexpr size_t STATION_ARTWORK_HEADER_BYTES = 16;
 constexpr size_t STATION_ARTWORK_PACKAGE_BYTES = STATION_ARTWORK_HEADER_BYTES + STATION_ARTWORK_PAYLOAD_BYTES;
@@ -229,6 +229,7 @@ bool isValidTouchCalibration(const TouchCalibration& calibration) {
 }  // namespace
 
 uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
+    if (seconds == AUTO_DIM_NEVER_SECONDS) return AUTO_DIM_NEVER_SECONDS;
     return nearestAutoDimSeconds(seconds);
 }
 

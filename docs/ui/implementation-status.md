@@ -1,5 +1,27 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Square, lower Home destinations
+
+**Scope:** the four Home destination cards now follow the supplied mockup more
+closely: their native geometry changes from 72×70 to square 74×74 cards, the row
+moves from y=149 to y=163, and the cards finish at y=236 with a 3 px bottom margin. The
+four columns retain explicit 6 px noninteractive gaps. Their prepared icons grow
+from 34×34 to 38×38 and the one- and two-line labels are rebalanced within the
+taller cards. Production hit testing uses the same geometry as rendering.
+
+**Visual: pass in the native production renderer.** The 320×240 Home and Hebrew
+station-title fixtures were inspected; the enlarged row remains clear of the
+weather and clock, and its 3 px bottom margin reads as the mockup's near-edge
+placement. **Functional: pass.** The native fixture verifies each card's corners
+and center, all three gaps, and the pixels immediately above and below the row.
+`python3 tools/render_ui_fonts.py`, `python3 tools/check_touch_input.py`,
+`pio run -e esp32s3`, and `git diff --check` pass. The shared-worktree build
+reports **96,164 B RAM (29.3%), 3,381,595 B flash (51.6%)**, and a 3,431,891-byte
+total image. **Hardware: not verified; not flashed.** Physical TFT spacing,
+touch comfort and audio continuity during navigation still require device
+observation. TypeSafe's deterministic/semantic separation was applied; no live
+Jev judgment or runtime AI integration was used.
+
 ## 2026-09-23 — Home clock colon spacing
 
 **Scope:** the Home clock now adds one native pixel of horizontal space on
@@ -48,9 +70,13 @@ integration was used.
 **Scope:** the connected-device startup handoff now adapts the supplied
 configuration mockup into the native 320×240 product UI. It retains the existing
 ten-second boot interval after the web server starts, but replaces the ordinary
-page header/card with a Radiohead brand header and a vertically centered handoff
-card containing the large configuration QR, full `http://radio.local` URL and the
-actual DHCP address fallback separated by “Or.” The boot-only Wi-Fi/ready status
+page header/card with a Radiohead brand header and a handoff card placed below it
+with an explicit 11 px visual gap from the subtitle. The card contains the large
+configuration QR, full `http://radio.local` URL and the actual DHCP address
+fallback separated by “Or.”
+Both addresses use the same 18 px face and the five text rows use optical centers
+spaced exactly 28 px apart; both muted supporting lines use the 13 px caption
+face. The boot-only Wi-Fi/ready status
 and former three-part footer are intentionally omitted. The QR still contains only
 `http://radio.local`; no network credential is displayed or encoded. AP recovery
 continues to use its separate Wi-Fi join QR, and the Settings Network handoff
@@ -73,7 +99,7 @@ reference rather than a whole-screen firmware asset.
 and mDNS address retain their compile-time consistency assertion.
 `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3` and `git diff --check`
 pass. The current shared-worktree build reports **96,164 B RAM (29.3%),
-3,380,715 B flash (51.6%)**, and a 3,431,011-byte total image.
+3,382,199 B flash (51.6%)**, and a 3,432,523-byte total image.
 **Hardware: not verified; not flashed.** Final TFT contrast, QR scanning,
 the shown DHCP address and the ten-second handoff still require device observation.
 TypeSafe's deterministic/semantic separation was applied; no live Jev judgment or
@@ -162,6 +188,21 @@ deterministic/semantic separation was applied; no live Jev call or firmware AI
 dependency was used.
 
 ## 2026-09-23 — Home weather and station-title alignment
+
+**Vertical-centering follow-up:** after the current Home tiles moved from y=149
+to y=163, the full weather composition now moves down 7 px as one unit. Its
+icon, temperature, city and condition retain their internal spacing while the
+group is again centered in the enlarged space between the active-station
+subtitle and the tile row.
+
+**Visual: pass in the native production renderer.** The result was inspected at
+320×240 in [the centered Home fixture](evidence/2026-09-23-home-weather-centering/home-weather-centered.png).
+**Functional: pass.** `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`,
+and `git diff --check` pass. The shared-worktree build reports **96,164 B RAM
+(29.3%) and 3,382,199 B flash (51.6%)**. **Hardware: not verified; not
+flashed.** Physical TFT alignment remains open. TypeSafe's deterministic/
+semantic separation was applied; no live Jev call or runtime AI dependency was
+used.
 
 **Scope:** this user-requested Home-only pass aligns the temperature's visible
 left edge with the city and condition captions at x=76, increases its Inter

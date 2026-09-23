@@ -254,7 +254,9 @@ void openSettingsConfirmation(uint8_t action) {
 }
 
 uint16_t adjustedDimSeconds(uint16_t current, int direction) {
-    static constexpr uint16_t kChoices[] = {15, 30, 60, 120};
+    // "Never" follows the longest timeout so the +/- controls remain a
+    // predictable ordered walk through the available choices.
+    static constexpr uint16_t kChoices[] = {15, 30, 60, 120, 300, AUTO_DIM_NEVER_SECONDS};
     int selected = 0;
     for (int index = 0; index < static_cast<int>(sizeof(kChoices) / sizeof(kChoices[0])); ++index) {
         if (kChoices[index] == current) {

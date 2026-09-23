@@ -1,6 +1,7 @@
 #include "touch_gesture.h"
 #include "xpt2046_sampling.h"
 #include "ui_controller.h"
+#include "settings.h"
 #include <cassert>
 #include <cstdio>
 #include <climits>
@@ -10,7 +11,7 @@ int gB = 0, gM = 0, gT = 0;
 uint16_t autoDimSeconds = 30;
 bool firmwareAutoUpdate = true;
 uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
-    for (const uint16_t option : {15, 30, 60, 120}) {
+    for (const uint16_t option : {0, 15, 30, 60, 120, 300}) {
         if (seconds == option) return option;
     }
     return 30;
@@ -237,6 +238,16 @@ int main() {
     assert(uiControllerRenderState().dimSecondsDraft == 30);
     uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 60);
+    uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 120);
+    uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 300);
+    uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == AUTO_DIM_NEVER_SECONDS);
+    uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == AUTO_DIM_NEVER_SECONDS);
+    uiControllerTap(UiTarget::DimDecrease, 0, 0, false);
+    assert(uiControllerRenderState().dimSecondsDraft == 300);
     uiControllerTap(UiTarget::DimCancel, 0, 0, false);
     assert(!uiControllerTakeCommand(command));
     uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
@@ -244,6 +255,14 @@ int main() {
     assert(uiControllerRenderState().dimSecondsDraft == 15);
     uiControllerTap(UiTarget::DimSave, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim && command.value == 15);
+    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
+    for (int step = 0; step < 5; ++step) {
+        uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
+    }
+    assert(uiControllerRenderState().dimSecondsDraft == AUTO_DIM_NEVER_SECONDS);
+    uiControllerTap(UiTarget::DimSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim &&
+           command.value == AUTO_DIM_NEVER_SECONDS);
     uiControllerTap(UiTarget::SettingsNext, 0, 0, false);
     assert(uiControllerRenderState().settingsOffset == 1);
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);

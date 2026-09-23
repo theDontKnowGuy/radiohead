@@ -28,8 +28,11 @@ void saveSettings();
 void queueSettingsSave();
 void serviceSettingsSave(unsigned long now);
 
-// The TFT exposes only these measured, bounded automatic-dim choices.  Keep
-// old or corrupt persisted values on a predictable supported value.
+// Zero is the persisted sentinel for disabling automatic dimming.  The TFT
+// also exposes only measured, bounded timeout choices up to five minutes.
+constexpr uint16_t AUTO_DIM_NEVER_SECONDS = 0;
+
+// Keep old or corrupt persisted values on a predictable supported value.
 uint16_t normalizeAutoDimSeconds(uint16_t seconds);
 
 // The table contains only zones with an implemented deterministic DST/no-DST

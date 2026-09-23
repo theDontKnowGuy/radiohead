@@ -104,7 +104,10 @@ void updatePowerState(unsigned long now) {
         volumeBarVisible = false;
     }
 
-    if (now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL && !isAlarming) {
+    const bool dimTimeoutExpired =
+        autoDimSeconds != AUTO_DIM_NEVER_SECONDS &&
+        now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL;
+    if (dimTimeoutExpired && !isAlarming) {
         if (!isDimmed) {
             setBrightness(20);
             isDimmed = true;

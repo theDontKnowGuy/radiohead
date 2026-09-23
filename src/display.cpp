@@ -575,15 +575,20 @@ void drawNetworkQrHandoff(bool connected) {
 #define UI_P2_FIXTURE 0
 #endif
 
-constexpr int16_t kHomeTileY = 149;
-constexpr int16_t kHomeTileWidth = 72;
-constexpr int16_t kHomeTileHeight = 70;
+constexpr int16_t kHomeTileY = 163;
+constexpr int16_t kHomeTileWidth = 74;
+constexpr int16_t kHomeTileHeight = 74;
 constexpr int16_t kHomeWeatherTextLeft = 82;
-constexpr int16_t kHomeWeatherCityTop = 97;
-constexpr int16_t kHomeWeatherConditionTop = 113;
-constexpr int16_t kHomeTileIconSize = 34;
-constexpr int16_t kHomeTileX[] = {7, 85, 163, 241};
-// The four 34 px PNG canvases have different transparent top padding.  Anchor
+// Keep the complete weather composition centered between the station subtitle
+// and the tiles. The tiles moved down 14 px, so the former weather geometry
+// moves together by half that distance instead of spreading its four elements.
+constexpr int16_t kHomeWeatherTop = 75;
+constexpr int16_t kHomeWeatherTemperatureTop = kHomeWeatherTop + 2;
+constexpr int16_t kHomeWeatherCityTop = kHomeWeatherTop + 29;
+constexpr int16_t kHomeWeatherConditionTop = kHomeWeatherTop + 45;
+constexpr int16_t kHomeTileIconSize = 38;
+constexpr int16_t kHomeTileX[] = {3, 83, 163, 243};
+// The four 38 px PNG canvases have different transparent top padding.  Anchor
 // their visible artwork at one shared line, instead of making the radio aerial
 // look higher than the list, heart, and settings marks.
 constexpr int16_t kHomeTileIconVisibleTop = kHomeTileY + 8;
@@ -1242,13 +1247,14 @@ void drawHomeClockAtlas(const char* value) {
         true, kClockText);
 }
 
-void drawHomeTemperatureAtlas(const char* value) {
+void drawHomeTemperatureAtlas(const char* value,
+                              int16_t inkTop = ui_home_temperature_ink_top) {
     // '*' selects the optically raised degree glyph in this numeral-only atlas.
     drawHomeNumeralAtlas(value, ui_home_temperature_alpha, ui_home_temperature_cell_width,
         ui_home_temperature_cell_height, ui_home_temperature_advance_units,
         ui_home_temperature_tracking_units, ui_home_temperature_colon_side_spacing_units,
         ui_home_temperature_ink_left,
-        ui_home_temperature_ink_top, false, kWhite);
+        inkTop, false, kWhite);
 }
 
 void drawHomeWeatherIcon(int16_t x, int16_t visibleTop, bool valid, int id) {
@@ -1439,18 +1445,29 @@ void drawConfigurationBootScreen(const String& ipAddress) {
     canvas().drawString("Radiohead", 36, 16, display_fonts::homeTitle());
     text("INTERNET RADIO", 37, 28, uiFont(&fonts::Font0), kBlueFocus, 130);
 
-    // Center the complete handoff card in the space below the brand subtitle.
-    // Its 158 px height leaves matching visual breathing room above and below.
-    canvas().fillRoundRect(5, 61, 310, 158, 11, kSurface);
-    canvas().drawRoundRect(5, 61, 310, 158, 11, kBlueDark);
-    drawConfigurationQrBadge(18, 74, 148);
-    canvas().drawFastVLine(163, 73, 134, kSlate);
+    // Hardware inspection showed the mathematically centered card crowding the
+    // subtitle. Move it down nine pixels while retaining room below the panel.
+    canvas().fillRoundRect(5, 50, 310, 158, 11, kSurface);
+    canvas().drawRoundRect(5, 50, 310, 158, 11, kBlueDark);
+    drawConfigurationQrBadge(18, 63, 148);
+    canvas().drawFastVLine(163, 62, 134, kSlate);
 
-    text("Set up your radio", 174, 76, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
-    text("Scan QR or open:", 174, 104, uiFont(&fonts::Font0), kTextMuted, 132);
-    text(ConfigQrCode::Url, 174, 122, display_fonts::caption(), kBlueFocus, 132);
-    text("Or", 174, 157, uiFont(&fonts::Font0), kTextMuted, 132);
-    text(ipAddress, 174, 175, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
+    // Align every row by its optical center rather than alternating top-edge
+    // offsets for differently sized fonts. Both addresses share the larger
+    // 18 px face and all five centers are exactly 28 px apart.
+    auto bootLine = [](const String& value, int16_t centerY,
+                       const lgfx::IFont* font, uint16_t color) {
+        canvas().setFont(font);
+        canvas().setTextColor(color);
+        canvas().setTextDatum(ML_DATUM);
+        const String rendered = ellipsize(value, 137);
+        canvas().drawString(rendered.c_str(), 172, centerY, font);
+    };
+    bootLine("Set up your radio", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
+    bootLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
+    bootLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
+    bootLine("Or", 154, display_fonts::caption(), kTextMuted);
+    bootLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
 }
 
 void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
@@ -2005,7 +2022,11 @@ void renderDisplaySettings(const UiRenderState& state, const char* currentTime, 
     drawSettingsBackground();
     drawListCard(8, 68, false, true);
     text("Auto dimming", 24, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-    const String dimLabel = String(state.dimSecondsDraft) + " sec";
+    const String dimLabel = state.dimSecondsDraft == AUTO_DIM_NEVER_SECONDS
+                                ? String("Never")
+                                : state.dimSecondsDraft == 300
+                                      ? String("5 min")
+                                      : String(state.dimSecondsDraft) + " sec";
     text(dimLabel, 152, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 66);
     canvas().fillRoundRect(222, 71, 36, 36, 6, kSlate);
     canvas().fillRoundRect(272, 71, 36, 36, 6, kBlue);
@@ -2158,8 +2179,12 @@ void drawHomeTile(int16_t x, uint16_t color, const char* top, const char* bottom
     drawHomeTileIcon(x + (kHomeTileWidth - kHomeTileIconSize) / 2, iconY, icon);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kHomeText);
-    canvas().drawString(top, x + kHomeTileWidth / 2, kHomeTileY + (bottom == nullptr ? 52 : 46), homeLabelFont());
-    if (bottom != nullptr) canvas().drawString(bottom, x + kHomeTileWidth / 2, kHomeTileY + 58, homeLabelFont());
+    canvas().drawString(top, x + kHomeTileWidth / 2,
+                        kHomeTileY + (bottom == nullptr ? 57 : 51), homeLabelFont());
+    if (bottom != nullptr) {
+        canvas().drawString(bottom, x + kHomeTileWidth / 2,
+                            kHomeTileY + 63, homeLabelFont());
+    }
     serviceUiAudio();
 }
 
@@ -2191,11 +2216,11 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     // Visibility is a committed setting shared with the web UI, not a browser-
     // only preference.  Hidden weather leaves the photograph untouched.
     if (showWeatherOnHome && hasWeather) {
-        drawHomeWeatherIcon(9, 68, true, condition);
+        drawHomeWeatherIcon(9, kHomeWeatherTop, true, condition);
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d*", static_cast<int>(roundf(displayedTemperature)));
-        drawHomeTemperatureAtlas(temperatureText);
+        drawHomeTemperatureAtlas(temperatureText, kHomeWeatherTemperatureTop);
         text(homeCityLabel(owmCity), kHomeWeatherTextLeft, kHomeWeatherCityTop,
              homeCaptionFont(), kWhite, 106);
         text(homeWeatherDescription(condition), kHomeWeatherTextLeft,

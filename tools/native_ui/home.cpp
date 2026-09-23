@@ -77,6 +77,7 @@ UiRenderState homeFocused(uint8_t index) {
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false, alarmActive = true;
 uint16_t autoDimSeconds = 30;
+constexpr uint16_t AUTO_DIM_NEVER_SECONDS = 0;
 constexpr const char* kRadioMdnsAddress = "radio.local";
 // The production layout now reads firmware-update status on Home. Keep that
 // unrelated state inert in this visual fixture without pulling OTA networking
@@ -249,6 +250,8 @@ int main(int argc, char** argv) {
     assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
     assert(ui_home_temperature_ink_left == kHomeWeatherTextLeft &&
            ui_home_temperature_ink_top == 70);
+    assert(kHomeWeatherTemperatureTop == ui_home_temperature_ink_top + 7);
+    assert(kHomeWeatherCityTop == 104 && kHomeWeatherConditionTop == 120);
     // The reference uses a substantial degree ring aligned with the numeral
     // cap height, not a small superscript tucked against the final digit.
     const uint8_t* temperatureEight = ui_home_temperature_alpha +
@@ -384,7 +387,7 @@ int main(int argc, char** argv) {
     // Keep the temperature-to-city rhythm while pulling only the condition
     // line two pixels toward the fixed location line.
     frame.fillScreen(0);
-    drawHomeTemperatureAtlas("30*");
+    drawHomeTemperatureAtlas("30*", kHomeWeatherTemperatureTop);
     text("Tel Aviv", kHomeWeatherTextLeft, kHomeWeatherCityTop,
          homeCaptionFont(), kWhite, 106);
     text("Partly cloudy", kHomeWeatherTextLeft, kHomeWeatherConditionTop,
@@ -399,7 +402,7 @@ int main(int argc, char** argv) {
     int cityTop = 240;
     int cityBottom = 0;
     int conditionTop = 240;
-    for (int y = 68; y < kHomeWeatherCityTop; ++y) {
+    for (int y = kHomeWeatherTop; y < kHomeWeatherCityTop; ++y) {
         if (rowHasInk(y)) temperatureBottom = y + 1;
     }
     for (int y = kHomeWeatherCityTop; y < kHomeWeatherConditionTop; ++y) {
@@ -460,10 +463,16 @@ int main(int argc, char** argv) {
     assert(uiHitTest({}, 81, 200) == UiTarget::None);
     for (int i = 0; i < 4; ++i) {
         const UiTarget target = static_cast<UiTarget>(static_cast<int>(UiTarget::HomeLiveRadio) + i);
-        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth / 2, kHomeTileY + 35) == target);
+        assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth / 2,
+                         kHomeTileY + kHomeTileHeight / 2) == target);
         assert(uiHitTest({}, kHomeTileX[i], kHomeTileY) == target);
         assert(uiHitTest({}, kHomeTileX[i] + kHomeTileWidth - 1, kHomeTileY + kHomeTileHeight - 1) == target);
     }
+    assert(uiHitTest({}, 80, kHomeTileY + kHomeTileHeight / 2) == UiTarget::None);
+    assert(uiHitTest({}, 160, kHomeTileY + kHomeTileHeight / 2) == UiTarget::None);
+    assert(uiHitTest({}, 240, kHomeTileY + kHomeTileHeight / 2) == UiTarget::None);
+    assert(uiHitTest({}, 160, kHomeTileY - 1) == UiTarget::None);
+    assert(uiHitTest({}, 160, kHomeTileY + kHomeTileHeight) == UiTarget::None);
     assert(frame.textWidth("GALATZ", uiFont(&fonts::FreeSansBold12pt7b)) <= 91);
     UiRenderState playerHitState;
     playerHitState.page = UiPage::Listening;
