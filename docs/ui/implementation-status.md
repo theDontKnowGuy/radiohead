@@ -1,5 +1,29 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Matching web-handoff typography
+
+**Scope:** the TFT Settings → Web configuration handoff now uses the accepted
+boot handoff's text hierarchy and optical spacing. Both render five rows with
+centers 28 px apart: a 16 px heading, 13 px supporting labels, and 18 px URL,
+IP-address and network-name values. `http://radio.local` therefore no longer uses
+the oversized 24 px bold face. The connected and setup-AP variants share this
+renderer with the boot handoff while retaining their own heading and QR payload.
+The handoff renderers also clear any retained canvas clip before drawing their
+details so a preceding screen cannot partially erase the address text.
+
+**Visual: pass in the native production renderer.** The 320×240 fixtures show
+the revised [connected Settings handoff](evidence/2026-09-23-web-handoff-typography/settings-connected.png),
+[setup-AP handoff](evidence/2026-09-23-web-handoff-typography/settings-setup-ap.png),
+and unchanged hierarchy in the [connected boot handoff](evidence/2026-09-23-web-handoff-typography/boot-connected.png).
+The fixture asserts that the full URL and representative DHCP address fit their
+137 px text column without truncation. **Functional: pass for fixture/build
+checks.** `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+`git diff --check` pass. The build reports **96,340 B RAM (29.4%), 3,491,471 B
+flash (53.3%)**, and a **3,542,295-byte** total image. **Hardware: not verified;
+not flashed.** Final optical size, QR scanning and legibility still require the
+physical TFT. TypeSafe's deterministic/semantic separation was applied; no live
+Jev judgment or runtime AI integration was used.
+
 ## 2026-09-23 — Web configuration settings icon
 
 **Scope:** the TFT Settings list now distinguishes the browser configuration

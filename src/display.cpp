@@ -552,6 +552,8 @@ const char* setupReasonText() {
 
 void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font,
           uint16_t color, int16_t width);
+void drawConfigurationHandoffDetails(const String& heading, bool connected,
+                                     const String& ipAddress);
 
 void drawNetworkQrHandoff(bool connected) {
     const QrGrid& qr = connected ? kConfigQr : kSetupWifiQr;
@@ -559,19 +561,11 @@ void drawNetworkQrHandoff(bool connected) {
     drawQrBadge(qr, (160 - qrSide) / 2, 48 + (148 - qrSide) / 2, 148);
 
     canvas().fillRoundRect(164, 54, 148, 142, 8, kSurface);
-    if (connected) {
-        text("Scan to configure", 176, 70, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-        text(kRadioMdnsAddress, 176, 98, uiFont(&fonts::FreeSansBold12pt7b), kBlueFocus, 124);
-        text("If it does not open:", 176, 130, uiFont(&fonts::Font0), kTextMuted, 124);
-        text(WiFi.localIP().toString(), 176, 148, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-        text("Use the Network page", 176, 174, uiFont(&fonts::Font0), kTextMuted, 124);
-    } else {
-        text(setupReasonText(), 176, 68, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-        text("Scan to join", 176, 96, uiFont(&fonts::FreeSansBold12pt7b), kBlueFocus, 124);
-        text(kSetupAccessPointSsid, 176, 122, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-        text("Then open", 176, 150, uiFont(&fonts::Font0), kTextMuted, 124);
-        text(WiFi.softAPIP().toString(), 176, 168, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
-    }
+    canvas().clearClipRect();
+    drawConfigurationHandoffDetails(
+        connected ? String("Scan to configure") : String(setupReasonText()),
+        connected,
+        connected ? WiFi.localIP().toString() : WiFi.softAPIP().toString());
 }
 // NETWORK_QR_END
 
@@ -849,6 +843,31 @@ void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font, ui
         x += std::max<int16_t>(0, width - canvas().textWidth(rendered.c_str()));
     }
     canvas().drawString(rendered.c_str(), x, y);
+}
+
+void drawConfigurationHandoffDetails(const String& heading, bool connected,
+                                     const String& ipAddress) {
+    auto handoffLine = [](const String& value, int16_t centerY,
+                          const lgfx::IFont* font, uint16_t color) {
+        canvas().setFont(font);
+        canvas().setTextColor(color);
+        canvas().setTextDatum(ML_DATUM);
+        const String rendered = ellipsize(value, 137);
+        canvas().drawString(rendered.c_str(), 172, centerY, font);
+    };
+
+    handoffLine(heading, 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
+    if (connected) {
+        handoffLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
+        handoffLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
+        handoffLine("Or", 154, display_fonts::caption(), kTextMuted);
+        handoffLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
+    } else {
+        handoffLine("After joining, open:", 98, display_fonts::caption(), kTextMuted);
+        handoffLine(ipAddress, 126, display_fonts::homeTitle(), kBlueFocus);
+        handoffLine("Wi-Fi network", 154, display_fonts::caption(), kTextMuted);
+        handoffLine(kSetupAccessPointSsid, 182, display_fonts::homeTitle(), kWhite);
+    }
 }
 
 void listPrimaryText(const String& value, int16_t x, int16_t rowY, int16_t width) {
@@ -1428,6 +1447,7 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
 }
 
 void drawNetworkBootScreen(bool connected, const String& ipAddress) {
+    canvas().clearClipRect();
     drawBackground();
 
     // The startup handoff is a product welcome screen rather than an ordinary
@@ -1462,30 +1482,12 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     }
     canvas().drawFastVLine(163, 62, 134, kSlate);
 
-    // Align every row by its optical center rather than alternating top-edge
-    // offsets for differently sized fonts. Both addresses share the larger
-    // 18 px face and all five centers are exactly 28 px apart.
-    auto bootLine = [](const String& value, int16_t centerY,
-                       const lgfx::IFont* font, uint16_t color) {
-        canvas().setFont(font);
-        canvas().setTextColor(color);
-        canvas().setTextDatum(ML_DATUM);
-        const String rendered = ellipsize(value, 137);
-        canvas().drawString(rendered.c_str(), 172, centerY, font);
-    };
-    if (connected) {
-        bootLine("Set up RadioHead", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
-        bootLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
-        bootLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
-        bootLine("Or", 154, display_fonts::caption(), kTextMuted);
-        bootLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
-    } else {
-        bootLine("Connect to Wi-Fi", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
-        bootLine("After joining, open:", 98, display_fonts::caption(), kTextMuted);
-        bootLine(ipAddress, 126, display_fonts::homeTitle(), kBlueFocus);
-        bootLine("Wi-Fi network", 154, display_fonts::caption(), kTextMuted);
-        bootLine(kSetupAccessPointSsid, 182, display_fonts::homeTitle(), kWhite);
-    }
+    // Both boot and Settings handoffs use the same optically centered type
+    // hierarchy: five rows, 28 px apart, with 18 px address lines.
+    canvas().clearClipRect();
+    drawConfigurationHandoffDetails(
+        connected ? String("Set up Radiohead") : String("Connect to Wi-Fi"),
+        connected, ipAddress);
 }
 
 void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
@@ -2200,6 +2202,7 @@ void renderFirmwareSettings(const UiRenderState& state, const char* currentTime,
 
 void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
     (void)state;
+    canvas().clearClipRect();
     drawSettingsBackground();
     drawNetworkQrHandoff(!isAP);
     drawPageHeader("Web configuration", currentTime, timeValid);

@@ -38,7 +38,7 @@ const lgfx::IFont* uiFont(const lgfx::IFont* font) {
 }
 unsigned audioServiceCalls = 0;
 void serviceUiAudio() { ++audioServiceCalls; }
-void drawNetworkQrHandoff(bool) {}
+void drawNetworkQrHandoff(bool connected);
 void drawQrFixture(int x, int y, int maximum, int modules) {
     const int side = (maximum / modules) * modules;
     frame.fillRoundRect(x, y, side, side, 8, TFT_WHITE);
@@ -190,6 +190,17 @@ time_t fixtureTime(time_t*) { return 1789992000; }  // Mon, 21 Sep 2026 UTC
 #define time fixtureTime
 #include "home_layout.inc"
 #undef time
+
+void drawNetworkQrHandoff(bool connected) {
+    if (connected) drawConfigurationQrBadge(14, 56, 148);
+    else drawSetupWifiQrBadge(6, 48, 148);
+    canvas().fillRoundRect(164, 54, 148, 142, 8, kSurface);
+    canvas().clearClipRect();
+    drawConfigurationHandoffDetails(
+        connected ? String("Scan to configure") : String("Wi-Fi setup requested"),
+        connected,
+        connected ? WiFi.localIP().toString() : WiFi.softAPIP().toString());
+}
 
 void save(const char* path) {
     FILE* file = fopen(path, "wb");
@@ -592,6 +603,8 @@ int main(int argc, char** argv) {
     UiRenderState settingsHandoffHitState;
     settingsHandoffHitState.page = UiPage::SettingsWebHandoff;
     assert(uiHitTest(settingsHandoffHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(frame.textWidth(ConfigQrCode::Url, display_fonts::homeTitle()) <= 137);
+    assert(frame.textWidth("192.168.11.199", display_fonts::homeTitle()) <= 137);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -603,6 +616,8 @@ int main(int argc, char** argv) {
     assert(std::string(homeWeatherDescription(741)) == "Fog");
     assert(std::string(homeWeatherDescription(999)) == "Unknown");
     const std::string dir = argv[1];
+    drawNetworkBootScreen(true, "192.168.11.199");
+    save((dir + "/configuration-boot-fresh.ppm").c_str());
     renderHome({}, "15:01", true);
     save((dir + "/home-smooth.ppm").c_str());
     currentStationIdx = 1;
@@ -743,6 +758,10 @@ int main(int argc, char** argv) {
     save((dir + "/settings-firmware-smooth.ppm").c_str());
     renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
     save((dir + "/settings-network-smooth.ppm").c_str());
+    isAP = true;
+    renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
+    save((dir + "/settings-network-ap-smooth.ppm").c_str());
+    isAP = false;
     UiRenderState restartConfirm;
     restartConfirm.page = UiPage::SettingsConfirm;
     restartConfirm.settingsConfirmAction = 1;
