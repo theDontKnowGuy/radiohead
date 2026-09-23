@@ -119,6 +119,8 @@ for role in ("clock", "temperature"):
     content += f"constexpr int32_t {prefix}_advance_units[] = {{" + ", ".join(
         str(advance) for advance in manifest["advance_units"]) + "};\n"
     content += f"constexpr int32_t {prefix}_tracking_units = {manifest['tracking_units']};\n"
+    content += (f"constexpr int32_t {prefix}_colon_side_spacing_units = "
+                f"{manifest.get('colon_side_spacing_units', 0)};\n")
     lines = [", ".join(f"0x{byte:02x}" for byte in data[index:index + 16])
              for index in range(0, len(data), 16)]
     content += f"const uint8_t {prefix}_alpha[] = {{\n" + ",\n".join(lines) + "\n};\n"

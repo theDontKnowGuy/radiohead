@@ -61,13 +61,18 @@ else:
     advances = clock_manifest['advance_units']
     advance_scale = clock_manifest['advance_scale']
     tracking = clock_manifest['tracking_units']
+    colon_side_spacing = clock_manifest.get('colon_side_spacing_units', 0)
     anchor = clock_manifest['ink_anchor']
     pen = 0
     clock_width = 0
     for glyph in '14:37':
+        if glyph == ':':
+            pen += colon_side_spacing
         glyph_x = (pen + advance_scale // 2) // advance_scale
         clock_width = max(clock_width, glyph_x + cell_width)
         pen += advances[clock_glyphs.index(glyph)] + tracking
+        if glyph == ':':
+            pen += colon_side_spacing
     clock_string = Image.new('RGBA', (clock_width, cell_height))
     pen = 0
     for glyph in '14:37':
@@ -77,9 +82,13 @@ else:
                                clock_alpha[start:start + cell_width * cell_height])
         glyph_image = Image.new('RGBA', (cell_width, cell_height), (245, 245, 245, 0))
         glyph_image.putalpha(mask)
+        if glyph == ':':
+            pen += colon_side_spacing
         glyph_x = (pen + advance_scale // 2) // advance_scale
         clock_string.alpha_composite(glyph_image, (glyph_x, 0))
         pen += advances[glyph_index] + tracking
+        if glyph == ':':
+            pen += colon_side_spacing
     clock_overlay = Image.new('RGBA', (320, 240))
     clock_ink_bounds = clock_string.getchannel('A').getbbox()
     assert clock_ink_bounds is not None

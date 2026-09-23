@@ -619,12 +619,13 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 constexpr int16_t kListPrimaryTextTop = 11;
 constexpr int16_t kPageHeaderCenterY = 22;
 
-// The compact face has one pixel less left-side ink bearing than the Home
-// title face, so x=39 shares the Radiohead title's visible x=38 ink edge.
-// Stop at x=190 to leave a stable gap before every supported clock string.
-constexpr int16_t kHomeStationTitleLeft = 39;
+// The physical TFT makes the compact face read farther left than the native
+// renderer. Keep a two-pixel drawing inset from the Home title's x=38 anchor,
+// and stop well before the large clock so neither antialiasing nor camera bloom
+// makes the two regions appear to touch.
+constexpr int16_t kHomeStationTitleLeft = 40;
 constexpr int16_t kHomeStationTitleTop = 30;
-constexpr int16_t kHomeStationTitleRight = 190;
+constexpr int16_t kHomeStationTitleRight = 180;
 constexpr int16_t kHomeStationTitleWidth =
     kHomeStationTitleRight - kHomeStationTitleLeft;
 constexpr int16_t kHomeStationTitleHeight = 14;
@@ -755,7 +756,7 @@ void drawHomeStationTitle(unsigned long now) {
     restoreHomeStationTitleBackdrop();
     const int16_t offset = static_cast<int16_t>(homeStationTitleOffset(now));
     canvas().setFont(uiFont(&fonts::Font0));
-    canvas().setTextColor(kClockDate);
+    canvas().setTextColor(kWhite);
     canvas().setTextDatum(TL_DATUM);
     // This header deliberately stays left-anchored even when its content is
     // Hebrew. The generic RTL helper right-aligns bounded labels, which would
@@ -1141,6 +1142,7 @@ uint16_t blendHomeNumeralPixel(uint16_t background, uint8_t alpha, uint16_t colo
 void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
                          uint8_t cellWidth, uint8_t cellHeight,
                          const int32_t* advances, int32_t tracking,
+                         int32_t colonSideSpacing,
                          int16_t anchorX, int16_t anchorTop, bool rightAligned,
                          uint16_t color) {
     // Compose overlapping masks once, then blend over the actual RGB565 frame.
@@ -1153,11 +1155,13 @@ void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t index = homeNumeralGlyphIndex(*character);
         if (index < 0) continue;
+        if (*character == ':') penUnits += colonSideSpacing;
         if (penUnits > (kHomeNumeralMaxWidth - cellWidth) * advanceScale) return;
         const int16_t glyphX = static_cast<int16_t>((penUnits + advanceScale / 2) /
                                                     advanceScale);
         composedWidth = std::max<int16_t>(composedWidth, glyphX + cellWidth);
         penUnits += advances[index] + tracking;
+        if (*character == ':') penUnits += colonSideSpacing;
     }
     if (penUnits <= 0 || composedWidth > kHomeNumeralMaxWidth ||
         cellHeight > kHomeNumeralMaxHeight) return;
@@ -1174,6 +1178,7 @@ void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
     for (const char* character = value; *character != '\0'; ++character) {
         const int8_t glyph = homeNumeralGlyphIndex(*character);
         if (glyph < 0) continue;
+        if (*character == ':') penUnits += colonSideSpacing;
         const int16_t glyphX = static_cast<int16_t>((penUnits + advanceScale / 2) /
                                                     advanceScale);
         const uint8_t* alpha = atlas + static_cast<size_t>(glyph) * kCellBytes;
@@ -1187,6 +1192,7 @@ void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
             }
         }
         penUnits += advances[glyph] + tracking;
+        if (*character == ':') penUnits += colonSideSpacing;
         serviceUiAudio();
     }
 
@@ -1231,7 +1237,8 @@ void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
 void drawHomeClockAtlas(const char* value) {
     drawHomeNumeralAtlas(value, ui_home_clock_alpha, ui_home_clock_cell_width,
         ui_home_clock_cell_height, ui_home_clock_advance_units,
-        ui_home_clock_tracking_units, ui_home_clock_ink_right, ui_home_clock_ink_top,
+        ui_home_clock_tracking_units, ui_home_clock_colon_side_spacing_units,
+        ui_home_clock_ink_right, ui_home_clock_ink_top,
         true, kClockText);
 }
 
@@ -1239,7 +1246,8 @@ void drawHomeTemperatureAtlas(const char* value) {
     // '*' selects the optically raised degree glyph in this numeral-only atlas.
     drawHomeNumeralAtlas(value, ui_home_temperature_alpha, ui_home_temperature_cell_width,
         ui_home_temperature_cell_height, ui_home_temperature_advance_units,
-        ui_home_temperature_tracking_units, ui_home_temperature_ink_left,
+        ui_home_temperature_tracking_units, ui_home_temperature_colon_side_spacing_units,
+        ui_home_temperature_ink_left,
         ui_home_temperature_ink_top, false, kWhite);
 }
 
@@ -1418,54 +1426,31 @@ void drawConfigurationBootScreen(const String& ipAddress) {
     if (uiFrameReady) {
         canvas().fillRectAlpha(0, 0, 320, 240, 36, TFT_BLACK);
         canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 10, 7);
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 286, 5);
     } else {
         canvas().fillScreen(kNavy);
         canvas().drawRoundRect(12, 15, 15, 10, 3, kHomeText);
         canvas().drawLine(15, 13, 25, 9, kHomeText);
         canvas().fillCircle(17, 20, 2, kHomeText);
         canvas().fillCircle(23, 20, 2, kHomeText);
-        canvas().drawArc(298, 17, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(298, 17, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(298, 23, 2, kWhite);
     }
 
     canvas().setTextDatum(ML_DATUM);
     canvas().setTextColor(kHomeText);
     canvas().drawString("Radiohead", 36, 16, display_fonts::homeTitle());
     text("INTERNET RADIO", 37, 28, uiFont(&fonts::Font0), kBlueFocus, 130);
-    canvas().fillCircle(304, 27, 3, kGreen);
-    text("READY", 263, 31, uiFont(&fonts::Font0), kWhite, 45);
 
-    canvas().fillRoundRect(5, 43, 310, 158, 11, kSurface);
-    canvas().drawRoundRect(5, 43, 310, 158, 11, kBlueDark);
-    drawConfigurationQrBadge(18, 56, 148);
-    canvas().drawFastVLine(163, 55, 134, kSlate);
+    // Center the complete handoff card in the space below the brand subtitle.
+    // Its 158 px height leaves matching visual breathing room above and below.
+    canvas().fillRoundRect(5, 61, 310, 158, 11, kSurface);
+    canvas().drawRoundRect(5, 61, 310, 158, 11, kBlueDark);
+    drawConfigurationQrBadge(18, 74, 148);
+    canvas().drawFastVLine(163, 73, 134, kSlate);
 
-    text("Set up your radio", 174, 58, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
-    text("Scan QR or open:", 174, 86, uiFont(&fonts::Font0), kTextMuted, 132);
-    text(kRadioMdnsAddress, 174, 104, uiFont(&fonts::FreeSansBold12pt7b),
-         kBlueFocus, 132);
-    text("If it does not open:", 174, 139, uiFont(&fonts::Font0), kTextMuted, 132);
-    text(ipAddress, 174, 157, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
-
-    // Preserve the mockup's three-step footer without shrinking the primary
-    // URL or QR code. The short labels remain legible on the 2.8-inch panel.
-    canvas().drawFastVLine(106, 207, 27, kSlate);
-    canvas().drawFastVLine(213, 207, 27, kSlate);
-    canvas().drawArc(21, 216, 4, 6, 210, 330, kWhite);
-    canvas().drawArc(21, 216, 8, 10, 210, 330, kWhite);
-    canvas().fillCircle(21, 221, 1, kWhite);
-    text("Join Wi-Fi", 34, 213, uiFont(&fonts::Font0), kWhite, 68);
-
-    canvas().drawCircle(126, 220, 8, kWhite);
-    canvas().fillCircle(126, 220, 3, kWhite);
-    text("Configure", 139, 213, uiFont(&fonts::Font0), kWhite, 67);
-
-    canvas().drawCircle(232, 220, 9, kWhite);
-    canvas().drawLine(227, 220, 231, 224, kWhite);
-    canvas().drawLine(231, 224, 238, 215, kWhite);
-    text("Get started", 247, 213, uiFont(&fonts::Font0), kWhite, 68);
+    text("Set up your radio", 174, 76, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
+    text("Scan QR or open:", 174, 104, uiFont(&fonts::Font0), kTextMuted, 132);
+    text(ConfigQrCode::Url, 174, 122, display_fonts::caption(), kBlueFocus, 132);
+    text("Or", 174, 157, uiFont(&fonts::Font0), kTextMuted, 132);
+    text(ipAddress, 174, 175, uiFont(&fonts::FreeSans9pt7b), kWhite, 132);
 }
 
 void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
@@ -2183,7 +2168,14 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         canvas().fillScreen(kNavy);
     }
     serviceUiAudio();
-    const String station = podcastMode ? podcastShowTft : stations[currentStationIdx].name;
+    String station;
+    if (state.homeStationPreview >= 0 && state.homeStationPreview < STATION_COUNT) {
+        station = stations[state.homeStationPreview].name;
+    } else if (podcastMode) {
+        station = podcastShowTft;
+    } else if (currentStationIdx >= 0 && currentStationIdx < STATION_COUNT) {
+        station = stations[currentStationIdx].name;
+    }
     drawHomeHeader(timeValid, station);
     float temperature = 0.0F;
     int condition = 0;

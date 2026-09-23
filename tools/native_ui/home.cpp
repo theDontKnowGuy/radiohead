@@ -7,6 +7,7 @@
 #include <ctime>
 #include <string>
 #include <lgfx/v1/LGFX_Sprite.hpp>
+#include "ConfigQrCode.h"
 #include "display_fonts.h"
 #include "ui_controller.h"
 #include "ui_text.h"
@@ -203,11 +204,11 @@ int main(int argc, char** argv) {
         }
         return static_cast<int16_t>(-1);
     };
-    // Equal drawing coordinates did not make the two font faces optically
-    // flush. Verify the one-pixel subtitle inset against the shared R glyph.
-    assert(visibleLeft("R", 38, 22, display_fonts::homeTitle(), ML_DATUM) ==
-           visibleLeft("R", kHomeStationTitleLeft, kHomeStationTitleTop,
-                       uiFont(&fonts::Font0), TL_DATUM));
+    // The physical TFT photo needs one more pixel of inset than equal native
+    // glyph bounds suggest. Keep that panel-calibrated correction explicit.
+    assert(visibleLeft("R", kHomeStationTitleLeft, kHomeStationTitleTop,
+                       uiFont(&fonts::Font0), TL_DATUM) ==
+           visibleLeft("R", 38, 22, display_fonts::homeTitle(), ML_DATUM) + 1);
     const UiTextLayout mixed = uiTextLayout("פרק 15 - 15 בספטמבר 2025");
     assert(mixed.rightToLeft);
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
@@ -224,13 +225,27 @@ int main(int argc, char** argv) {
         assert(frame.textWidth(label, display_fonts::homeLabel()) <= 66);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
-    assert(kHomeStationTitleLeft == 39);
-    assert(kHomeStationTitleRight == 190);
+    assert(kHomeStationTitleLeft == 40);
+    assert(kHomeStationTitleRight == 180);
     assert(kHomeStationTitleLeft + kHomeStationTitleWidth == kHomeStationTitleRight);
     assert(ui_home_clock_glyph_count == 12);
     assert(ui_home_clock_cell_width == 36 && ui_home_clock_cell_height == 42);
     assert(ui_home_clock_baseline_y == 36);
     assert(ui_home_clock_advance_scale == 10000 && ui_home_clock_tracking_units == 2500);
+    assert(ui_home_clock_colon_side_spacing_units == 10000);
+    const int32_t unitsBeforeColon =
+        ui_home_clock_advance_units[1] + ui_home_clock_tracking_units +
+        ui_home_clock_advance_units[4] + ui_home_clock_tracking_units;
+    const auto roundedClockPixel = [](int32_t units) {
+        return (units + ui_home_clock_advance_scale / 2) / ui_home_clock_advance_scale;
+    };
+    assert(roundedClockPixel(unitsBeforeColon + ui_home_clock_colon_side_spacing_units) -
+           roundedClockPixel(unitsBeforeColon) == 1);
+    assert(roundedClockPixel(unitsBeforeColon + ui_home_clock_colon_side_spacing_units +
+                             ui_home_clock_advance_units[10] + ui_home_clock_tracking_units +
+                             ui_home_clock_colon_side_spacing_units) -
+           roundedClockPixel(unitsBeforeColon + ui_home_clock_advance_units[10] +
+                             ui_home_clock_tracking_units) == 2);
     assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
     assert(ui_home_temperature_ink_left == kHomeWeatherTextLeft &&
            ui_home_temperature_ink_top == 70);
@@ -296,15 +311,18 @@ int main(int argc, char** argv) {
         int composedWidth = 0;
         for (const char* character = value; *character; ++character) {
             const int glyph = homeNumeralGlyphIndex(*character);
+            if (*character == ':') clockPenUnits += ui_home_clock_colon_side_spacing_units;
             const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
                 ui_home_clock_advance_scale;
             composedWidth = std::max(composedWidth, glyphX + ui_home_clock_cell_width);
             clockPenUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
+            if (*character == ':') clockPenUnits += ui_home_clock_colon_side_spacing_units;
         }
         assert(composedWidth <= kClockTestWidth);
         clockPenUnits = 0;
         for (const char* character = value; *character; ++character) {
             const int glyph = homeNumeralGlyphIndex(*character);
+            if (*character == ':') clockPenUnits += ui_home_clock_colon_side_spacing_units;
             const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
                 ui_home_clock_advance_scale;
             const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
@@ -317,6 +335,7 @@ int main(int argc, char** argv) {
                 }
             }
             clockPenUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
+            if (*character == ':') clockPenUnits += ui_home_clock_colon_side_spacing_units;
         }
         int inkRight = 0;
         int inkTop = ui_home_clock_cell_height;
@@ -418,8 +437,9 @@ int main(int argc, char** argv) {
         centerMin = std::min(centerMin, center);
         centerMax = std::max(centerMax, center);
     }
+    // The colon is optically balanced one pixel below the numeral ink center.
     assert(glyphVerticalCenterTwice(homeNumeralGlyphIndex(':')) ==
-           glyphVerticalCenterTwice(homeNumeralGlyphIndex('0')));
+           glyphVerticalCenterTwice(homeNumeralGlyphIndex('0')) + 2);
     // The source digits have different tight crop heights. Their visual
     // centers must nevertheless agree to within half a native pixel.
     assert(centerMax - centerMin <= 1);

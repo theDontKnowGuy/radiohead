@@ -173,11 +173,15 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::EnterStandby);
     assert(!uiControllerTakeCommand(command));
 
-    // A live-station selection starts playback, then returns to the Home
-    // summary rather than opening the separate Listening page.
-    uiControllerTap(UiTarget::ListRow0, 0, 0, false);
+    // A live-station selection returns to Home before playback starts, so a
+    // blocking stream connection cannot leave the old list looking frozen.
+    uiControllerTap(UiTarget::ListRow1, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Home);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
+    assert(uiControllerRenderState().homeStationPreview == 1);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerMarkRendered();
+    assert(uiControllerRenderState().homeStationPreview == -1);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 1);
     assert(!uiControllerTakeCommand(command));
 
     // Favorite-station touch selections take the same Home-first route as the
@@ -187,6 +191,9 @@ int main() {
     uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
     uiControllerTap(UiTarget::FavoritesRow0, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Home);
+    assert(uiControllerRenderState().homeStationPreview == 0);
+    assert(!uiControllerTakeCommand(command));
+    uiControllerMarkRendered();
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 0);
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);

@@ -38,7 +38,8 @@
     "top_y": 40
   },
   "bytes": 18144,
-  "sha256": "b738d56e1aebfd896d5acb38d5db0119161b2fa556a6a28c76da86c40d4fe105",
+  "sha256": "f8ae6112b91535d076410d76ead7a194e1addc2f636b68e577aa040f6bf98aa9",
   "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.",
-  "colon_baseline_offset_px": -5
+  "colon_baseline_offset_px": -4,
+  "colon_side_spacing_units": 10000
 }

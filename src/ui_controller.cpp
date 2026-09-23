@@ -18,6 +18,7 @@ constexpr int kSettingsItemCount = 5;
 UiRenderState state;
 UiCommand pendingCommand;
 bool hasPendingCommand = false;
+bool pendingCommandWaitsForRender = false;
 int pendingVolumeDelta = 0;
 bool alarmIsActive = false;
 unsigned long volumeOverlayUntil = 0;
@@ -50,6 +51,15 @@ void queue(UiCommandKind kind, int value = 0) {
     if (!hasPendingCommand) {
         pendingCommand = {kind, value};
         hasPendingCommand = true;
+        pendingCommandWaitsForRender = false;
+    }
+}
+
+void queueAfterRender(UiCommandKind kind, int value = 0) {
+    if (!hasPendingCommand) {
+        pendingCommand = {kind, value};
+        hasPendingCommand = true;
+        pendingCommandWaitsForRender = true;
     }
 }
 
@@ -282,10 +292,13 @@ void closeToHome() {
 void selectFocusedStation() {
     const int slot = playableStationSlotAt(state.stationFocus);
     if (slot >= 0) {
-        queue(UiCommandKind::SelectStation, slot);
         // Home already shows the active station, so selecting a live stream
-        // returns there instead of opening the redundant live-player page.
+        // returns there instead of opening the redundant live-player page. Hold
+        // playback until that Home frame is visible because stream startup can
+        // otherwise leave the station list looking unresponsive.
         closeToHome();
+        state.homeStationPreview = slot;
+        queueAfterRender(UiCommandKind::SelectStation, slot);
     }
 }
 
@@ -394,8 +407,9 @@ void handleTarget(UiTarget target, int value = 0) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::FavoritesRow0);
             const int slot = favoriteStationSlotAt(state.favoriteOffset + row);
             if (!state.favoriteShowsTab && slot >= 0) {
-                queue(UiCommandKind::SelectStation, slot);
                 closeToHome();
+                state.homeStationPreview = slot;
+                queueAfterRender(UiCommandKind::SelectStation, slot);
             } else if (state.favoriteShowsTab) {
                 const int show = podcastShowAt(state.favoriteOffset + row, true);
                 if (show >= 0) openEpisodes(show);
@@ -556,6 +570,7 @@ void uiControllerBegin() {
     state = {};
     pendingCommand = {};
     hasPendingCommand = false;
+    pendingCommandWaitsForRender = false;
     pendingVolumeDelta = 0;
     alarmIsActive = false;
     volumeOverlayUntil = 0;
@@ -701,8 +716,10 @@ bool uiControllerTakeCommand(UiCommand& command) {
         hasPendingToneCommand = false;
         return true;
     }
+    if (pendingCommandWaitsForRender && state.dirty) return false;
     command = pendingCommand;
     hasPendingCommand = false;
+    pendingCommandWaitsForRender = false;
     return true;
 }
 
@@ -716,5 +733,6 @@ UiRenderState uiControllerRenderState() {
 }
 
 void uiControllerMarkRendered() {
+    if (state.page == UiPage::Home) state.homeStationPreview = -1;
     state.dirty = false;
 }

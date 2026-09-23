@@ -35,10 +35,10 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
             face = ImageFont.truetype(str(source), degree_size * SCALE)
         mask = Image.new('L', (cell[0] * SCALE, cell[1] * SCALE))
         # The colon's lower dot looks bottom-heavy when it shares the digits'
-        # baseline. Rasterize it five native pixels higher to align the ink
-        # center with the digits; all other glyphs
-        # keep the common baseline and their existing outlines and advances.
-        glyph_baseline = baseline - 5 if role == 'clock' and glyph == ':' else baseline
+        # baseline. Rasterize it four native pixels higher for optical balance;
+        # all other glyphs keep the common baseline and their existing outlines
+        # and advances.
+        glyph_baseline = baseline - 4 if role == 'clock' and glyph == ':' else baseline
         ImageDraw.Draw(mask).text((2 * SCALE, glyph_baseline * SCALE), glyph,
                                   font=face, fill=255, anchor='ls')
         if thickening:
@@ -72,7 +72,10 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
         'recipe': 'Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.',
     }
     if role == 'clock':
-        manifest['colon_baseline_offset_px'] = -5
+        manifest['colon_baseline_offset_px'] = -4
+        # Keep digit-to-digit tracking unchanged while opening the clock's
+        # separator by one native pixel on each side.
+        manifest['colon_side_spacing_units'] = ADVANCE_SCALE
     if role == 'temperature':
         degree_mask = masks[glyphs.index('°')]
         degree_bounds = degree_mask.getbbox()

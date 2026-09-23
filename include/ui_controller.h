@@ -187,6 +187,9 @@ struct UiRenderState {
     PlaybackState playback = PlaybackState::Stopped;
     int requestedStation = -1;
     int playingStation = -1;
+    // The station selected from a list is shown on Home before its potentially
+    // blocking playback command is released.
+    int homeStationPreview = -1;
     uint8_t unavailableDestination = 0;
     bool playerControlFocus = false;
     uint8_t playerFocus = 3;

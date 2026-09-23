@@ -1,13 +1,30 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Home clock colon spacing
+
+**Scope:** the Home clock now adds one native pixel of horizontal space on
+each side of the colon. Digit-to-digit tracking, glyph masks, clock color,
+vertical alignment, and the fixed x=301 right edge are unchanged. The atlas
+manifest records the spacing in the same 1/10,000-pixel units as its advances.
+
+**Visual and functional: pass in the native fixture.** The production
+C++/LovyanGFX renderer verifies the exact one-pixel left gap and one-pixel right
+gap for `14:37`, while exercising 24-hour, 12-hour and unavailable clock values.
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+`git diff --check` pass. The shared-worktree build reports **96,164 B RAM
+(29.3%), 3,380,755 B flash (51.6%)**, and a 3,431,051-byte total image.
+**Hardware: not verified; not flashed.** Final optical spacing still requires
+inspection on the physical TFT. TypeSafe's deterministic/semantic separation
+was applied; no live Jev judgment or runtime AI integration was used.
+
 ## 2026-09-23 — Home station-title spacing and contrast
 
-**Scope:** the Home active-station subtitle now uses an optical x=39 drawing
-anchor so its visible left edge aligns with the `Radiohead` title's x=38 ink
-edge despite the fonts' different side bearings. Its clipping boundary moves
-from x=200 to x=190, leaving an 8 px gap before the widest tested Home clock
-case (`12:05`). The subtitle color changes from the muted body gray to the
-lighter date gray for better contrast against the photograph. Marquee timing,
+**Scope:** physical-TFT feedback superseded the first subtle native-render
+adjustment. The Home active-station subtitle now uses a panel-calibrated x=40
+drawing anchor beneath the `Radiohead` title's x=38 anchor. Its clipping boundary
+moves from x=200 to x=180, leaving an 18 px gap before the widest tested Home
+clock case (`12:05`). The subtitle color changes from muted gray to full white
+for stronger contrast against the photograph. Marquee timing,
 source labels, station identity, playback and input behavior are unchanged.
 
 **Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
@@ -19,8 +36,8 @@ The Hebrew station and Latin source suffix remain separately rendered adjacent
 runs, so the contrast and clip changes do not alter Hebrew ordering.
 
 **Functional: pass.** `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`
-and `git diff --check` pass. The shared-worktree build reports **96,476 B RAM
-(29.4%), 3,381,299 B flash (51.6%)**, and a 3,431,651-byte total image.
+and `git diff --check` pass. The shared-worktree build reports **96,164 B RAM
+(29.3%), 3,381,299 B flash (51.6%)**, and a 3,431,651-byte total image.
 **Hardware: not verified; not flashed.** Final optical alignment, brightness and
 clock clearance still require inspection on the physical TFT. TypeSafe's
 deterministic/semantic separation was applied; no live Jev call or runtime AI
@@ -31,11 +48,13 @@ integration was used.
 **Scope:** the connected-device startup handoff now adapts the supplied
 configuration mockup into the native 320×240 product UI. It retains the existing
 ten-second boot interval after the web server starts, but replaces the ordinary
-page header/card with a Radiohead brand header, ready state, large configuration
-QR, `radio.local`, the actual DHCP address fallback and the three short setup
-steps. The QR still contains only `http://radio.local`; no network credential is
-displayed or encoded. AP recovery continues to use its separate Wi-Fi join QR,
-and the Settings Network handoff remains an ordinary navigable page.
+page header/card with a Radiohead brand header and a vertically centered handoff
+card containing the large configuration QR, full `http://radio.local` URL and the
+actual DHCP address fallback separated by “Or.” The boot-only Wi-Fi/ready status
+and former three-part footer are intentionally omitted. The QR still contains only
+`http://radio.local`; no network credential is displayed or encoded. AP recovery
+continues to use its separate Wi-Fi join QR, and the Settings Network handoff
+remains an ordinary navigable page.
 
 QR badges now use conventional black modules on a white quiet zone instead of
 the former inverted presentation. This applies to configuration and AP recovery
@@ -53,8 +72,8 @@ reference rather than a whole-screen firmware asset.
 **Functional: pass in the native fixture and ESP32-S3 build.** The real QR payload
 and mDNS address retain their compile-time consistency assertion.
 `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3` and `git diff --check`
-pass. The current shared-worktree build reports **96,780 B RAM (29.5%),
-3,380,583 B flash (51.6%)**, and a 3,430,791-byte total image.
+pass. The current shared-worktree build reports **96,164 B RAM (29.3%),
+3,380,715 B flash (51.6%)**, and a 3,431,011-byte total image.
 **Hardware: not verified; not flashed.** Final TFT contrast, QR scanning,
 the shown DHCP address and the ten-second handoff still require device observation.
 TypeSafe's deterministic/semantic separation was applied; no live Jev judgment or
