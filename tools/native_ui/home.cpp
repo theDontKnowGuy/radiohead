@@ -11,6 +11,7 @@
 #include "ui_controller.h"
 #include "ui_text.h"
 #include "ui_background_asset.h"
+#include "ui_header_assets.h"
 #include "ui_home_assets.h"
 #include "ui_home_clock_atlas.h"
 #include "ui_home_temperature_atlas.h"
@@ -230,7 +231,7 @@ int main(int argc, char** argv) {
     assert(kHomeTileIconFallbackYOffset[1] == -4);
     assert(kHomeTileIconFallbackYOffset[2] == 0);
     assert(kHomeTileIconFallbackYOffset[3] == 1);
-    assert(kListHeaderCenterY == 22);
+    assert(kPageHeaderCenterY == 22);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
@@ -570,13 +571,22 @@ int main(int argc, char** argv) {
     save((dir + "/header-updated.ppm").c_str());
     renderStations({}, "10:00", true);
     save((dir + "/header-fresh.ppm").c_str());
-    renderStations({}, "15:01", true);
-    // Live Radio deliberately owns this header preview while the user reviews
-    // it. The chevron is a filled mark with a seven-pixel waist, not the
-    // one-pixel shared-list glyph used by the other screens.
-    for (int x = 12; x <= 18; ++x) {
-        assert(frame.readPixel(x, kListHeaderCenterY) == kWhite);
+    // The accepted direction is a slim, rounded, anti-aliased stroke—not the
+    // chunky filled polygon from the first Live Radio preview.
+    frame.fillScreen(TFT_BLACK);
+    drawPageBackChevron();
+    int chevronIntermediatePixels = 0;
+    int chevronCenterPixels = 0;
+    for (int y = 8; y < 36; ++y) {
+        for (int x = 5; x < 30; ++x) {
+            const uint16_t pixel = frame.readPixel(x, y);
+            chevronIntermediatePixels += pixel != TFT_BLACK && pixel != kWhite;
+            if (y == kPageHeaderCenterY && pixel != TFT_BLACK) ++chevronCenterPixels;
+        }
     }
+    assert(chevronIntermediatePixels >= 12);
+    assert(chevronCenterPixels >= 2 && chevronCenterPixels <= 5);
+    renderStations({}, "15:01", true);
     save((dir + "/stations-smooth.ppm").c_str());
     renderListening({}, "15:01", true);
     save((dir + "/player-smooth.ppm").c_str());
@@ -644,6 +654,14 @@ int main(int argc, char** argv) {
     assert(uiHitTest(restartConfirm, 22, 22) == UiTarget::SettingsBack);
     renderSettingsConfirmation(restartConfirm, "15:01", true);
     save((dir + "/settings-restart-confirm-smooth.ppm").c_str());
+    UiRenderState unavailable;
+    unavailable.page = UiPage::Unavailable;
+    unavailable.unavailableDestination = 4;
+    renderUnavailable(unavailable, "15:01", true);
+    save((dir + "/unavailable-smooth.ppm").c_str());
+    frame.fillScreen(TFT_BLACK);
+    drawPageHeader("Configure radio", "--:--", false, false);
+    save((dir + "/configure-header-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.
     weatherDataValid = true;
     tempC = 30;

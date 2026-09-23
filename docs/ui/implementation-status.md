@@ -1,30 +1,46 @@
 # Touch UI implementation status
 
-## 2026-09-23 — Live Radio header preview
+## 2026-09-23 — Shared non-Home header
 
-**Scope:** one screen only, pending user review. The Live Radio station list now
-has a dedicated mockup-derived header. Its filled continuous back chevron, title,
-clock and Wi-Fi mark share the y=22 optical centerline. The title moves to x=40
-for the reference's spacing, and the clock now uses the same 22 px Roboto Medium
-face as the title instead of the narrower 18 px regular face. The existing 72×48
-px Back touch target and navigation behavior are unchanged.
+**Scope:** the user accepted the second Live Radio preview, so its header is now
+the one shared renderer for every ordinary non-Home page: live list/player,
+Favorites, recorded-show list/episodes/player, station options/information,
+Settings and subpages, confirmation backdrops, unavailable pages and the startup
+configuration handoff. The latter intentionally omits Back because it has no
+navigable parent. The exclusive firmware-write overlay remains interruption-free.
 
-Favorites, Recorded Shows, Episodes, player/options pages and Settings do not use
-this preview renderer. In particular, this package does not extend the existing
-uncommitted Settings-header experiment while its appearance is under review.
+The accepted component uses one y=22 optical centerline, x=40 title anchor, a
+22 px Roboto Medium face for both title and clock, the existing Wi-Fi slot, and
+the existing 72×48 px Back touch target. Titles are direction-aware and ellipsize
+within a fixed region before the clock. Screen-specific backgrounds and all Back
+navigation behavior remain unchanged.
 
-**Visual: ready for user review, not yet accepted.** The production
-C++/LovyanGFX path was inspected at native 320×240:
-[Live Radio preview](evidence/2026-09-23-live-header-preview/live-radio.png).
-The native fixture asserts the filled chevron's seven-pixel center waist.
+The first filled-polygon chevron was rejected on-device as bold, sluggish and
+pixelated. The accepted revision uses a native 24×24 SVG-derived asset with a
+2.5 px stroke, rounded caps/join and grayscale edge coverage; it is never enlarged
+at runtime. The fixture verifies anti-aliased edge pixels and a 2–5 pixel center
+waist.
 
-**Functional: pass in the native fixture.** Header rendering and the existing
-Back hit target compile and pass. **Hardware: not verified; not flashed.** Final
-TFT weight and optical alignment remain open until user/device review. TypeSafe's
-deterministic/semantic separation was applied; no live Jev call or firmware AI
-dependency was used.
+**Visual: pass for native geometry across the non-Home family.** Production
+C++/LovyanGFX evidence includes [Live Radio](evidence/2026-09-23-shared-header/stations-smooth.png),
+[Station Information](evidence/2026-09-23-shared-header/station-info.png),
+[Recorded player](evidence/2026-09-23-shared-header/podcast-player.png),
+[Settings](evidence/2026-09-23-shared-header/settings-smooth.png), and the
+[no-Back configuration header](evidence/2026-09-23-shared-header/configure-header-smooth.png).
+The same evidence directory contains every rendered list, player, Settings page
+and confirmation backdrop.
+
+**Functional: pass in the native fixture and ESP32-S3 build.** Existing hit maps
+and navigation are unchanged. The shared-worktree build uses **96,780 B RAM
+(29.5%) and 3,378,391 B flash (51.6%)**. **Hardware: the accepted Live Radio
+chevron was user-reviewed; propagation to the other pages is not device-verified
+and was not flashed.** TypeSafe's deterministic/semantic separation was applied;
+no live Jev call or firmware AI dependency was used.
 
 ## 2026-09-23 — Settings header alignment, back action and contrast
+
+**Superseded header appearance:** the shared non-Home header above replaces this
+package's filled Settings-only chevron. Its navigation and contrast work remain.
 
 **Scope:** every native Settings screen now uses one optical header centerline
 for the back chevron, title, clock and Wi-Fi mark. The Settings chevron is a

@@ -87,6 +87,18 @@ at 18 px. Glyph coverage alone is not Hebrew bidi/niqqud support. The source OTF
 not embedded in firmware. Fonts are rasterized at their final sizes; there is no
 runtime enlargement of a tiny bitmap.
 
+## Header chevron asset (2026-09-23)
+
+`icons/back-chevron.svg` is original project geometry for the compact page
+header: a 24×24 view box containing an off-white 2.5 px open stroke with rounded
+caps and join. `tools/prepare_ui_assets.py` rasterizes it through AppKit at the
+same 24×24 runtime size and embeds the generated alpha PNG in
+`.pio/ui_assets/ui_header_assets.h`; no runtime scaling is used. Every ordinary
+non-Home page draws the asset at x=5/y=10, placing its visible center on y=22. The
+low-memory direct-TFT path uses a two-pixel primitive fallback because it cannot
+safely alpha-blend over a readable backing canvas. The startup configuration
+handoff intentionally omits Back because it has no navigable parent.
+
 Composition uses a 16-bit readable sprite. Its buffer stores `lgfx::swap565_t`;
 the matching typed `pushImage` overload preserves channel/byte order. The native
 fixture tests red, green and blue transfer, but physical ordering remains a

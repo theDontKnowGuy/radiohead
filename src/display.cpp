@@ -21,6 +21,7 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
+#include "ui_header_assets.h"
 #include "ui_home_clock_atlas.h"
 #include "ui_home_temperature_atlas.h"
 #include "ui_podcast_assets.h"
@@ -604,7 +605,6 @@ constexpr int16_t kListRailBottom = kStationListTop +
     (kStationRowsPerPage - 1) * kStationListRowHeight + kListCardHeight;
 constexpr int16_t kListRailHeight = kListRailBottom - kStationListTop;
 constexpr int16_t kListPagerLeft = kListRailLeft + 4;
-constexpr int16_t kListTitleLeft = kListOuterInset + 22;
 constexpr int kFavoriteRowsPerPage = 3;
 constexpr int16_t kFavoriteListTop = 88;
 constexpr int16_t kFavoriteListRowHeight = 48;
@@ -613,7 +613,7 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 // The font's visible glyphs sit below its top-left origin.  This offset keeps
 // a single-line label optically centered in a 46 px list card.
 constexpr int16_t kListPrimaryTextTop = 11;
-constexpr int16_t kListHeaderCenterY = 22;
+constexpr int16_t kPageHeaderCenterY = 22;
 
 // Share the brand title's visible left edge while retaining the existing
 // x=200 right boundary for clock clearance and marquee clipping.
@@ -971,33 +971,10 @@ void drawSettingsBackground() {
     }
 }
 
-void drawHeaderClock(const char* currentTime, bool timeValid) {
-    // Reserve separate clock and Wi-Fi slots; restore the whole old text area.
-    canvas().fillRect(214, 0, 106, 42, kNavy);
-    canvas().setTextDatum(TR_DATUM);
-    canvas().setTextSize(1);  // Exact native VLW pixels; never scale a clock glyph.
-    canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, 13, display_fonts::headerClock());
-    canvas().drawArc(294, 20, 5, 8, 210, 330, kWhite);
-    canvas().drawArc(294, 20, 10, 13, 210, 330, kWhite);
-    canvas().fillCircle(294, 26, 2, kWhite);
-}
-
-void drawHeader(const char* currentTime, bool timeValid, const char* title, bool back = true,
-                int16_t contentLeft = 20) {
-    canvas().fillRect(0, 0, 320, 44, kNavy);
-    canvas().fillRect(0, 42, 320, 2, kBlueDark);
-    if (back) {
-        canvas().drawLine(contentLeft + 9, 14, contentLeft, 22, kWhite);
-        canvas().drawLine(contentLeft, 22, contentLeft + 9, 30, kWhite);
-    }
-    text(title, back ? contentLeft + 22 : 14, 13, uiFont(&fonts::FreeSans9pt7b), kWhite, 150);
-    drawHeaderClock(currentTime, timeValid);
-}
-
 void drawHomeHeader(bool timeValid, const String& station) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
-    // photo is part of this screen's composition. Other pages retain drawHeader.
+    // photo is part of this screen's composition. Other pages use the compact
+    // shared page header below.
     constexpr int16_t centerY = 22;
     if (uiFrameReady) {
         canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 12, 10);
@@ -1372,99 +1349,56 @@ void drawTransport(int16_t x, int16_t y, const char* glyph, bool primary) {
     canvas().drawString(glyph, x, y - 1, uiFont(&fonts::FreeSansBold12pt7b));
 }
 
-void drawListHeader(const char* title, const char* currentTime, bool timeValid) {
-    // List pages preserve the sunset photo all the way to the top edge.  Keep
-    // the back affordance, title, clock, and Wi-Fi glyph on one shared
-    // baseline so Stations, Recorded Shows, and Favorites cannot drift apart.
-    canvas().drawLine(kListOuterInset + 9, kListHeaderCenterY - 8,
-                      kListOuterInset, kListHeaderCenterY, kWhite);
-    canvas().drawLine(kListOuterInset, kListHeaderCenterY,
-                      kListOuterInset + 9, kListHeaderCenterY + 8, kWhite);
-    canvas().setTextDatum(ML_DATUM);
-    canvas().setTextColor(kWhite);
-    canvas().drawString(title, kListTitleLeft, kListHeaderCenterY,
-                        uiFont(&fonts::FreeSansBold12pt7b));
-    canvas().setTextDatum(MR_DATUM);
-    canvas().setTextSize(1);  // Keep the compact header clock at its VLW size.
-    canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, kListHeaderCenterY,
-                        display_fonts::headerClock());
-    if (uiFrameReady) {
-        // The asset's visible pixels occupy local y=4..16, so this places its
-        // optical center on the same line as the other header elements.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282,
-                         kListHeaderCenterY - 10);
-    } else {
-        canvas().drawArc(294, kListHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(294, kListHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(294, kListHeaderCenterY + 4, 2, kWhite);
+void drawPageBackChevron() {
+    if (uiFrameReady && canvas().drawPng(
+            ui_header_back_chevron, sizeof(ui_header_back_chevron), 5, 10)) {
+        return;
     }
+
+    // The low-memory path cannot alpha-blend the prepared icon. Keep its
+    // primitive fallback slim; two adjacent strokes read better than the old
+    // filled polygon and remain visible without a readable backing canvas.
+    canvas().drawLine(21, 13, 12, 22, kWhite);
+    canvas().drawLine(12, 22, 21, 31, kWhite);
+    canvas().drawLine(22, 13, 13, 22, kWhite);
+    canvas().drawLine(13, 22, 22, 31, kWhite);
 }
 
-void drawLiveStationsHeader(const char* currentTime, bool timeValid) {
-    constexpr int16_t centerY = 22;
-
-    // Match the reference's substantial, continuous back mark.  Four triangles
-    // form one six-point chevron, avoiding the hairline list glyph and the
-    // pinched seam visible in the experimental Settings header.
-    canvas().fillTriangle(24, 10, 28, 14, 18, centerY, kWhite);
-    canvas().fillTriangle(24, 10, 18, centerY, 12, centerY, kWhite);
-    canvas().fillTriangle(12, centerY, 18, centerY, 28, 30, kWhite);
-    canvas().fillTriangle(12, centerY, 28, 30, 24, 34, kWhite);
-
+void drawPageHeader(const String& title, const char* currentTime, bool timeValid,
+                    bool back = true) {
     const lgfx::IFont* headerFont = uiFont(&fonts::FreeSansBold12pt7b);
-    canvas().setTextDatum(ML_DATUM);
+    if (back) drawPageBackChevron();
+
+    constexpr int16_t kTitleRight = 210;
+    const int16_t titleLeft = back ? 40 : 14;
+    const int16_t titleWidth = kTitleRight - titleLeft;
+    canvas().setFont(headerFont);
     canvas().setTextSize(1);
     canvas().setTextColor(kWhite);
-    canvas().drawString("Live Radio", 40, centerY, headerFont);
+    const UiTextLayout titleLayout = uiTextLayout(title);
+    const String renderedTitle = titleLayout.rightToLeft
+        ? ellipsizeRightToLeft(titleLayout.visual, titleWidth)
+        : ellipsize(titleLayout.visual, titleWidth);
+    canvas().setTextDatum(titleLayout.rightToLeft ? MR_DATUM : ML_DATUM);
+    canvas().drawString(renderedTitle.c_str(),
+                        titleLayout.rightToLeft ? kTitleRight : titleLeft,
+                        kPageHeaderCenterY, headerFont);
 
-    // The reference clock has the title's weight and height, rather than the
-    // narrower regular clock used by the older shared list header.
+    // The accepted reference treatment gives the clock the title's weight and
+    // height, and centers every visible element on the same optical line.
     canvas().setTextDatum(MR_DATUM);
     canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, centerY, headerFont);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270,
+                        kPageHeaderCenterY, headerFont);
 
     if (uiFrameReady) {
-        // The asset's visible y=4..16 pixels center on y=22 at this origin.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, centerY - 10);
+        // The asset's visible y=4..16 pixels center on the shared centerline.
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282,
+                         kPageHeaderCenterY - 10);
     } else {
-        canvas().drawArc(294, centerY - 2, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(294, centerY - 2, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(294, centerY + 4, 2, kWhite);
-    }
-}
-
-void drawSettingsHeader(const char* title, const char* currentTime, bool timeValid) {
-    drawListHeader(title, currentTime, timeValid);
-    // Replace the hairline list chevron with a filled settings affordance. Its
-    // visible bounds and midpoint are symmetric around the shared centerline.
-    canvas().fillTriangle(17, kListHeaderCenterY - 10,
-                          17, kListHeaderCenterY - 5,
-                          7, kListHeaderCenterY, kWhite);
-    canvas().fillTriangle(7, kListHeaderCenterY,
-                          17, kListHeaderCenterY + 5,
-                          17, kListHeaderCenterY + 10, kWhite);
-}
-
-// Recorded playback uses the same transparent photo header as the reference
-// panel. It must not inherit drawHeader's opaque navy strip.
-void drawRecordedHeader(const char* currentTime, bool timeValid) {
-    constexpr int16_t kHeaderCenterY = 22;
-    canvas().drawLine(30, kHeaderCenterY - 8, 20, kHeaderCenterY, kWhite);
-    canvas().drawLine(20, kHeaderCenterY, 30, kHeaderCenterY + 8, kWhite);
-    canvas().setTextDatum(ML_DATUM);
-    canvas().setTextColor(kHomeText);
-    canvas().drawString("Recorded Show", 42, kHeaderCenterY, display_fonts::recordedHeader());
-    canvas().setTextDatum(MR_DATUM);
-    canvas().setTextSize(1);  // Keep the compact header clock at its VLW size.
-    canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 268, kHeaderCenterY, display_fonts::headerClock());
-    if (uiFrameReady) {
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 288, kHeaderCenterY - 10);
-    } else {
-        canvas().drawArc(300, kHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(300, kHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(300, kHeaderCenterY + 4, 2, kWhite);
+        canvas().drawArc(294, kPageHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(294, kPageHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(294, kPageHeaderCenterY + 4, 2, kWhite);
     }
 }
 
@@ -1613,7 +1547,7 @@ String activeStationName() {
 
 void renderListening(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, isAP ? "Setup" : "Live Radio");
+    drawPageHeader(isAP ? "Setup" : "Live Radio", currentTime, timeValid);
     if (isAP) {
         drawNetworkQrHandoff(false);
     } else {
@@ -1649,7 +1583,7 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
 
 void renderStations(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawLiveStationsHeader(currentTime, timeValid);
+    drawPageHeader("Live Radio", currentTime, timeValid);
     const int count = playableStationCount();
     if (count == 0) {
         text("No stations saved", 28, 88, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1701,7 +1635,7 @@ void drawListRow(int16_t y, const String& name, bool focused, bool favorite, boo
 
 void renderFavorites(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawListHeader("Favorites", currentTime, timeValid);
+    drawPageHeader("Favorites", currentTime, timeValid);
     const uint16_t stationTabColor = state.favoriteShowsTab ? kSurfaceRaised : kBlue;
     const uint16_t showTabColor = state.favoriteShowsTab ? kBlue : kSurfaceRaised;
     canvas().fillRoundRect(8, 48, 148, 34, 6, stationTabColor);
@@ -1763,7 +1697,8 @@ String durationLabel(uint32_t seconds) {
 
 void renderRecordedShows(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawListHeader(state.showFavoritesOnly ? "Favorite Shows" : "Recorded Shows", currentTime, timeValid);
+    drawPageHeader(state.showFavoritesOnly ? "Favorite Shows" : "Recorded Shows",
+                   currentTime, timeValid);
     int drawn = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
         if (state.showFavoritesOnly && !isPodcastShowFavorite(index)) continue;
@@ -1792,7 +1727,8 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
 void renderShowEpisodes(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
     const bool validShow = state.episodeShow >= 0 && state.episodeShow < PODCAST_SHOW_COUNT;
-    drawListHeader(validShow ? podcastShows[state.episodeShow].tftName : "Episodes", currentTime, timeValid);
+    drawPageHeader(validShow ? podcastShows[state.episodeShow].tftName : "Episodes",
+                   currentTime, timeValid);
     if (!validShow) return;
     if (podcastRequestedShow() == state.episodeShow && podcastLoadState() == PodcastLoadState::Loading) {
         text("Loading episodes…", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1820,7 +1756,7 @@ void renderShowEpisodes(const UiRenderState& state, const char* currentTime, boo
 
 void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawPodcastBackground();
-    drawRecordedHeader(currentTime, timeValid);
+    drawPageHeader("Recorded Show", currentTime, timeValid);
     const PodcastPlaybackSnapshot playback = podcastPlaybackSnapshot();
     const PodcastEpisode* episode = podcastActiveEpisode();
     if (!playback.active || playback.showIndex < 0 || episode == nullptr) {
@@ -1862,7 +1798,7 @@ void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bo
 
 void renderStationOptions(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Station Options");
+    drawPageHeader("Station Options", currentTime, timeValid);
     const int slot = state.optionStation;
     if (slot < 0 || slot >= STATION_COUNT || stations[slot].url.isEmpty()) {
         text("No station selected", 28, 92, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1889,7 +1825,7 @@ void renderStationOptions(const UiRenderState& state, const char* currentTime, b
 
 void renderStationInfo(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Station Information");
+    drawPageHeader("Station Information", currentTime, timeValid);
     const int slot = state.optionStation;
     if (slot >= 0 && slot < STATION_COUNT && !stations[slot].url.isEmpty()) {
         drawArtwork(stations[slot].name, 16, 58, 64, kBlue, true, slot);
@@ -2002,7 +1938,7 @@ void renderSettings(const UiRenderState& state, const char* currentTime, bool ti
                             kLabels[item], static_cast<uint8_t>(item));
     }
     drawListPager(state.settingsOffset, sizeof(kLabels) / sizeof(kLabels[0]), kStationRowsPerPage);
-    drawSettingsHeader("Settings", currentTime, timeValid);
+    drawPageHeader("Settings", currentTime, timeValid);
 }
 
 void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2011,7 +1947,7 @@ void renderToneSettings(const UiRenderState& state, const char* currentTime, boo
     drawEditorControl(92, "Mid", state.toneMidDraft);
     drawEditorControl(140, "Treble", state.toneTrebleDraft);
     drawEditorFooter();
-    drawSettingsHeader("Audio", currentTime, timeValid);
+    drawPageHeader("Audio", currentTime, timeValid);
 }
 
 void renderDisplaySettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2029,7 +1965,7 @@ void renderDisplaySettings(const UiRenderState& state, const char* currentTime, 
     text("The screen wakes on touch or control input.", 24, 132,
          uiFont(&fonts::Font0), kTextMuted, 250);
     drawEditorFooter();
-    drawSettingsHeader("Display", currentTime, timeValid);
+    drawPageHeader("Display", currentTime, timeValid);
 }
 
 void renderDeviceSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2039,7 +1975,7 @@ void renderDeviceSettings(const UiRenderState& state, const char* currentTime, b
     drawSettingsListRow(140, "Restart", 4);
     drawSettingsListRow(188, state.deviceActionFailed ? "Reset failed" : "Factory reset", 4, true);
     drawListPager(0, 4, kStationRowsPerPage);
-    drawSettingsHeader("Device", currentTime, timeValid);
+    drawPageHeader("Device", currentTime, timeValid);
 }
 
 String firmwareUpdateStatusLabel(const FirmwareUpdater::Snapshot& update) {
@@ -2097,7 +2033,7 @@ void renderFirmwareSettings(const UiRenderState& state, const char* currentTime,
         text(release, 24, 164 + kFirmwareCardSecondaryTextInset,
              uiFont(&fonts::Font0), kWhite, 264);
     }
-    drawSettingsHeader("Firmware updates", currentTime, timeValid);
+    drawPageHeader("Firmware updates", currentTime, timeValid);
 }
 
 void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2105,7 +2041,7 @@ void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTim
     drawSettingsBackground();
     if (network) {
         drawNetworkQrHandoff(!isAP);
-        drawSettingsHeader("Network", currentTime, timeValid);
+        drawPageHeader("Network", currentTime, timeValid);
         return;
     }
     drawListCard(kListOuterInset, 66, false, true);
@@ -2116,7 +2052,7 @@ void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTim
     text("Passwords and API keys stay off this screen.", 24, 142,
          uiFont(&fonts::Font0), kTextMuted, 260);
     footerButton(0, 320, "Back");
-    drawSettingsHeader("Weather & Time", currentTime, timeValid);
+    drawPageHeader("Weather & Time", currentTime, timeValid);
 }
 
 void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2236,7 +2172,7 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
 
 void renderUnavailable(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawHeader(currentTime, timeValid, "Not available");
+    drawPageHeader("Not available", currentTime, timeValid);
     canvas().fillRoundRect(20, 76, 280, 88, 10, kSurface);
     const char* destination = "This destination is coming later.";
     switch (state.unavailableDestination) {
@@ -2517,7 +2453,7 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
 void showConfigurationQrScreen() {
     initCanvas();
     drawBackground();
-    drawHeader("--:--", false, "Configure radio", false);
+    drawPageHeader("Configure radio", "--:--", false, false);
     drawNetworkQrHandoff(true);
     presentCanvas(0, 240);
 }

@@ -162,6 +162,35 @@ list_header = output / "ui_list_assets.h"
 if not list_header.exists() or list_header.read_text() != list_content:
     list_header.write_text(list_content, encoding="utf-8")
 
+# Shared header artwork is rasterized from original SVG geometry at its exact
+# TFT size. This keeps small diagonal marks anti-aliased without runtime scaling.
+header_sources = {
+    "back_chevron": ("back-chevron.svg", 24),
+}
+header_source_dir = project / "docs" / "ui" / "icons"
+header_output_dir = output / "header_icons"
+header_output_dir.mkdir(exist_ok=True)
+header_header = output / "ui_header_assets.h"
+asset_script = project / "tools" / "prepare_ui_assets.py"
+header_arrays = ["#pragma once\n#include <stdint.h>\n"]
+for symbol, (filename, size) in header_sources.items():
+    source_svg = header_source_dir / filename
+    if not source_svg.is_file():
+        raise RuntimeError(f"Missing header icon: {source_svg}")
+    native_png = header_output_dir / f"{symbol}_{size}.png"
+    if (not native_png.exists() or native_png.stat().st_mtime < source_svg.stat().st_mtime or
+            native_png.stat().st_mtime < asset_script.stat().st_mtime):
+        run(["/usr/bin/swift", str(project / "tools" / "rasterize_svg.swift"),
+             str(source_svg), str(native_png), str(size)], check=True)
+    data = native_png.read_bytes()
+    lines = [", ".join(f"0x{byte:02x}" for byte in data[i:i+16])
+             for i in range(0, len(data), 16)]
+    header_arrays.append(
+        f"const uint8_t ui_header_{symbol}[] = {{\n" + ",\n".join(lines) + "\n};\n")
+header_content = "\n".join(header_arrays)
+if not header_header.exists() or header_header.read_text() != header_content:
+    header_header.write_text(header_content, encoding="utf-8")
+
 # Recorded-player transport artwork is user supplied as SVG. LovyanGFX decodes
 # the rasterized native-size PNG into the readable UI canvas; it never needs an
 # SVG renderer on the ESP32.
@@ -175,7 +204,6 @@ player_source_dir = project / "docs" / "ui" / "icons"
 player_output_dir = output / "player_icons"
 player_output_dir.mkdir(exist_ok=True)
 player_header = output / "ui_player_assets.h"
-asset_script = project / "tools" / "prepare_ui_assets.py"
 player_arrays = ["#pragma once\n#include <stdint.h>\n"]
 for symbol, (filename, size) in player_sources.items():
     source_svg = player_source_dir / filename
