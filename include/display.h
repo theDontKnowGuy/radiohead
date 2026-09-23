@@ -39,9 +39,10 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
 // from a complete page render leaves the audio service path responsive.
 bool homeStationTitleRefreshDue(unsigned long now);
 void renderHomeStationTitleTick();
-// Presents the connected-network QR handoff before normal playback starts.
-// The caller keeps HTTP servicing responsive while the screen is visible.
-void showConfigurationQrScreen();
+// Presents the branded network handoff for either the connected LAN or the
+// setup access point. The caller keeps HTTP servicing responsive while a
+// timed connected-network handoff is visible.
+void showNetworkQrScreen();
 // OTA writes update this overlay from the web-server upload handler.  It is
 // intentionally status-only: image validation and flash writes remain in the
 // Update library and web_server ownership.

@@ -1,5 +1,74 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Branded Wi-Fi recovery handoff
+
+**Scope:** every startup path that enters the `Radio_Setup` access point now
+uses the same branded 320×240 composition as the connected-device boot QR:
+no saved credentials, an encoder-held setup request, and failure to join the
+saved network after the existing 30 × 500 ms attempt window. The setup variant
+uses the existing Wi-Fi join QR, labels the action “Connect to Wi-Fi,” shows the
+actual AP address beneath “After joining, open:”, and retains the setup SSID for
+manual connection. The connected `radio.local` variant and its ten-second
+handoff are unchanged. AP recovery remains visible across ordinary UI redraws;
+the web server continues to be serviced and no credential is displayed or
+encoded.
+
+**Visual: pass in the native production renderer.** The new setup composition
+was inspected at native 320×240 in the reproducible
+`.pio/ui_native/wifi-setup-boot-smooth.ppm` fixture. The version-3 join QR is
+centered within the existing card, and `192.168.4.1` plus `Radio_Setup` fit
+without clipping. **Functional: pass in fixture/build.**
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+`git diff --check` pass. The shared-worktree build reports **96,164 B RAM
+(29.3%), 3,382,107 B flash (51.6%)**, and a **3,432,487-byte** total image.
+**Hardware: not verified; not flashed.** The physical TFT still needs all three
+entry paths checked, and the Wi-Fi QR/address must be verified from a phone.
+TypeSafe's deterministic/semantic separation was applied; no live Jev judgment
+or runtime AI integration was used.
+
+## 2026-09-23 — Weather and time removed from TFT Settings
+
+**Scope:** the TFT Settings list now contains only Wi-Fi, Display, Audio and
+Device. Device moves into the fourth row on the first page, and the former
+Weather & Time browser-handoff route and render branch are removed. Weather and
+clock display on Home, persisted configuration, and the web Weather & Time page
+are unchanged; their settings are now web-only.
+
+**Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
+inspected at 320×240 and shows the four retained rows with no Weather & Time
+entry: [settings](evidence/2026-09-23-settings-without-weather/settings-smooth.png).
+
+**Functional: pass for source/host/build checks.** The controller test confirms
+that paging cannot leave the single Settings page and that its fourth row opens
+Device. `python3 tools/check_touch_input.py`,
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+`git diff --check` pass. The shared-worktree build reports **96,164 B RAM
+(29.3%), 3,382,107 B flash (51.6%)**, and a 3,432,487-byte total image.
+**Hardware: not verified; not flashed.** The updated row order and touch target
+still require observation on the physical TFT. TypeSafe's deterministic/semantic
+separation was applied; no live Jev judgment or runtime AI integration was used.
+
+## 2026-09-23 — Settings touch-calibration start fix
+
+**Scope:** the Device → Touch calibration action now always starts LovyanGFX's
+interactive corner-marker flow. Previously it called the boot initializer, which
+correctly preferred an existing saved calibration unless the encoder was held;
+therefore the Settings action silently reloaded that saved data and returned.
+Boot behavior is unchanged: a valid saved calibration is restored normally, while
+holding the encoder or having no valid saved data still enters recovery calibration.
+Calibration remains stored under the existing `touch` namespace and keys.
+
+**Functional: pass for source/host/build checks.** The Device row hit target and
+controller command path were already covered by the native UI fixture; the runtime
+command now calls a separate forced-calibration entry point. The touch-input host
+check, `pio run -e esp32s3`, and `git diff --check` pass.
+The build reports **96,164 B RAM (29.3%), 3,382,223 B flash (51.6%)**, and a
+3,432,603-byte total image. **Hardware: not verified; not flashed.** Starting the
+flow, tapping all four markers, persistence across reboot, touch-edge accuracy and
+audio continuity still require observation on the physical radio. TypeSafe's
+deterministic/semantic separation was applied; no live Jev judgment or runtime AI
+integration was used.
+
 ## 2026-09-23 — Square, lower Home destinations
 
 **Scope:** the four Home destination cards now follow the supplied mockup more

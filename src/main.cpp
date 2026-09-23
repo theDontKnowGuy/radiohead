@@ -171,8 +171,8 @@ void setup() {
         connectToNetwork();
     }
     startWebServer();
+    showNetworkQrScreen();
     if (!isAP) {
-        showConfigurationQrScreen();
         const unsigned long configurationScreenStartedAt = millis();
         while (millis() - configurationScreenStartedAt < 10000) {
             server.handleClient();
@@ -380,7 +380,7 @@ void loop() {
         case UiCommandKind::StartTouchCalibration:
             // Calibration is intentionally an explicit maintenance flow. It is
             // the one local operation that must temporarily take over the TFT.
-            initializeTouchCalibration();
+            startTouchCalibration();
             lastInteraction = millis();
             forceRedraw = true;
             break;

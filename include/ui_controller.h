@@ -194,8 +194,6 @@ struct UiRenderState {
     bool playerControlFocus = false;
     uint8_t playerFocus = 3;
     int settingsOffset = 0;
-    // 0 is Network, 1 is Weather & Time; both are real browser handoffs.
-    uint8_t settingsWebHandoff = 0;
     int toneBassDraft = 0;
     int toneMidDraft = 0;
     int toneTrebleDraft = 0;

@@ -13,7 +13,7 @@ constexpr int kFavoriteRowsPerPage = 3;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
-constexpr int kSettingsItemCount = 5;
+constexpr int kSettingsItemCount = 4;
 
 UiRenderState state;
 UiCommand pendingCommand;
@@ -207,19 +207,17 @@ void openSettings(bool fromHome = false) {
     markDirty();
 }
 
-void openSettingsWebHandoff(uint8_t handoff) {
+void openSettingsWebHandoff() {
     state.page = UiPage::SettingsWebHandoff;
-    state.settingsWebHandoff = handoff;
     markDirty();
 }
 
 void openSettingsItem(int item) {
     switch (item) {
-    case 0: openSettingsWebHandoff(0); break;  // Network
+    case 0: openSettingsWebHandoff(); break;  // Network
     case 1: openDisplaySettings(); break;
     case 2: openToneSettings(); break;
-    case 3: openSettingsWebHandoff(1); break;  // Weather & Time
-    case 4: openDeviceSettings(true); break;
+    case 3: openDeviceSettings(true); break;
     default: break;
     }
 }

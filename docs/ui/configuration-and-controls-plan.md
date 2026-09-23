@@ -93,7 +93,7 @@ if scan-tested, a QR code. Never include credentials in that code.
 | Prepared theme selection | TFT, only for supported themes | Retained from the initial proposal; do not invent a theme collection. One supported theme needs no selector. Arbitrary color editing is removed. |
 | Custom background upload | Web | Retained explicitly; see section 4. |
 | Clock format and time zone | Web | 12/24-hour choice and user-friendly timezone selection. TFT displays the resulting time. A recognized unambiguous weather location selects its matching implemented zone; otherwise retain the explicit zone choice. New installs and untouched legacy Budapest/Europe-Paris placeholders default to `Asia/Jerusalem`; explicitly configured non-placeholder zones remain unchanged. |
-| Weather units and Home visibility | TFT; existing web units equivalent | Celsius/Fahrenheit and weather on/off. Keep unavailable/stale weather states honest. |
+| Weather units and Home visibility | Web | Celsius/Fahrenheit and weather on/off. Keep unavailable/stale weather states honest. Weather and clock may still appear on Home, but have no TFT Settings section. |
 | Weather location | Web | Search or text entry; TFT shows the chosen location. |
 | Weather API key/provider setup | Web | Keep secrets out of returned pages, display, logs and artifacts. |
 | Wi-Fi status / retry | TFT | Network name, connection state, signal indicator, Retry and setup handoff. |
@@ -174,7 +174,8 @@ but define a separate background size budget rather than its station-logo limit.
 
 ## 5. Navigation and shared behavior
 
-Suggested compact TFT Settings groups: **Audio, Display, Weather, Wi-Fi, Device**.
+Compact TFT Settings groups: **Audio, Display, Wi-Fi, Device**. Weather and time
+configuration has no TFT Settings section; it remains available on the web.
 Display contains only retained dimming/theme choices that actually work and a
 background-upload handoff. Clock format/timezone editing is on the web. Favorites
 and station removal stay in entity options. Do not leave removed settings as

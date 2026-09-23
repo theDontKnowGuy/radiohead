@@ -126,11 +126,14 @@ bool factoryReset() {
     return true;
 }
 
-void initializeTouchCalibration() {
+namespace {
+
+void configureTouchCalibration(bool forceRecalibration) {
     pinMode(PIN_SW, INPUT_PULLUP);
 
     TouchCalibration calibration = {};
-    const bool recalibrationRequested = digitalRead(PIN_SW) == LOW;
+    const bool recalibrationRequested =
+        forceRecalibration || digitalRead(PIN_SW) == LOW;
     if (!recalibrationRequested && loadTouchCalibration(calibration)) {
         tft.setTouchCalibrate(calibration.data());
         Serial.println("Loaded saved touch calibration");
@@ -172,6 +175,16 @@ void initializeTouchCalibration() {
         135,
         &fonts::FreeSans9pt7b);
     delay(1500);
+}
+
+}  // namespace
+
+void initializeTouchCalibration() {
+    configureTouchCalibration(false);
+}
+
+void startTouchCalibration() {
+    configureTouchCalibration(true);
 }
 
 int consumeEncoderDetents() {

@@ -264,7 +264,7 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim &&
            command.value == AUTO_DIM_NEVER_SECONDS);
     uiControllerTap(UiTarget::SettingsNext, 0, 0, false);
-    assert(uiControllerRenderState().settingsOffset == 1);
+    assert(uiControllerRenderState().settingsOffset == 0);
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsConfirm);

@@ -537,6 +537,10 @@ void drawConfigurationQrBadge(int x, int y, int maximum) {
     drawQrBadge(kConfigQr, x, y, maximum);
 }
 
+void drawSetupWifiQrBadge(int x, int y, int maximum) {
+    drawQrBadge(kSetupWifiQr, x, y, maximum);
+}
+
 const char* setupReasonText() {
     switch (setupAccessReason) {
     case SetupAccessReason::ConnectionFailed: return "Couldn't join saved Wi-Fi";
@@ -1423,7 +1427,7 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
     }
 }
 
-void drawConfigurationBootScreen(const String& ipAddress) {
+void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     drawBackground();
 
     // The startup handoff is a product welcome screen rather than an ordinary
@@ -1449,7 +1453,13 @@ void drawConfigurationBootScreen(const String& ipAddress) {
     // subtitle. Move it down nine pixels while retaining room below the panel.
     canvas().fillRoundRect(5, 50, 310, 158, 11, kSurface);
     canvas().drawRoundRect(5, 50, 310, 158, 11, kBlueDark);
-    drawConfigurationQrBadge(18, 63, 148);
+    if (connected) {
+        drawConfigurationQrBadge(18, 63, 148);
+    } else {
+        // The Wi-Fi payload is a larger version-3 QR. Its 148 px badge still
+        // fits this same card when centered in the left pane.
+        drawSetupWifiQrBadge(10, 55, 148);
+    }
     canvas().drawFastVLine(163, 62, 134, kSlate);
 
     // Align every row by its optical center rather than alternating top-edge
@@ -1463,11 +1473,19 @@ void drawConfigurationBootScreen(const String& ipAddress) {
         const String rendered = ellipsize(value, 137);
         canvas().drawString(rendered.c_str(), 172, centerY, font);
     };
-    bootLine("Set up your radio", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
-    bootLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
-    bootLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
-    bootLine("Or", 154, display_fonts::caption(), kTextMuted);
-    bootLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
+    if (connected) {
+        bootLine("Set up your radio", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
+        bootLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
+        bootLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
+        bootLine("Or", 154, display_fonts::caption(), kTextMuted);
+        bootLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
+    } else {
+        bootLine("Connect to Wi-Fi", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
+        bootLine("After joining, open:", 98, display_fonts::caption(), kTextMuted);
+        bootLine(ipAddress, 126, display_fonts::homeTitle(), kBlueFocus);
+        bootLine("Wi-Fi network", 154, display_fonts::caption(), kTextMuted);
+        bootLine(kSetupAccessPointSsid, 182, display_fonts::homeTitle(), kWhite);
+    }
 }
 
 void drawRecordedProgress(int16_t x, int16_t y, int16_t width, uint32_t elapsed, uint32_t duration) {
@@ -1926,22 +1944,23 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         canvas().drawLine(x, y + 9, x, y + 13, color);
         break;
     case 2:  // Audio
-        // A conventional right-facing speaker reads cleanly at this size. The
-        // horn now points toward its sound waves instead of away from them.
-        canvas().fillRect(x - 13, y - 5, 6, 10, color);
-        canvas().fillTriangle(x - 7, y - 9, x - 7, y + 9, x + 2, y, color);
-        canvas().drawArc(x + 2, y, 7, 10, 300, 60, color);
-        canvas().drawArc(x + 2, y, 12, 15, 300, 60, color);
+        // A small speaker cabinet remains recognizable on the low-resolution
+        // panel: the filled tweeter and double-ring woofer read as audio even
+        // when the one-pixel details of a horn-and-wave icon would disappear.
+        canvas().drawRoundRect(x - 11, y - 13, 22, 26, 3, color);
+        canvas().drawRoundRect(x - 10, y - 12, 20, 24, 2, color);
+        canvas().fillCircle(x, y - 6, 3, color);
+        canvas().drawCircle(x, y + 5, 7, color);
+        canvas().drawCircle(x, y + 5, 6, color);
+        canvas().fillCircle(x, y + 5, 2, color);
         break;
-    case 3:  // Weather & time
-        canvas().drawCircle(x - 5, y - 4, 6, color);
-        canvas().fillCircle(x + 5, y + 4, 7, color);
-        canvas().fillCircle(x - 3, y + 5, 6, color);
-        break;
-    default:  // Device
+    case 3:  // Device
+    case 4:  // Device action
         canvas().drawCircle(x, y, 13, color);
         canvas().fillCircle(x, y - 6, 2, color);
         canvas().fillRect(x - 1, y - 1, 3, 9, color);
+        break;
+    default:
         break;
     }
 }
@@ -1997,7 +2016,7 @@ void drawEditorFooter() {
 void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawSettingsBackground();
     static constexpr const char* kLabels[] = {
-        "Wi-Fi", "Display", "Audio", "Weather & Time", "Device",
+        "Wi-Fi", "Display", "Audio", "Device",
     };
     for (int row = 0; row < kStationRowsPerPage; ++row) {
         const int item = state.settingsOffset + row;
@@ -2109,22 +2128,10 @@ void renderFirmwareSettings(const UiRenderState& state, const char* currentTime,
 }
 
 void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    const bool network = state.settingsWebHandoff == 0;
+    (void)state;
     drawSettingsBackground();
-    if (network) {
-        drawNetworkQrHandoff(!isAP);
-        drawPageHeader("Network", currentTime, timeValid);
-        return;
-    }
-    drawListCard(kListOuterInset, 66, false, true);
-    text(network ? "Configure Wi-Fi on your phone." : "Configure location and time on your phone.",
-         24, 82, uiFont(&fonts::FreeSans9pt7b), kWhite, 260);
-    const String address = isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-    text(String("Open ") + address, 24, 112, uiFont(&fonts::FreeSans9pt7b), kBlueFocus, 260);
-    text("Passwords and API keys stay off this screen.", 24, 142,
-         uiFont(&fonts::Font0), kTextMuted, 260);
-    footerButton(0, 320, "Back");
-    drawPageHeader("Weather & Time", currentTime, timeValid);
+    drawNetworkQrHandoff(!isAP);
+    drawPageHeader("Network", currentTime, timeValid);
 }
 
 void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2454,61 +2461,67 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
 #if UI_P2_FIXTURE
     renderP2Fixture(state, currentTime, timeValid);
 #else
-    switch (state.page) {
-    case UiPage::Home:
-        renderHome(state, currentTime, timeValid);
-        break;
-    case UiPage::Listening:
-        renderListening(state, currentTime, timeValid);
-        break;
-    case UiPage::Stations:
-        renderStations(state, currentTime, timeValid);
-        break;
-    case UiPage::StationOptions:
-        renderStationOptions(state, currentTime, timeValid);
-        break;
-    case UiPage::StationInfo:
-        renderStationInfo(state, currentTime, timeValid);
-        break;
-    case UiPage::Favorites:
-        renderFavorites(state, currentTime, timeValid);
-        break;
-    case UiPage::RecordedShows:
-        renderRecordedShows(state, currentTime, timeValid);
-        break;
-    case UiPage::ShowEpisodes:
-        renderShowEpisodes(state, currentTime, timeValid);
-        break;
-    case UiPage::PodcastPlayer:
-        renderPodcastPlayer(state, currentTime, timeValid);
-        break;
-    case UiPage::StandbyConfirm:
-        renderConfirm(state, currentTime, timeValid);
-        break;
-    case UiPage::Settings:
-        renderSettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsAudio:
-        renderToneSettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsDisplay:
-        renderDisplaySettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsDevice:
-        renderDeviceSettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsFirmware:
-        renderFirmwareSettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsWebHandoff:
-        renderSettingsWebHandoff(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsConfirm:
-        renderSettingsConfirmation(state, currentTime, timeValid);
-        break;
-    case UiPage::Unavailable:
-        renderUnavailable(state, currentTime, timeValid);
-        break;
+    if (isAP) {
+        // AP recovery is a device-wide state. Keep its join instructions visible
+        // instead of allowing an unavailable content page to replace them.
+        drawNetworkBootScreen(false, WiFi.softAPIP().toString());
+    } else {
+        switch (state.page) {
+        case UiPage::Home:
+            renderHome(state, currentTime, timeValid);
+            break;
+        case UiPage::Listening:
+            renderListening(state, currentTime, timeValid);
+            break;
+        case UiPage::Stations:
+            renderStations(state, currentTime, timeValid);
+            break;
+        case UiPage::StationOptions:
+            renderStationOptions(state, currentTime, timeValid);
+            break;
+        case UiPage::StationInfo:
+            renderStationInfo(state, currentTime, timeValid);
+            break;
+        case UiPage::Favorites:
+            renderFavorites(state, currentTime, timeValid);
+            break;
+        case UiPage::RecordedShows:
+            renderRecordedShows(state, currentTime, timeValid);
+            break;
+        case UiPage::ShowEpisodes:
+            renderShowEpisodes(state, currentTime, timeValid);
+            break;
+        case UiPage::PodcastPlayer:
+            renderPodcastPlayer(state, currentTime, timeValid);
+            break;
+        case UiPage::StandbyConfirm:
+            renderConfirm(state, currentTime, timeValid);
+            break;
+        case UiPage::Settings:
+            renderSettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsAudio:
+            renderToneSettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsDisplay:
+            renderDisplaySettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsDevice:
+            renderDeviceSettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsFirmware:
+            renderFirmwareSettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsWebHandoff:
+            renderSettingsWebHandoff(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsConfirm:
+            renderSettingsConfirmation(state, currentTime, timeValid);
+            break;
+        case UiPage::Unavailable:
+            renderUnavailable(state, currentTime, timeValid);
+            break;
+        }
     }
 #endif
     // Encoder feedback remains visible without changing focus, even when the
@@ -2533,9 +2546,10 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
     presentCanvas(0, 240);
 }
 
-void showConfigurationQrScreen() {
+void showNetworkQrScreen() {
     initCanvas();
-    drawConfigurationBootScreen(WiFi.localIP().toString());
+    drawNetworkBootScreen(!isAP,
+                          isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString());
     presentCanvas(0, 240);
 }
 

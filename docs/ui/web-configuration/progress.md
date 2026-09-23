@@ -39,12 +39,31 @@ copying or declaring unrelated TFT packages complete.
 | W6 | Weather/provider access, units/visibility, timezone and 12/24-hour settings | W1/W2; configuration C3 | ready for review | `/root` · 2026-09-23 · `src/settings.cpp`, `src/app_state.cpp`, `include/settings.h` | Tel Aviv/Jerusalem is now the new-install and untouched-placeholder default; DST boundaries and build pass, while physical-device verification remains open. |
 | W7 | Custom background file/framing/preview/default/atomic commit | W1/W2; configuration C4 | not started | — | Define independent asset budget, close F9/H2/H3. |
 | W8 | Device info, diagnostics, OTA, restart/reset; release verification | W1/W2; W3–W7 for final release | ready for review | `/root` · 2026-09-22 · `src/web_server.cpp`, `src/firmware_updater.cpp`, `src/settings.cpp`, `src/display.cpp`, `scripts/release.sh` | Browser upload/recovery and GitHub release OTA compile; F11–F13/H6 and real release-channel checks remain unverified on hardware. |
-| W9 | mDNS discovery plus QR setup/configuration handoffs | W5; native Network handoff | ready for review | `/root` · 2026-09-22 · `src/main.cpp`, `src/web_server.cpp`, `src/display.cpp`, `tools/generate_network_qr_codes.py` | `radio.local`, both generated QR badges and the 10-second boot handoff compile; phone/TFT/device discovery scans remain pending. |
+| W9 | mDNS discovery plus QR setup/configuration handoffs | W5; native Network handoff | ready for review | `/root` · 2026-09-23 · `src/main.cpp`, `src/web_server.cpp`, `src/display.cpp`, `tools/generate_network_qr_codes.py` | `radio.local`, both generated QR badges, the 10-second connected handoff and persistent branded AP recovery compile; phone/TFT/device discovery scans remain pending. |
 
 Do not treat W8 as requiring all features before starting its independent device
 pages. Its **release completion** depends on the other packages. Existing
 configuration-removal and discovery packages retain their own ownership; link
 their work instead of implementing duplicate persistence/state machines.
+
+### 2026-09-23 — W9 branded AP recovery follow-up
+
+- No-credential boot, encoder-requested setup and the existing 15-second failed
+  station join now render the Wi-Fi join QR in the same branded native card as
+  the connected-device boot handoff. The deterministic connection timeout and
+  setup AP behavior are unchanged.
+- The setup copy reads “Connect to Wi-Fi” and “After joining, open:”, followed
+  by the actual soft-AP address and `Radio_Setup` for manual connection. The QR
+  still contains only the open-network join payload; it contains no credential.
+- The AP handoff is shown immediately after the web server starts and remains
+  visible across ordinary UI redraws. The connected `radio.local` screen keeps
+  its existing ten-second duration.
+- **Visual:** passed in the native production renderer at
+  `.pio/ui_native/wifi-setup-boot-smooth.ppm`. **Functional:**
+  `python3 tools/render_ui_fonts.py`, `pio run -e esp32s3`, and
+  `git diff --check` pass at 96,164 B RAM (29.3%), 3,382,107 B flash (51.6%),
+  and 3,432,487 bytes total. **Device:** not flashed or verified; scan and all
+  three AP entry paths remain to be tested on hardware.
 
 ### 2026-09-22 — W9 mDNS and QR handoffs
 

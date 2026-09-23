@@ -39,13 +39,14 @@ const lgfx::IFont* uiFont(const lgfx::IFont* font) {
 unsigned audioServiceCalls = 0;
 void serviceUiAudio() { ++audioServiceCalls; }
 void drawNetworkQrHandoff(bool) {}
-void drawConfigurationQrBadge(int x, int y, int maximum) {
-    constexpr int modules = 33;
+void drawQrFixture(int x, int y, int maximum, int modules) {
     const int side = (maximum / modules) * modules;
     frame.fillRoundRect(x, y, side, side, 8, TFT_WHITE);
     const int scale = side / modules;
     const int originX = x;
     const int originY = y;
+    const int farFinder = modules - 11;
+    const int codeEnd = modules - 4;
     auto finder = [&](int moduleX, int moduleY) {
         frame.fillRect(originX + moduleX * scale, originY + moduleY * scale,
                        7 * scale, 7 * scale, TFT_BLACK);
@@ -55,19 +56,25 @@ void drawConfigurationQrBadge(int x, int y, int maximum) {
                        3 * scale, 3 * scale, TFT_BLACK);
     };
     finder(4, 4);
-    finder(22, 4);
-    finder(4, 22);
-    for (int row = 4; row < 29; ++row) {
-        for (int column = 4; column < 29; ++column) {
+    finder(farFinder, 4);
+    finder(4, farFinder);
+    for (int row = 4; row < codeEnd; ++row) {
+        for (int column = 4; column < codeEnd; ++column) {
             const bool finderArea =
-                (row < 11 && column < 11) || (row < 11 && column >= 22) ||
-                (row >= 22 && column < 11);
+                (row < 11 && column < 11) || (row < 11 && column >= farFinder) ||
+                (row >= farFinder && column < 11);
             if (!finderArea && ((row * 7 + column * 11 + row * column) % 5 < 2)) {
                 frame.fillRect(originX + column * scale, originY + row * scale,
                                scale, scale, TFT_BLACK);
             }
         }
     }
+}
+void drawConfigurationQrBadge(int x, int y, int maximum) {
+    drawQrFixture(x, y, maximum, 33);
+}
+void drawSetupWifiQrBadge(int x, int y, int maximum) {
+    drawQrFixture(x, y, maximum, 37);
 }
 UiRenderState homeFocused(uint8_t index) {
     UiRenderState state;
@@ -79,6 +86,7 @@ bool isAP = false, alarmActive = true;
 uint16_t autoDimSeconds = 30;
 constexpr uint16_t AUTO_DIM_NEVER_SECONDS = 0;
 constexpr const char* kRadioMdnsAddress = "radio.local";
+constexpr const char* kSetupAccessPointSsid = "Radio_Setup";
 // The production layout now reads firmware-update status on Home. Keep that
 // unrelated state inert in this visual fixture without pulling OTA networking
 // or persistence into the host test binary.
@@ -545,6 +553,7 @@ int main(int argc, char** argv) {
     assert(uiHitTest(settingsHitState, 160, 72) == UiTarget::SettingsRow0);
     assert(uiHitTest(settingsHitState, 160, 120) == UiTarget::SettingsRow1);
     assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsRow2);
+    assert(uiHitTest(settingsHitState, 160, 216) == UiTarget::SettingsRow3);
     assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
@@ -708,10 +717,6 @@ int main(int argc, char** argv) {
     save((dir + "/confirm-smooth.ppm").c_str());
     renderSettings(settingsHitState, "15:01", true);
     save((dir + "/settings-smooth.ppm").c_str());
-    UiRenderState settingsSecondPage = settingsHitState;
-    settingsSecondPage.settingsOffset = 1;
-    renderSettings(settingsSecondPage, "15:01", true);
-    save((dir + "/settings-page-two-smooth.ppm").c_str());
     toneHitState.toneBassDraft = -15;
     toneHitState.toneMidDraft = 0;
     toneHitState.toneTrebleDraft = 15;
@@ -727,12 +732,8 @@ int main(int argc, char** argv) {
     save((dir + "/settings-device-smooth.ppm").c_str());
     renderFirmwareSettings(firmwareHitState, "15:01", true);
     save((dir + "/settings-firmware-smooth.ppm").c_str());
-    settingsHandoffHitState.settingsWebHandoff = 0;
     renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
     save((dir + "/settings-network-smooth.ppm").c_str());
-    settingsHandoffHitState.settingsWebHandoff = 1;
-    renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
-    save((dir + "/settings-weather-time-smooth.ppm").c_str());
     UiRenderState restartConfirm;
     restartConfirm.page = UiPage::SettingsConfirm;
     restartConfirm.settingsConfirmAction = 1;
@@ -744,8 +745,10 @@ int main(int argc, char** argv) {
     unavailable.unavailableDestination = 4;
     renderUnavailable(unavailable, "15:01", true);
     save((dir + "/unavailable-smooth.ppm").c_str());
-    drawConfigurationBootScreen("192.168.11.199");
+    drawNetworkBootScreen(true, "192.168.11.199");
     save((dir + "/configuration-boot-smooth.ppm").c_str());
+    drawNetworkBootScreen(false, "192.168.4.1");
+    save((dir + "/wifi-setup-boot-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.
     weatherDataValid = true;
     tempC = 30;
