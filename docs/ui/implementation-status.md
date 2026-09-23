@@ -1,5 +1,25 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Web configuration settings icon
+
+**Scope:** the TFT Settings list now distinguishes the browser configuration
+handoff from the local Wi-Fi page. **Web configuration** uses the existing white
+gear artwork, while **Wi-Fi** retains the prepared signal icon. Navigation, touch
+targets, web routes and persisted settings are unchanged. The native host fixture
+also gained inert stubs for the firmware's existing Wi-Fi status helpers so its
+production-render extraction builds again.
+
+**Visual: pass in the native production renderer.** The gear is centered in the
+first 46 px row and remains clear of the label and card edge in the native
+[320×240 Settings fixture](evidence/2026-09-23-web-configuration-icon/settings.png).
+**Functional: pass for fixture/build checks.** `python3 tools/render_ui_fonts.py`,
+`pio run -e esp32s3`, and `git diff --check` pass. The shared-worktree build
+reports **96,340 B RAM (29.4%), 3,491,639 B flash (53.3%)**, and a
+**3,542,459-byte** total image. **Hardware: not verified; not flashed.** Final
+gear legibility and alignment still require observation on the physical TFT.
+TypeSafe's deterministic/semantic separation was applied; no live Jev judgment
+or runtime AI integration was used.
+
 ## 2026-09-23 — Artwork boot screen and progress
 
 **Scope:** startup now shows the supplied `docs/boot.png` artwork before the

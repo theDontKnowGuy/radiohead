@@ -1474,7 +1474,7 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
         canvas().drawString(rendered.c_str(), 172, centerY, font);
     };
     if (connected) {
-        bootLine("Set up your radio", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
+        bootLine("Set up RadioHead", 70, uiFont(&fonts::FreeSans9pt7b), kWhite);
         bootLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
         bootLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
         bootLine("Or", 154, display_fonts::caption(), kTextMuted);
@@ -1960,6 +1960,20 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         canvas().fillCircle(x, y - 6, 2, color);
         canvas().fillRect(x - 1, y - 1, 3, 9, color);
         break;
+    case 5:  // Web configuration
+        if (uiFrameReady) {
+            canvas().drawPng(ui_home_icon_settings, sizeof(ui_home_icon_settings),
+                             x - 19, y - 19);
+        } else {
+            canvas().drawCircle(x, y, 5, color);
+            canvas().drawCircle(x, y, 6, color);
+            for (int i = 0; i < 8; ++i) {
+                const float angle = i * 45 * 0.0174533F;
+                canvas().fillCircle(x + cos(angle) * 12,
+                                    y + sin(angle) * 12, 3, color);
+            }
+        }
+        break;
     default:
         break;
     }
@@ -2018,7 +2032,7 @@ void renderSettings(const UiRenderState& state, const char* currentTime, bool ti
     static constexpr const char* kLabels[] = {
         "Web configuration", "Wi-Fi", "Display", "Audio", "Device",
     };
-    static constexpr uint8_t kIcons[] = {0, 0, 1, 2, 3};
+    static constexpr uint8_t kIcons[] = {5, 0, 1, 2, 3};
     for (int row = 0; row < kStationRowsPerPage; ++row) {
         const int item = state.settingsOffset + row;
         if (item >= static_cast<int>(sizeof(kLabels) / sizeof(kLabels[0]))) break;

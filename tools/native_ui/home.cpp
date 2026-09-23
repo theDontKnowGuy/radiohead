@@ -130,11 +130,20 @@ bool showWeatherOnHome = true, use24HourClock = true;
 unsigned long weatherLastSuccessAt = 0;
 constexpr unsigned long WEATHER_STALE_AFTER_MS = 30UL * 60UL * 1000UL;
 struct FixtureIpAddress { String toString() const { return "192.168.4.1"; } };
+constexpr int WL_CONNECTED = 3;
 struct FixtureWiFi {
+    int status() const { return WL_CONNECTED; }
+    int32_t RSSI() const { return -58; }
+    String SSID() const { return "Studio WiFi"; }
     String softAPSSID() const { return "Radio_Setup"; }
     FixtureIpAddress softAPIP() const { return {}; }
     FixtureIpAddress localIP() const { return {}; }
 } WiFi;
+String st_ssid = "Studio WiFi";
+int savedWiFiAlternativeCount() { return 0; }
+int savedWiFiAlternativeNetworkAt(int) { return -1; }
+String savedWiFiNetworkSsid(int) { return {}; }
+int activeSavedWiFiNetworkIndex() { return 0; }
 bool configuredLocalTime(time_t utcTime, tm& localTime) {
     return localtime_r(&utcTime, &localTime) != nullptr;
 }
