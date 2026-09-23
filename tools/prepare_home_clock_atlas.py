@@ -75,7 +75,7 @@ def main():
     args = parser.parse_args()
     generate(args.font_dir, 'clock', 40, 'SemiBold', [36, 42], 36,
              {'right_x': 301, 'top_y': 37}, 3)
-    generate(args.font_dir, 'temperature', 30, 'Medium', [28, 34], 29,
+    generate(args.font_dir, 'temperature', 30, 'SemiBold', [28, 34], 29,
              {'left_x': 76, 'top_y': 68}, 0)
 
 

@@ -12,5 +12,6 @@ extern int gB;
 extern int gM;
 extern int gT;
 extern uint16_t autoDimSeconds;
+extern bool firmwareAutoUpdate;
 extern int podcastEpisodeCount;
 inline unsigned long millis() { return 0; }

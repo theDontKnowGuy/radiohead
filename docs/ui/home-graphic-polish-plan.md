@@ -181,3 +181,14 @@ on the physical TFT remains pending.
 `pio run -e esp32s3` passes at 82,268 B RAM (25.1%) and 3,218,287 B flash
 (49.1%); `tools/render_ui_fonts.py` and `git diff --check` pass. Hardware/physical
 TFT acceptance remains open.
+
+## 2026-09-23 weather typography follow-up
+
+| Requirement | Result | Acceptance state |
+| --- | --- | --- |
+| Make the temperature one weight bolder. | Done: the dedicated 30 px Inter atlas moves from Medium to SemiBold without changing its size or top/left ink anchor. | Native fixture inspected: pass. Physical TFT pending. |
+| Match the temperature-to-city and city-to-condition spacing. | Done: the city and condition origins move down 3 px to `y=97/115`; their measured visible-ink gaps are both 7 px. | Native pixel assertion and fixture: pass. Physical TFT pending. |
+
+`pio run -e esp32s3` passes at 96,780 B RAM (29.5%) and 3,377,911 B flash
+(51.5%). `tools/render_ui_fonts.py` and `git diff --check` pass. No device was
+flashed, so physical TFT appearance remains unverified.

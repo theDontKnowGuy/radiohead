@@ -164,8 +164,11 @@ int main(int argc, char** argv) {
     const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
     assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
     assert(homeStationTitleVisual("NPR 24", "Live Radio") == "NPR 24 • Live Radio");
+    assert(homeStationTitleVisual("גלי צהל", "Live Radio") ==
+           "להצ ילג • Live Radio");
     assert(homeStationTitleVisual("תחנה 101 FM", "Live Radio") ==
            "101 FM הנחת • Live Radio");
+    assert(homeStationTitleVisual("", "Live Radio") == "Live Radio");
     // Fit the actual Home labels into their 72 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
         assert(frame.textWidth(label, display_fonts::homeLabel()) <= 66);
@@ -189,6 +192,7 @@ int main(int argc, char** argv) {
     assert(kHomeTileIconFallbackYOffset[1] == -4);
     assert(kHomeTileIconFallbackYOffset[2] == 0);
     assert(kHomeTileIconFallbackYOffset[3] == 1);
+    assert(kListHeaderCenterY == 22);
     int fractionalClockPixels = 0;
     for (size_t index = 0; index < sizeof(ui_home_clock_alpha); ++index) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
@@ -269,6 +273,40 @@ int main(int argc, char** argv) {
         }
     }
     antialias = true;
+    // Match the visible vertical gap from temperature to city with the gap
+    // from city to condition; font origins alone do not express ink bounds.
+    frame.fillScreen(0);
+    drawHomeTemperatureAtlas("30*");
+    text("Tel Aviv", 76, kHomeWeatherCityTop, homeCaptionFont(), kWhite, 106);
+    text("Partly cloudy", 76, kHomeWeatherConditionTop, homeCaptionFont(), kWhite, 106);
+    auto rowHasInk = [&](int y) {
+        for (int x = 76; x < 190; ++x) {
+            if (frame.readPixel(x, y) != 0) return true;
+        }
+        return false;
+    };
+    int temperatureBottom = 0;
+    int cityTop = 240;
+    int cityBottom = 0;
+    int conditionTop = 240;
+    for (int y = 68; y < kHomeWeatherCityTop; ++y) {
+        if (rowHasInk(y)) temperatureBottom = y + 1;
+    }
+    for (int y = kHomeWeatherCityTop; y < kHomeWeatherConditionTop; ++y) {
+        if (!rowHasInk(y)) continue;
+        cityTop = std::min(cityTop, y);
+        cityBottom = y + 1;
+    }
+    for (int y = kHomeWeatherConditionTop; y < 140; ++y) {
+        if (rowHasInk(y)) {
+            conditionTop = y;
+            break;
+        }
+    }
+    const int temperatureCityGap = cityTop - temperatureBottom;
+    const int cityConditionGap = conditionTop - cityBottom;
+    assert(temperatureCityGap == cityConditionGap);
+    assert(temperatureCityGap == 7);
     const auto glyphVerticalCenterTwice = [](int glyph) {
         const uint8_t* alpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
         int top = ui_home_clock_cell_height;
@@ -388,6 +426,7 @@ int main(int argc, char** argv) {
     assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
+    assert(uiHitTest(toneHitState, 22, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(toneHitState, 226, 72) == UiTarget::ToneBassDecrease);
     assert(uiHitTest(toneHitState, 282, 118) == UiTarget::ToneMidIncrease);
     assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
@@ -401,13 +440,18 @@ int main(int argc, char** argv) {
     assert(uiHitTest(toneHitState, 304, 162) == UiTarget::None);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
+    assert(uiHitTest(deviceHitState, 22, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceFirmware);
     assert(uiHitTest(deviceHitState, 160, 116) == UiTarget::DeviceCalibration);
     assert(uiHitTest(deviceHitState, 160, 203) == UiTarget::DeviceFactoryReset);
     UiRenderState firmwareHitState;
     firmwareHitState.page = UiPage::SettingsFirmware;
+    assert(uiHitTest(firmwareHitState, 22, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(firmwareHitState, 160, 68) == UiTarget::FirmwareCheckNow);
     assert(uiHitTest(firmwareHitState, 160, 124) == UiTarget::FirmwareToggleAutoInstall);
+    UiRenderState settingsHandoffHitState;
+    settingsHandoffHitState.page = UiPage::SettingsWebHandoff;
+    assert(uiHitTest(settingsHandoffHitState, 22, 22) == UiTarget::SettingsBack);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
     assert(homeCityLabel("  Haifa  ") == "Haifa");
     assert(homeCityLabel("") == "Weather");
@@ -423,6 +467,9 @@ int main(int argc, char** argv) {
     save((dir + "/home-smooth.ppm").c_str());
     currentStationIdx = 1;
     renderHome({}, "15:01", true);
+    assert(homeStationTitleMarquee.stationVisual == "להצ ילג");
+    assert(homeStationTitleMarquee.sourceSuffix == " • Live Radio");
+    assert(homeStationTitleMarquee.stationWidth > 0);
     save((dir + "/home-hebrew-station.ppm").c_str());
     currentStationIdx = 0;
     renderHome({}, "15:56", true);
@@ -484,6 +531,12 @@ int main(int argc, char** argv) {
     renderStations({}, "10:00", true);
     save((dir + "/header-fresh.ppm").c_str());
     renderStations({}, "15:01", true);
+    // Live Radio deliberately owns this header preview while the user reviews
+    // it. The chevron is a filled mark with a seven-pixel waist, not the
+    // one-pixel shared-list glyph used by the other screens.
+    for (int x = 12; x <= 18; ++x) {
+        assert(frame.readPixel(x, kListHeaderCenterY) == kWhite);
+    }
     save((dir + "/stations-smooth.ppm").c_str());
     renderListening({}, "15:01", true);
     save((dir + "/player-smooth.ppm").c_str());
@@ -531,14 +584,24 @@ int main(int argc, char** argv) {
     save((dir + "/settings-audio-smooth.ppm").c_str());
     UiRenderState displaySettings;
     displaySettings.page = UiPage::SettingsDisplay;
+    assert(uiHitTest(displaySettings, 22, 22) == UiTarget::SettingsBack);
     displaySettings.dimSecondsDraft = 60;
     renderDisplaySettings(displaySettings, "15:01", true);
     save((dir + "/settings-display-smooth.ppm").c_str());
     renderDeviceSettings(deviceHitState, "15:01", true);
     save((dir + "/settings-device-smooth.ppm").c_str());
+    renderFirmwareSettings(firmwareHitState, "15:01", true);
+    save((dir + "/settings-firmware-smooth.ppm").c_str());
+    settingsHandoffHitState.settingsWebHandoff = 0;
+    renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
+    save((dir + "/settings-network-smooth.ppm").c_str());
+    settingsHandoffHitState.settingsWebHandoff = 1;
+    renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
+    save((dir + "/settings-weather-time-smooth.ppm").c_str());
     UiRenderState restartConfirm;
     restartConfirm.page = UiPage::SettingsConfirm;
     restartConfirm.settingsConfirmAction = 1;
+    assert(uiHitTest(restartConfirm, 22, 22) == UiTarget::SettingsBack);
     renderSettingsConfirmation(restartConfirm, "15:01", true);
     save((dir + "/settings-restart-confirm-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.

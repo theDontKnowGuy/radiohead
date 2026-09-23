@@ -1,10 +1,10 @@
 {
   "source": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip",
-  "font": "InterDisplay-Medium.otf",
-  "font_sha256": "9a17712bbd6da13b7ce9beb056d19fe15648799a11d5c35f8086a1270a0d13b2",
+  "font": "InterDisplay-SemiBold.otf",
+  "font_sha256": "991234562ac06b47aefa2ca4d4ff74360a164a5653ec05357816fc4ffe3ca8a2",
   "license": "SIL Open Font License 1.1; ../fonts/Inter-LICENSE.txt",
   "native_size_px": 30,
-  "weight": "Medium",
+  "weight": "SemiBold",
   "pillow": "12.1.1",
   "freetype": "2.14.1",
   "supersampling": 8,
@@ -19,18 +19,18 @@
   "color": "#FFFFFF",
   "advance_scale": 10000,
   "advance_units": [
-    187500,
-    111250,
-    172500,
-    181250,
-    188750,
-    175000,
-    178750,
-    157500,
+    191250,
+    113750,
+    176250,
+    183750,
+    193750,
     177500,
-    178750,
-    85000,
-    130000
+    181250,
+    161250,
+    181250,
+    181250,
+    86250,
+    131250
   ],
   "tracking_units": 0,
   "ink_anchor": {
@@ -38,7 +38,7 @@
     "top_y": 68
   },
   "bytes": 11424,
-  "sha256": "cdb4ca956be1afda68c0dfee18f27e0593c290ce1e2b9e898a190c77e7dffd73",
+  "sha256": "34531166caa1311fdbc15e0ac2c5081a7a2efaa0dc29be206589ac417bcb5ee8",
   "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.",
   "degree": {
     "native_size_px": 20,

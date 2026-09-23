@@ -539,7 +539,8 @@ void handleTarget(UiTarget target, int value = 0) {
             if (state.settingsConfirmAction == 1) queue(UiCommandKind::RestartDevice);
             if (state.settingsConfirmAction == 2) queue(UiCommandKind::FactoryResetDevice);
             openDeviceSettings();
-        } else if (target == UiTarget::SettingsConfirmCancel) {
+        } else if (target == UiTarget::SettingsConfirmCancel ||
+                   target == UiTarget::SettingsBack) {
             openDeviceSettings();
         }
         break;

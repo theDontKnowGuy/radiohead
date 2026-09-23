@@ -3,7 +3,7 @@
 // The release script reads these values before it builds and publishes a
 // release. Keep this as the single source of truth for both the compiled image
 // and GitHub's manifest.
-#define FIRMWARE_VERSION "0.0.1"
+#define FIRMWARE_VERSION "0.1.1"
 #define FIRMWARE_RELEASED "2026-09-23"
 #define FIRMWARE_NOTES "test firmware release"
 

@@ -1,5 +1,47 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Settings header alignment, back action and contrast
+
+**Scope:** every native Settings screen now uses one optical header centerline
+for the back chevron, title, clock and Wi-Fi mark. The Settings chevron is a
+filled 5 px-wide shape instead of the former hairline mark, while retaining the
+existing 72×48 px touch target. Main Settings, Audio, Display, Device, Firmware,
+Network and Weather/Time continue to return to their existing parent pages.
+Restart/factory-reset confirmation now also accepts the visible header Back
+target and returns to Device without queuing the destructive action.
+
+All Settings pages use a 152/255 black veil over the coastal background on the
+PSRAM canvas, making card/button labels easier to read while retaining the
+sunset direction. The direct-TFT fallback uses solid product navy because that
+path cannot safely depend on full-screen alpha readback. Non-Settings screens
+are unchanged.
+
+**Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
+inspected at 320×240 across the full family: [main](evidence/2026-09-23-settings-header-contrast/settings-smooth.png),
+[second page](evidence/2026-09-23-settings-header-contrast/settings-page-two-smooth.png),
+[Audio](evidence/2026-09-23-settings-header-contrast/settings-audio-smooth.png),
+[Display](evidence/2026-09-23-settings-header-contrast/settings-display-smooth.png),
+[Device](evidence/2026-09-23-settings-header-contrast/settings-device-smooth.png),
+[Firmware](evidence/2026-09-23-settings-header-contrast/settings-firmware-smooth.png),
+[Network header](evidence/2026-09-23-settings-header-contrast/settings-network-smooth.png),
+[Weather & Time](evidence/2026-09-23-settings-header-contrast/settings-weather-time-smooth.png),
+and [confirmation](evidence/2026-09-23-settings-header-contrast/settings-restart-confirm-smooth.png).
+The host Network fixture stubs QR content, so its image validates only the
+shared background/header treatment; production QR behavior is unchanged.
+
+**Functional: pass.** Native hit tests cover Back on every Settings page and
+the confirmation overlay. The controller test verifies that modal Back returns
+to Device without emitting a restart/reset command. `python3 tools/render_ui_fonts.py`,
+`python3 tools/check_touch_input.py`, `pio run -e esp32s3`, and
+`git diff --check` pass. The shared-worktree build reports **96,780 B RAM
+(29.5%) and 3,377,907 B flash (51.5%)**. Existing concurrent Home typography,
+firmware-update and version edits remain included in those totals.
+
+**Hardware: not verified; not flashed.** Final TFT darkness, header alignment,
+finger comfort and QR readability still require device observation. TypeSafe's
+deterministic/semantic separation was applied; no live Jev call or firmware AI
+dependency was used.
+
 ## 2026-09-23 — Home weather and station-title alignment
 
 **Scope:** this user-requested Home-only pass aligns the temperature's visible
@@ -26,6 +68,16 @@ layout could compile; this has no device-firmware behavior. **Hardware: not
 verified; not flashed.** Physical TFT alignment and legibility remain open.
 This is deterministic layout work; no live Jev judgment or runtime AI integration
 was used.
+
+**Hebrew/Latin ordering follow-up:** the active station and its source suffix are
+now drawn as two explicit adjacent runs. The Hebrew station owns the x=38 left
+anchor; ` • Live Radio` is placed after the measured station width, so mixed-script
+bidi handling cannot move the station to the suffix's right. Both runs retain one
+clip region and marquee timeline. The exact `גלי צהל` fixture and the empty-name
+fallback are asserted. Refreshed native evidence is linked above. The native
+fixture, `pio run -e esp32s3`, and `git diff --check` pass; the shared worktree
+build reports **96,780 B RAM (29.5%) and 3,377,911 B flash (51.5%)**. Hardware
+remains unverified and the firmware was not flashed.
 
 ## 2026-09-23 — Home clock scale and matching temperature numerals
 

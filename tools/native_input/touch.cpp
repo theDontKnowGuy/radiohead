@@ -8,6 +8,7 @@
 int currentStationIdx = 0;
 int gB = 0, gM = 0, gT = 0;
 uint16_t autoDimSeconds = 30;
+bool firmwareAutoUpdate = true;
 uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
     for (const uint16_t option : {15, 30, 60, 120}) {
         if (seconds == option) return option;
@@ -239,6 +240,11 @@ int main() {
     uiControllerTap(UiTarget::SettingsNext, 0, 0, false);
     assert(uiControllerRenderState().settingsOffset == 1);
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
+    uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::SettingsConfirm);
+    uiControllerTap(UiTarget::SettingsBack, 0, 0, false);
+    assert(uiControllerRenderState().page == UiPage::SettingsDevice);
+    assert(!uiControllerTakeCommand(command));
     uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsConfirm);
     uiControllerTap(UiTarget::SettingsConfirmCancel, 0, 0, false);

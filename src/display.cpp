@@ -573,6 +573,8 @@ void drawNetworkQrHandoff(bool connected) {
 constexpr int16_t kHomeTileY = 149;
 constexpr int16_t kHomeTileWidth = 72;
 constexpr int16_t kHomeTileHeight = 70;
+constexpr int16_t kHomeWeatherCityTop = 97;
+constexpr int16_t kHomeWeatherConditionTop = 115;
 constexpr int16_t kHomeTileIconSize = 34;
 constexpr int16_t kHomeTileX[] = {7, 85, 163, 241};
 // The four 34 px PNG canvases have different transparent top padding.  Anchor
@@ -610,6 +612,7 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 // The font's visible glyphs sit below its top-left origin.  This offset keeps
 // a single-line label optically centered in a 46 px list card.
 constexpr int16_t kListPrimaryTextTop = 11;
+constexpr int16_t kListHeaderCenterY = 22;
 
 // Share the brand title's visible left edge while retaining the existing
 // x=200 right boundary for clock clearance and marquee clipping.
@@ -623,7 +626,9 @@ constexpr unsigned long kHomeStationTitleTickMs = 40;
 
 struct HomeStationTitleMarquee {
     String identity;
-    String visual;
+    String stationVisual;
+    String sourceSuffix;
+    int16_t stationWidth = 0;
     int16_t width = 0;
     unsigned long cycleStartedAt = 0;
     unsigned long nextRefreshAt = 0;
@@ -701,8 +706,8 @@ void scheduleHomeStationTitleRefresh(unsigned long now) {
 }
 
 String homeStationTitleVisual(const String& station, const char* source) {
-    const String stationLabel = station.isEmpty() ? String(source) : station;
-    const UiTextLayout stationLayout = uiTextLayout(stationLabel);
+    if (station.isEmpty()) return String(source);
+    const UiTextLayout stationLayout = uiTextLayout(station);
 
     // Keep the two semantic fields in the same UI order for every script.
     // Passing the complete "station • source" string through the RTL adapter
@@ -714,16 +719,24 @@ String homeStationTitleVisual(const String& station, const char* source) {
 }
 
 void prepareHomeStationTitle(const String& station, const char* source, unsigned long now) {
-    String identity = station.isEmpty() ? String(source) : station;
-    identity += " • ";
-    identity += source;
+    const String identity = station.isEmpty()
+        ? String(source)
+        : station + " • " + source;
     if (identity == homeStationTitleMarquee.identity) return;
 
     canvas().setFont(uiFont(&fonts::Font0));
-    const String visual = homeStationTitleVisual(station, source);
+    const String stationVisual = station.isEmpty()
+        ? String(source)
+        : uiTextLayout(station).visual;
+    const String sourceSuffix = station.isEmpty()
+        ? String()
+        : String(" • ") + source;
     homeStationTitleMarquee.identity = identity;
-    homeStationTitleMarquee.visual = visual;
-    homeStationTitleMarquee.width = canvas().textWidth(visual.c_str());
+    homeStationTitleMarquee.stationVisual = stationVisual;
+    homeStationTitleMarquee.sourceSuffix = sourceSuffix;
+    homeStationTitleMarquee.stationWidth = canvas().textWidth(stationVisual.c_str());
+    homeStationTitleMarquee.width = homeStationTitleMarquee.stationWidth
+        + canvas().textWidth(sourceSuffix.c_str());
     homeStationTitleMarquee.overflows = homeStationTitleMarquee.width > kHomeStationTitleWidth;
     homeStationTitleMarquee.cycleStartedAt = now;
     homeStationTitleMarquee.nextRefreshAt = now;
@@ -741,8 +754,17 @@ void drawHomeStationTitle(unsigned long now) {
     // make this subtitle drift toward the clock.
     canvas().setClipRect(kHomeStationTitleLeft, kHomeStationTitleTop,
                          kHomeStationTitleWidth, kHomeStationTitleHeight);
-    canvas().drawString(homeStationTitleMarquee.visual.c_str(),
-                        kHomeStationTitleLeft - offset, kHomeStationTitleTop);
+    const int16_t stationX = kHomeStationTitleLeft - offset;
+    // Draw the semantic runs separately. The Hebrew station always owns the
+    // left edge; the Latin source can only follow it on the right and cannot
+    // be moved ahead of it by mixed-script bidi layout.
+    canvas().drawString(homeStationTitleMarquee.stationVisual.c_str(),
+                        stationX, kHomeStationTitleTop);
+    if (!homeStationTitleMarquee.sourceSuffix.isEmpty()) {
+        canvas().drawString(homeStationTitleMarquee.sourceSuffix.c_str(),
+                            stationX + homeStationTitleMarquee.stationWidth,
+                            kHomeStationTitleTop);
+    }
     canvas().clearClipRect();
     scheduleHomeStationTitleRefresh(now);
 }
@@ -930,6 +952,20 @@ void drawListPager(int offset, int count, int rows, int16_t top = kStationListTo
 
 void drawBackground() {
     if (!canvas().drawPng(ui_background_png, ui_background_png_len, 0, 0, 320, 240)) {
+        canvas().fillScreen(kNavy);
+    }
+}
+
+void drawSettingsBackground() {
+    drawBackground();
+    if (uiFrameReady) {
+        // Settings are information-dense. Retain the coastal image while
+        // suppressing its highlights so labels and controls read immediately.
+        canvas().fillRectAlpha(0, 0, 320, 240, 152, TFT_BLACK);
+    } else {
+        // Alpha blending requires a readable backing surface. The direct-TFT
+        // fallback therefore uses the product navy instead of risking a slow
+        // or unsupported full-screen readback.
         canvas().fillScreen(kNavy);
     }
 }
@@ -1339,22 +1375,74 @@ void drawListHeader(const char* title, const char* currentTime, bool timeValid) 
     // List pages preserve the sunset photo all the way to the top edge.  Keep
     // the back affordance, title, clock, and Wi-Fi glyph on one shared
     // baseline so Stations, Recorded Shows, and Favorites cannot drift apart.
-    canvas().drawLine(kListOuterInset + 9, 14, kListOuterInset, 22, kWhite);
-    canvas().drawLine(kListOuterInset, 22, kListOuterInset + 9, 30, kWhite);
+    canvas().drawLine(kListOuterInset + 9, kListHeaderCenterY - 8,
+                      kListOuterInset, kListHeaderCenterY, kWhite);
+    canvas().drawLine(kListOuterInset, kListHeaderCenterY,
+                      kListOuterInset + 9, kListHeaderCenterY + 8, kWhite);
     canvas().setTextDatum(ML_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString(title, kListTitleLeft, 22, uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().drawString(title, kListTitleLeft, kListHeaderCenterY,
+                        uiFont(&fonts::FreeSansBold12pt7b));
     canvas().setTextDatum(MR_DATUM);
     canvas().setTextSize(1);  // Keep the compact header clock at its VLW size.
     canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270, 22, display_fonts::headerClock());
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, kListHeaderCenterY,
+                        display_fonts::headerClock());
     if (uiFrameReady) {
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, 12);
+        // The asset's visible pixels occupy local y=4..16, so this places its
+        // optical center on the same line as the other header elements.
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282,
+                         kListHeaderCenterY - 10);
     } else {
-        canvas().drawArc(294, 20, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(294, 20, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(294, 26, 2, kWhite);
+        canvas().drawArc(294, kListHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(294, kListHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(294, kListHeaderCenterY + 4, 2, kWhite);
     }
+}
+
+void drawLiveStationsHeader(const char* currentTime, bool timeValid) {
+    constexpr int16_t centerY = 22;
+
+    // Match the reference's substantial, continuous back mark.  Four triangles
+    // form one six-point chevron, avoiding the hairline list glyph and the
+    // pinched seam visible in the experimental Settings header.
+    canvas().fillTriangle(24, 10, 28, 14, 18, centerY, kWhite);
+    canvas().fillTriangle(24, 10, 18, centerY, 12, centerY, kWhite);
+    canvas().fillTriangle(12, centerY, 18, centerY, 28, 30, kWhite);
+    canvas().fillTriangle(12, centerY, 28, 30, 24, 34, kWhite);
+
+    const lgfx::IFont* headerFont = uiFont(&fonts::FreeSansBold12pt7b);
+    canvas().setTextDatum(ML_DATUM);
+    canvas().setTextSize(1);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Live Radio", 40, centerY, headerFont);
+
+    // The reference clock has the title's weight and height, rather than the
+    // narrower regular clock used by the older shared list header.
+    canvas().setTextDatum(MR_DATUM);
+    canvas().setTextColor(kClockText);
+    canvas().drawString(timeValid ? currentTime : "--:--", 270, centerY, headerFont);
+
+    if (uiFrameReady) {
+        // The asset's visible y=4..16 pixels center on y=22 at this origin.
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282, centerY - 10);
+    } else {
+        canvas().drawArc(294, centerY - 2, 5, 8, 210, 330, kWhite);
+        canvas().drawArc(294, centerY - 2, 10, 13, 210, 330, kWhite);
+        canvas().fillCircle(294, centerY + 4, 2, kWhite);
+    }
+}
+
+void drawSettingsHeader(const char* title, const char* currentTime, bool timeValid) {
+    drawListHeader(title, currentTime, timeValid);
+    // Replace the hairline list chevron with a filled settings affordance. Its
+    // visible bounds and midpoint are symmetric around the shared centerline.
+    canvas().fillTriangle(17, kListHeaderCenterY - 10,
+                          17, kListHeaderCenterY - 5,
+                          7, kListHeaderCenterY, kWhite);
+    canvas().fillTriangle(7, kListHeaderCenterY,
+                          17, kListHeaderCenterY + 5,
+                          17, kListHeaderCenterY + 10, kWhite);
 }
 
 // Recorded playback uses the same transparent photo header as the reference
@@ -1560,7 +1648,7 @@ void renderListening(const UiRenderState& state, const char* currentTime, bool t
 
 void renderStations(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    drawListHeader("Live Radio", currentTime, timeValid);
+    drawLiveStationsHeader(currentTime, timeValid);
     const int count = playableStationCount();
     if (count == 0) {
         text("No stations saved", 28, 88, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
@@ -1902,8 +1990,7 @@ void drawEditorFooter() {
 }
 
 void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
-    drawListHeader("Settings", currentTime, timeValid);
+    drawSettingsBackground();
     static constexpr const char* kLabels[] = {
         "Wi-Fi", "Display", "Audio", "Weather & Time", "Device",
     };
@@ -1914,20 +2001,20 @@ void renderSettings(const UiRenderState& state, const char* currentTime, bool ti
                             kLabels[item], static_cast<uint8_t>(item));
     }
     drawListPager(state.settingsOffset, sizeof(kLabels) / sizeof(kLabels[0]), kStationRowsPerPage);
+    drawSettingsHeader("Settings", currentTime, timeValid);
 }
 
 void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
-    drawListHeader("Audio", currentTime, timeValid);
+    drawSettingsBackground();
     drawEditorControl(44, "Bass", state.toneBassDraft);
     drawEditorControl(92, "Mid", state.toneMidDraft);
     drawEditorControl(140, "Treble", state.toneTrebleDraft);
     drawEditorFooter();
+    drawSettingsHeader("Audio", currentTime, timeValid);
 }
 
 void renderDisplaySettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
-    drawListHeader("Display", currentTime, timeValid);
+    drawSettingsBackground();
     drawListCard(8, 68, false, true);
     text("Auto dimming", 24, 79, uiFont(&fonts::FreeSans9pt7b), kWhite, 124);
     const String dimLabel = String(state.dimSecondsDraft) + " sec";
@@ -1941,16 +2028,17 @@ void renderDisplaySettings(const UiRenderState& state, const char* currentTime, 
     text("The screen wakes on touch or control input.", 24, 132,
          uiFont(&fonts::Font0), kTextMuted, 250);
     drawEditorFooter();
+    drawSettingsHeader("Display", currentTime, timeValid);
 }
 
 void renderDeviceSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    drawBackground();
-    drawListHeader("Device", currentTime, timeValid);
+    drawSettingsBackground();
     drawSettingsListRow(44, "Firmware updates", 4);
     drawSettingsListRow(92, "Touch calibration", 4);
     drawSettingsListRow(140, "Restart", 4);
     drawSettingsListRow(188, state.deviceActionFailed ? "Reset failed" : "Factory reset", 4, true);
     drawListPager(0, 4, kStationRowsPerPage);
+    drawSettingsHeader("Device", currentTime, timeValid);
 }
 
 String firmwareUpdateStatusLabel(const FirmwareUpdater::Snapshot& update) {
@@ -1979,8 +2067,7 @@ String firmwareUpdateStatusLabel(const FirmwareUpdater::Snapshot& update) {
 void renderFirmwareSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     (void)state;
     const FirmwareUpdater::Snapshot update = firmwareUpdater.snapshot();
-    drawBackground();
-    drawListHeader("Firmware updates", currentTime, timeValid);
+    drawSettingsBackground();
 
     drawListCard(8, 52, false, true);
     text("Check for updates", 24, 52 + kFirmwareCardPrimaryTextInset,
@@ -2009,14 +2096,15 @@ void renderFirmwareSettings(const UiRenderState& state, const char* currentTime,
         text(release, 24, 164 + kFirmwareCardSecondaryTextInset,
              uiFont(&fonts::Font0), kWhite, 264);
     }
+    drawSettingsHeader("Firmware updates", currentTime, timeValid);
 }
 
 void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
     const bool network = state.settingsWebHandoff == 0;
-    drawBackground();
-    drawListHeader(network ? "Network" : "Weather & Time", currentTime, timeValid);
+    drawSettingsBackground();
     if (network) {
         drawNetworkQrHandoff(!isAP);
+        drawSettingsHeader("Network", currentTime, timeValid);
         return;
     }
     drawListCard(kListOuterInset, 66, false, true);
@@ -2027,6 +2115,7 @@ void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTim
     text("Passwords and API keys stay off this screen.", 24, 142,
          uiFont(&fonts::Font0), kTextMuted, 260);
     footerButton(0, 320, "Back");
+    drawSettingsHeader("Weather & Time", currentTime, timeValid);
 }
 
 void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2106,20 +2195,14 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     // composition layer; only dense pages receive opaque reading surfaces.
     // Visibility is a committed setting shared with the web UI, not a browser-
     // only preference.  Hidden weather leaves the photograph untouched.
-    if (showWeatherOnHome) {
-        drawHomeWeatherIcon(9, 68, hasWeather, condition);
-    }
     if (showWeatherOnHome && hasWeather) {
+        drawHomeWeatherIcon(9, 68, true, condition);
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d*", static_cast<int>(roundf(displayedTemperature)));
         drawHomeTemperatureAtlas(temperatureText);
-        text(homeCityLabel(owmCity), 76, 94, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 76, 112, homeCaptionFont(), kWhite, 106);
-    } else if (showWeatherOnHome) {
-        text("Weather", 90, 67, uiFont(&fonts::Font0), kWhite, 98);
-        text("Unavailable", 90, 91, uiFont(&fonts::FreeSans9pt7b), kWhite, 106);
-        text("Configure on phone", 90, 118, uiFont(&fonts::Font0), kTextMuted, 116);
+        text(homeCityLabel(owmCity), 76, kHomeWeatherCityTop, homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), 76, kHomeWeatherConditionTop, homeCaptionFont(), kWhite, 106);
     }
 
     // Manual-update mode needs an on-device prompt as well as the browser's
@@ -2333,6 +2416,9 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
             contains(x, y, 0, 188, 320, 52)) return UiTarget::SettingsBack;
     } else if (state.page == UiPage::SettingsConfirm) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) {
+            return UiTarget::SettingsBack;
+        }
         if (contains(x, y, 45, 142, 104, 36)) return UiTarget::SettingsConfirmCancel;
         if (contains(x, y, 171, 142, 104, 36)) return UiTarget::SettingsConfirmAccept;
     } else if (state.page == UiPage::Unavailable) {
