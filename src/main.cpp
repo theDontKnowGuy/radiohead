@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "app_state.h"
+#include "boot_screen.h"
 #include "device_control.h"
 #include "display.h"
 #include "firmware_updater.h"
@@ -16,6 +17,10 @@
 #include "web_server.h"
 
 namespace {
+
+constexpr unsigned long kNetworkJoinTimeoutMs = 30UL * 500UL;
+static_assert(kNetworkJoinTimeoutMs >= BootScreen::HoldMs);
+bool networkJoinStarted = false;
 
 bool startSetupAccessPoint(SetupAccessReason reason) {
     // Retain the station interface for the configuration page's asynchronous
@@ -33,23 +38,20 @@ bool startSetupAccessPoint(SetupAccessReason reason) {
     return true;
 }
 
-void connectToNetwork() {
-    if (st_ssid.isEmpty()) {
-        startSetupAccessPoint(SetupAccessReason::NoCredentials);
-        return;
-    }
-
+void beginNetworkConnection() {
     WiFi.mode(WIFI_STA);
     // This must precede WiFi.begin() so the DHCP request and the mDNS responder
     // agree on the radio's name.
     WiFi.setHostname(kRadioMdnsHostname);
     WiFi.begin(st_ssid.c_str(), st_pass.c_str());
-    int retryCount = 0;
-    while (WiFi.status() != WL_CONNECTED && retryCount < 30) {
-        delay(500);
-        ++retryCount;
-    }
+    networkJoinStarted = true;
+}
 
+bool networkJoinPending() {
+    return networkJoinStarted && WiFi.status() != WL_CONNECTED;
+}
+
+void finishNetworkConnection() {
     if (WiFi.status() != WL_CONNECTED) {
         startSetupAccessPoint(SetupAccessReason::ConnectionFailed);
         return;
@@ -167,9 +169,18 @@ void setup() {
     // of the currently corrupt LittleFS partition, before web rendering can
     // ask for station thumbnails.
     stationArtworkBegin();
-    if (!isAP) {
-        connectToNetwork();
+
+    BootScreen::draw();
+    const unsigned long bootScreenStartedAt = millis();
+    if (!isAP && st_ssid.isEmpty()) {
+        startSetupAccessPoint(SetupAccessReason::NoCredentials);
+    } else if (!isAP) {
+        beginNetworkConnection();
     }
+    BootScreen::hold(
+        bootScreenStartedAt, networkJoinPending, kNetworkJoinTimeoutMs);
+    if (networkJoinStarted) finishNetworkConnection();
+
     startWebServer();
     showNetworkQrScreen();
     if (!isAP) {

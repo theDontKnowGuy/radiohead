@@ -1,5 +1,27 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Artwork boot screen and progress
+
+**Scope:** startup now shows the supplied `docs/boot.png` artwork before the
+network QR handoff. The build reproducibly resizes its native 4:3 composition to
+the rectangular 320×240 panel and embeds the compressed PNG in program flash as
+a generated `BootLogo.h`. A centered blue/cyan progress pill animates over seven
+seconds. Wi-Fi association begins underneath the animation; if the existing
+15-second join window is still pending, the completed bar remains visible until
+the join succeeds or that window expires. Requested setup mode and missing
+credentials retain their existing AP behavior and show the same seven-second
+boot animation before the setup QR.
+
+**Visual: source and generated asset inspected at native resolution.** The
+generated 320×240 artwork preserves the supplied image edge to edge without a
+square crop; the progress bar sits in the open lower-center region. **Functional:
+pass in build.** `pio run -e esp32s3` and `git diff --check` pass. The build
+reports **96,340 B RAM (29.4%), 3,491,195 B flash (53.3%)**, and a
+**3,542,015-byte** total image. **Hardware: not verified; not flashed.** Panel
+color, PNG decode, progress pacing and the connected/failure/AP transitions still
+need observation on the physical radio. TypeSafe's deterministic/semantic
+separation was applied; no live Jev judgment or runtime AI integration was used.
+
 ## 2026-09-23 — Branded Wi-Fi recovery handoff
 
 **Scope:** every startup path that enters the `Radio_Setup` access point now

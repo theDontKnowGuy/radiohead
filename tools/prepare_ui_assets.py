@@ -16,9 +16,14 @@ source = project / "docs" / "bg1.png"
 output = project / ".pio" / "ui_assets"
 png = output / "background_320x240.png"
 header = output / "ui_background_asset.h"
+boot_source = project / "docs" / "boot.png"
+boot_png = output / "boot_320x240.png"
+boot_header = output / "BootLogo.h"
 
 if not source.is_file():
     raise RuntimeError("Missing required UI source image: docs/bg1.png")
+if not boot_source.is_file():
+    raise RuntimeError("Missing required boot image: docs/boot.png")
 
 output.mkdir(parents=True, exist_ok=True)
 header_is_current = header.exists() and "const unsigned char ui_background_png[]" in header.read_text(encoding="utf-8")
@@ -33,6 +38,36 @@ if not header_is_current or header.stat().st_mtime < source.stat().st_mtime:
     generated = generated.replace("unsigned char ui_background_png[]", "const unsigned char ui_background_png[]")
     generated = generated.replace("unsigned int ui_background_png_len", "const unsigned int ui_background_png_len")
     header.write_text(generated, encoding="utf-8")
+
+# The boot artwork has the panel's native 4:3 aspect ratio. Keep its compressed
+# PNG representation in flash: the textured border does not RLE efficiently,
+# while LovyanGFX already uses the same bounded PNG decoder for the product UI.
+boot_header_is_current = (
+    boot_header.exists()
+    and "const unsigned char boot_logo_png[]" in boot_header.read_text(encoding="utf-8")
+)
+if not boot_header_is_current or boot_header.stat().st_mtime < boot_source.stat().st_mtime:
+    run([
+        "/usr/bin/sips", "--resampleHeightWidth", "240", "320",
+        str(boot_source), "--out", str(boot_png),
+    ], check=True)
+    generated = run(
+        ["/usr/bin/xxd", "-i", "-n", "boot_logo_png", str(boot_png)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    generated = generated.replace(
+        "unsigned char boot_logo_png[]", "const unsigned char boot_logo_png[]")
+    generated = generated.replace(
+        "unsigned int boot_logo_png_len", "const unsigned int boot_logo_png_len")
+    boot_header.write_text(
+        "#pragma once\n\n"
+        "// Generated from docs/boot.png by tools/prepare_ui_assets.py.\n"
+        "// Stored as a native 320x240 PNG in program flash.\n"
+        + generated,
+        encoding="utf-8",
+    )
 
 env.Append(CPPPATH=[str(output)])
 
