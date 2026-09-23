@@ -1,0 +1,52 @@
+{
+  "source": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip",
+  "font": "InterDisplay-Medium.otf",
+  "font_sha256": "9a17712bbd6da13b7ce9beb056d19fe15648799a11d5c35f8086a1270a0d13b2",
+  "license": "SIL Open Font License 1.1; ../fonts/Inter-LICENSE.txt",
+  "native_size_px": 30,
+  "weight": "Medium",
+  "pillow": "12.1.1",
+  "freetype": "2.14.1",
+  "supersampling": 8,
+  "optical_thickening_px_per_side": 0.0,
+  "glyphs": "0123456789\u00b0-",
+  "alpha_bits": 8,
+  "cell_size": [
+    28,
+    34
+  ],
+  "baseline_y": 29,
+  "color": "#FFFFFF",
+  "advance_scale": 10000,
+  "advance_units": [
+    187500,
+    111250,
+    172500,
+    181250,
+    188750,
+    175000,
+    178750,
+    157500,
+    177500,
+    178750,
+    85000,
+    130000
+  ],
+  "tracking_units": 0,
+  "ink_anchor": {
+    "left_x": 76,
+    "top_y": 68
+  },
+  "bytes": 11424,
+  "sha256": "cdb4ca956be1afda68c0dfee18f27e0593c290ce1e2b9e898a190c77e7dffd73",
+  "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.",
+  "degree": {
+    "native_size_px": 20,
+    "ink_top_in_cell": 4,
+    "runtime_character": "*",
+    "ink_size_px": [
+      8,
+      8
+    ]
+  }
+}

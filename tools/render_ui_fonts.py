@@ -38,7 +38,7 @@ for index, path in enumerate(c + cpp):
     objects.append(str(obj))
     deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / 'include/ui_text.h', root / '.pio/ui_assets/ui_font_assets.h']
     if path.name == 'home.cpp':
-        deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h']
+        deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_home_temperature_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h']
     if obj.exists() and all(obj.stat().st_mtime > dep.stat().st_mtime for dep in deps):
         continue
     command = ['clang++', '-std=c++17'] if path.suffix == '.cpp' else ['clang']
@@ -55,7 +55,6 @@ except ImportError:
 else:
     clock_manifest = __import__('json').loads(
         (root / 'docs/ui/assets/home/clock_atlas.json').read_text())
-    clock_source = root / 'docs/ui/assets/home/home-clock-assets'
     clock_alpha = (root / 'docs/ui/assets/home/clock_atlas.bin').read_bytes()
     clock_glyphs = clock_manifest['glyphs']
     cell_width, cell_height = clock_manifest['cell_size']
@@ -63,11 +62,6 @@ else:
     advance_scale = clock_manifest['advance_scale']
     tracking = clock_manifest['tracking_units']
     anchor = clock_manifest['ink_anchor']
-    package = __import__('json').loads((clock_source / 'manifest.json').read_text())
-    assert package['version'] == 'v3-heavier'
-    assert package['clock_color_rgb'] == '#F5F5F5'
-    assert package['common_baseline_y_px'] == 33
-    assert package['clock_anchor'] == {'right_x_exclusive': 301, 'top_y': 41}
     pen = 0
     clock_width = 0
     for glyph in '14:37':
@@ -91,12 +85,10 @@ else:
     assert clock_ink_bounds is not None
     clock_overlay.alpha_composite(clock_string, (anchor['right_x'] - clock_ink_bounds[2],
                                                   anchor['top_y'] - clock_ink_bounds[1]))
-    # The atlas itself is the supplied source of truth. The package's reference
-    # previews are comparison artwork, not a second renderer or a replacement
-    # glyph source. Verify that manifest anchoring is applied to its live atlas.
+    # Verify the regenerated outline atlas keeps the requested visible-ink anchor.
     clock_bounds = clock_overlay.getchannel('A').getbbox()
     assert clock_bounds[2] == anchor['right_x']
     assert clock_bounds[1] == anchor['top_y']
     for path in out.glob('*.ppm'):
         Image.open(path).save(path.with_suffix('.png'))
-    print(f'PNG evidence: {out}; supplied v3 14:37 atlas uses the manifest ink anchor')
+    print(f'PNG evidence: {out}; regenerated 14:37 atlas uses the manifest ink anchor')

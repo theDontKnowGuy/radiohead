@@ -518,24 +518,21 @@ void handleTarget(UiTarget target, int value = 0) {
         }
         break;
     case UiPage::SettingsFirmware:
-        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) {
+        if (target == UiTarget::SettingsBack) {
             openDeviceSettings();
-        } else if (target == UiTarget::DeviceAbout) {
-            state.page = UiPage::SettingsAbout;
-            markDirty();
         } else if (target == UiTarget::FirmwareCheckNow) {
             queue(UiCommandKind::RequestFirmwareUpdateCheck);
+            markDirty();
+        } else if (target == UiTarget::FirmwareInstallNow) {
+            queue(UiCommandKind::RequestFirmwareUpdateInstall);
             markDirty();
         } else if (target == UiTarget::FirmwareToggleAutoInstall) {
             queue(UiCommandKind::SetFirmwareAutoInstall, firmwareAutoUpdate ? 0 : 1);
             markDirty();
         }
         break;
-    case UiPage::SettingsAbout:
-        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) openDeviceSettings();
-        break;
     case UiPage::SettingsWebHandoff:
-        if (target == UiTarget::SettingsBack || target == UiTarget::AboutBack) openSettings();
+        if (target == UiTarget::SettingsBack) openSettings();
         break;
     case UiPage::SettingsConfirm:
         if (target == UiTarget::SettingsConfirmAccept) {

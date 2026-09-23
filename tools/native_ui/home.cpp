@@ -13,6 +13,7 @@
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
 #include "ui_home_clock_atlas.h"
+#include "ui_home_temperature_atlas.h"
 #include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
 #include "ui_player_assets.h"
@@ -49,11 +50,23 @@ uint16_t autoDimSeconds = 30;
 // or persistence into the host test binary.
 class FirmwareUpdater {
 public:
+    enum class Status : uint8_t {
+        Idle,
+        Checking,
+        UpToDate,
+        UpdateFound,
+        Downloading,
+        Installed,
+        Failed,
+    };
     struct Snapshot {
+        Status status = Status::Idle;
+        String message;
+        String availableVersion;
+        String notes;
         bool busy = false;
         bool autoInstall = false;
         bool awaitingConfirmation = false;
-        String message;
     };
     Snapshot snapshot() const { return {}; }
 };
@@ -67,7 +80,7 @@ int playableStationCount() { return 3; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 3 ? i : -1; }
 constexpr int STATION_COUNT = 10;
 struct Station { String name; String url; };
-Station stations[] = {{"NPR 24", "https://example.test/npr"}, {"תחנה 101 FM", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
+Station stations[] = {{"NPR 24", "https://example.test/npr"}, {"גלי צהל", "https://example.test/101"}, {"A very long station title", "https://example.test/long"}};
 int currentStationIdx = 0;
 bool podcastMode = false, useCelsius = true, weatherDataValid = true;
 // Fixture defaults mirror the persisted Home configuration defaults.
@@ -150,19 +163,21 @@ int main(int argc, char** argv) {
     assert(mixed.visual == "2025 רבמטפסב 15 - 15 קרפ");
     const UiTextLayout mixedLatin = uiTextLayout("GALATZ 99");
     assert(!mixedLatin.rightToLeft && mixedLatin.visual == "GALATZ 99");
+    assert(homeStationTitleVisual("NPR 24", "Live Radio") == "NPR 24 • Live Radio");
+    assert(homeStationTitleVisual("תחנה 101 FM", "Live Radio") ==
+           "101 FM הנחת • Live Radio");
     // Fit the actual Home labels into their 72 px tiles with 3 px side insets.
     for (const char* label : {"Live Radio", "Recorded", "Shows", "Favorites", "Settings"}) {
         assert(frame.textWidth(label, display_fonts::homeLabel()) <= 66);
     }
     assert(frame.textWidth("Current weather", display_fonts::caption()) <= 102);
-    assert(frame.textWidth("104°", uiFont(&fonts::FreeSansBold18pt7b)) <= 106);
+    assert(kHomeStationTitleLeft == 38);
+    assert(kHomeStationTitleLeft + kHomeStationTitleWidth == 200);
     assert(ui_home_clock_glyph_count == 12);
-    assert(ui_home_clock_cell_width == 32 && ui_home_clock_cell_height == 38);
-    assert(ui_home_clock_baseline_y == 33);
+    assert(ui_home_clock_cell_width == 36 && ui_home_clock_cell_height == 42);
+    assert(ui_home_clock_baseline_y == 36);
     assert(ui_home_clock_advance_scale == 10000 && ui_home_clock_tracking_units == 2500);
-    assert(ui_home_clock_advance_units[0] == 235938 && ui_home_clock_advance_units[9] == 224219);
-    assert(ui_home_clock_advance_units[10] == 87500 && ui_home_clock_advance_units[11] == 162656);
-    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 41);
+    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 37);
     // Home icon PNGs have unequal transparent padding, so the renderer aligns
     // their visible ink rather than their canvas origins.
     assert(kHomeTileIconVisibleTop == kHomeTileY + 8);
@@ -179,15 +194,15 @@ int main(int argc, char** argv) {
         fractionalClockPixels += ui_home_clock_alpha[index] != 0 && ui_home_clock_alpha[index] != 255;
     }
     assert(fractionalClockPixels > 100);  // 8-bit Lanczos alpha, not bitmap text.
-    // Exercise the production renderer directly: it must retain the supplied
+    // Exercise the production renderer directly: it must retain the generated
     // fractional advances/tracking, compose alpha, then blend once in RGB565.
     constexpr int kClockTestWidth = 160;
     auto assertClock = [&](const char* value) {
-        uint8_t expectedClockAlpha[kClockTestWidth * 38] = {};
+        uint8_t expectedClockAlpha[kClockTestWidth * ui_home_clock_cell_height] = {};
         int32_t clockPenUnits = 0;
         int composedWidth = 0;
         for (const char* character = value; *character; ++character) {
-            const int glyph = homeClockGlyphIndex(*character);
+            const int glyph = homeNumeralGlyphIndex(*character);
             const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
                 ui_home_clock_advance_scale;
             composedWidth = std::max(composedWidth, glyphX + ui_home_clock_cell_width);
@@ -196,7 +211,7 @@ int main(int argc, char** argv) {
         assert(composedWidth <= kClockTestWidth);
         clockPenUnits = 0;
         for (const char* character = value; *character; ++character) {
-            const int glyph = homeClockGlyphIndex(*character);
+            const int glyph = homeNumeralGlyphIndex(*character);
             const int glyphX = (clockPenUnits + ui_home_clock_advance_scale / 2) /
                 ui_home_clock_advance_scale;
             const uint8_t* glyphAlpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
@@ -225,7 +240,7 @@ int main(int argc, char** argv) {
             for (int x = 0; x < composedWidth; ++x) {
                 const uint8_t alpha = expectedClockAlpha[y * kClockTestWidth + x];
                 assert(frame.readPixel(ui_home_clock_ink_right - inkRight + x,
-                                       ui_home_clock_ink_top - inkTop + y) == blendClockPixel(0x0000, alpha));
+                                       ui_home_clock_ink_top - inkTop + y) == blendHomeNumeralPixel(0x0000, alpha, kClockText));
             }
         }
     };
@@ -233,6 +248,27 @@ int main(int argc, char** argv) {
     assertClock("00:00");
     assertClock("--:--");
     assertClock("18:32");
+    assertClock("9:05");  // One-digit hour in 12-hour mode.
+    // Check the actual pixels of the new left-anchored temperature role and
+    // its fallback, including signs and three-digit Fahrenheit readings.
+    for (bool smooth : {true, false}) {
+        antialias = smooth;
+        for (const char* value : {"28*", "-12*", "104*", "0*"}) {
+            frame.fillScreen(0);
+            drawHomeTemperatureAtlas(value);
+            int left = 320, right = 0, top = 240, bottom = 0;
+            for (int y = 0; y < 240; ++y) for (int x = 0; x < 320; ++x) {
+                if (!frame.readPixel(x, y)) continue;
+                left = std::min(left, x);
+                right = std::max(right, x + 1);
+                top = std::min(top, y);
+                bottom = std::max(bottom, y + 1);
+            }
+            assert(left >= 76 && left <= 77 && right <= 160);
+            assert(top >= 68 && top <= 69 && bottom >= 93 && bottom <= 94); // Raised degree / enlarged digits.
+        }
+    }
+    antialias = true;
     const auto glyphVerticalCenterTwice = [](int glyph) {
         const uint8_t* alpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
         int top = ui_home_clock_cell_height;
@@ -249,7 +285,7 @@ int main(int argc, char** argv) {
     int centerMin = 2 * ui_home_clock_cell_height;
     int centerMax = 0;
     for (char digit = '0'; digit <= '9'; ++digit) {
-        const int center = glyphVerticalCenterTwice(homeClockGlyphIndex(digit));
+        const int center = glyphVerticalCenterTwice(homeNumeralGlyphIndex(digit));
         centerMin = std::min(centerMin, center);
         centerMax = std::max(centerMax, center);
     }
@@ -385,6 +421,10 @@ int main(int argc, char** argv) {
     const std::string dir = argv[1];
     renderHome({}, "15:01", true);
     save((dir + "/home-smooth.ppm").c_str());
+    currentStationIdx = 1;
+    renderHome({}, "15:01", true);
+    save((dir + "/home-hebrew-station.ppm").c_str());
+    currentStationIdx = 0;
     renderHome({}, "15:56", true);
     save((dir + "/home-clock-1556.ppm").c_str());
     renderHome({}, "09:58", true);

@@ -360,6 +360,10 @@ void loop() {
             firmwareUpdater.requestCheckNow();
             forceRedraw = true;
             break;
+        case UiCommandKind::RequestFirmwareUpdateInstall:
+            firmwareUpdater.requestInstallNow();
+            forceRedraw = true;
+            break;
         case UiCommandKind::SetFirmwareAutoInstall: {
             const bool enabled = command.value != 0;
             if (!saveFirmwareAutoUpdate(enabled)) {

@@ -22,6 +22,7 @@
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
 #include "ui_home_clock_atlas.h"
+#include "ui_home_temperature_atlas.h"
 #include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
 #include "ui_player_assets.h"
@@ -610,9 +611,11 @@ constexpr int16_t kFavoriteListBottom = kFavoriteListTop +
 // a single-line label optically centered in a 46 px list card.
 constexpr int16_t kListPrimaryTextTop = 11;
 
-constexpr int16_t kHomeStationTitleLeft = 34;
+// Share the brand title's visible left edge while retaining the existing
+// x=200 right boundary for clock clearance and marquee clipping.
+constexpr int16_t kHomeStationTitleLeft = 38;
 constexpr int16_t kHomeStationTitleTop = 30;
-constexpr int16_t kHomeStationTitleWidth = 166;
+constexpr int16_t kHomeStationTitleWidth = 162;
 constexpr int16_t kHomeStationTitleHeight = 14;
 constexpr unsigned long kHomeStationTitleRestMs = 3000;
 constexpr unsigned long kHomeStationTitlePixelsPerSecond = 25;
@@ -697,6 +700,19 @@ void scheduleHomeStationTitleRefresh(unsigned long now) {
     }
 }
 
+String homeStationTitleVisual(const String& station, const char* source) {
+    const String stationLabel = station.isEmpty() ? String(source) : station;
+    const UiTextLayout stationLayout = uiTextLayout(stationLabel);
+
+    // Keep the two semantic fields in the same UI order for every script.
+    // Passing the complete "station • source" string through the RTL adapter
+    // makes a Hebrew station move after "• Live Radio".
+    String visual = stationLayout.visual;
+    visual += " • ";
+    visual += source;
+    return visual;
+}
+
 void prepareHomeStationTitle(const String& station, const char* source, unsigned long now) {
     String identity = station.isEmpty() ? String(source) : station;
     identity += " • ";
@@ -704,10 +720,10 @@ void prepareHomeStationTitle(const String& station, const char* source, unsigned
     if (identity == homeStationTitleMarquee.identity) return;
 
     canvas().setFont(uiFont(&fonts::Font0));
-    const UiTextLayout layout = uiTextLayout(identity);
+    const String visual = homeStationTitleVisual(station, source);
     homeStationTitleMarquee.identity = identity;
-    homeStationTitleMarquee.visual = layout.visual;
-    homeStationTitleMarquee.width = canvas().textWidth(layout.visual.c_str());
+    homeStationTitleMarquee.visual = visual;
+    homeStationTitleMarquee.width = canvas().textWidth(visual.c_str());
     homeStationTitleMarquee.overflows = homeStationTitleMarquee.width > kHomeStationTitleWidth;
     homeStationTitleMarquee.cycleStartedAt = now;
     homeStationTitleMarquee.nextRefreshAt = now;
@@ -1083,81 +1099,83 @@ void drawHomeAsset(const uint8_t (&asset)[N], int16_t x, int16_t y) {
     canvas().drawPng(asset, N, x, y);
 }
 
-int8_t homeClockGlyphIndex(char character) {
+int8_t homeNumeralGlyphIndex(char character) {
     if (character >= '0' && character <= '9') return character - '0';
-    if (character == ':') return 10;
+    if (character == ':' || character == '*') return 10;
     return character == '-' ? 11 : -1;
 }
 
-uint16_t blendClockPixel(uint16_t background, uint8_t alpha) {
-    if (alpha == 255) return kClockText;
+uint16_t blendHomeNumeralPixel(uint16_t background, uint8_t alpha, uint16_t color) {
+    if (alpha == 255) return color;
     const uint16_t inverse = 255U - alpha;
     const uint16_t red = (((background >> 11) & 0x1FU) * inverse
-        + ((kClockText >> 11) & 0x1FU) * alpha + 127U) / 255U;
+        + ((color >> 11) & 0x1FU) * alpha + 127U) / 255U;
     const uint16_t green = (((background >> 5) & 0x3FU) * inverse
-        + ((kClockText >> 5) & 0x3FU) * alpha + 127U) / 255U;
+        + ((color >> 5) & 0x3FU) * alpha + 127U) / 255U;
     const uint16_t blue = ((background & 0x1FU) * inverse
-        + (kClockText & 0x1FU) * alpha + 127U) / 255U;
+        + (color & 0x1FU) * alpha + 127U) / 255U;
     return static_cast<uint16_t>((red << 11) | (green << 5) | blue);
 }
 
-void drawHomeClockAtlas(const char* value) {
-    // The supplied v3 cells share a y=33 baseline. Their visible ink—not their
-    // 32x38 cells or nominal advances—aligns to the manifest's top/right anchor.
-    // Compose first so overlapping straight-alpha masks are blended once against
-    // the actual RGB565 Home frame.
-    constexpr int16_t kHomeClockMaxWidth = 160;
-    constexpr uint8_t kHomeClockMaxHeight = 38;
-    static_assert(ui_home_clock_baseline_y == 33, "Home clock baseline must match its package");
-    static_assert(kClockText == 0xF7BE, "Home clock color must remain #F5F5F5");
+void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
+                         uint8_t cellWidth, uint8_t cellHeight,
+                         const int32_t* advances, int32_t tracking,
+                         int16_t anchorX, int16_t anchorTop, bool rightAligned,
+                         uint16_t color) {
+    // Compose overlapping masks once, then blend over the actual RGB565 frame.
+    // Shared static storage bounds both roles without adding a second RAM buffer.
+    constexpr int16_t kHomeNumeralMaxWidth = 160;
+    constexpr uint8_t kHomeNumeralMaxHeight = 42;
+    constexpr int32_t advanceScale = 10000;
     int32_t penUnits = 0;
     int16_t composedWidth = 0;
     for (const char* character = value; *character != '\0'; ++character) {
-        const int8_t index = homeClockGlyphIndex(*character);
+        const int8_t index = homeNumeralGlyphIndex(*character);
         if (index < 0) continue;
-        const int16_t glyphX = static_cast<int16_t>((penUnits + ui_home_clock_advance_scale / 2) /
-                                                    ui_home_clock_advance_scale);
-        composedWidth = std::max<int16_t>(composedWidth, glyphX + ui_home_clock_cell_width);
-        penUnits += ui_home_clock_advance_units[index] + ui_home_clock_tracking_units;
+        if (penUnits > (kHomeNumeralMaxWidth - cellWidth) * advanceScale) return;
+        const int16_t glyphX = static_cast<int16_t>((penUnits + advanceScale / 2) /
+                                                    advanceScale);
+        composedWidth = std::max<int16_t>(composedWidth, glyphX + cellWidth);
+        penUnits += advances[index] + tracking;
     }
-    if (penUnits <= 0 || composedWidth > kHomeClockMaxWidth ||
-        ui_home_clock_cell_height > kHomeClockMaxHeight) return;
+    if (penUnits <= 0 || composedWidth > kHomeNumeralMaxWidth ||
+        cellHeight > kHomeNumeralMaxHeight) return;
 
-    constexpr size_t kCellBytes = ui_home_clock_cell_width * ui_home_clock_cell_height;
-    static uint8_t composedAlpha[kHomeClockMaxWidth * kHomeClockMaxHeight];
-    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+    const size_t kCellBytes = cellWidth * cellHeight;
+    static uint8_t composedAlpha[kHomeNumeralMaxWidth * kHomeNumeralMaxHeight];
+    for (uint8_t y = 0; y < cellHeight; ++y) {
         for (int16_t x = 0; x < composedWidth; ++x) {
-            composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] = 0;
+            composedAlpha[static_cast<size_t>(y) * kHomeNumeralMaxWidth + x] = 0;
         }
     }
 
     penUnits = 0;
     for (const char* character = value; *character != '\0'; ++character) {
-        const int8_t glyph = homeClockGlyphIndex(*character);
+        const int8_t glyph = homeNumeralGlyphIndex(*character);
         if (glyph < 0) continue;
-        const int16_t glyphX = static_cast<int16_t>((penUnits + ui_home_clock_advance_scale / 2) /
-                                                    ui_home_clock_advance_scale);
-        const uint8_t* alpha = ui_home_clock_alpha + static_cast<size_t>(glyph) * kCellBytes;
-        for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
-            for (uint8_t x = 0; x < ui_home_clock_cell_width && glyphX + x < composedWidth; ++x) {
-                const uint8_t coverage = alpha[y * ui_home_clock_cell_width + x];
+        const int16_t glyphX = static_cast<int16_t>((penUnits + advanceScale / 2) /
+                                                    advanceScale);
+        const uint8_t* alpha = atlas + static_cast<size_t>(glyph) * kCellBytes;
+        for (uint8_t y = 0; y < cellHeight; ++y) {
+            for (uint8_t x = 0; x < cellWidth && glyphX + x < composedWidth; ++x) {
+                const uint8_t coverage = alpha[y * cellWidth + x];
                 if (coverage == 0) continue;
-                uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + glyphX + x];
+                uint8_t& composed = composedAlpha[static_cast<size_t>(y) * kHomeNumeralMaxWidth + glyphX + x];
                 composed = static_cast<uint8_t>(coverage +
                     (static_cast<uint16_t>(composed) * (255U - coverage) + 127U) / 255U);
             }
         }
-        penUnits += ui_home_clock_advance_units[glyph] + ui_home_clock_tracking_units;
+        penUnits += advances[glyph] + tracking;
         serviceUiAudio();
     }
 
     int16_t inkLeft = composedWidth;
-    int16_t inkTop = ui_home_clock_cell_height;
+    int16_t inkTop = cellHeight;
     int16_t inkRight = 0;
     int16_t inkBottom = 0;
-    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+    for (uint8_t y = 0; y < cellHeight; ++y) {
         for (int16_t x = 0; x < composedWidth; ++x) {
-            if (composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x] == 0) continue;
+            if (composedAlpha[static_cast<size_t>(y) * kHomeNumeralMaxWidth + x] == 0) continue;
             if (x < inkLeft) inkLeft = x;
             if (y < inkTop) inkTop = y;
             if (x + 1 > inkRight) inkRight = x + 1;
@@ -1166,27 +1184,42 @@ void drawHomeClockAtlas(const char* value) {
     }
     if (inkRight <= inkLeft || inkBottom <= inkTop) return;
 
-    const int16_t originX = ui_home_clock_ink_right - inkRight;
-    const int16_t originY = ui_home_clock_ink_top - inkTop;
-    for (uint8_t y = 0; y < ui_home_clock_cell_height; ++y) {
+    const int16_t originX = anchorX - (rightAligned ? inkRight : inkLeft);
+    const int16_t originY = anchorTop - inkTop;
+    for (uint8_t y = 0; y < cellHeight; ++y) {
         for (int16_t x = 0; x < composedWidth; ++x) {
-            const uint8_t coverage = composedAlpha[static_cast<size_t>(y) * kHomeClockMaxWidth + x];
+            const uint8_t coverage = composedAlpha[static_cast<size_t>(y) * kHomeNumeralMaxWidth + x];
             if (coverage == 0) continue;
             const int16_t pixelX = originX + x;
             const int16_t pixelY = originY + y;
             if (uiFrameReady) {
                 canvas().drawPixel(pixelX, pixelY,
-                                   blendClockPixel(canvas().readPixel(pixelX, pixelY), coverage));
+                                   blendHomeNumeralPixel(canvas().readPixel(pixelX, pixelY), coverage, color));
             } else if (coverage >= 128) {
                 // The direct TFT path cannot safely read the sunset background
                 // back for alpha blending. Paint the already-composed source
                 // mask once, rather than falling back to a second font renderer.
-                canvas().drawPixel(pixelX, pixelY, kClockText);
+                canvas().drawPixel(pixelX, pixelY, color);
             }
         }
         // Keep the audio stream serviced during the bounded final blend.
         if ((y & 0x07U) == 0x07U) serviceUiAudio();
     }
+}
+
+void drawHomeClockAtlas(const char* value) {
+    drawHomeNumeralAtlas(value, ui_home_clock_alpha, ui_home_clock_cell_width,
+        ui_home_clock_cell_height, ui_home_clock_advance_units,
+        ui_home_clock_tracking_units, ui_home_clock_ink_right, ui_home_clock_ink_top,
+        true, kClockText);
+}
+
+void drawHomeTemperatureAtlas(const char* value) {
+    // '*' selects the optically raised degree glyph in this numeral-only atlas.
+    drawHomeNumeralAtlas(value, ui_home_temperature_alpha, ui_home_temperature_cell_width,
+        ui_home_temperature_cell_height, ui_home_temperature_advance_units,
+        ui_home_temperature_tracking_units, ui_home_temperature_ink_left,
+        ui_home_temperature_ink_top, false, kWhite);
 }
 
 void drawHomeWeatherIcon(int16_t x, int16_t visibleTop, bool valid, int id) {
@@ -1840,6 +1873,13 @@ constexpr int16_t kToneMinusX = 204;
 constexpr int16_t kTonePlusX = 260;
 constexpr int16_t kToneButtonWidth = 44;
 
+// The shared wide-card artwork is 42 px high. These origins center the visible
+// two-line glyph block (the fonts' ink sits below its nominal origin), leaving
+// equal visual breathing room above and below. Keep this local to Firmware
+// updates until it has been checked on the physical panel.
+constexpr int16_t kFirmwareCardPrimaryTextInset = 4;
+constexpr int16_t kFirmwareCardSecondaryTextInset = 22;
+
 void drawEditorControl(int16_t y, const char* label, int value) {
     drawListCard(8, y + 2, false, true);
     listPrimaryText(label, 24, y, 104);
@@ -1913,6 +1953,29 @@ void renderDeviceSettings(const UiRenderState& state, const char* currentTime, b
     drawListPager(0, 4, kStationRowsPerPage);
 }
 
+String firmwareUpdateStatusLabel(const FirmwareUpdater::Snapshot& update) {
+    switch (update.status) {
+    case FirmwareUpdater::Status::Checking:
+        return "Checking GitHub releases...";
+    case FirmwareUpdater::Status::UpToDate:
+        return "Up to date";
+    case FirmwareUpdater::Status::UpdateFound:
+        if (!update.availableVersion.isEmpty()) {
+            return String("Update available: ") + update.availableVersion;
+        }
+        return "Update available";
+    case FirmwareUpdater::Status::Downloading:
+        return "Downloading update...";
+    case FirmwareUpdater::Status::Installed:
+        return "Installed; restarting...";
+    case FirmwareUpdater::Status::Failed:
+        return "Update failed - tap to retry";
+    case FirmwareUpdater::Status::Idle:
+    default:
+        return "No update check yet";
+    }
+}
+
 void renderFirmwareSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     (void)state;
     const FirmwareUpdater::Snapshot update = firmwareUpdater.snapshot();
@@ -1920,42 +1983,32 @@ void renderFirmwareSettings(const UiRenderState& state, const char* currentTime,
     drawListHeader("Firmware updates", currentTime, timeValid);
 
     drawListCard(8, 52, false, true);
-    text(update.busy ? "Checking GitHub releases..." : "Check for updates", 24, 64,
+    text("Check for updates", 24, 52 + kFirmwareCardPrimaryTextInset,
          uiFont(&fonts::FreeSans9pt7b), kWhite, 246);
-    text(update.busy ? "Please wait; audio keeps playing." : "Check the official release channel now.",
-         24, 86, uiFont(&fonts::Font0), kTextMuted, 246);
+    text(firmwareUpdateStatusLabel(update), 24, 52 + kFirmwareCardSecondaryTextInset,
+         uiFont(&fonts::Font0),
+         update.status == FirmwareUpdater::Status::Failed ? kAmber : kTextMuted, 264);
 
     drawListCard(8, 108, false, true);
-    text("Update mode", 24, 120, uiFont(&fonts::FreeSans9pt7b), kWhite, 120);
-    text(update.autoInstall ? "Automatic" : "Manual (web install)", 24, 142,
-         uiFont(&fonts::Font0), update.autoInstall ? kBlueFocus : kAmber, 228);
+    text("Update mode", 24, 108 + kFirmwareCardPrimaryTextInset,
+         uiFont(&fonts::FreeSans9pt7b), kWhite, 120);
+    canvas().setTextDatum(MR_DATUM);
+    canvas().setTextColor(update.autoInstall ? kBlueFocus : kAmber);
+    canvas().drawString(update.autoInstall ? "Automatic" : "Manual", 294, 129,
+                        uiFont(&fonts::FreeSans9pt7b));
+    text("Tap to switch", 24, 108 + kFirmwareCardSecondaryTextInset,
+         uiFont(&fonts::Font0), kTextMuted, 246);
 
     if (update.awaitingConfirmation) {
-        canvas().fillRoundRect(8, 164, 304, 20, 5, kAmber);
-        canvas().setTextDatum(MC_DATUM);
-        canvas().setTextColor(kNavy);
-        canvas().drawString("UPDATE AVAILABLE", 160, 174, uiFont(&fonts::Font0));
-    } else {
-        text(update.message.isEmpty() ? "No update check has run yet." : update.message,
-             24, 168, uiFont(&fonts::Font0), kTextMuted, 270);
+        drawListCard(8, 164, true, true);
+        text("Update now", 24, 164 + kFirmwareCardPrimaryTextInset,
+             uiFont(&fonts::FreeSans9pt7b), kWhite, 246);
+        const String release = update.availableVersion.isEmpty()
+            ? String("Download and install the checked release")
+            : String("Download and install ") + update.availableVersion;
+        text(release, 24, 164 + kFirmwareCardSecondaryTextInset,
+             uiFont(&fonts::Font0), kWhite, 264);
     }
-    // Keep the previous device information reachable even though the Device
-    // list now needs its first row for the firmware flow.
-    footerButton(0, 160, "About");
-    footerButton(160, 160, "Back");
-}
-
-void renderSettingsAbout(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    (void)state;
-    drawBackground();
-    drawListHeader("About", currentTime, timeValid);
-    drawListCard(kListOuterInset, 62, false, true);
-    text("Radiohead internet radio", 24, 76, uiFont(&fonts::FreeSans9pt7b), kWhite, 260);
-    text(String("Address: ") + (isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString()),
-         24, 102, uiFont(&fonts::Font0), kTextMuted, 260);
-    text("Firmware updates use the web interface.", 24, 128,
-         uiFont(&fonts::Font0), kTextMuted, 260);
-    footerButton(0, 320, "Back");
 }
 
 void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2059,14 +2112,8 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     if (showWeatherOnHome && hasWeather) {
         char temperatureText[12];
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
-        snprintf(temperatureText, sizeof(temperatureText), "%d", static_cast<int>(roundf(displayedTemperature)));
-        // Align the smaller regular temperature's visible glyphs with the
-        // weather artwork, rather than its nominal line box.
-        text(uiFrameReady ? String(temperatureText) + "°" : String(temperatureText),
-             76, 62, uiFont(&fonts::FreeSansBold18pt7b), kWhite, 106);
-        if (!uiFrameReady) {
-            canvas().drawCircle(84 + canvas().textWidth(temperatureText), 81, 2, kWhite);
-        }
+        snprintf(temperatureText, sizeof(temperatureText), "%d*", static_cast<int>(roundf(displayedTemperature)));
+        drawHomeTemperatureAtlas(temperatureText);
         text(homeCityLabel(owmCity), 76, 94, homeCaptionFont(), kWhite, 106);
         text(homeWeatherDescription(condition), 76, 112, homeCaptionFont(), kWhite, 106);
     } else if (showWeatherOnHome) {
@@ -2277,14 +2324,11 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (row == 2) return UiTarget::DeviceRestart;
         if (row == 3) return UiTarget::DeviceFactoryReset;
     } else if (state.page == UiPage::SettingsFirmware) {
-        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
-            contains(x, y, 160, 188, 160, 52)) return UiTarget::SettingsBack;
-        if (contains(x, y, 0, 188, 160, 52)) return UiTarget::DeviceAbout;
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
         if (contains(x, y, 8, 52, 304, 48)) return UiTarget::FirmwareCheckNow;
         if (contains(x, y, 8, 108, 304, 48)) return UiTarget::FirmwareToggleAutoInstall;
-    } else if (state.page == UiPage::SettingsAbout) {
-        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
-            contains(x, y, 0, 188, 320, 52)) return UiTarget::AboutBack;
+        if (contains(x, y, 8, 164, 304, 48) &&
+            firmwareUpdater.snapshot().awaitingConfirmation) return UiTarget::FirmwareInstallNow;
     } else if (state.page == UiPage::SettingsWebHandoff) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
             contains(x, y, 0, 188, 320, 52)) return UiTarget::SettingsBack;
@@ -2347,9 +2391,6 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
         break;
     case UiPage::SettingsFirmware:
         renderFirmwareSettings(state, currentTime, timeValid);
-        break;
-    case UiPage::SettingsAbout:
-        renderSettingsAbout(state, currentTime, timeValid);
         break;
     case UiPage::SettingsWebHandoff:
         renderSettingsWebHandoff(state, currentTime, timeValid);

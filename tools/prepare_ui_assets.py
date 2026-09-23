@@ -95,43 +95,36 @@ home_header = output / "ui_home_assets.h"
 if not home_header.exists() or home_header.read_text() != content:
     home_header.write_text(content, encoding="utf-8")
 
-# The Home clock is a purpose-built 8-bit alpha atlas, not a VLW font. It is
-# composited onto the current readable RGB565 frame so anti-aliased edge pixels
-# use the actual sunset beneath them instead of an assumed solid background.
-clock_manifest_path = home_dir / "clock_atlas.json"
-clock_binary_path = home_dir / "clock_atlas.bin"
-clock_manifest = json.loads(clock_manifest_path.read_text())
-clock_data = clock_binary_path.read_bytes()
-if hashlib.sha256(clock_data).hexdigest() != clock_manifest["sha256"]:
-    raise RuntimeError("Home clock atlas hash mismatch; run tools/prepare_home_clock_atlas.py")
-glyphs = clock_manifest["glyphs"]
-cell_width, cell_height = clock_manifest["cell_size"]
-if (clock_manifest["alpha_bits"], clock_manifest["advance_scale"], len(clock_data)) != (
-        8, 10000, len(glyphs) * cell_width * cell_height):
-    raise RuntimeError("Invalid Home clock atlas geometry")
-clock_anchor = clock_manifest["ink_anchor"]
-if (clock_manifest["color"], clock_manifest["baseline_y"], cell_width, cell_height) != (
-        "#F5F5F5", 33, 32, 38):
-    raise RuntimeError("Unexpected Home clock package metrics")
-if not (0 <= clock_anchor["right_x"] <= 320 and 0 <= clock_anchor["top_y"] <= 240):
-    raise RuntimeError("Invalid Home clock anchor")
-clock_lines = [", ".join(f"0x{byte:02x}" for byte in clock_data[index:index + 16])
-               for index in range(0, len(clock_data), 16)]
-clock_content = "#pragma once\n#include <stdint.h>\n"
-clock_content += f"constexpr uint8_t ui_home_clock_glyph_count = {len(glyphs)};\n"
-clock_content += f"constexpr uint8_t ui_home_clock_cell_width = {cell_width};\n"
-clock_content += f"constexpr uint8_t ui_home_clock_cell_height = {cell_height};\n"
-clock_content += f"constexpr uint8_t ui_home_clock_baseline_y = {clock_manifest['baseline_y']};\n"
-clock_content += f"constexpr int16_t ui_home_clock_ink_right = {clock_anchor['right_x']};\n"
-clock_content += f"constexpr int16_t ui_home_clock_ink_top = {clock_anchor['top_y']};\n"
-clock_content += f"constexpr int32_t ui_home_clock_advance_scale = {clock_manifest['advance_scale']};\n"
-clock_content += "constexpr int32_t ui_home_clock_advance_units[] = {" + ", ".join(
-    str(advance) for advance in clock_manifest["advance_units"]) + "};\n"
-clock_content += f"constexpr int32_t ui_home_clock_tracking_units = {clock_manifest['tracking_units']};\n"
-clock_content += "const uint8_t ui_home_clock_alpha[] = {\n" + ",\n".join(clock_lines) + "\n};\n"
-clock_header = output / "ui_home_clock_atlas.h"
-if not clock_header.exists() or clock_header.read_text() != clock_content:
-    clock_header.write_text(clock_content, encoding="utf-8")
+# Both Home numeral roles use bounded, outline-rasterized straight-alpha cells.
+for role in ("clock", "temperature"):
+    manifest = json.loads((home_dir / f"{role}_atlas.json").read_text())
+    data = (home_dir / f"{role}_atlas.bin").read_bytes()
+    cell_width, cell_height = manifest["cell_size"]
+    glyphs = manifest["glyphs"]
+    if hashlib.sha256(data).hexdigest() != manifest["sha256"]:
+        raise RuntimeError(f"Home {role} atlas hash mismatch")
+    if (manifest["alpha_bits"], manifest["advance_scale"], len(data)) != (
+            8, 10000, len(glyphs) * cell_width * cell_height):
+        raise RuntimeError(f"Invalid Home {role} atlas geometry")
+    if len(glyphs) != 12 or not (0 < cell_width <= 36 and 0 < cell_height <= 42):
+        raise RuntimeError(f"Home {role} exceeds renderer bounds")
+    prefix = f"ui_home_{role}"
+    content = "#pragma once\n#include <stdint.h>\n"
+    for name, value in (("glyph_count", len(glyphs)), ("cell_width", cell_width),
+                        ("cell_height", cell_height), ("baseline_y", manifest["baseline_y"])):
+        content += f"constexpr uint8_t {prefix}_{name} = {value};\n"
+    for name, value in manifest["ink_anchor"].items():
+        content += f"constexpr int16_t {prefix}_ink_{name.removesuffix('_x').removesuffix('_y')} = {value};\n"
+    content += f"constexpr int32_t {prefix}_advance_scale = {manifest['advance_scale']};\n"
+    content += f"constexpr int32_t {prefix}_advance_units[] = {{" + ", ".join(
+        str(advance) for advance in manifest["advance_units"]) + "};\n"
+    content += f"constexpr int32_t {prefix}_tracking_units = {manifest['tracking_units']};\n"
+    lines = [", ".join(f"0x{byte:02x}" for byte in data[index:index + 16])
+             for index in range(0, len(data), 16)]
+    content += f"const uint8_t {prefix}_alpha[] = {{\n" + ",\n".join(lines) + "\n};\n"
+    atlas_header = output / f"{prefix}_atlas.h"
+    if not atlas_header.exists() or atlas_header.read_text() != content:
+        atlas_header.write_text(content, encoding="utf-8")
 
 # Episode-player assets are separately composed: its metadata needs a darker
 # photo treatment and no show artwork has been supplied for this device yet.

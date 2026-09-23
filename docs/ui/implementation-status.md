@@ -1,5 +1,85 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Home weather and station-title alignment
+
+**Scope:** this user-requested Home-only pass aligns the temperature's visible
+left edge with the city and condition captions at x=76, increases its Inter
+Display Medium size from 28 px to 30 px, and aligns the active station subtitle
+with the `Radiohead` title at x=38. The larger temperature moves its top anchor
+from y=70 to y=68, retaining the existing y=94 lower boundary above the city.
+The subtitle narrows from 166 px to 162 px so its x=200 right boundary and clock
+clearance remain unchanged. Weather values, captions, marquee behavior, playback,
+input and routes are unchanged.
+
+**Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
+inspected at 320×240 with Latin and Hebrew station names:
+[weather alignment](evidence/2026-09-23-home-alignment/home-weather-aligned.png)
+and [Hebrew station alignment](evidence/2026-09-23-home-alignment/home-hebrew-station-aligned.png).
+The fixture asserts the x=76 temperature anchor, enlarged temperature bounds,
+x=38 subtitle anchor and preserved x=200 clip edge.
+
+**Functional: pass.** `pio run -e esp32s3`, the native fixture, and
+`git diff --check` pass. The shared worktree build reports **96,764 B RAM
+(29.5%) and 3,377,327 B flash (51.5%)**. The host fixture's pre-existing firmware
+updater stub was extended with the current status/version fields so the production
+layout could compile; this has no device-firmware behavior. **Hardware: not
+verified; not flashed.** Physical TFT alignment and legibility remain open.
+This is deterministic layout work; no live Jev judgment or runtime AI integration
+was used.
+
+## 2026-09-23 — Home clock scale and matching temperature numerals
+
+**Scope:** the Home numeral assets and production display renderer, using the
+existing sunset composition. This supersedes the v3 clock metrics below; its
+original supplied package remains intact as historical reference.
+
+The clock is freshly rasterized from Inter Display SemiBold 4.1 at 40 px,
+with the existing 0.375 px optical thickening and 0.25 px tracking. No old glyph
+bitmap is enlarged. For the same `14:37`, total alpha bounds grow from 90×28 to
+98×32 px; the main visible strokes occupy 31 px vertically (alpha >= 24).
+The right ink edge remains x=301; the top moves from y=41 to y=37.
+
+Temperature now uses Inter Display Medium at 28 px in both canvas and fallback
+paths. Its numbers retain a 22 px ink height, start at x=83/y=72, and have a
+separately rasterized 7×7 px degree ring starting at y=70. This moves the digits
+7 px right and 4 px down from the prior normal-canvas sample. The city and
+condition captions retain their existing geometry. White/RGB565 colors are
+unchanged. Celsius/Fahrenheit conversion, weather freshness and clock formatting
+are unchanged. Both numeral roles share a bounded 6,720-byte alpha workspace
+(previous clock workspace: 6,080 bytes); drawing continues to service audio.
+
+**Visual: pass for native geometry and font construction**, inspected through the
+production C++/LovyanGFX path at 320×240:
+[before, 14:37](evidence/2026-09-23-home-typography/home-before-1437.png),
+[after, 14:37](evidence/2026-09-23-home-typography/home-clock-1437.png),
+[negative temperature](evidence/2026-09-23-home-typography/home-long.png),
+[104°F](evidence/2026-09-23-home-typography/home-fahrenheit.png),
+[fallback](evidence/2026-09-23-home-typography/home-bitmap.png), and
+[unavailable](evidence/2026-09-23-home-typography/home-unavailable.png).
+No text/icon collision was observed. The direct-TFT path intentionally thresholds
+the same masks because it cannot safely read the background for alpha blending;
+its one-pixel edge differences remain visible in the fallback fixture.
+
+**Functional: pass.** `pio run -e esp32s3`, the production native fixture checks,
+and `git diff --check` pass. Fixtures cover fractional-alpha composition, clock
+anchors, a one-digit hour, signed and three-digit temperatures in both render
+paths, photo restoration and header refresh. Current worktree build:
+**96,876 B RAM (29.6%), 3,376,463 B flash (51.5%)**. Concurrent station-subtitle
+changes and the existing firmware-version edit were preserved; these totals are
+a shared-worktree snapshot, not an isolated typography size comparison.
+
+**Hardware: not verified; not flashed.** Final TFT color, stroke smoothness,
+legibility and audio continuity still require device observation. P2/P3 hardware
+acceptance remains open. TypeSafe guidance kept geometry and verification
+deterministic; no live Jev judgment or runtime AI integration was used.
+
+Regenerate masks with Pillow 12.1.1 using
+`tools/prepare_home_clock_atlas.py --font-dir /path/to/Inter-4.1/extras/otf`.
+The manifests record the upstream release URL, font hashes, rasterizer versions,
+cell metrics and degree construction. The Inter license is retained in
+`assets/fonts/Inter-LICENSE.txt`; ordinary builds use the committed atlas assets.
+
+
 ## 2026-09-22 — Finger sensitivity reopened; acquisition diagnostics
 
 **Hardware acceptance remains failed:** the user reports excellent fingernail
@@ -998,3 +1078,26 @@ room above the active station summary.
 including 104°F and long-label cases, were inspected from `.pio/ui_native/`.
 These are compiler/native-render results only; this revision has not been
 flashed, so playback continuity and TFT appearance remain unverified on device.
+
+## 2026-09-23 — Firmware update screen status layout
+
+**Functional:** Device → Firmware updates now uses two wide-card rows: Check for
+updates with a bounded, state-derived status caption (not checked, checking, up
+to date, update available, downloading, installed/restarting, or failed), and
+Update mode with its current Automatic/Manual value aligned at the right. A
+third blue Update now row appears only for a checked release awaiting manual
+approval, and requests the existing background updater install path. The former
+About/Back footer controls and their unreachable About page were removed; the
+standard header back target remains.
+
+**Visual:** source layout inspected against the native 320 × 240 coordinate
+system; status text is ellipsized to its card width and every active row has a
+48 px-high touch target. The wide-card artwork itself is 42 px high, so this
+screen alone now keeps the two-line text block visually centered using +4 px
+and +22 px origins for the primary and small status text. No native fixture image or physical TFT
+photograph was captured for this screen.
+
+**Build:** `pio run -e esp32s3` and `git diff --check` passed. RAM is 96,764 B
+(29.6%) and flash is 3,375,847 B (51.5%). **Hardware:** not verified; exercise
+every status, the mode toggle, manual Update now/reboot, header back, and audio
+continuity on the device.
