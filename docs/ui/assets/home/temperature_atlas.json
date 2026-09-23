@@ -29,24 +29,26 @@
     161250,
     181250,
     181250,
-    86250,
+    130000,
     131250
   ],
   "tracking_units": 0,
   "ink_anchor": {
-    "left_x": 76,
-    "top_y": 68
+    "left_x": 82,
+    "top_y": 70
   },
   "bytes": 11424,
-  "sha256": "34531166caa1311fdbc15e0ac2c5081a7a2efaa0dc29be206589ac417bcb5ee8",
+  "sha256": "ffaa1ee52b38819ce96377c18952152af9f59f78766a503846a150a9ba4a96f1",
   "recipe": "Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.",
   "degree": {
-    "native_size_px": 20,
-    "ink_top_in_cell": 4,
+    "native_size_px": 30,
+    "ink_left_in_cell": 5,
+    "ink_top_in_cell": 6,
+    "intended_gap_after_digit_px": 3,
     "runtime_character": "*",
     "ink_size_px": [
-      8,
-      8
+      11,
+      12
     ]
   }
 }

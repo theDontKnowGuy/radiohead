@@ -180,7 +180,45 @@ int main(int argc, char** argv) {
     assert(ui_home_clock_cell_width == 36 && ui_home_clock_cell_height == 42);
     assert(ui_home_clock_baseline_y == 36);
     assert(ui_home_clock_advance_scale == 10000 && ui_home_clock_tracking_units == 2500);
-    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 37);
+    assert(ui_home_clock_ink_right == 301 && ui_home_clock_ink_top == 40);
+    assert(ui_home_temperature_ink_left == kHomeWeatherTextLeft &&
+           ui_home_temperature_ink_top == 70);
+    // The reference uses a substantial degree ring aligned with the numeral
+    // cap height, not a small superscript tucked against the final digit.
+    const uint8_t* temperatureEight = ui_home_temperature_alpha +
+        homeNumeralGlyphIndex('8') * ui_home_temperature_cell_width *
+        ui_home_temperature_cell_height;
+    const uint8_t* temperatureDegree = ui_home_temperature_alpha +
+        homeNumeralGlyphIndex('*') * ui_home_temperature_cell_width *
+        ui_home_temperature_cell_height;
+    int eightRight = 0;
+    int eightTop = ui_home_temperature_cell_height;
+    int degreeLeft = ui_home_temperature_cell_width;
+    int degreeRight = 0;
+    int degreeTop = ui_home_temperature_cell_height;
+    int degreeBottom = 0;
+    for (int y = 0; y < ui_home_temperature_cell_height; ++y) {
+        for (int x = 0; x < ui_home_temperature_cell_width; ++x) {
+            if (temperatureEight[y * ui_home_temperature_cell_width + x] != 0) {
+                eightRight = std::max(eightRight, x + 1);
+                eightTop = std::min(eightTop, y);
+            }
+            if (temperatureDegree[y * ui_home_temperature_cell_width + x] != 0) {
+                degreeLeft = std::min(degreeLeft, x);
+                degreeRight = std::max(degreeRight, x + 1);
+                degreeTop = std::min(degreeTop, y);
+                degreeBottom = std::max(degreeBottom, y + 1);
+            }
+        }
+    }
+    const int eightStart = (ui_home_temperature_advance_units[2] +
+        ui_home_temperature_advance_scale / 2) / ui_home_temperature_advance_scale;
+    const int degreeStart = (ui_home_temperature_advance_units[2] +
+        ui_home_temperature_advance_units[8] + ui_home_temperature_advance_scale / 2) /
+        ui_home_temperature_advance_scale;
+    assert(degreeRight - degreeLeft == 11 && degreeBottom - degreeTop == 12);
+    assert(degreeTop == eightTop);
+    assert(degreeStart + degreeLeft - (eightStart + eightRight) == 3);
     // Home icon PNGs have unequal transparent padding, so the renderer aligns
     // their visible ink rather than their canvas origins.
     assert(kHomeTileIconVisibleTop == kHomeTileY + 8);
@@ -268,19 +306,21 @@ int main(int argc, char** argv) {
                 top = std::min(top, y);
                 bottom = std::max(bottom, y + 1);
             }
-            assert(left >= 76 && left <= 77 && right <= 160);
-            assert(top >= 68 && top <= 69 && bottom >= 93 && bottom <= 94); // Raised degree / enlarged digits.
+            assert(left >= 82 && left <= 83 && right <= 166);
+            assert(top >= 70 && top <= 71 && bottom >= 93 && bottom <= 94); // Top-aligned degree / enlarged digits.
         }
     }
     antialias = true;
-    // Match the visible vertical gap from temperature to city with the gap
-    // from city to condition; font origins alone do not express ink bounds.
+    // Keep the temperature-to-city rhythm while pulling only the condition
+    // line two pixels toward the fixed location line.
     frame.fillScreen(0);
     drawHomeTemperatureAtlas("30*");
-    text("Tel Aviv", 76, kHomeWeatherCityTop, homeCaptionFont(), kWhite, 106);
-    text("Partly cloudy", 76, kHomeWeatherConditionTop, homeCaptionFont(), kWhite, 106);
+    text("Tel Aviv", kHomeWeatherTextLeft, kHomeWeatherCityTop,
+         homeCaptionFont(), kWhite, 106);
+    text("Partly cloudy", kHomeWeatherTextLeft, kHomeWeatherConditionTop,
+         homeCaptionFont(), kWhite, 106);
     auto rowHasInk = [&](int y) {
-        for (int x = 76; x < 190; ++x) {
+        for (int x = kHomeWeatherTextLeft; x < 196; ++x) {
             if (frame.readPixel(x, y) != 0) return true;
         }
         return false;
@@ -305,8 +345,8 @@ int main(int argc, char** argv) {
     }
     const int temperatureCityGap = cityTop - temperatureBottom;
     const int cityConditionGap = conditionTop - cityBottom;
-    assert(temperatureCityGap == cityConditionGap);
     assert(temperatureCityGap == 7);
+    assert(cityConditionGap == 5);
     const auto glyphVerticalCenterTwice = [](int glyph) {
         const uint8_t* alpha = ui_home_clock_alpha + glyph * ui_home_clock_cell_width * ui_home_clock_cell_height;
         int top = ui_home_clock_cell_height;

@@ -573,8 +573,9 @@ void drawNetworkQrHandoff(bool connected) {
 constexpr int16_t kHomeTileY = 149;
 constexpr int16_t kHomeTileWidth = 72;
 constexpr int16_t kHomeTileHeight = 70;
+constexpr int16_t kHomeWeatherTextLeft = 82;
 constexpr int16_t kHomeWeatherCityTop = 97;
-constexpr int16_t kHomeWeatherConditionTop = 115;
+constexpr int16_t kHomeWeatherConditionTop = 113;
 constexpr int16_t kHomeTileIconSize = 34;
 constexpr int16_t kHomeTileX[] = {7, 85, 163, 241};
 // The four 34 px PNG canvases have different transparent top padding.  Anchor
@@ -2201,8 +2202,10 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
         const float displayedTemperature = useCelsius ? temperature : temperature * 9.0F / 5.0F + 32.0F;
         snprintf(temperatureText, sizeof(temperatureText), "%d*", static_cast<int>(roundf(displayedTemperature)));
         drawHomeTemperatureAtlas(temperatureText);
-        text(homeCityLabel(owmCity), 76, kHomeWeatherCityTop, homeCaptionFont(), kWhite, 106);
-        text(homeWeatherDescription(condition), 76, kHomeWeatherConditionTop, homeCaptionFont(), kWhite, 106);
+        text(homeCityLabel(owmCity), kHomeWeatherTextLeft, kHomeWeatherCityTop,
+             homeCaptionFont(), kWhite, 106);
+        text(homeWeatherDescription(condition), kHomeWeatherTextLeft,
+             kHomeWeatherConditionTop, homeCaptionFont(), kWhite, 106);
     }
 
     // Manual-update mode needs an on-device prompt as well as the browser's

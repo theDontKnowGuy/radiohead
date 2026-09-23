@@ -20,7 +20,7 @@ ADVANCE_SCALE = 10000
 def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
     source = font_dir / f'InterDisplay-{weight}.otf'
     font = ImageFont.truetype(str(source), size * SCALE)
-    degree_size = 20 if role == 'temperature' else 0
+    degree_size = 30 if role == 'temperature' else 0
     glyphs = '0123456789:-' if role == 'clock' else '0123456789°-'
     masks, advances = [], []
     for glyph in glyphs:
@@ -39,8 +39,9 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
         if glyph == '°':
             cropped = mask.crop(mask.getbbox())
             mask = Image.new('L', cell)
-            # Number tops are y=6; degree begins two pixels above them.
-            mask.paste(cropped, (2, 4))
+            # Match the mockup: the larger ring shares the digits' visible top
+            # and leaves three clear pixels after the final numeral.
+            mask.paste(cropped, (5, 6))
         masks.append(mask)
         advances.append(round(face.getlength(glyph) / SCALE * ADVANCE_SCALE))
     data = b''.join(mask.tobytes() for mask in masks)
@@ -60,10 +61,14 @@ def generate(font_dir, role, size, weight, cell, baseline, anchor, thickening):
         'recipe': 'Rasterize font outlines at 8x, apply specified optical weight, Lanczos downsample to native cells; discard alpha below 8. No existing atlas is scaled.',
     }
     if role == 'temperature':
-        manifest['degree'] = {'native_size_px': degree_size, 'ink_top_in_cell': 4,
+        degree_mask = masks[glyphs.index('°')]
+        degree_bounds = degree_mask.getbbox()
+        manifest['degree'] = {'native_size_px': degree_size,
+                              'ink_left_in_cell': degree_bounds[0],
+                              'ink_top_in_cell': degree_bounds[1],
+                              'intended_gap_after_digit_px': 3,
                               'runtime_character': '*',
-                              'ink_size_px': list(masks[glyphs.index('°')].crop(
-                                  masks[glyphs.index('°')].getbbox()).size)}
+                              'ink_size_px': list(degree_mask.crop(degree_bounds).size)}
     (OUTPUT / f'{role}_atlas.bin').write_bytes(data)
     (OUTPUT / f'{role}_atlas.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print(role, {glyph: mask.getbbox() for glyph, mask in zip(glyphs, masks)})
@@ -74,9 +79,9 @@ def main():
     parser.add_argument('--font-dir', type=Path, required=True)
     args = parser.parse_args()
     generate(args.font_dir, 'clock', 40, 'SemiBold', [36, 42], 36,
-             {'right_x': 301, 'top_y': 37}, 3)
+             {'right_x': 301, 'top_y': 40}, 3)
     generate(args.font_dir, 'temperature', 30, 'SemiBold', [28, 34], 29,
-             {'left_x': 76, 'top_y': 68}, 0)
+             {'left_x': 82, 'top_y': 70}, 0)
 
 
 if __name__ == '__main__':

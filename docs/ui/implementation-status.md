@@ -1,5 +1,29 @@
 # Touch UI implementation status
 
+## 2026-09-23 — Live Radio header preview
+
+**Scope:** one screen only, pending user review. The Live Radio station list now
+has a dedicated mockup-derived header. Its filled continuous back chevron, title,
+clock and Wi-Fi mark share the y=22 optical centerline. The title moves to x=40
+for the reference's spacing, and the clock now uses the same 22 px Roboto Medium
+face as the title instead of the narrower 18 px regular face. The existing 72×48
+px Back touch target and navigation behavior are unchanged.
+
+Favorites, Recorded Shows, Episodes, player/options pages and Settings do not use
+this preview renderer. In particular, this package does not extend the existing
+uncommitted Settings-header experiment while its appearance is under review.
+
+**Visual: ready for user review, not yet accepted.** The production
+C++/LovyanGFX path was inspected at native 320×240:
+[Live Radio preview](evidence/2026-09-23-live-header-preview/live-radio.png).
+The native fixture asserts the filled chevron's seven-pixel center waist.
+
+**Functional: pass in the native fixture.** Header rendering and the existing
+Back hit target compile and pass. **Hardware: not verified; not flashed.** Final
+TFT weight and optical alignment remain open until user/device review. TypeSafe's
+deterministic/semantic separation was applied; no live Jev call or firmware AI
+dependency was used.
+
 ## 2026-09-23 — Settings header alignment, back action and contrast
 
 **Scope:** every native Settings screen now uses one optical header centerline
