@@ -393,6 +393,22 @@ void loop() {
             }
             forceRedraw = true;
             break;
+        case UiCommandKind::ConnectSavedWiFi:
+            if (activateSavedWiFiNetwork(command.value)) {
+                ESP.restart();
+            } else {
+                uiControllerReportWifiActionFailure();
+            }
+            forceRedraw = true;
+            break;
+        case UiCommandKind::ForgetActiveWiFi:
+            if (forgetActiveWiFiNetwork()) {
+                ESP.restart();
+            } else {
+                uiControllerReportWifiActionFailure();
+            }
+            forceRedraw = true;
+            break;
         case UiCommandKind::EnterStandby:
             goToSleep();
             break;

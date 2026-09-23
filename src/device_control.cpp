@@ -117,10 +117,11 @@ bool factoryReset() {
     if (!pref.begin("favorites", false)) return false;
     const bool favoritesCleared = pref.clear();
     pref.end();
+    const bool wifiCleared = clearAllSavedWiFiCredentials();
     // Station logos are independent LittleFS assets.  Clear every active,
     // staging and recovery file along with the station records; touch
     // calibration is intentionally in its own namespace and is untouched.
-    if (!radioCleared || !favoritesCleared || !clearAllStationArtwork()) return false;
+    if (!radioCleared || !favoritesCleared || !wifiCleared || !clearAllStationArtwork()) return false;
     delay(3000);
     ESP.restart();
     return true;

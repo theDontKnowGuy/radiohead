@@ -1975,7 +1975,7 @@ void drawSettingsChevron(int16_t x, int16_t y, uint16_t color = kWhite) {
 void drawSettingsListRow(int16_t y, const char* label, uint8_t icon, bool danger = false) {
     drawListCard(kListOuterInset, y, false);
     drawSettingsGlyph(icon, kListOuterInset + 22, y + 23, danger ? kRed : kWhite);
-    listPrimaryText(label, kListOuterInset + 50, y, 150);
+    listPrimaryText(label, kListOuterInset + 50, y, 180);
     drawSettingsChevron(kListOuterInset + 226, y + 23, danger ? kRed : kWhite);
 }
 
@@ -2016,16 +2016,73 @@ void drawEditorFooter() {
 void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawSettingsBackground();
     static constexpr const char* kLabels[] = {
-        "Wi-Fi", "Display", "Audio", "Device",
+        "Web configuration", "Wi-Fi", "Display", "Audio", "Device",
     };
+    static constexpr uint8_t kIcons[] = {0, 0, 1, 2, 3};
     for (int row = 0; row < kStationRowsPerPage; ++row) {
         const int item = state.settingsOffset + row;
         if (item >= static_cast<int>(sizeof(kLabels) / sizeof(kLabels[0]))) break;
         drawSettingsListRow(kStationListTop + row * kStationListRowHeight,
-                            kLabels[item], static_cast<uint8_t>(item));
+                            kLabels[item], kIcons[item]);
     }
     drawListPager(state.settingsOffset, sizeof(kLabels) / sizeof(kLabels[0]), kStationRowsPerPage);
     drawPageHeader("Settings", currentTime, timeValid);
+}
+
+String wifiSignalLabel() {
+    if (isAP || WiFi.status() != WL_CONNECTED) return "Not connected";
+    const int32_t rssi = WiFi.RSSI();
+    const char* quality = rssi >= -55 ? "Excellent" :
+                          rssi >= -67 ? "Good" :
+                          rssi >= -75 ? "Fair" : "Weak";
+    return String(quality) + " · " + String(rssi) + " dBm";
+}
+
+void drawWiFiSettingsRow(int16_t y, const String& primary, const String& secondary,
+                         bool action, bool danger = false) {
+    drawListCard(kListOuterInset, y, false);
+    drawSettingsGlyph(0, kListOuterInset + 22, y + 23, danger ? kRed : kWhite);
+    text(primary, kListOuterInset + 50, y + 5, uiFont(&fonts::FreeSans9pt7b),
+         danger ? kRed : kWhite, 178);
+    text(secondary, kListOuterInset + 50, y + 26, uiFont(&fonts::Font0),
+         danger ? kRed : kTextMuted, 178);
+    if (action) drawSettingsChevron(kListOuterInset + 226, y + 23, danger ? kRed : kWhite);
+}
+
+void renderWiFiSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+    drawSettingsBackground();
+    const int alternatives = savedWiFiAlternativeCount();
+    const int count = alternatives + 3;
+    for (int row = 0; row < kStationRowsPerPage; ++row) {
+        const int item = state.wifiOffset + row;
+        if (item >= count) break;
+        const int16_t y = kStationListTop + row * kStationListRowHeight;
+        if (item == 0) {
+            const String current = WiFi.status() == WL_CONNECTED ? WiFi.SSID() : st_ssid;
+            String status = WiFi.status() == WL_CONNECTED ? "Current network · Connected" :
+                            st_ssid.isEmpty() ? "No current network" : "Current network · Disconnected";
+            if (state.wifiActionFailed) status = "Network change failed";
+            if (state.wifiForgetting) status = "Removing saved network...";
+            drawWiFiSettingsRow(y, current.isEmpty() ? String("Not configured") : current,
+                                status, false);
+        } else if (item <= alternatives) {
+            const int network = savedWiFiAlternativeNetworkAt(item - 1);
+            const bool pending = network >= 0 && network == state.wifiPendingNetwork;
+            drawWiFiSettingsRow(y, savedWiFiNetworkSsid(network),
+                                pending ? String("Restarting to connect...") :
+                                          String("Saved network · Tap to connect"),
+                                true);
+        } else if (item == alternatives + 1) {
+            const bool available = activeSavedWiFiNetworkIndex() >= 0;
+            drawWiFiSettingsRow(y, "Forget this network",
+                                available ? st_ssid : String("No saved current network"),
+                                available, available);
+        } else {
+            drawWiFiSettingsRow(y, "Signal strength", wifiSignalLabel(), false);
+        }
+    }
+    drawListPager(state.wifiOffset, count, kStationRowsPerPage);
+    drawPageHeader("Wi-Fi", currentTime, timeValid);
 }
 
 void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2131,25 +2188,31 @@ void renderSettingsWebHandoff(const UiRenderState& state, const char* currentTim
     (void)state;
     drawSettingsBackground();
     drawNetworkQrHandoff(!isAP);
-    drawPageHeader("Network", currentTime, timeValid);
+    drawPageHeader("Web configuration", currentTime, timeValid);
 }
 
 void renderSettingsConfirmation(const UiRenderState& state, const char* currentTime, bool timeValid) {
-    renderSettings(state, currentTime, timeValid);
+    const bool forgetNetwork = state.settingsConfirmAction == 3;
+    if (forgetNetwork) renderWiFiSettings(state, currentTime, timeValid);
+    else renderSettings(state, currentTime, timeValid);
     const bool factoryReset = state.settingsConfirmAction == 2;
     canvas().fillRoundRect(27, 54, 266, 132, 12, kWhite);
-    text(factoryReset ? "Factory reset radio?" : "Restart radio?", 48, 76,
+    text(forgetNetwork ? String("Forget ") + st_ssid + "?" :
+         factoryReset ? String("Factory reset radio?") : String("Restart radio?"), 48, 76,
          uiFont(&fonts::FreeSans9pt7b), kNavy, 226);
-    text(factoryReset ? "This removes settings and stations." : "Playback will stop briefly.",
+    text(forgetNetwork ? "Its saved password will be removed." :
+         factoryReset ? "This removes settings and stations." : "Playback will stop briefly.",
          48, 110, uiFont(&fonts::Font0), kSurfaceRaised, 226);
-    text(factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
+    text(forgetNetwork ? "Another saved network can reconnect." :
+         factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
          48, 130, uiFont(&fonts::Font0), kSurfaceRaised, 226);
     canvas().fillRoundRect(45, 142, 104, 36, 6, kSlate);
-    canvas().fillRoundRect(171, 142, 104, 36, 6, factoryReset ? kRed : kBlue);
+    canvas().fillRoundRect(171, 142, 104, 36, 6, factoryReset || forgetNetwork ? kRed : kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
     canvas().drawString("Cancel", 97, 160, uiFont(&fonts::Font0));
-    canvas().drawString(factoryReset ? "Reset" : "Restart", 223, 160, uiFont(&fonts::Font0));
+    canvas().drawString(forgetNetwork ? "Forget" : factoryReset ? "Reset" : "Restart",
+                        223, 160, uiFont(&fonts::Font0));
 }
 
 void renderConfirm(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2316,7 +2379,7 @@ void renderHomeStationTitleTick() {
 }
 
 UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
-    if (state.page == UiPage::Settings &&
+    if ((state.page == UiPage::Settings || state.page == UiPage::SettingsWifi) &&
         contains(x, y, kListRailLeft, kStationListTop, kListRailWidth, kListRailHeight)) {
         return y < kStationListTop + kListRailHeight / 2 ? UiTarget::SettingsPrevious : UiTarget::SettingsNext;
     }
@@ -2403,6 +2466,12 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 38, 124, 110, 44)) return UiTarget::ConfirmCancel;
         if (contains(x, y, 172, 124, 110, 44)) return UiTarget::ConfirmStandby;
     } else if (state.page == UiPage::Settings) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
+        const int row = listRowAt(y);
+        if (row >= 0 && x < kListRailLeft) {
+            return static_cast<UiTarget>(static_cast<int>(UiTarget::SettingsRow0) + row);
+        }
+    } else if (state.page == UiPage::SettingsWifi) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
         const int row = listRowAt(y);
         if (row >= 0 && x < kListRailLeft) {
@@ -2499,6 +2568,9 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
             break;
         case UiPage::Settings:
             renderSettings(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsWifi:
+            renderWiFiSettings(state, currentTime, timeValid);
             break;
         case UiPage::SettingsAudio:
             renderToneSettings(state, currentTime, timeValid);

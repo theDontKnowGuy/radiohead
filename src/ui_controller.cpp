@@ -13,7 +13,7 @@ constexpr int kFavoriteRowsPerPage = 3;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
-constexpr int kSettingsItemCount = 4;
+constexpr int kSettingsItemCount = 5;
 
 UiRenderState state;
 UiCommand pendingCommand;
@@ -32,6 +32,7 @@ constexpr unsigned long kToneHoldDelayMs = 450;
 constexpr unsigned long kToneRepeatMs = 120;
 
 void openToneSettings();
+void openWiFiSettings(bool clearFailure = true);
 void openDisplaySettings();
 void openDeviceSettings(bool clearFailure);
 void openFirmwareSettings();
@@ -212,12 +213,28 @@ void openSettingsWebHandoff() {
     markDirty();
 }
 
+int wifiSettingsItemCount() {
+    // Current network, each saved alternative, Forget, and Signal strength.
+    return savedWiFiAlternativeCount() + 3;
+}
+
+void openWiFiSettings(bool clearFailure) {
+    state.page = UiPage::SettingsWifi;
+    state.wifiOffset = constrain(state.wifiOffset, 0,
+                                 max(0, wifiSettingsItemCount() - kRowsPerPage));
+    state.wifiPendingNetwork = -1;
+    state.wifiForgetting = false;
+    if (clearFailure) state.wifiActionFailed = false;
+    markDirty();
+}
+
 void openSettingsItem(int item) {
     switch (item) {
-    case 0: openSettingsWebHandoff(); break;  // Network
-    case 1: openDisplaySettings(); break;
-    case 2: openToneSettings(); break;
-    case 3: openDeviceSettings(true); break;
+    case 0: openSettingsWebHandoff(); break;
+    case 1: openWiFiSettings(); break;
+    case 2: openDisplaySettings(); break;
+    case 3: openToneSettings(); break;
+    case 4: openDeviceSettings(true); break;
     default: break;
     }
 }
@@ -480,6 +497,28 @@ void handleTarget(UiTarget target, int value = 0) {
             if (item < kSettingsItemCount) openSettingsItem(item);
         }
         break;
+    case UiPage::SettingsWifi:
+        if (target == UiTarget::SettingsBack) {
+            openSettings();
+        } else if (target == UiTarget::SettingsPrevious || target == UiTarget::SettingsNext) {
+            uiControllerPage(target == UiTarget::SettingsNext ? 1 : -1, 0, false);
+        } else if (target >= UiTarget::SettingsRow0 && target <= UiTarget::SettingsRow3) {
+            const int row = static_cast<int>(target) - static_cast<int>(UiTarget::SettingsRow0);
+            const int item = state.wifiOffset + row;
+            const int alternatives = savedWiFiAlternativeCount();
+            if (item >= 1 && item <= alternatives) {
+                const int network = savedWiFiAlternativeNetworkAt(item - 1);
+                if (network >= 0) {
+                    state.wifiPendingNetwork = network;
+                    state.wifiActionFailed = false;
+                    markDirty();
+                    queueAfterRender(UiCommandKind::ConnectSavedWiFi, network);
+                }
+            } else if (item == alternatives + 1 && activeSavedWiFiNetworkIndex() >= 0) {
+                openSettingsConfirmation(3);
+            }
+        }
+        break;
     case UiPage::SettingsAudio:
         if (target == UiTarget::SettingsBack || target == UiTarget::ToneCancel) {
             queueTone(UiCommandKind::PreviewTone, gB, gM, gT);
@@ -552,10 +591,19 @@ void handleTarget(UiTarget target, int value = 0) {
         if (target == UiTarget::SettingsConfirmAccept) {
             if (state.settingsConfirmAction == 1) queue(UiCommandKind::RestartDevice);
             if (state.settingsConfirmAction == 2) queue(UiCommandKind::FactoryResetDevice);
-            openDeviceSettings();
+            if (state.settingsConfirmAction == 3) {
+                state.page = UiPage::SettingsWifi;
+                state.wifiForgetting = true;
+                state.wifiActionFailed = false;
+                markDirty();
+                queueAfterRender(UiCommandKind::ForgetActiveWiFi);
+            } else {
+                openDeviceSettings();
+            }
         } else if (target == UiTarget::SettingsConfirmCancel ||
                    target == UiTarget::SettingsBack) {
-            openDeviceSettings();
+            if (state.settingsConfirmAction == 3) openWiFiSettings(false);
+            else openDeviceSettings();
         }
         break;
     case UiPage::Unavailable:
@@ -672,6 +720,10 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
         offset = &state.settingsOffset;
         count = kSettingsItemCount;
         break;
+    case UiPage::SettingsWifi:
+        offset = &state.wifiOffset;
+        count = wifiSettingsItemCount();
+        break;
     default:
         return;
     }
@@ -693,6 +745,14 @@ void uiControllerSetAlarmActive(bool active) {
 void uiControllerReportDeviceActionFailure() {
     state.page = UiPage::SettingsDevice;
     state.deviceActionFailed = true;
+    markDirty();
+}
+
+void uiControllerReportWifiActionFailure() {
+    state.page = UiPage::SettingsWifi;
+    state.wifiPendingNetwork = -1;
+    state.wifiForgetting = false;
+    state.wifiActionFailed = true;
     markDirty();
 }
 

@@ -709,7 +709,7 @@ function renderScan(data){const out=$('network-results');if(data.state==='scanni
 async function loadScan(){try{renderScan(await fetch('/api/network/scan',{cache:'no-store'}).then(r=>r.json()))}catch(_){$('network-results').innerHTML='<p class="rh-note rh-error">The scan response was unavailable.</p>';}}
 async function scan(){try{await api('/api/network/scan/start');await loadScan();}catch(error){$('network-form-status').textContent=error.message;}}
 async function connect(){const ssid=$('network-ssid').value.trim(),open=$('network-security').value==='open',password=$('network-password').value;if(!ssid){$('network-form-status').textContent='Enter the exact network name.';$('network-ssid').focus();return;}let passwordAction=open?'clear':password?'replace':ssid===state.configuredSsid&&state.hasSavedPassword?'keep':'';if(!open&&!passwordAction){$('network-form-status').textContent='Enter a password, or explicitly select an open network.';$('network-password').focus();return;}try{await api('/api/network/connect',{revision:state.revision,ssid,password,passwordAction});$('network-form-status').textContent='Wi-Fi settings saved. Restarting radio…';}catch(error){$('network-form-status').textContent=error.message;}}
-$('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid').focus();$('network-form-status').textContent='Enter the exact hidden network name and its security.';};$('network-security').onchange=passwordControls;$('network-show-password').onchange=e=>$('network-password').type=e.target.checked?'text':'password';$('network-cancel').onclick=()=>{if(state){$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-security').value='secured';passwordControls();$('network-form-status').textContent='Draft discarded.';}};$('network-connect').onclick=connect;$('network-forget').onclick=async()=>{if(!state.configuredSsid||!confirm(`Forget ${state.configuredSsid}? The radio will disconnect and return to its setup network.`))return;try{render(await api('/api/network/forget',{revision:state.revision}));$('network-form-status').textContent='Network forgotten. Join the setup network shown above.';}catch(error){$('network-form-status').textContent=error.message;}};refresh();setInterval(()=>{if(!document.hidden)refresh();},2500);})();</script>)JS";
+$('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid').focus();$('network-form-status').textContent='Enter the exact hidden network name and its security.';};$('network-security').onchange=passwordControls;$('network-show-password').onchange=e=>$('network-password').type=e.target.checked?'text':'password';$('network-cancel').onclick=()=>{if(state){$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-security').value='secured';passwordControls();$('network-form-status').textContent='Draft discarded.';}};$('network-connect').onclick=connect;$('network-forget').onclick=async()=>{if(!state.configuredSsid||!confirm(`Forget ${state.configuredSsid}? Its saved password will be removed.`))return;try{render(await api('/api/network/forget',{revision:state.revision}));$('network-form-status').textContent='Network forgotten. The radio will reconnect to another saved network or offer its setup network.';}catch(error){$('network-form-status').textContent=error.message;}};refresh();setInterval(()=>{if(!document.hidden)refresh();},2500);})();</script>)JS";
         break;
     case WebSection::Weather:
         html += "<div class='rh-pagehead'><div><h1>Weather &amp; time</h1><p>A little local context for your radio.</p></div></div>"
@@ -1177,19 +1177,23 @@ void startWebServer() {
     });
     server.on("/api/network/forget", HTTP_POST, [] {
         if (!hasCurrentNetworkRevision()) return;
-        if (webMaintenanceBusy()) {
+        if (webRestartScheduled || webMaintenanceBusy()) {
             sendMaintenanceBusy();
             return;
         }
-        if (!clearWiFiCredentials()) {
+        if (!forgetActiveWiFiNetwork()) {
             server.send(500, "application/json; charset=utf-8", "{\"error\":\"The saved network could not be cleared.\"}");
             return;
         }
-        st_ssid = "";
-        st_pass = "";
         ++networkConfigurationEpoch;
-        enterSetupRecovery("Saved network forgotten. Join this setup network to configure Wi-Fi.");
-        sendNetworkState();
+        if (savedWiFiNetworkCount() > 0) {
+            networkMessage = "Saved network forgotten. Restarting with another saved network.";
+            scheduleWebRestart(WebRestartAction::Network);
+            sendNetworkState(202);
+        } else {
+            enterSetupRecovery("Saved network forgotten. Join this setup network to configure Wi-Fi.");
+            sendNetworkState();
+        }
     });
     server.on("/api/weather", HTTP_GET, [] { sendWeatherState(); });
     server.on("/api/device", HTTP_GET, [] {

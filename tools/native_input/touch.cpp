@@ -10,6 +10,14 @@ int currentStationIdx = 0;
 int gB = 0, gM = 0, gT = 0;
 uint16_t autoDimSeconds = 30;
 bool firmwareAutoUpdate = true;
+String savedNetworks[] = {"Home", "Studio", "Phone"};
+int savedWiFiNetworkCount() { return 3; }
+String savedWiFiNetworkSsid(int index) {
+    return index >= 0 && index < 3 ? savedNetworks[index] : String();
+}
+int activeSavedWiFiNetworkIndex() { return 0; }
+int savedWiFiAlternativeCount() { return 2; }
+int savedWiFiAlternativeNetworkAt(int index) { return index >= 0 && index < 2 ? index + 1 : -1; }
 uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
     for (const uint16_t option : {0, 15, 30, 60, 120, 300}) {
         if (seconds == option) return option;
@@ -212,7 +220,7 @@ int main() {
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsAudio);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
@@ -229,12 +237,12 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
            command.value == 0 && command.secondary == 0 && command.tertiary == 0);
     assert(!uiControllerTakeCommand(command));
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, 0, false);
     uiControllerTap(UiTarget::ToneSave, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone &&
            command.value == 0 && command.secondary == 1 && command.tertiary == 0);
-    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 30);
     uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 60);
@@ -250,12 +258,12 @@ int main() {
     assert(uiControllerRenderState().dimSecondsDraft == 300);
     uiControllerTap(UiTarget::DimCancel, 0, 0, false);
     assert(!uiControllerTakeCommand(command));
-    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     uiControllerTap(UiTarget::DimDecrease, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 15);
     uiControllerTap(UiTarget::DimSave, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim && command.value == 15);
-    uiControllerTap(UiTarget::SettingsRow1, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     for (int step = 0; step < 5; ++step) {
         uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
     }
@@ -264,7 +272,7 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAutoDim &&
            command.value == AUTO_DIM_NEVER_SECONDS);
     uiControllerTap(UiTarget::SettingsNext, 0, 0, false);
-    assert(uiControllerRenderState().settingsOffset == 0);
+    assert(uiControllerRenderState().settingsOffset == 1);
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::DeviceFactoryReset, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::SettingsConfirm);
@@ -286,7 +294,7 @@ int main() {
     // release or leaving the original target. It never catches up in a burst.
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeSettings, 0, 0, false);
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 100, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone);
     uiControllerTouchContact(UiTarget::ToneBassIncrease, 549);
@@ -336,7 +344,7 @@ int main() {
     assert(!uiControllerTakeCommand(command));
 
     // A web commit supersedes the open draft, including a pending preview.
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
     gB = 7; gM = -3; gT = 4;
     uiControllerTick(500);
@@ -347,7 +355,7 @@ int main() {
     uiControllerTap(UiTarget::ToneCancel, 0, 700, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
            command.value == 7 && command.secondary == -3 && command.tertiary == 4);
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
     gB = 8;
     uiControllerTap(UiTarget::ToneSave, 0, 700, false);
@@ -355,7 +363,7 @@ int main() {
     assert(!uiControllerTakeCommand(command));
 
     // Timer wrap and alarm suppression cannot manufacture another tap.
-    uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, ULONG_MAX - 200, false);
     assert(uiControllerTakeCommand(command));
     uiControllerTouchContact(UiTarget::ToneMidIncrease, 248);

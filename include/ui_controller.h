@@ -19,6 +19,7 @@ enum class UiPage : uint8_t {
     PodcastPlayer,
     StandbyConfirm,
     Settings,
+    SettingsWifi,
     SettingsAudio,
     SettingsDisplay,
     SettingsDevice,
@@ -153,6 +154,8 @@ enum class UiCommandKind : uint8_t {
     StartTouchCalibration,
     RestartDevice,
     FactoryResetDevice,
+    ConnectSavedWiFi,
+    ForgetActiveWiFi,
 };
 
 struct UiCommand {
@@ -194,6 +197,10 @@ struct UiRenderState {
     bool playerControlFocus = false;
     uint8_t playerFocus = 3;
     int settingsOffset = 0;
+    int wifiOffset = 0;
+    int wifiPendingNetwork = -1;
+    bool wifiForgetting = false;
+    bool wifiActionFailed = false;
     int toneBassDraft = 0;
     int toneMidDraft = 0;
     int toneTrebleDraft = 0;
@@ -215,6 +222,7 @@ void uiControllerTouchEnd();
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
 void uiControllerSetAlarmActive(bool active);
 void uiControllerReportDeviceActionFailure();
+void uiControllerReportWifiActionFailure();
 void uiControllerTick(unsigned long now);
 bool uiControllerTakeCommand(UiCommand& command);
 UiRenderState uiControllerRenderState();

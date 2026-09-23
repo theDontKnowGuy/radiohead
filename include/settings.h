@@ -52,8 +52,16 @@ void formatConfiguredClock(char* destination, size_t destinationSize, const tm& 
 // These operations write only the settings they own.  They never return a
 // Wi-Fi password or weather key, and let web handlers distinguish a durable
 // write from an attempted network/weather operation.
+constexpr int WIFI_SAVED_NETWORK_LIMIT = 5;
 bool saveWiFiCredentials(const String& ssid, const String& password);
-bool clearWiFiCredentials();
+int savedWiFiNetworkCount();
+String savedWiFiNetworkSsid(int index);
+int activeSavedWiFiNetworkIndex();
+int savedWiFiAlternativeCount();
+int savedWiFiAlternativeNetworkAt(int alternativeIndex);
+bool activateSavedWiFiNetwork(int index);
+bool forgetActiveWiFiNetwork();
+bool clearAllSavedWiFiCredentials();
 bool saveWeatherTimeSettings();
 bool saveFirmwareAutoUpdate(bool enabled);
 

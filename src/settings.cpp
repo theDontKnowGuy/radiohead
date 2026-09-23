@@ -14,6 +14,7 @@ namespace {
 constexpr uint8_t TOUCH_CALIBRATION_VERSION = 1;
 constexpr uint8_t FAVORITES_VERSION = 2;
 constexpr uint8_t WEATHER_TIME_VERSION = 2;
+constexpr uint8_t SAVED_WIFI_VERSION = 1;
 constexpr const char* DEFAULT_TIME_ZONE_ID = "Asia/Jerusalem";
 constexpr const char* LEGACY_WEATHER_LOCATION = "Budapest,HU";
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
@@ -35,6 +36,136 @@ uint32_t artworkUploadRevision = 0;
 size_t artworkUploadBytes = 0;
 bool artworkUploadFailed = false;
 uint32_t artworkContentEpoch[STATION_COUNT] = {};
+
+struct SavedWiFiCredential {
+    String ssid;
+    String password;
+};
+
+SavedWiFiCredential savedWiFiCredentials[WIFI_SAVED_NETWORK_LIMIT];
+int savedWiFiCredentialCount = 0;
+
+bool validWiFiCredential(const String& ssid, const String& password) {
+    return !ssid.isEmpty() && ssid.length() <= 32 && password.length() <= 63;
+}
+
+int credentialIndexForSsid(const SavedWiFiCredential* credentials, int count,
+                           const String& ssid) {
+    for (int index = 0; index < count; ++index) {
+        if (credentials[index].ssid == ssid) return index;
+    }
+    return -1;
+}
+
+bool persistSavedWiFiCredentials(const SavedWiFiCredential* credentials, int count,
+                                 int activeIndex) {
+    if (count < 0 || count > WIFI_SAVED_NETWORK_LIMIT ||
+        (count > 0 && (activeIndex < 0 || activeIndex >= count)) ||
+        (count == 0 && activeIndex != -1)) {
+        return false;
+    }
+    for (int index = 0; index < count; ++index) {
+        if (!validWiFiCredential(credentials[index].ssid, credentials[index].password) ||
+            credentialIndexForSsid(credentials, index, credentials[index].ssid) >= 0) {
+            return false;
+        }
+    }
+
+    if (!pref.begin("wifi", false)) return false;
+    bool saved = pref.putUChar("ver", 0) == sizeof(uint8_t);
+    saved = saved && pref.putUChar("count", count) == sizeof(uint8_t);
+    for (int index = 0; index < WIFI_SAVED_NETWORK_LIMIT; ++index) {
+        const String ssidKey = "ssid" + String(index);
+        const String passwordKey = "pass" + String(index);
+        if (index < count) {
+            saved = saved &&
+                pref.putString(ssidKey.c_str(), credentials[index].ssid) ==
+                    credentials[index].ssid.length();
+            saved = saved &&
+                pref.putString(passwordKey.c_str(), credentials[index].password) ==
+                    credentials[index].password.length();
+        } else {
+            pref.remove(ssidKey.c_str());
+            pref.remove(passwordKey.c_str());
+        }
+    }
+    const String activeSsid = activeIndex >= 0 ? credentials[activeIndex].ssid : String();
+    saved = saved && pref.putString("active", activeSsid) == activeSsid.length();
+    saved = saved && pref.putUChar("ver", SAVED_WIFI_VERSION) == sizeof(uint8_t);
+    pref.end();
+    if (!saved) return false;
+
+    // Keep the original keys as a compatibility mirror for older firmware.
+    if (!pref.begin("radio", false)) return false;
+    bool legacySaved = true;
+    if (activeIndex >= 0) {
+        legacySaved = pref.putString("ssid", credentials[activeIndex].ssid) ==
+            credentials[activeIndex].ssid.length();
+        legacySaved = legacySaved &&
+            pref.putString("pass", credentials[activeIndex].password) ==
+                credentials[activeIndex].password.length();
+    } else {
+        pref.remove("ssid");
+        pref.remove("pass");
+    }
+    pref.end();
+    return legacySaved;
+}
+
+void commitSavedWiFiCredentials(const SavedWiFiCredential* credentials, int count,
+                                int activeIndex) {
+    for (int index = 0; index < WIFI_SAVED_NETWORK_LIMIT; ++index) {
+        if (index < count) savedWiFiCredentials[index] = credentials[index];
+        else savedWiFiCredentials[index] = {};
+    }
+    savedWiFiCredentialCount = count;
+    if (activeIndex >= 0) {
+        st_ssid = savedWiFiCredentials[activeIndex].ssid;
+        st_pass = savedWiFiCredentials[activeIndex].password;
+    } else {
+        st_ssid = "";
+        st_pass = "";
+    }
+}
+
+void loadSavedWiFiCredentials() {
+    SavedWiFiCredential loaded[WIFI_SAVED_NETWORK_LIMIT];
+    int loadedCount = 0;
+    bool versionValid = false;
+    String activeSsid;
+    if (pref.begin("wifi", true)) {
+        versionValid = pref.getUChar("ver", 0) == SAVED_WIFI_VERSION;
+        const int storedCount = constrain(static_cast<int>(pref.getUChar("count", 0)),
+                                          0, WIFI_SAVED_NETWORK_LIMIT);
+        activeSsid = pref.getString("active", "");
+        if (versionValid) {
+            for (int index = 0; index < storedCount; ++index) {
+                const String ssid = pref.getString(("ssid" + String(index)).c_str(), "");
+                const String password = pref.getString(("pass" + String(index)).c_str(), "");
+                if (!validWiFiCredential(ssid, password) ||
+                    credentialIndexForSsid(loaded, loadedCount, ssid) >= 0) continue;
+                loaded[loadedCount++] = {ssid, password};
+            }
+        }
+        pref.end();
+    }
+
+    if (!versionValid) {
+        if (validWiFiCredential(st_ssid, st_pass)) {
+            loaded[0] = {st_ssid, st_pass};
+            loadedCount = 1;
+            activeSsid = st_ssid;
+        }
+    } else if (loadedCount == 0) {
+        st_ssid = "";
+        st_pass = "";
+    }
+
+    int activeIndex = credentialIndexForSsid(loaded, loadedCount, activeSsid);
+    if (activeIndex < 0) activeIndex = credentialIndexForSsid(loaded, loadedCount, st_ssid);
+    if (activeIndex < 0 && loadedCount > 0) activeIndex = 0;
+    commitSavedWiFiCredentials(loaded, loadedCount, activeIndex);
+}
 
 uint16_t nearestAutoDimSeconds(uint16_t seconds) {
     uint16_t nearest = AUTO_DIM_SECONDS[0];
@@ -286,22 +417,88 @@ void formatConfiguredClock(char* destination, size_t destinationSize, const tm& 
 }
 
 bool saveWiFiCredentials(const String& ssid, const String& password) {
-    if (ssid.isEmpty() || ssid.length() > 32 || password.length() > 63 || !pref.begin("radio", false)) {
-        return false;
+    if (!validWiFiCredential(ssid, password)) return false;
+    SavedWiFiCredential candidate[WIFI_SAVED_NETWORK_LIMIT];
+    for (int index = 0; index < savedWiFiCredentialCount; ++index) {
+        candidate[index] = savedWiFiCredentials[index];
     }
-    const bool ssidSaved = pref.putString("ssid", ssid) == ssid.length();
-    const bool passwordSaved = ssidSaved && pref.putString("pass", password) == password.length();
-    pref.end();
-    return ssidSaved && passwordSaved;
+    int candidateCount = savedWiFiCredentialCount;
+    int activeIndex = credentialIndexForSsid(candidate, candidateCount, ssid);
+    if (activeIndex < 0) {
+        if (candidateCount >= WIFI_SAVED_NETWORK_LIMIT) return false;
+        activeIndex = candidateCount++;
+    }
+    candidate[activeIndex] = {ssid, password};
+    if (!persistSavedWiFiCredentials(candidate, candidateCount, activeIndex)) return false;
+    commitSavedWiFiCredentials(candidate, candidateCount, activeIndex);
+    return true;
 }
 
-bool clearWiFiCredentials() {
+int savedWiFiNetworkCount() {
+    return savedWiFiCredentialCount;
+}
+
+String savedWiFiNetworkSsid(int index) {
+    if (index < 0 || index >= savedWiFiCredentialCount) return "";
+    return savedWiFiCredentials[index].ssid;
+}
+
+int activeSavedWiFiNetworkIndex() {
+    return credentialIndexForSsid(savedWiFiCredentials, savedWiFiCredentialCount, st_ssid);
+}
+
+int savedWiFiAlternativeCount() {
+    return max(0, savedWiFiCredentialCount - (activeSavedWiFiNetworkIndex() >= 0 ? 1 : 0));
+}
+
+int savedWiFiAlternativeNetworkAt(int alternativeIndex) {
+    if (alternativeIndex < 0) return -1;
+    const int activeIndex = activeSavedWiFiNetworkIndex();
+    for (int index = 0; index < savedWiFiCredentialCount; ++index) {
+        if (index == activeIndex) continue;
+        if (alternativeIndex-- == 0) return index;
+    }
+    return -1;
+}
+
+bool activateSavedWiFiNetwork(int index) {
+    if (index < 0 || index >= savedWiFiCredentialCount) return false;
+    if (!persistSavedWiFiCredentials(savedWiFiCredentials, savedWiFiCredentialCount, index)) {
+        return false;
+    }
+    st_ssid = savedWiFiCredentials[index].ssid;
+    st_pass = savedWiFiCredentials[index].password;
+    return true;
+}
+
+bool forgetActiveWiFiNetwork() {
+    const int forgottenIndex = activeSavedWiFiNetworkIndex();
+    if (forgottenIndex < 0) return false;
+    SavedWiFiCredential candidate[WIFI_SAVED_NETWORK_LIMIT];
+    int candidateCount = 0;
+    for (int index = 0; index < savedWiFiCredentialCount; ++index) {
+        if (index != forgottenIndex) candidate[candidateCount++] = savedWiFiCredentials[index];
+    }
+    const int activeIndex = candidateCount > 0 ? 0 : -1;
+    if (!persistSavedWiFiCredentials(candidate, candidateCount, activeIndex)) return false;
+    commitSavedWiFiCredentials(candidate, candidateCount, activeIndex);
+    return true;
+}
+
+bool clearAllSavedWiFiCredentials() {
+    bool wifiCleared = false;
+    if (pref.begin("wifi", false)) {
+        wifiCleared = pref.clear();
+        pref.end();
+    }
     if (!pref.begin("radio", false)) return false;
-    const bool ssidCleared = pref.remove("ssid");
-    const bool passwordCleared = pref.remove("pass");
+    pref.remove("ssid");
+    pref.remove("pass");
     pref.end();
-    // Removing an already-absent key is a successful desired state.
-    return ssidCleared || passwordCleared || (st_ssid.isEmpty() && st_pass.isEmpty());
+    if (!wifiCleared && savedWiFiCredentialCount > 0) return false;
+    SavedWiFiCredential empty[WIFI_SAVED_NETWORK_LIMIT];
+    commitSavedWiFiCredentials(empty, 0, -1);
+    return true;
 }
 
 bool saveWeatherTimeSettings() {
@@ -759,6 +956,7 @@ void loadSettings() {
         truncate(stations[i].url, 512);
     }
     pref.end();
+    loadSavedWiFiCredentials();
 
     currentStationIdx = constrain(currentStationIdx, 0, STATION_COUNT - 1);
     mainVal = constrain(mainVal, 0, 21);
