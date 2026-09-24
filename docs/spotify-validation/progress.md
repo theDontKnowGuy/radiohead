@@ -8,7 +8,7 @@ firmware backups are kept outside the repository.
 | Package | Code/build | Hardware/function | Resources/timing | Evidence / next action |
 | --- | --- | --- | --- | --- |
 | S0 | PASS | PASS (user listening report) | PASS (baseline measured; existing defects below) | 30-minute private capture; `tools/spotify_validation_summary.py`. |
-| S1 | PASS (standalone build/upload) | PARTIAL (run 15 fixed the reproduced queue stall and phone selection; longer acceptance pending) | PARTIAL (run-12 renewal; two-hour run unmet) | Run 16 will test pause backpressure and a continuous two-hour session; restarts and Wi-Fi interruption remain unverified. |
+| S1 | PASS (standalone build/upload) | PARTIAL (clear native audio, controls, natural queue advance and phone selection observed) | PARTIAL (renewal observed on run 12; final-image run stopped at 25m47s) | User elected to stop testing after proving feasibility; two-hour run, three cold starts and Wi-Fi interruption remain unverified. |
 | S2 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S3 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
@@ -365,4 +365,69 @@ during active decode. Capability totals overlap; do not add them.
 - Run 16 changes the standalone PCM producer callback to return actual
   accepted bytes. Cspot's existing retry loop now waits for output buffer
   room during a long pause rather than discarding PCM after a two-second
-  timeout. The candidate builds to 1,772,400 B and awaits device validation.
+  timeout. The candidate builds to 1,772,400 B; a fresh pinned checkout
+  plus the same patches built to 1,772,496 B with a byte-identical partition
+  table. App-only flashing completed with hash verification (SHA-256 prefix
+  `fa83ae77ddc94eb5`). The user paused and resumed playback and reported
+  clear, correct audio afterward. The private run-16 capture was stopped
+  at the user's request after 1,547.4 s (25m47s): one boot and paired
+  session, nine track starts, seven finishes, eight output-boundary
+  notifications, five natural EOF events with more songs queued, nine CDN
+  opens and 241,385,412 accepted PCM bytes. There were zero queue-wait
+  samples, PCM cancellations, allocation failures, partial I2S writes,
+  I2S write failures, watchdogs, panics or aborts in the captured log.
+  The pause state was sampled 24 times, followed by resumed output;
+  the user confirmed the audio resumed clearly on the correct song.
+  Least sampled output free was 69,467 B internal, 61,679 B DMA and
+  7,989,236 B PSRAM; during pause it was 69,195 / 61,407 /
+  7,958,468 B. Minimum stack reserves were 4,884 B decoder, 5,580 B
+  output and 7,488 B queue. One authorization token was fetched in this
+  shorter run; actual renewal was demonstrated on run 12, whose native
+  authentication path is unchanged in run 16. The iPhone was not
+  rechecked on every minute of this run, so the log alone establishes
+  output activity, not continuous listening quality.
+
+## Handoff after the user stopped S1 testing
+
+The user chose to stop after the native feasibility result and preserve
+the diagnostics for later work. **S0 is complete; S1 is partial, not a
+formal pass.** Run 15 fixed the reproduced phone-state/three-song stall:
+run 14 had zero output-boundary notifications and 32 queue-wait samples,
+while runs 15 and 16 had four and eight notifications respectively and
+zero queue-wait samples. The user reported that Spotify kept the radio
+selected when the iPhone app opened on run 15, and that run 16's longer
+pause resumed clearly. The final image has not had a two-hour continuous
+test or its own observed token renewal. Earlier run 12 did renew a
+native authorization token after 1,800.856 s with PCM continuing.
+
+Private evidence and recovery material are in
+`~/.radiohead-recovery/spotify-s0-s1-20260924/`. The directory is
+mode 0700, its files mode 0600. `MANIFEST.md` and
+`SHA256SUMS.private` describe/checksum the captures and backups without
+publishing credentials. The provisioning file and NVS backup may contain
+secrets; keep this directory private and out of git. The reproducible
+source is in `experiments/spotify-native/`; the summary scripts are in
+`tools/`. The normal Radiohead image was restored with
+`pio run -e esp32s3 -t upload --upload-port /dev/cu.usbmodem11201`,
+and the write hash verified. A 45-second private boot capture recorded
+Wi-Fi output and no panic, watchdog or abort; the regular radio's audio,
+controls and web routes were not rechecked after restoration.
+
+Before declaring S1 complete, repeat on the final candidate image:
+
+1. Two hours of continuous playlist output with the phone and Mac doing
+   no playback work, including a token renewal in that same run and
+   periodic listening checks.
+2. Three genuine power-off/on restarts and one Wi-Fi interruption with
+   reconnection and resumption, while preserving NVS/LittleFS.
+3. Remote pause, seek, volume, transfer away/back and at least 20 track
+   changes on that image; the 20 deliberate changes were reported on
+   run 12, before the output-boundary and backpressure fixes.
+4. A playlist with two adjacent instances of the same song. The current
+   output marker detects track changes by file identifier, so adjacent
+   identical files may suppress the second boundary notification. This
+   is a source-audit risk, not an observed device failure.
+
+No Spotify UI or integration into the normal Radiohead services was
+started. The standalone IDF candidate remains a protocol/audio spike;
+S2 coexistence and resource validation are separate future work.

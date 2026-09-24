@@ -51,14 +51,19 @@ still pointed at the first. The current candidate records bounded PCM
 track-boundary offsets and calls cspot's `notifyAudioReachedPlayback()`
 when each boundary reaches the speaker, as its CLI reference does. This
 advances the playlist index, refills the preload queue and reports the
-current track to Connect. Run 15 is testing whether this also prevents
-the phone app from forgetting the radio. Added diagnostics print counts
-and queue positions only, never track or account identifiers.
-The next build also returns the actual number of accepted PCM bytes to
+current track to Connect. On run 15, the phone stayed on the radio when
+Spotify was opened and a fourth song started naturally; run 16 passed
+eight output boundaries. Added diagnostics print counts and queue
+positions only, never track or account identifiers.
+The final experimental build also returns the actual number of accepted PCM bytes to
 cspot's decoder callback. Its existing retry loop then applies backpressure
 when the output queue is full, including during a long pause. The earlier
 standalone adapter returned all bytes as accepted and could discard PCM
-after a two-second full-queue timeout. This change needs device validation.
+after a two-second full-queue timeout. Run 16 passed a user listening
+check after a longer pause and 25m47s of captured output. The user chose
+to stop there; formal S1 acceptance remains open. See the
+[evidence ledger](../../docs/spotify-validation/progress.md) for exact
+measurements, limitations and remaining tests.
 
 On this development Mac, after `prepare.sh /tmp/spotify-native`, build with
 the installed ESP-IDF 5.5.5 package:
