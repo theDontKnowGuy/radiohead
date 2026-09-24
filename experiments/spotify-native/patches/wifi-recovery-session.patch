@@ -1,0 +1,125 @@
+diff --git a/cspot/src/Session.cpp b/cspot/src/Session.cpp
+--- a/cspot/src/Session.cpp
++++ b/cspot/src/Session.cpp
+@@ -48,11 +48,12 @@
+   CSPOT_LOG(debug, "Received shannon keys");
+ 
+   // Generates the public and priv key
+-  this->shanConn = std::make_shared<ShannonConnection>();
++  auto newShanConn = std::make_shared<ShannonConnection>();
+ 
+   // Init shanno-encrypted connection
+-  this->shanConn->wrapConnection(this->conn, challenges->shanSendKey,
+-                                 challenges->shanRecvKey);
++  newShanConn->wrapConnection(this->conn, challenges->shanSendKey,
++                             challenges->shanRecvKey);
++  std::atomic_store(&this->shanConn, newShanConn);
+ }
+ 
+ void Session::connectWithRandomAp() {
+@@ -78,9 +79,10 @@
+                                             deviceId, blob->username);
+ 
+   // Send login request
+-  this->shanConn->sendPacket(LOGIN_REQUEST_COMMAND, data);
++  auto currentShanConn = std::atomic_load(&this->shanConn);
++  currentShanConn->sendPacket(LOGIN_REQUEST_COMMAND, data);
+ 
+-  auto packet = this->shanConn->recvPacket();
++  auto packet = currentShanConn->recvPacket();
+   switch (packet.command) {
+     case AUTH_SUCCESSFUL_COMMAND: {
+       APWelcome welcome;
+diff --git a/cspot/src/MercurySession.cpp b/cspot/src/MercurySession.cpp
+--- a/cspot/src/MercurySession.cpp
++++ b/cspot/src/MercurySession.cpp
+@@ -38,14 +38,17 @@
+   while (isRunning) {
+     cspot::Packet packet = {};
+     try {
+-      packet = shanConn->recvPacket();
++      auto currentShanConn = std::atomic_load(&shanConn);
++      if (!currentShanConn)
++        throw std::runtime_error("AP connection unavailable");
++      packet = currentShanConn->recvPacket();
+       CSPOT_LOG(info, "Received packet, command: %d", packet.command);
+ 
+       if (static_cast<RequestType>(packet.command) == RequestType::PING) {
+         timeProvider->syncWithPingPacket(packet.data);
+ 
+         this->lastPingTimestamp = timeProvider->getSyncedTimestamp();
+-        this->shanConn->sendPacket(0x49, packet.data);
++        currentShanConn->sendPacket(0x49, packet.data);
+       } else {
+         this->packetQueue.push(packet);
+       }
+@@ -65,27 +68,24 @@
+ void MercurySession::reconnect() {
+   isReconnecting = true;
+ 
+-  try {
+-    this->conn = nullptr;
+-    this->shanConn = nullptr;
+-
+-    this->connectWithRandomAp();
+-    this->authenticate(this->authBlob);
+-
+-    CSPOT_LOG(info, "Reconnection successful");
+-
+-    BELL_SLEEP_MS(100);
+-
+-    lastPingTimestamp = timeProvider->getSyncedTimestamp();
+-    isReconnecting = false;
+-
+-    this->executeEstabilishedCallback = true;
+-  } catch (...) {
+-    CSPOT_LOG(error, "Cannot reconnect, will retry in 5s");
+-    BELL_SLEEP_MS(5000);
+-
+-    if (isRunning) {
+-      return reconnect();
++  while (isRunning) {
++    try {
++      std::atomic_store(&shanConn, std::shared_ptr<ShannonConnection>{});
++      this->conn = nullptr;
++
++      this->connectWithRandomAp();
++      this->authenticate(this->authBlob);
++
++      CSPOT_LOG(info, "Reconnection successful");
++      BELL_SLEEP_MS(100);
++
++      lastPingTimestamp = timeProvider->getSyncedTimestamp();
++      isReconnecting = false;
++      this->executeEstabilishedCallback = true;
++      return;
++    } catch (...) {
++      CSPOT_LOG(error, "Cannot reconnect, will retry in 5s");
++      BELL_SLEEP_MS(5000);
+     }
+   }
+ }
+@@ -306,7 +306,10 @@
+   this->sequenceId += 1;
+ 
+   try {
+-    this->shanConn->sendPacket(
++    auto currentShanConn = std::atomic_load(&shanConn);
++    if (!currentShanConn)
++      throw std::runtime_error("AP connection unavailable");
++    currentShanConn->sendPacket(
+         static_cast<std::underlying_type<RequestType>::type>(method),
+         sequenceIdBytes);
+   } catch (...) {
+@@ -338,7 +341,10 @@
+   // Used for broken connection detection
+   // this->lastRequestTimestamp = timeProvider->getSyncedTimestamp();
+   try {
+-    this->shanConn->sendPacket(
++    auto currentShanConn = std::atomic_load(&shanConn);
++    if (!currentShanConn)
++      throw std::runtime_error("AP connection unavailable");
++    currentShanConn->sendPacket(
+         static_cast<uint8_t>(RequestType::AUDIO_KEY_REQUEST_COMMAND), buffer);
+   } catch (...) {
+     // @TODO: Handle disconnect

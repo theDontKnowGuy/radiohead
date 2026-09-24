@@ -8,7 +8,7 @@ firmware backups are kept outside the repository.
 | Package | Code/build | Hardware/function | Resources/timing | Evidence / next action |
 | --- | --- | --- | --- | --- |
 | S0 | PASS | PASS (user listening report) | PASS (baseline measured; existing defects below) | 30-minute private capture; `tools/spotify_validation_summary.py`. |
-| S1 | PASS (standalone build/upload) | PARTIAL (clear native audio, controls, natural queue advance and phone selection observed) | PARTIAL (renewal observed on run 12; final-image run stopped at 25m47s) | User elected to stop testing after proving feasibility; two-hour run, three cold starts and Wi-Fi interruption remain unverified. |
+| S1 | PASS (standalone build/upload) | FAIL (Wi-Fi interruption lost Spotify output; run 19 aborted) | PARTIAL (short-run resource counters clean; renewal only observed on earlier run 12) | Three cold restarts and remote controls checked; adjacent duplicate inconclusive. User explicitly skipped the two-hour run. See short-run continuation below. |
 | S2 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S3 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
@@ -386,18 +386,104 @@ during active decode. Capability totals overlap; do not add them.
   authentication path is unchanged in run 16. The iPhone was not
   rechecked on every minute of this run, so the log alone establishes
   output activity, not continuous listening quality.
+- Short-run continuation on 2026-09-24: a pinned, independently prepared
+  run-16 checkout rebuilt successfully with ESP-IDF 5.5.5. The 1,772,496-byte
+  image (SHA-256 prefix `3dabee13ceb8e0db`) fits the 6,553,600-byte app slot.
+  Before flashing, a fresh read of the device partition table matched both
+  the Radiohead and candidate binaries byte for byte. Fresh OTA metadata had
+  valid sequence 1 in copy 0 (CRC `0x4743989a`), selecting app0 at `0x10000`;
+  copy 1 was invalid. App0-only flashing and the write hash check passed.
+  NVS, OTA metadata, bootloader and LittleFS were not written. The normal
+  Radiohead build also passed (96,340 B static RAM; 3,491,499 B linked flash).
+- The user reported 20 deliberate Next taps plus pause/resume, seek, volume
+  changes and transfer to the phone and back, with clear audio afterward on
+  this short-run image. These button presses are a user report; serial records
+  decoder starts and output boundaries, not each remote command. The running
+  private capture had 15 decoder starts, two natural EOF events, 11 output
+  boundaries and 48 CDN opens as of the initial ledger update. Across its
+  samples to that point, minimum free internal/DMA/PSRAM was
+  67,207 / 59,419 / 7,961,124 B, with zero recorded allocation failures,
+  partial I2S writes, I2S write failures, queue waits, watchdogs, panics or
+  aborts. These counts span setup and controls and are not a two-hour test.
+- The requested adjacent duplicate-song test is **inconclusive**. The phone
+  playlist UI would not accept a duplicate entry. The user tried queueing a
+  song twice, but an unexpected song played and the phone queue order was not
+  confirmed. Repeat One was unavailable. The decoder log cannot prove that
+  two adjacent instances were actually sent to the candidate. The source
+  risk from file-identifier-based boundary detection remains open.
+- Cold restart 1: the user removed power and reconnected the device. The
+  serial connection dropped for about 14 seconds and a new boot reached Wi-Fi
+  and native authentication with the saved pairing. A read-only host GET of
+  `/spotify_info` returned HTTP 200 and Spotify status 101. The radio appeared
+  on the phone, but selection failed twice while the phone had no active song,
+  including after reopening Spotify. Starting a fresh song on the phone and
+  transferring it to the radio then worked with clear audio. This is a
+  reproducible selection precondition/limitation, not a failed cold boot.
+  A brief USB reconnect between cold restarts 1 and 2 was not confirmed as a
+  power-off restart and is excluded from the three-restart count.
+- Cold restarts 2 and 3: the user removed all power for at least five seconds
+  each time, started fresh phone playback, and transferred it to the radio.
+  Both transfers worked and audio was clear. Thus three physical cold boots
+  were reported and playback succeeded after all three once phone playback
+  was active. These tests used the original short-run image, before the
+  Wi-Fi recovery patches; they do not validate those later images.
+- Wi-Fi interruption on the original short-run image: the user disabled the
+  router Wi-Fi for about 15 seconds. The device did not reassociate or resume
+  ping/playback. The final 3,193-second capture had 23 decoder starts, two
+  natural EOF events, 16 output boundaries, 63 CDN opens and 84 task-watchdog
+  events in `cspot_decoder`. Symbolization placed the decoder in Bell's HTTP
+  response-header parser after a dead socket. No allocation, partial-I2S or
+  I2S-write failures were recorded. The previous interim zero-watchdog
+  observation applied only before this interruption.
+- Recovery patch iteration (run 18): four standalone-only patches added a
+  Wi-Fi station-disconnect handler, CDN range retry, HTTP response EOF check,
+  and then connection-lifetime synchronization. Run 18 tested the first three
+  patches. The user toggled router Wi-Fi multiple times. The radio regained
+  IP and resumed PCM after two outages (`cdn_range_recovered` twice), but
+  Spotify moved playback to the phone. A later outage caused a LoadProhibited
+  panic in `ShannonConnection::sendPacket` while `MercurySession::reconnect`
+  replaced the shared connection. Its 10m24s private capture recorded five
+  reconnect and got-IP events, four CDN range retry logs, one range timeout,
+  one panic and one subsequent abort; no task watchdog or sampled allocation/
+  I2S failures. Minimum sampled free internal/DMA/PSRAM was
+  68,087 / 60,299 / 7,956,708 B. A follow-up patch uses atomic shared-pointer
+  snapshots for the session connection and removes recursive reconnect calls.
+- Run 19 rebuilt the pinned standalone candidate with all four recovery
+  patches. Before the app-only upload, a fresh partition read matched both
+  candidate and Radiohead layouts and valid OTA sequence 1 still selected
+  app0 at `0x10000`; the flashed 1,775,072-byte image passed write-hash
+  verification. The user transferred a fresh song and heard clear audio.
+  They then disabled router Wi-Fi for about 15 seconds. The radio rejoined
+  after an abort/reboot, but Spotify moved output to the phone. The private
+  3m54s capture recorded one `wifi_reconnect`, one post-reboot `wifi_got_ip`,
+  two CDN retry logs, a 30-second range timeout, one abort and no watchdog.
+  Addr2line traced the uncaught exception to `bell::TLSSocket::open` from
+  `CDNAudioFile::openStream`, following range timeout. There was no recovered
+  CDN range in this run. The crash prevents claiming Wi-Fi recovery; the
+  run-18 connection-lifetime fix does not address this separate exception.
+  Minimum sampled free internal/DMA/PSRAM was
+  65,283 / 57,495 / 7,991,612 B; sampled allocation failures, partial I2S
+  writes and I2S write failures were zero. PCM counters reset on reboot, so
+  their maxima are not a whole-run output total.
+- After run 19, a fresh partition read still matched the Radiohead layout;
+  valid OTA sequence 1 selected app0. The normal 3,542,480-byte Radiohead
+  image was flashed to app0 only and its write hash verified. NVS, OTA data,
+  bootloader, app1 and LittleFS were not written. A 30-second private serial
+  capture after restoration had no panic, abort or watchdog. The user then
+  confirmed that normal radio playback and the screen both work.
 
-## Handoff after the user stopped S1 testing
+## Handoff after short-run continuation
 
-The user chose to stop after the native feasibility result and preserve
-the diagnostics for later work. **S0 is complete; S1 is partial, not a
-formal pass.** Run 15 fixed the reproduced phone-state/three-song stall:
+The user chose to skip the continuous two-hour test and preserve the
+diagnostics for later work. **S0 is complete; S1 fails Wi-Fi interruption
+recovery and is not a formal pass.** Run 15 fixed the reproduced
+phone-state/three-song stall:
 run 14 had zero output-boundary notifications and 32 queue-wait samples,
 while runs 15 and 16 had four and eight notifications respectively and
 zero queue-wait samples. The user reported that Spotify kept the radio
 selected when the iPhone app opened on run 15, and that run 16's longer
-pause resumed clearly. The final image has not had a two-hour continuous
-test or its own observed token renewal. Earlier run 12 did renew a
+pause resumed clearly. The latest recovery image has not had a two-hour
+continuous test or its own observed token renewal. Earlier run 12 did renew a
 native authorization token after 1,800.856 s with PCM continuing.
 
 Private evidence and recovery material are in
@@ -407,22 +493,26 @@ mode 0700, its files mode 0600. `MANIFEST.md` and
 publishing credentials. The provisioning file and NVS backup may contain
 secrets; keep this directory private and out of git. The reproducible
 source is in `experiments/spotify-native/`; the summary scripts are in
-`tools/`. The normal Radiohead image was restored with
-`pio run -e esp32s3 -t upload --upload-port /dev/cu.usbmodem11201`,
-and the write hash verified. A 45-second private boot capture recorded
-Wi-Fi output and no panic, watchdog or abort; the regular radio's audio,
-controls and web routes were not rechecked after restoration.
+`tools/`. The earlier run-16 restore used PlatformIO upload and a private
+45-second boot capture. The latest restore after run 19 used a verified
+app0-only flash; the user confirmed normal radio playback and screen.
+Normal web routes and controls were not rechecked after this restore.
 
-Before declaring S1 complete, repeat on the final candidate image:
+Before declaring S1 complete, fix the Wi-Fi/stream-open failure and repeat
+on the corrected final candidate image:
 
 1. Two hours of continuous playlist output with the phone and Mac doing
    no playback work, including a token renewal in that same run and
-   periodic listening checks.
+   periodic listening checks. The user explicitly skipped this long test
+   in the current continuation; it remains a formal S1 gate.
 2. Three genuine power-off/on restarts and one Wi-Fi interruption with
-   reconnection and resumption, while preserving NVS/LittleFS.
+   reconnection and resumption, while preserving NVS/LittleFS. Three restarts
+   passed with active phone playback on the earlier image; Wi-Fi recovery
+   failed on all tested images and the latest image aborted after timeout.
 3. Remote pause, seek, volume, transfer away/back and at least 20 track
-   changes on that image; the 20 deliberate changes were reported on
-   run 12, before the output-boundary and backpressure fixes.
+   changes on the corrected image. The user reported these working on the
+   earlier short-run candidate, but the later recovery image needs its own
+   checks after the Wi-Fi failure is fixed.
 4. A playlist with two adjacent instances of the same song. The current
    output marker detects track changes by file identifier, so adjacent
    identical files may suppress the second boundary notification. This

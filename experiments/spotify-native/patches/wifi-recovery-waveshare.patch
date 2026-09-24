@@ -1,0 +1,39 @@
+diff --git a/main/main.cpp b/main/main.cpp
+--- a/main/main.cpp
++++ b/main/main.cpp
+@@ -84,6 +84,24 @@
+     return !value.empty();
+ }
+ 
++static std::atomic<uint32_t> wifiReconnectAttempts{0};
++
++static void onWifiDisconnected(void*, esp_event_base_t, int32_t, void* eventData) {
++    const auto* event = static_cast<wifi_event_sta_disconnected_t*>(eventData);
++    const uint32_t attempt = ++wifiReconnectAttempts;
++    if (attempt == 1 || attempt % 8 == 0)
++        ESP_LOGW("val-s1", "wifi_reconnect attempt=%u reason=%u", attempt,
++                 event ? static_cast<unsigned>(event->reason) : 0);
++    const esp_err_t result = esp_wifi_connect();
++    if (result != ESP_OK)
++        ESP_LOGW("val-s1", "wifi_reconnect call_failed=%d", result);
++}
++
++static void onWifiGotIp(void*, esp_event_base_t, int32_t, void*) {
++    const uint32_t attempts = wifiReconnectAttempts.exchange(0);
++    ESP_LOGI("val-s1", "wifi_got_ip after_attempts=%u", attempts);
++}
++
+ static bool writeNvsString(const char* nameSpace, const char* key,
+                            const std::string& value) {
+     nvs_handle_t handle;
+@@ -151,6 +169,10 @@
+     esp_netif_init();
+     esp_event_loop_create_default();
+     esp_netif_create_default_wifi_sta();
++    ESP_ERROR_CHECK(esp_event_handler_register(
++        WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, onWifiDisconnected, nullptr));
++    ESP_ERROR_CHECK(esp_event_handler_register(
++        IP_EVENT, IP_EVENT_STA_GOT_IP, onWifiGotIp, nullptr));
+ 
+     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+     esp_wifi_init(&cfg);

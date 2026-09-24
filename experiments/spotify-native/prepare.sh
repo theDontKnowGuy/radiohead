@@ -23,6 +23,10 @@ test "$(git -C "$output/lib/cspot/cspot/bell" rev-parse HEAD)" = ead27050f63aba3
 git -C "$output" apply "$script_dir/patches/waveshare-radiohead.patch"
 git -C "$output/lib/cspot" apply "$script_dir/patches/cspot-radiohead.patch"
 git -C "$output/lib/cspot/cspot/bell" apply "$script_dir/patches/bell-idf55.patch"
+git -C "$output" apply "$script_dir/patches/wifi-recovery-waveshare.patch"
+git -C "$output/lib/cspot" apply "$script_dir/patches/wifi-recovery-cspot.patch"
+git -C "$output/lib/cspot/cspot/bell" apply "$script_dir/patches/wifi-recovery-bell.patch"
+git -C "$output/lib/cspot" apply "$script_dir/patches/wifi-recovery-session.patch"
 
 echo "Native candidate prepared in $output"
 echo "Build with ESP-IDF 5.5.5. The candidate reads Wi-Fi and Spotify credentials from NVS."

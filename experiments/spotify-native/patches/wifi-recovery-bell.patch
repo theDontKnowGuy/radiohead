@@ -1,0 +1,24 @@
+diff --git a/main/io/HTTPClient.cpp b/main/io/HTTPClient.cpp
+--- a/main/io/HTTPClient.cpp
++++ b/main/io/HTTPClient.cpp
+@@ -73,11 +73,19 @@
+   this->httpBufferAvailable = 0;
+ 
+   while (1) {
++    if (httpBufferAvailable == httpBuffer.size())
++      throw std::runtime_error("Response too large");
+     socketStream.getline((char*)httpBuffer.data() + httpBufferAvailable,
+                          httpBuffer.size() - httpBufferAvailable);
+ 
++    // A dropped socket leaves getline at EOF. Parsing the same empty buffer
++    // forever starves the decoder core and triggers the task watchdog.
++    const std::streamsize lineBytes = socketStream.gcount();
++    if (lineBytes < 2 || !socketStream)
++      throw std::runtime_error("Incomplete HTTP response");
++
+     prevbuflen = httpBufferAvailable;
+-    httpBufferAvailable += socketStream.gcount();
++    httpBufferAvailable += static_cast<size_t>(lineBytes);
+ 
+     // Restore delimiters
+     memcpy(httpBuffer.data() + httpBufferAvailable - 2, "\r\n", 2);

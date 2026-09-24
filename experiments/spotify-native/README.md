@@ -65,6 +65,21 @@ to stop there; formal S1 acceptance remains open. See the
 [evidence ledger](../../docs/spotify-validation/progress.md) for exact
 measurements, limitations and remaining tests.
 
+Short-run S1 continuation exposed a Wi-Fi recovery failure: after a router
+interruption, the original candidate did not reassociate and the decoder
+spun while parsing an incomplete HTTP response. The additional recovery
+patches register an ESP-IDF station-disconnect handler, retry the same CDN
+range on a new socket after a short outage, and stop parsing at socket EOF.
+The first run with these changes regained IP and continued PCM, but repeated
+interruptions exposed a session connection lifetime race and a device panic.
+The run-19 patch snapshots the shared Shannon connection across send/receive
+calls and replaces recursive reconnect attempts with a loop. Run 19 played
+clearly before the Wi-Fi interruption, but a CDN range timeout led to an
+uncaught TLS socket exception in `CDNAudioFile::openStream` and an abort.
+After reboot the radio rejoined Wi-Fi, while Spotify moved playback to the
+phone. This standalone iteration fails S1 Wi-Fi recovery and is retained for
+diagnosis, not acceptance. See the ledger for measured results.
+
 On this development Mac, after `prepare.sh /tmp/spotify-native`, build with
 the installed ESP-IDF 5.5.5 package:
 
