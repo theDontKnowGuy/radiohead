@@ -11,6 +11,7 @@
 
 #include "app_state.h"
 #include "podcast_json_reader.h"
+#include "validation_diagnostics.h"
 
 namespace {
 
@@ -104,6 +105,7 @@ void scheduleStationRecovery(const char* reason) {
     ++stationRecoveryAttempts;
     stationRecoveryDueAt = millis() + delayMs;
     stationRecoveryScheduled = true;
+    validationEvent("station_recovery_scheduled");
     playbackState = PlaybackState::Connecting;
     playingStation = -1;
     forceRedraw = true;
@@ -596,6 +598,7 @@ bool playPodcastEpisode(int showIndex, int episodeIndex) {
     Serial.println("Playing podcast");
 
     cancelStationRecovery();
+    validationEvent("podcast_start");
     audio.stopSong();
     podcastMode = true;
     radioMuted = false;
@@ -696,6 +699,7 @@ const PodcastEpisode* podcastActiveEpisode() {
 }
 
 void playStation(int stationIndex) {
+    validationEvent("radio_start");
     stationTestPlayback = false;
     stationTestName = "";
     if (!stationRecoveryAttempt) {
@@ -773,6 +777,7 @@ bool startStationTest(const String& name, const String& url) {
 }
 
 void stopStationPlayback() {
+    validationEvent("playback_stop");
     cancelStationRecovery();
     audio.stopSong();
     podcastMode = false;

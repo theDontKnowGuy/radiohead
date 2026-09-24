@@ -1,0 +1,193 @@
+diff --git a/cspot/src/TrackPlayer.cpp b/cspot/src/TrackPlayer.cpp
+index 6b63604..ea450fe 100644
+--- a/cspot/src/TrackPlayer.cpp
++++ b/cspot/src/TrackPlayer.cpp
+@@ -11,6 +11,12 @@
+ #include "Packet.h"            // for cspot
+ #include "TrackQueue.h"        // for CDNTrackStream, CDNTrackStream::TrackInfo
+ #include "WrappedSemaphore.h"  // for WrappedSemaphore
++#ifdef ESP_PLATFORM
++#include "esp_log.h"
++#include "esp_attr.h"
++static DRAM_ATTR StaticTask_t s_decoder_tcb;
++static DRAM_ATTR StackType_t s_decoder_stack[32 * 1024 / sizeof(StackType_t)];
++#endif
+ 
+ #ifdef BELL_VORBIS_FLOAT
+ #define VORBIS_SEEK(file, position) \
+@@ -51,7 +57,7 @@ static long vorbisTellCb(TrackPlayer* self) {
+ TrackPlayer::TrackPlayer(std::shared_ptr<cspot::Context> ctx,
+                          std::shared_ptr<cspot::TrackQueue> trackQueue,
+                          EOFCallback eof, TrackLoadedCallback trackLoaded)
+-    : bell::Task("cspot_player", 32 * 1024, 5, 1) {
++    : bell::Task("cspot_decoder", 32 * 1024, 5, 1, false) {
+   this->ctx = ctx;
+   this->eofCallback = eof;
+   this->trackLoaded = trackLoaded;
+@@ -77,7 +83,23 @@ TrackPlayer::~TrackPlayer() {
+ void TrackPlayer::start() {
+   if (!isRunning) {
+     isRunning = true;
++#ifdef ESP_PLATFORM
++    // Reserve the decoder stack before TLS/HTTP fragmentation can prevent a
++    // contiguous heap allocation. Only one TrackPlayer exists in this spike.
++    TaskHandle_t task = xTaskCreateStaticPinnedToCore(
++        [](void* argument) {
++          static_cast<TrackPlayer*>(argument)->runTask();
++          vTaskDelete(nullptr);
++        }, "cspot_decoder", sizeof(s_decoder_stack), this,
++        CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 5,
++        s_decoder_stack, &s_decoder_tcb, 1);
++    if (!task) {
++      isRunning = false;
++      ESP_LOGE("val-s1", "Decoder task creation failed");
++    }
++#else
+     startTask();
++#endif
+   }
+ }
+ 
+@@ -110,6 +132,16 @@ void TrackPlayer::seekMs(size_t ms) {
+ 
+ void TrackPlayer::runTask() {
+   std::scoped_lock lock(runningMutex);
++#ifdef ESP_PLATFORM
++  TickType_t lastStackSample = 0;
++  auto sampleStack = [&]() {
++    const TickType_t now = xTaskGetTickCount();
++    if (now - lastStackSample >= pdMS_TO_TICKS(5000)) {
++      ESP_LOGI("val-s1", "state=decoder stack=%u", uxTaskGetStackHighWaterMark(nullptr));
++      lastStackSample = now;
++    }
++  };
++#endif
+ 
+   std::shared_ptr<QueuedTrack> track, newTrack = nullptr;
+ 
+@@ -118,6 +150,9 @@ void TrackPlayer::runTask() {
+   bool endOfQueueReached = false;
+ 
+   while (isRunning) {
++#ifdef ESP_PLATFORM
++    sampleStack();
++#endif
+     // Ensure we even have any tracks to play
+     if (!this->trackQueue->hasTracks() ||
+         (!pendingReset && endOfQueueReached && trackQueue->isFinished())) {
+@@ -206,6 +241,9 @@ void TrackPlayer::runTask() {
+       CSPOT_LOG(info, "Playing");
+ 
+       while (!eof && currentSongPlaying) {
++#ifdef ESP_PLATFORM
++        sampleStack();
++#endif
+         // Execute seek if needed
+         if (pendingSeekPositionMs > 0) {
+           uint32_t seekPosition = pendingSeekPositionMs;
+diff --git a/cspot/src/TrackQueue.cpp b/cspot/src/TrackQueue.cpp
+index 2fd9bed..431c320 100644
+--- a/cspot/src/TrackQueue.cpp
++++ b/cspot/src/TrackQueue.cpp
+@@ -15,6 +15,12 @@
+ #include "Logger.h"
+ #include "Utils.h"
+ #include "WrappedSemaphore.h"
++#ifdef ESP_PLATFORM
++#include "esp_log.h"
++#include "esp_attr.h"
++static DRAM_ATTR StaticTask_t s_queue_tcb;
++static DRAM_ATTR StackType_t s_queue_stack[32 * 1024 / sizeof(StackType_t)];
++#endif
+ #ifdef BELL_ONLY_CJSON
+ #include "cJSON.h"
+ #else
+@@ -217,6 +223,7 @@ void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
+     CSPOT_LOG(debug, "File format: %d", selectedFiles[x].format);
+     if (selectedFiles[x].format == ctx->config.audioFormat) {
+       fileId = pbArrayToVector(selectedFiles[x].file_id);
++      CSPOT_LOG(info, "Selected audio format=%d", selectedFiles[x].format);
+       break;  // If file found stop searching
+     }
+ 
+@@ -224,6 +231,7 @@ void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
+     if (fileId.size() == 0 &&
+         selectedFiles[x].format == AudioFormat_OGG_VORBIS_96) {
+       fileId = pbArrayToVector(selectedFiles[x].file_id);
++      CSPOT_LOG(info, "Audio fallback format=%d", selectedFiles[x].format);
+     }
+   }
+ 
+@@ -317,7 +325,7 @@ void QueuedTrack::stepLoadCDNUrl(const std::string& accessKey) {
+       cdnUrl = jsonResult["cdnurl"][0];
+ #endif
+ 
+-      CSPOT_LOG(info, "Received CDN URL, %s", cdnUrl.c_str());
++      CSPOT_LOG(info, "Received CDN URL");
+       state = State::READY;
+       loadedSemaphore->give();
+       return;
+@@ -386,7 +394,7 @@ void QueuedTrack::stepLoadMetadata(
+ 
+ TrackQueue::TrackQueue(std::shared_ptr<cspot::Context> ctx,
+                        std::shared_ptr<cspot::PlaybackState> state)
+-    : bell::Task("CSpotTrackQueue", 1024 * 32, 2, 1),
++    : bell::Task("CSpotTrackQueue", 1024 * 32, 2, 1, false),
+       playbackState(state),
+       ctx(ctx) {
+   accessKeyFetcher = std::make_shared<cspot::AccessKeyFetcher>(ctx);
+@@ -401,7 +409,18 @@ TrackQueue::TrackQueue(std::shared_ptr<cspot::Context> ctx,
+   pbEpisode = Episode_init_zero;
+ 
+   // Start the task
++#ifdef ESP_PLATFORM
++  TaskHandle_t task = xTaskCreateStaticPinnedToCore(
++      [](void* argument) {
++        static_cast<TrackQueue*>(argument)->runTask();
++        vTaskDelete(nullptr);
++      }, "CSpotTrackQueue", sizeof(s_queue_stack), this,
++      CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 2,
++      s_queue_stack, &s_queue_tcb, 1);
++  if (!task) ESP_LOGE("val-s1", "Queue task creation failed");
++#else
+   startTask();
++#endif
+ };
+ 
+ TrackQueue::~TrackQueue() {
+@@ -423,12 +442,25 @@ TrackInfo TrackQueue::getTrackInfo(std::string_view identifier) {
+ 
+ void TrackQueue::runTask() {
+   isRunning = true;
++#ifdef ESP_PLATFORM
++  TickType_t lastStackSample = 0;
++  auto sampleStack = [&]() {
++    const TickType_t now = xTaskGetTickCount();
++    if (now - lastStackSample >= pdMS_TO_TICKS(5000)) {
++      ESP_LOGI("val-s1", "state=queue stack=%u", uxTaskGetStackHighWaterMark(nullptr));
++      lastStackSample = now;
++    }
++  };
++#endif
+ 
+   std::scoped_lock lock(runningMutex);
+ 
+   std::deque<std::shared_ptr<QueuedTrack>> trackQueue;
+ 
+   while (isRunning) {
++#ifdef ESP_PLATFORM
++    sampleStack();
++#endif
+     processSemaphore->twait(100);
+ 
+     // Make sure we have the newest access key
+@@ -448,6 +480,9 @@ void TrackQueue::runTask() {
+     for (auto& track : trackQueue) {
+       if (track) {
+         this->processTrack(track);
++#ifdef ESP_PLATFORM
++        sampleStack();
++#endif
+       }
+     }
+   }

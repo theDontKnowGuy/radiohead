@@ -15,6 +15,7 @@
 #include "settings.h"
 #include "ui_controller.h"
 #include "web_server.h"
+#include "validation_diagnostics.h"
 
 namespace {
 
@@ -149,6 +150,7 @@ void updatePowerState(unsigned long now) {
 void setup() {
     Serial.begin(115200);
     delay(2000);
+    validationBegin();
 
     rtc_gpio_hold_dis(static_cast<gpio_num_t>(TFT_BLK));
     rtc_gpio_deinit(static_cast<gpio_num_t>(TFT_BLK));
@@ -187,6 +189,7 @@ void setup() {
     BootScreen::hold(
         bootScreenStartedAt, networkJoinPending, kNetworkJoinTimeoutMs);
     if (networkJoinStarted) finishNetworkConnection();
+    validationEvent(isAP ? "setup_ap" : "wifi_ready");
 
     startWebServer();
     showNetworkQrScreen();
@@ -209,6 +212,7 @@ void setup() {
     if (!isAP) {
         playStation(currentStationIdx);
     }
+    validationEvent("startup_playback_requested");
 
     xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0);
     lastInteraction = millis();
@@ -220,8 +224,13 @@ void setup() {
 }
 
 void loop() {
+    validationLoopEnter();
+    const uint32_t audioStartedUs = micros();
     audio.loop();
+    validationAudioServiced(micros() - audioStartedUs);
+    const uint32_t webStartedUs = micros();
     server.handleClient();
+    validationWebServiced(micros() - webStartedUs);
     serviceWebNetworkRequests(millis());
     updateWeatherData();
 
@@ -466,4 +475,5 @@ void loop() {
     } else if (homeStationTitleDue) {
         renderHomeStationTitleTick();
     }
+    validationTick();
 }

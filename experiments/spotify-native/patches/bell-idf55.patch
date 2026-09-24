@@ -1,0 +1,59 @@
+diff --git a/main/io/TLSSocket.cpp b/main/io/TLSSocket.cpp
+index 26818d6..1e560f6 100644
+--- a/main/io/TLSSocket.cpp
++++ b/main/io/TLSSocket.cpp
+@@ -2,15 +2,19 @@
+ 
+ #include <mbedtls/net_sockets.h>  // for mbedtls_net_connect, mbedtls_net_free
+ #include <mbedtls/ssl.h>          // for mbedtls_ssl_conf_authmode, mbedtls_...
++#include "esp_random.h"
+ #include <stdexcept>              // for runtime_error
+ 
+ #include "BellLogger.h"  // for AbstractLogger, BELL_LOG
+ #include "X509Bundle.h"  // for shouldVerify, attach
+ 
+ /**
+- * Platform TLSSocket implementation for mbedtls 4.0 / PSA-Crypto.
+- * RNG is handled internally by PSA; no explicit entropy/ctr_drbg needed.
++ * IDF 5.5 uses mbedTLS 3 and requires an explicit RNG for each TLS config.
+  */
++static int espTlsRandom(void*, unsigned char* output, size_t length) {
++  esp_fill_random(output, length);
++  return 0;
++}
+ bell::TLSSocket::TLSSocket() {
+   this->isClosed = false;
+   mbedtls_net_init(&server_fd);
+@@ -57,7 +61,7 @@ void bell::TLSSocket::open(const std::string& hostUrl, uint16_t port) {
+   mbedtls_ssl_conf_max_tls_version(&conf, MBEDTLS_SSL_VERSION_TLS1_2);
+   mbedtls_ssl_conf_min_tls_version(&conf, MBEDTLS_SSL_VERSION_TLS1_2);
+ 
+-  // mbedtls 4.0: RNG is handled internally by PSA, ssl_conf_rng removed
++  mbedtls_ssl_conf_rng(&conf, espTlsRandom, nullptr);
+   if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
+     BELL_LOG(error, "http_tls", "failed! ssl_setup returned %d\n", ret);
+     throw std::runtime_error("mbedtls_ssl_setup failed");
+diff --git a/main/io/X509Bundle.cpp b/main/io/X509Bundle.cpp
+index b74e551..e836d87 100644
+--- a/main/io/X509Bundle.cpp
++++ b/main/io/X509Bundle.cpp
+@@ -1,4 +1,5 @@
+ #include "X509Bundle.h"
++#include <esp_idf_version.h>
+ 
+ #include <mbedtls/md.h>    // for mbedtls_md, mbedtls_md_get_size
+ #include <mbedtls/pk.h>    // for mbedtls_pk_can_do, mbedtls_pk_pa...
+@@ -57,9 +58,12 @@ int bell::X509Bundle::crtCheckCertificate(mbedtls_x509_crt* child,
+     goto cleanup;
+   }
+ 
+-  // mbedtls 4.0: sig_opts removed, verify_ext signature changed
++  // IDF 5.5 uses the mbedTLS 3 options parameter; mbedTLS 4 removes it.
+   if ((ret = mbedtls_pk_verify_ext(
+            child->MBEDTLS_PRIVATE(sig_pk),
++#if ESP_IDF_VERSION_MAJOR < 6
++           nullptr,
++#endif
+            &parent.pk, child->MBEDTLS_PRIVATE(sig_md), hash,
+            mbedtls_md_get_size(md_info), child->MBEDTLS_PRIVATE(sig).p,
+            child->MBEDTLS_PRIVATE(sig).len)) != 0) {

@@ -1,0 +1,573 @@
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+index aa3c600..2873e99 100644
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -19,9 +19,11 @@ idf_component_register(
+         mdns
+         freertos
+         esp_netif
++        esp_timer
+         mbedtls
+         driver
+         esp_driver_gpio
++        esp_driver_usb_serial_jtag
+         esp_driver_i2c
+         esp_driver_i2s
+ )
+@@ -45,7 +47,6 @@ if(TARGET bell)
+     # port/include/mbedtls/bignum.h uses #include_next "mbedtls/private/bignum.h"
+     # which searches paths AFTER port/include — those must include builtin/include.
+     target_include_directories(bell PUBLIC
+-        "${CMAKE_SOURCE_DIR}/compat"
+         "$ENV{IDF_PATH}/components/mbedtls/mbedtls/include"
+         "$ENV{IDF_PATH}/components/mbedtls/mbedtls/tf-psa-crypto/include"
+         "$ENV{IDF_PATH}/components/mbedtls/port/include"
+@@ -78,6 +79,3 @@ endif()
+ 
+ # GCC 15.2.0 ICE workaround: -fzero-init-padding-bits=all triggers an ICE in esp_lcd_panel_rgb.c
+ # at the RTL/ira pass. Suppress it for esp_lcd only.
+-if(TARGET __idf_esp_lcd)
+-    target_compile_options(__idf_esp_lcd PRIVATE -fzero-init-padding-bits=standard)
+-endif()
+diff --git a/main/MAX98357AAudioSink.cpp b/main/MAX98357AAudioSink.cpp
+new file mode 100644
+index 0000000..2d921f2
+--- /dev/null
++++ b/main/MAX98357AAudioSink.cpp
+@@ -0,0 +1,94 @@
++#include "MAX98357AAudioSink.h"
++
++#include <algorithm>
++#include <cstring>
++#include "esp_log.h"
++#include "esp_timer.h"
++#include "freertos/FreeRTOS.h"
++
++namespace {
++constexpr gpio_num_t kBck = GPIO_NUM_15;
++constexpr gpio_num_t kWs = GPIO_NUM_17;
++constexpr gpio_num_t kDout = GPIO_NUM_16;
++constexpr char kTag[] = "max98357a";
++}
++
++MAX98357AAudioSink::MAX98357AAudioSink() {
++    softwareVolumeControl = false;
++    i2s_chan_config_t channel = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
++    channel.auto_clear = true;
++    if (i2s_new_channel(&channel, &tx_, nullptr) != ESP_OK) {
++        ESP_LOGE(kTag, "I2S channel allocation failed");
++        tx_ = nullptr;
++        return;
++    }
++    i2s_std_config_t standard = {
++        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(44100),
++        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
++        .gpio_cfg = {
++            .mclk = I2S_GPIO_UNUSED,
++            .bclk = kBck,
++            .ws = kWs,
++            .dout = kDout,
++            .din = I2S_GPIO_UNUSED,
++            .invert_flags = {},
++        },
++    };
++    if (i2s_channel_init_std_mode(tx_, &standard) != ESP_OK ||
++        i2s_channel_enable(tx_) != ESP_OK) {
++        ESP_LOGE(kTag, "I2S setup failed");
++        i2s_del_channel(tx_);
++        tx_ = nullptr;
++    }
++}
++
++MAX98357AAudioSink::~MAX98357AAudioSink() {
++    if (tx_) {
++        i2s_channel_disable(tx_);
++        i2s_del_channel(tx_);
++    }
++}
++
++void MAX98357AAudioSink::feedPCMFrames(const uint8_t* source, size_t bytes) {
++    if (!tx_ || !source || bytes == 0 || bytes % sizeof(int16_t) != 0) return;
++    int16_t scaled[512];
++    size_t consumed = 0;
++    while (consumed < bytes) {
++        const size_t count = std::min(sizeof(scaled), bytes - consumed) / sizeof(int16_t);
++        const uint8_t gain = volume_.load(std::memory_order_relaxed);
++        for (size_t index = 0; index < count; ++index) {
++            int16_t sample;
++            memcpy(&sample, source + consumed + index * sizeof(sample), sizeof(sample));
++            scaled[index] = static_cast<int16_t>(static_cast<int32_t>(sample) * gain / 255);
++        }
++        const size_t chunkBytes = count * sizeof(int16_t);
++        size_t sent = 0;
++        const int64_t deadlineUs = esp_timer_get_time() + 200000;
++        while (sent < chunkBytes) {
++            size_t written = 0;
++            const size_t remaining = chunkBytes - sent;
++            const esp_err_t result = i2s_channel_write(
++                tx_, reinterpret_cast<const uint8_t*>(scaled) + sent,
++                remaining, &written, 50);
++            if (written < remaining) partialWrites_.fetch_add(1, std::memory_order_relaxed);
++            sent += written;
++            if ((result != ESP_OK && written == 0) || esp_timer_get_time() >= deadlineUs) {
++                const uint32_t failures = writeFailures_.fetch_add(1, std::memory_order_relaxed) + 1;
++                if (failures == 1) ESP_LOGE(kTag, "I2S output stalled result=%d", result);
++                return;
++            }
++        }
++        pcmBytes_.fetch_add(static_cast<uint32_t>(chunkBytes), std::memory_order_relaxed);
++        consumed += chunkBytes;
++    }
++}
++
++void MAX98357AAudioSink::volumeChanged(uint16_t volume) {
++    volume_.store(static_cast<uint8_t>(std::min<uint16_t>(volume, 255)), std::memory_order_relaxed);
++}
++
++bool MAX98357AAudioSink::setParams(uint32_t sampleRate, uint8_t channels, uint8_t bitDepth) {
++    ESP_LOGI(kTag, "PCM format rate=%lu channels=%u bits=%u",
++             static_cast<unsigned long>(sampleRate), channels, bitDepth);
++    return tx_ && sampleRate == 44100 && channels == 2 && bitDepth == 16;
++}
+diff --git a/main/MAX98357AAudioSink.h b/main/MAX98357AAudioSink.h
+new file mode 100644
+index 0000000..84f8e3b
+--- /dev/null
++++ b/main/MAX98357AAudioSink.h
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <atomic>
++#include <cstdint>
++#include "AudioSink.h"
++#include "driver/i2s_std.h"
++
++class MAX98357AAudioSink final : public AudioSink {
++public:
++    MAX98357AAudioSink();
++    ~MAX98357AAudioSink() override;
++    void feedPCMFrames(const uint8_t* buffer, size_t bytes) override;
++    void volumeChanged(uint16_t volume) override;
++    bool setParams(uint32_t sampleRate, uint8_t channels, uint8_t bitDepth) override;
++    uint32_t partialWrites() const { return partialWrites_.load(std::memory_order_relaxed); }
++    uint32_t writeFailures() const { return writeFailures_.load(std::memory_order_relaxed); }
++    uint32_t pcmBytes() const { return pcmBytes_.load(std::memory_order_relaxed); }
++
++private:
++    i2s_chan_handle_t tx_ = nullptr;
++    std::atomic<uint8_t> volume_{0};
++    std::atomic<uint32_t> partialWrites_{0};
++    std::atomic<uint32_t> writeFailures_{0};
++    std::atomic<uint32_t> pcmBytes_{0};
++};
+diff --git a/main/main.cpp b/main/main.cpp
+index b42adbc..28b5e1f 100644
+--- a/main/main.cpp
++++ b/main/main.cpp
+@@ -7,7 +7,7 @@
+ #include "BellUtils.h"
+ #include "CircularBuffer.h"
+ #include "CSpotContext.h"
+-#include "ES8311AudioSink.h"
++#include "MAX98357AAudioSink.h"
+ #include "Logger.h"
+ #include "LoginBlob.h"
+ #include "MDNSService.h"
+@@ -15,29 +15,133 @@
+ #include "TrackPlayer.h"
+ #include "esp_attr.h"
+ #include "esp_event.h"
++#include "esp_heap_caps.h"
++#include "esp_timer.h"
+ #include "esp_log.h"
+ #include "esp_netif.h"
+ #include "esp_pthread.h"
+-#include "esp_spiffs.h"
+ #include "esp_wifi.h"
+ #include "freertos/FreeRTOS.h"
+ #include "freertos/task.h"
+ #include "mdns.h"
+ #include "nvs_flash.h"
++#include "nvs.h"
++#include "driver/usb_serial_jtag.h"
++#include <cstdio>
++#include <cstring>
+ 
+ // ---------------------------------------------------------------------------
+-// Credentials — copy main/credentials.h.example to main/credentials.h
+-// and fill in your WiFi + Spotify app credentials (file is gitignored)
++// This standalone experiment reads the radio's existing Wi-Fi Preferences and
++// privately provisioned Spotify credentials from NVS. Neither is compiled in.
+ // ---------------------------------------------------------------------------
+-#include "credentials.h"
+-#define DEVICE_NAME "SpotifyESP32"
++#define DEVICE_NAME "Radiohead Native Test"
+ 
+ static const char* TAG = "main";
++static std::atomic<uint32_t> failedAllocations{0};
++static std::atomic<uint32_t> lastFailedBytes{0};
++
++static void failedAllocation(size_t requested, uint32_t, const char*) {
++    failedAllocations.fetch_add(1, std::memory_order_relaxed);
++    lastFailedBytes.store(static_cast<uint32_t>(requested), std::memory_order_relaxed);
++}
++
++static void logMemorySample(const char* state) {
++    constexpr uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
++    constexpr uint32_t dma = MALLOC_CAP_DMA | MALLOC_CAP_8BIT;
++    constexpr uint32_t psram = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
++    ESP_LOGI("val-s1", "state=%s int=%u,%u,%u dma=%u,%u,%u psram=%u,%u,%u stack=%u tasks=%u alloc_fail=%u last_fail=%u",
++             state,
++             heap_caps_get_free_size(internal), heap_caps_get_minimum_free_size(internal), heap_caps_get_largest_free_block(internal),
++             heap_caps_get_free_size(dma), heap_caps_get_minimum_free_size(dma), heap_caps_get_largest_free_block(dma),
++             heap_caps_get_free_size(psram), heap_caps_get_minimum_free_size(psram), heap_caps_get_largest_free_block(psram),
++             uxTaskGetStackHighWaterMark(nullptr), uxTaskGetNumberOfTasks(),
++             failedAllocations.load(std::memory_order_relaxed),
++             lastFailedBytes.load(std::memory_order_relaxed));
++}
++
++static bool readNvsString(const char* nameSpace, const char* key, std::string& value,
++                          size_t maximumBytes) {
++    nvs_handle_t handle;
++    if (nvs_open(nameSpace, NVS_READONLY, &handle) != ESP_OK) return false;
++    size_t bytes = 0;
++    esp_err_t result = nvs_get_str(handle, key, nullptr, &bytes);
++    if (result != ESP_OK || bytes == 0 || bytes > maximumBytes + 1) {
++        nvs_close(handle);
++        return false;
++    }
++    std::string text(bytes, '\0');
++    result = nvs_get_str(handle, key, text.data(), &bytes);
++    nvs_close(handle);
++    if (result != ESP_OK || bytes == 0) return false;
++    text.resize(bytes - 1);
++    value.swap(text);
++    return !value.empty();
++}
++
++static bool writeNvsString(const char* nameSpace, const char* key,
++                           const std::string& value) {
++    nvs_handle_t handle;
++    if (nvs_open(nameSpace, NVS_READWRITE, &handle) != ESP_OK) return false;
++    const esp_err_t setResult = nvs_set_str(handle, key, value.c_str());
++    const esp_err_t commitResult = setResult == ESP_OK ? nvs_commit(handle) : setResult;
++    nvs_close(handle);
++    return setResult == ESP_OK && commitResult == ESP_OK;
++}
++
++static bool readProvisionLine(const char* prefix, std::string& value) {
++    char buffer[160] = {};
++    size_t used = 0;
++    while (used < sizeof(buffer) - 1) {
++        char character = 0;
++        if (usb_serial_jtag_read_bytes(&character, 1, portMAX_DELAY) != 1) continue;
++        if (character == '\r' || character == '\n') {
++            if (used == 0) continue;
++            buffer[used++] = '\n';
++            break;
++        }
++        buffer[used++] = character;
++    }
++    if (used == sizeof(buffer) - 1) return false;
++    const size_t prefixLength = strlen(prefix);
++    const size_t length = strlen(buffer);
++    if (length == 0 || buffer[length - 1] != '\n' ||
++        strncmp(buffer, prefix, prefixLength) != 0) return false;
++    char* end = buffer + length;
++    while (end > buffer && (end[-1] == '\n' || end[-1] == '\r')) *--end = '\0';
++    value.assign(buffer + prefixLength);
++    memset(buffer, 0, sizeof(buffer));
++    return !value.empty() && value.size() <= 96;
++}
++
++static bool loadSpotifyApp(std::string& clientId, std::string& clientSecret) {
++    if (readNvsString("spotify", "client_id", clientId, 96) &&
++        readNvsString("spotify", "client_secret", clientSecret, 96)) return true;
++    ESP_LOGI(TAG, "Waiting for private USB serial Spotify app provisioning");
++    if (!readProvisionLine("SPOTIFY_CLIENT_ID=", clientId) ||
++        !readProvisionLine("SPOTIFY_CLIENT_SECRET=", clientSecret)) {
++        ESP_LOGE(TAG, "Provisioning format invalid; restart to retry");
++        return false;
++    }
++    if (!writeNvsString("spotify", "client_id", clientId) ||
++        !writeNvsString("spotify", "client_secret", clientSecret)) {
++        ESP_LOGE(TAG, "Could not save Spotify app credentials");
++        return false;
++    }
++    ESP_LOGI(TAG, "Spotify app credentials stored privately");
++    return true;
++}
+ 
+ // ---------------------------------------------------------------------------
+ // WiFi
+ // ---------------------------------------------------------------------------
+ static void wifiConnect() {
++    std::string ssid;
++    std::string password;
++    if (!readNvsString("radio", "ssid", ssid, 32) ||
++        !readNvsString("radio", "pass", password, 63)) {
++        ESP_LOGE(TAG, "Radiohead Wi-Fi credentials unavailable");
++        return;
++    }
+     esp_netif_init();
+     esp_event_loop_create_default();
+     esp_netif_create_default_wifi_sta();
+@@ -46,8 +150,8 @@ static void wifiConnect() {
+     esp_wifi_init(&cfg);
+ 
+     wifi_config_t wcfg = {};
+-    strncpy((char*)wcfg.sta.ssid,     WIFI_SSID, sizeof(wcfg.sta.ssid) - 1);
+-    strncpy((char*)wcfg.sta.password, WIFI_PASS,  sizeof(wcfg.sta.password) - 1);
++    strncpy((char*)wcfg.sta.ssid, ssid.c_str(), sizeof(wcfg.sta.ssid) - 1);
++    strncpy((char*)wcfg.sta.password, password.c_str(), sizeof(wcfg.sta.password) - 1);
+     wcfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+ 
+     esp_wifi_set_mode(WIFI_MODE_STA);
+@@ -80,38 +184,23 @@ static void wifiConnect() {
+     ESP_LOGW(TAG, "WiFi/DNS timeout — continuing anyway");
+ }
+ 
+-// ---------------------------------------------------------------------------
+-// SPIFFS (stores Spotify auth blob)
+-// ---------------------------------------------------------------------------
+-static void spiffsInit() {
+-    esp_vfs_spiffs_conf_t conf = {
+-        .base_path              = "/spiffs",
+-        .partition_label        = NULL,
+-        .max_files              = 5,
+-        .format_if_mount_failed = true,
+-    };
+-    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+-    if (ret != ESP_OK) {
+-        ESP_LOGE(TAG, "SPIFFS mount failed: %s", esp_err_to_name(ret));
+-    }
+-}
+-
+ // ---------------------------------------------------------------------------
+ // cspot player task — owns the audio sink and circular buffer
+ // ---------------------------------------------------------------------------
+ class CSpotPlayer : public bell::Task {
+     std::shared_ptr<cspot::SpircHandler> handler;
+-    std::unique_ptr<ES8311AudioSink>     audioSink;
++    std::unique_ptr<MAX98357AAudioSink> audioSink;
+     std::unique_ptr<bell::CircularBuffer> circBuf;
+     std::atomic<bool> paused{false};
++    std::atomic<uint32_t> queueGeneration{0};
+ 
+ public:
+     CSpotPlayer(std::shared_ptr<cspot::SpircHandler> h)
+-        : bell::Task("cspot_player", 16 * 1024, 0, 0), handler(h) {
++        : bell::Task("cspot_player", 8 * 1024, 0, 0), handler(h) {
+ 
+-        audioSink = std::make_unique<ES8311AudioSink>();
++        audioSink = std::make_unique<MAX98357AAudioSink>();
+         audioSink->setParams(44100, 2, 16);
+-        audioSink->volumeChanged(160);
++        audioSink->volumeChanged(64);
+ 
+         circBuf = std::make_unique<bell::CircularBuffer>(1024 * 128);
+ 
+@@ -128,16 +217,18 @@ public:
+                         paused = std::get<bool>(ev->data);
+                         break;
+                     case cspot::SpircHandler::EventType::VOLUME:
+-                        // Spotify sends 0-65535; ES8311 volumeChanged expects 0-255
++                        // Spotify sends 0-65535; sink accepts 0-255.
+                         audioSink->volumeChanged((uint16_t)(std::get<int>(ev->data) >> 8));
+                         break;
+                     case cspot::SpircHandler::EventType::DISC:
+                         paused = true;
++                        ++queueGeneration;
+                         circBuf->emptyBuffer();
+                         break;
+                     case cspot::SpircHandler::EventType::FLUSH:
+                     case cspot::SpircHandler::EventType::SEEK:
+                     case cspot::SpircHandler::EventType::PLAYBACK_START:
++                        ++queueGeneration;
+                         circBuf->emptyBuffer();
+                         break;
+                     default: break;
+@@ -149,7 +240,13 @@ public:
+ 
+     void feed(uint8_t* data, size_t len) {
+         size_t rem = len;
++        const uint32_t generation = queueGeneration.load();
++        const int64_t deadlineUs = esp_timer_get_time() + 2000000;
+         while (rem > 0) {
++            if (generation != queueGeneration.load() || esp_timer_get_time() >= deadlineUs) {
++                ESP_LOGW(TAG, "PCM producer cancelled or queue full");
++                return;
++            }
+             size_t w = circBuf->write(data + (len - rem), rem);
+             if (w == 0) BELL_SLEEP_MS(10);
+             rem -= w;
+@@ -158,7 +255,15 @@ public:
+ 
+     void runTask() override {
+         std::vector<uint8_t> buf(1024);
++        int64_t lastSampleUs = 0;
+         while (true) {
++            const int64_t nowUs = esp_timer_get_time();
++            if (nowUs - lastSampleUs >= 5000000) {
++                logMemorySample(paused ? "paused" : "output");
++                ESP_LOGI("val-s1", "pcm_bytes=%u partial_writes=%u write_failures=%u",
++                         audioSink->pcmBytes(), audioSink->partialWrites(), audioSink->writeFailures());
++                lastSampleUs = nowUs;
++            }
+             if (!paused) {
+                 size_t n = circBuf->read(buf.data(), buf.size());
+                 if (n > 0)
+@@ -182,9 +287,15 @@ public:
+ // DRAM_ATTR (.dram0.data) forces placement in internal DRAM.
+ // .dram0.bss is an orphan section in IDF 6.0's linker script and cannot be used.
+ static DRAM_ATTR StaticTask_t s_cspot_tcb;
+-static DRAM_ATTR StackType_t  s_cspot_stack[32 * 1024];
++static DRAM_ATTR StackType_t  s_cspot_stack[16 * 1024 / sizeof(StackType_t)];
+ 
+ static void cspotMainTask(void*) {
++    std::string clientId;
++    std::string clientSecret;
++    if (!loadSpotifyApp(clientId, clientSecret)) {
++        vTaskDelete(nullptr);
++        return;
++    }
+     // Force all pthreads spawned from this task (civetweb master + workers) to allocate
+     // their stacks in internal RAM.  PSRAM stacks cause ESP32-S3 inter-core cache
+     // coherency crashes.  With inherit_cfg=true the setting propagates to child threads.
+@@ -200,6 +311,15 @@ static void cspotMainTask(void*) {
+ 
+     std::atomic<bool> gotBlob{false};
+     auto blob   = std::make_shared<cspot::LoginBlob>(DEVICE_NAME);
++    std::string storedBlob;
++    if (readNvsString("spotify", "login_blob", storedBlob, 1024)) {
++        try {
++            blob->loadJson(storedBlob);
++            gotBlob = !blob->authData.empty() && !blob->getUserName().empty();
++        } catch (...) {
++            ESP_LOGW(TAG, "Stored Spotify pairing is invalid; awaiting phone pairing");
++        }
++    }
+     auto server = std::make_unique<bell::BellHTTPServer>(8080);
+ 
+     server->registerGet("/spotify_info",
+@@ -215,9 +335,10 @@ static void cspotMainTask(void*) {
+             obj["statusString"] = "ERROR-OK";
+ 
+             auto info = mg_get_request_info(conn);
+-            if (info->content_length > 0) {
++            if (info->content_length > 0 && info->content_length <= 4096) {
+                 std::string body(info->content_length, '\0');
+-                mg_read(conn, body.data(), info->content_length);
++                if (mg_read(conn, body.data(), info->content_length) != info->content_length)
++                    return server->makeJsonResponse(obj.dump());
+ 
+                 mg_header hd[16];
+                 int n = mg_split_form_urlencoded(body.data(), hd, 16);
+@@ -234,9 +355,11 @@ static void cspotMainTask(void*) {
+                 }
+ 
+                 blob->loadZeroconfQuery(qmap);
+-                if (!blob->getUserName().empty())
++                if (!blob->getUserName().empty() && !blob->authData.empty()) {
+                     gotBlob = true;
+-                else
++                    if (!writeNvsString("spotify", "login_blob", blob->toJson()))
++                        ESP_LOGE(TAG, "Could not persist Spotify pairing");
++                } else
+                     ESP_LOGE(TAG, "Blob auth failed — credentials not loaded");
+             }
+             return server->makeJsonResponse(obj.dump());
+@@ -249,10 +372,11 @@ static void cspotMainTask(void*) {
+     ESP_LOGI(TAG, "Waiting for Spotify app…");
+     while (!gotBlob) BELL_SLEEP_MS(1000);
+     ESP_LOGI(TAG, "Got credentials, starting player");
++    logMemorySample("paired");
+ 
+     auto ctx = cspot::Context::createFromBlob(blob);
+-    ctx->config.clientId     = SPOTIFY_CLIENT_ID;
+-    ctx->config.clientSecret = SPOTIFY_CLIENT_SECRET;
++    ctx->config.clientId = clientId;
++    ctx->config.clientSecret = clientSecret;
+ 
+     // DNS / TLS may fail transiently at startup — retry a few times
+     for (int retry = 0; ; retry++) {
+@@ -267,6 +391,7 @@ static void cspotMainTask(void*) {
+     }
+ 
+     auto token = ctx->session->authenticate(blob);
++    logMemorySample("authenticated");
+ 
+     if (!token.empty()) {
+         ctx->session->startTask();
+@@ -282,14 +407,14 @@ static void cspotMainTask(void*) {
+ 
+ // ---------------------------------------------------------------------------
+ extern "C" void app_main() {
++    ESP_ERROR_CHECK(heap_caps_register_failed_alloc_callback(failedAllocation));
+     esp_err_t ret = nvs_flash_init();
+-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+-        ESP_ERROR_CHECK(nvs_flash_erase());
+-        ret = nvs_flash_init();
+-    }
++    // Never erase the radio's shared NVS partition to make a spike boot.
+     ESP_ERROR_CHECK(ret);
+ 
+-    spiffsInit();
++    usb_serial_jtag_driver_config_t serialConfig = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
++    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&serialConfig));
++
+     wifiConnect();
+ 
+     bell::setDefaultLogger();
+diff --git a/partitions.csv b/partitions.csv
+index 0d7a18d..67d7737 100644
+--- a/partitions.csv
++++ b/partitions.csv
+@@ -1,6 +1,7 @@
+-# ESP-IDF Partition Table
+ # Name,   Type, SubType, Offset,  Size, Flags
+-nvs,      data, nvs,     0x9000,  0x6000,
+-phy_init, data, phy,     0xf000,  0x1000,
+-factory,  app,  factory, 0x10000, 2M,
+-storage,  data, spiffs,  ,        1M,
++nvs,      data, nvs,     0x9000,  0x5000,
++otadata,  data, ota,     0xe000,  0x2000,
++app0,     app,  ota_0,   0x10000, 0x640000,
++app1,     app,  ota_1,   0x650000,0x640000,
++spiffs,   data, spiffs,  0xc90000,0x360000,
++coredump, data, coredump,0xFF0000,0x10000,
+diff --git a/sdkconfig.defaults b/sdkconfig.defaults
+index 4be3e03..9eb887f 100644
+--- a/sdkconfig.defaults
++++ b/sdkconfig.defaults
+@@ -17,7 +17,7 @@ CONFIG_PTHREAD_DEFAULT_CORE_0=y
+ 
+ # Flash
+ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+-CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
++CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+ CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+ 
+ # Partitions
+@@ -46,9 +46,11 @@ CONFIG_MDNS_TASK_STACK_SIZE=4096
+ CONFIG_COMPILER_CXX_EXCEPTIONS=y
+ CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=0
+ 
+-# mbedTLS memory — default allocator falls back to PSRAM when internal RAM is full.
+-# IDF default (MBEDTLS_INTERNAL_MEM_ALLOC) exhausts internal RAM before TLS setup.
+-CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y
++# Place transient TLS allocations in PSRAM; internal allocation exhausted DRAM
++# during concurrent CDN requests in this isolated experiment.
++CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
++# Hardware AES needed a contiguous internal DMA buffer that was unavailable.
++# CONFIG_MBEDTLS_HARDWARE_AES is not set
+ # Asymmetric TLS buffers: large RX (for server cert chain), small TX (for HTTP requests)
+ CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
+ CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
+@@ -59,3 +61,6 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+ 
+ # Watchdog: give more time for OGG decode
+ CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
++
++# Use the same USB serial/JTAG connector as the installed radio.
++CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
