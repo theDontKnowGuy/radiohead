@@ -47,6 +47,13 @@ def main():
             ("PCM producer cancelled or queue full", "pcm_cancellations"),
             ("I2S write incomplete", "i2s_short_writes"),
             ("Playing done", "tracks_finished"),
+            ("output_track_reached count=", "output_track_reached"),
+            ("decoder_eof queue_finished=0", "decoder_eof_with_more_tracks"),
+            ("decoder_eof queue_finished=1", "decoder_eof_at_queue_end"),
+            ("queue_wait index=", "queue_wait_samples"),
+            ("zeroconf_get count=", "zeroconf_gets"),
+            ("zeroconf_post count=", "zeroconf_posts"),
+            ("Another player took control", "competing_device_notifications"),
             ("task_wdt: Task watchdog got triggered", "watchdog_events"),
             ("esp-aes: Failed to allocate memory", "aes_allocation_errors"),
         ):

@@ -34,6 +34,31 @@ seconds; a previous version dropped each partial write and flooded serial.
 ESP-IDF 5.5.5's `i2s_channel_write` takes its timeout in milliseconds. The
 sink passes 50 directly; passing `pdMS_TO_TICKS(50)` caused repeated short
 writes and failed output in the first playback trial.
+An initial real-track run with the corrected timeout still exhausted internal
+RAM after a track change. The current candidate lowers
+`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` from 16 KiB to 1 KiB to prefer PSRAM for
+ordinary larger allocations. The allocation callback records the requested
+capability of its latest failed allocation. This change requires device
+resource, audio and lifecycle validation; it is not a stability claim.
+The adapter also handles cspot's `DEPLETED` event after buffered PCM drains,
+matching its CLI reference player's `notifyAudioEnded()` lifecycle. An
+earlier phone run moved output to the phone before the next playlist song;
+this handoff is still needed for a complete queue lifecycle, but a repeated
+device run showed that it did not prevent the unexpected phone transfer.
+The run-14 diagnostics located a missing output-boundary notification:
+the standalone sink played three preloaded songs while the Connect queue
+still pointed at the first. The current candidate records bounded PCM
+track-boundary offsets and calls cspot's `notifyAudioReachedPlayback()`
+when each boundary reaches the speaker, as its CLI reference does. This
+advances the playlist index, refills the preload queue and reports the
+current track to Connect. Run 15 is testing whether this also prevents
+the phone app from forgetting the radio. Added diagnostics print counts
+and queue positions only, never track or account identifiers.
+The next build also returns the actual number of accepted PCM bytes to
+cspot's decoder callback. Its existing retry loop then applies backpressure
+when the output queue is full, including during a long pause. The earlier
+standalone adapter returned all bytes as accepted and could discard PCM
+after a two-second full-queue timeout. This change needs device validation.
 
 On this development Mac, after `prepare.sh /tmp/spotify-native`, build with
 the installed ESP-IDF 5.5.5 package:

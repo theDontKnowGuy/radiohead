@@ -8,7 +8,7 @@ firmware backups are kept outside the repository.
 | Package | Code/build | Hardware/function | Resources/timing | Evidence / next action |
 | --- | --- | --- | --- | --- |
 | S0 | PASS | PASS (user listening report) | PASS (baseline measured; existing defects below) | 30-minute private capture; `tools/spotify_validation_summary.py`. |
-| S1 | PASS (standalone build/upload) | FAIL (run 10 audio unintelligible) | FAIL (allocation failures and audio loss) | Corrected I2S candidate run 11 awaits a fresh phone-controlled track; renewal, controls and restarts remain unverified. |
+| S1 | PASS (standalone build/upload) | PARTIAL (run 15 fixed the reproduced queue stall and phone selection; longer acceptance pending) | PARTIAL (run-12 renewal; two-hour run unmet) | Run 16 will test pause backpressure and a continuous two-hour session; restarts and Wi-Fi interruption remain unverified. |
 | S2 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S3 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
@@ -86,7 +86,7 @@ firmware backups are kept outside the repository.
 
 The standalone candidate built reproducibly from
 `experiments/spotify-native/prepare.sh` plus the pinned patches on ESP-IDF
-5.5.5. The current run-11 image is 1,768,560 B, leaving 4,785,040 B of a
+5.5.5. The current run-14 image is 1,769,888 B, leaving 4,783,712 B of a
 6,553,600 B app slot. Its partition-table binary is byte-identical to the
 Radiohead table. Flashing only app0 at `0x10000` completed with hash
 verification; NVS, otadata, bootloader and LittleFS were left in place.
@@ -123,7 +123,9 @@ a login blob; it persisted across reboot. The native AP connection and
 authentication succeeded, and the device fetched one CDN access token. A
 track file selection, key exchange and CDN URL fetch reached the device in
 failed runs. Run 10 produced audible but unintelligible sound, so S1 is
-**FAIL**. Run 11 is awaiting a new device track and listener report.
+**FAIL**. Run 11 fixed the I2S write errors but exhausted internal memory
+during playback. The user later confirmed that its audio sounded good before
+the memory-related failure, including after song changes.
 
 Run-6 standalone diagnostic samples at paired, authenticated and output
 idle states show 103,983 / 74,931 / 42,903 B least free internal RAM, with
@@ -238,10 +240,129 @@ during active decode. Capability totals overlap; do not add them.
   Run 11 passes 50 ms directly. The timing error is proven in source, while
   its contribution to the heap decline and audible fault still needs a
   device measurement.
-- S1 run 11: app-only flash and image hash verification passed. The saved
-  pairing authenticated after reboot, fetched one authorization token, and
-  remained connected and idle for over nine minutes with zero observed
-  allocation failures, PCM writes or I2S write failures. No track was
-  started during this interval, so it supplies no evidence about sound or
-  memory during playback. A phone-controlled real track and listening report
-  are required before this candidate can be assessed.
+- Failed S1 run 11: app-only flash and image hash verification passed. The
+  saved pairing authenticated after reboot and fetched one authorization
+  token. Across 848.2 s of capture, three tracks started, one ended, and
+  three CDN streams opened. The sink accepted 35,566,932 PCM bytes with zero
+  partial writes or I2S write failures, including about 176,400 B/s during
+  steady 44.1 kHz stereo output. Internal free RAM fell to 147 B (largest
+  block 104 B), DMA free to 143 B (largest block 104 B), and at least 125
+  allocations failed. PCM output stopped after the next track change. This
+  disproves the idea that the I2S timeout was the sole cause of the earlier
+  memory decline. The user reported clear audio and clear song changes before
+  that failure.
+- S1 run 12: the IDF 5.5.5 `SPIRAM_MALLOC_ALWAYSINTERNAL` threshold is
+  changed from 16,384 to 1,024 B so ordinary larger allocations prefer
+  PSRAM, while explicit internal/DMA allocations retain their capability.
+  The allocation-failure callback now records the last failed capability
+  mask for diagnosis. The candidate compiled, its 1,768,576-byte app-only
+  image was flashed and hash verified, and device capture is running. A fresh
+  clone with pinned submodules and current patches built independently to a
+  1,768,688-byte image. Its linker size report is 221,119 / 341,760 B
+  DIRAM used (64.7%, 120,641 B static headroom). Its generated configuration
+  selects the 1,024 B threshold, external mbedTLS allocation and software AES,
+  and its partition
+  table matches the original candidate. Early device capture has five
+  tracks started, two finished and five CDN streams opened; at 166.5 s it
+  reports zero allocation and I2S write failures, at least 70,387 B free
+  internal RAM, 62,599 B DMA RAM and 7,992,680 B PSRAM during output.
+  The user reports clear audio and clear song changes. This is provisional;
+  sustained headroom, controls, renewal and restart remain to be measured.
+- The user then reported completing at least 20 deliberate song changes,
+  pause/resume, seek, remote volume changes and transfer away from and back
+  to the native device. They heard clear playback with no gaps, distortion or
+  stale audio. At 392.4 s, the device capture recorded 12 actual track starts,
+  32 file selections, nine completed tracks, ten producer cancellations
+  during changes, 40,699,360 accepted PCM bytes and zero allocation, partial
+  I2S write or I2S failure counts. The capture does not count every phone
+  button press, so the 20 deliberate changes are a user report. Two-hour
+  renewal and physical recovery tests remain pending.
+- Around 18 minutes into run 12, PCM stopped after a song ended. The user
+  reported that Spotify already showed “This phone” as the selected output
+  before the radio song ended, with no intentional transfer at that time.
+  The radio stayed paired, did not reboot, and retained over 90 KiB free
+  internal RAM while idle. Playback resumed when the user selected the radio
+  and restarted the playlist from the phone. The current capture has no
+  positive cause for the spontaneous Connect device switch, so this is an
+  unresolved S1 functional failure even if later playback stays healthy.
+- Source audit after the stop found that the standalone MAX98357A adapter
+  ignored cspot's `DEPLETED` event. The pinned cspot CLI reference holds this
+  event until its PCM buffer drains, then calls `notifyAudioEnded()` so
+  Spotify receives the end-of-audio state. The candidate currently had no
+  equivalent call. Run 13 adds the same deferred handoff with two low-rate
+  event logs; this is a plausible cause of the stale Connect state, not yet
+  established by device evidence.
+- Run 12 ended after 1,883.5 s of private capture: 17 track starts, 14
+  completed tracks, 17 CDN opens, 277,571,660 accepted PCM bytes, zero
+  allocation failures, zero partial I2S writes and zero I2S failures. The
+  least sampled output free was 67,091 B internal, 59,303 B DMA and
+  7,960,680 B PSRAM; capabilities overlap. A second authorization token was
+  fetched successfully 1,800.856 s after the first, and PCM continued
+  afterward. This passes the observed renewal subcheck, but the spontaneous
+  phone transfer and run duration under two hours still fail full S1.
+- Run 13 compiled from both the working tree and an independently prepared
+  pinned checkout, and its 1,769,152-byte app-only image flashed with hash
+  verification (SHA-256 prefix `e957d04fb1272da8`). It implements the
+  deferred `DEPLETED` handoff and is now
+  collecting a fresh device capture. The phone must replay a playlist across
+  natural song boundaries to test whether the Connect state remains correct.
+- On run 13 the user observed one natural song transition: the next song
+  started and the radio remained selected. At 383 s, the device had four
+  track starts, one finished track, 48,532,480 accepted PCM bytes and zero
+  allocation or I2S failures. The `DEPLETED` handoff had not fired yet, so
+  this ordinary transition does not prove the earlier queue-boundary issue
+  is fixed. A repeated skip-to-boundary test is in progress.
+- Failed S1 run 13: after 831.3 s of capture, the user again observed the
+  iPhone revert to itself as output without touching its selector or leaving
+  Wi-Fi. The radio continued its buffered song, then became silent. Five
+  tracks had started, three ended, and five CDN streams opened; 109,506,304
+  PCM bytes were accepted with zero allocation or I2S write failures. Least
+  sampled output free was 69,715 B internal and 61,927 B DMA. Two incoming
+  “another player took control” notifications appeared about 47 seconds
+  after the final song ended, but neither `DEPLETED` nor the new end-of-audio
+  notification fired. The user confirmed more songs remained in the phone's
+  playlist. The missing `DEPLETED` handoff is therefore not the cause of this
+  reproduction. Run 14 adds bounded, identifier-free queue-state and
+  Zeroconf request diagnostics to identify why the native queue did not
+  advance; it does not claim a functional fix.
+- Run 14 built from the candidate working tree and from an independently
+  prepared pinned checkout. The fresh binary is 1,770,000 B; the flashed
+  app-only binary is 1,769,888 B (SHA-256 prefix `1b72948e961102be`), with
+  hash verification. Its private capture lasted 1,185.9 s. Four tracks
+  started, three finished, 158,912,876 PCM bytes were accepted and zero
+  allocation/I2S write failures were observed. Least sampled output free was
+  71,667 B internal and 63,879 B DMA. The user reports that opening Spotify
+  on the iPhone caused the app to revert to “This phone” without touching the
+  output selector; the radio remained listed as an available device and kept
+  playing until its current song ended. No competing-device notification or
+  Zeroconf request preceded that change. After the third natural EOF,
+  `queue_finished=0` but the decoder repeatedly waited with
+  `index=0 refs=50 preloaded=3 offset=3 prev_found=1`. The candidate had
+  exhausted its three preloaded tracks while leaving the playlist index at
+  zero. Instrumentation logs
+  queue index, reference count, preloaded count and offset when the decoder
+  waits, plus `queue_finished` at EOF and counts of Zeroconf GET/POST
+  requests. It never logs their bodies, track identifiers or account data.
+- Source inspection identified a missing call to cspot's
+  `notifyAudioReachedPlayback()` in the candidate output task. The cspot
+  CLI reference calls it when a new track's PCM reaches output; that call
+  advances the playlist index, refills the preload queue and sends a Connect
+  state notification. Run 15 records bounded track-boundary positions in
+  the PCM queue and calls the handler when output consumes each boundary.
+  It was built and flashed app-only with hash verification (1,772,688 B,
+  SHA-256 prefix `e0d726b8e576bddb`). A fresh pinned checkout and patch
+  application also built successfully to 1,772,800 B, with a byte-identical
+  partition table. The private run-15 capture lasted 917.0 s: five track
+  starts, three natural endings with more tracks queued, four output-boundary
+  notifications, five CDN opens and 151,387,796 accepted PCM bytes. No
+  allocation, partial I2S write or I2S failure was recorded. Least sampled
+  output free was 68,671 B internal, 61,239 B DMA and 7,974,772 B PSRAM;
+  stack reserve minima were 4,820 B decoder, 5,580 B output and 7,808 B
+  queue. The fourth song started naturally, beyond the old three-track
+  preload limit. The user opened Spotify on the iPhone and reported that
+  the radio stayed selected and sound stayed clear. This verifies the
+  reproduced failure for this run, but not the two-hour S1 gate.
+- Run 16 changes the standalone PCM producer callback to return actual
+  accepted bytes. Cspot's existing retry loop now waits for output buffer
+  room during a long pause rather than discarding PCM after a two-second
+  timeout. The candidate builds to 1,772,400 B and awaits device validation.

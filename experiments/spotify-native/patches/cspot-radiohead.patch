@@ -1,5 +1,5 @@
 diff --git a/cspot/src/TrackPlayer.cpp b/cspot/src/TrackPlayer.cpp
-index 6b63604..ea450fe 100644
+index 6b63604..e7709a2 100644
 --- a/cspot/src/TrackPlayer.cpp
 +++ b/cspot/src/TrackPlayer.cpp
 @@ -11,6 +11,12 @@
@@ -85,8 +85,21 @@ index 6b63604..ea450fe 100644
          // Execute seek if needed
          if (pendingSeekPositionMs > 0) {
            uint32_t seekPosition = pendingSeekPositionMs;
+@@ -260,7 +298,11 @@ void TrackPlayer::runTask() {
+     }
+ 
+     if (eof) {
+-      if (trackQueue->isFinished()) {
++      const bool queueFinished = trackQueue->isFinished();
++#ifdef ESP_PLATFORM
++      ESP_LOGI("val-s1", "decoder_eof queue_finished=%u", static_cast<unsigned>(queueFinished));
++#endif
++      if (queueFinished) {
+         endOfQueueReached = true;
+       }
+ 
 diff --git a/cspot/src/TrackQueue.cpp b/cspot/src/TrackQueue.cpp
-index 2fd9bed..431c320 100644
+index 2fd9bed..ffcf248 100644
 --- a/cspot/src/TrackQueue.cpp
 +++ b/cspot/src/TrackQueue.cpp
 @@ -15,6 +15,12 @@
@@ -191,3 +204,43 @@ index 2fd9bed..431c320 100644
        }
      }
    }
+@@ -466,14 +501,19 @@ std::shared_ptr<QueuedTrack> TrackQueue::consumeTrack(
+   std::scoped_lock lock(tracksMutex);
+ 
+   if (currentTracksIndex == -1 || currentTracksIndex >= currentTracks.size()) {
++#ifdef ESP_PLATFORM
++    ESP_LOGI("val-s1", "queue_index_exhausted index=%d refs=%u preloaded=%u",
++             currentTracksIndex, static_cast<unsigned>(currentTracks.size()),
++             static_cast<unsigned>(preloadedTracks.size()));
++#endif
+     return nullptr;
+   }
+ 
+   // No previous track, return head
+   if (prevTrack == nullptr) {
+     offset = 0;
+-
+-    return preloadedTracks[0];
++    if (preloadedTracks.empty()) return nullptr;
++    return preloadedTracks.front();
+   }
+ 
+   // if (currentTracksIndex + preloadedTracks.size() >= currentTracks.size()) {
+@@ -495,6 +535,17 @@ std::shared_ptr<QueuedTrack> TrackQueue::consumeTrack(
+ 
+   if (offset >= preloadedTracks.size()) {
+     // Last track in preloaded queue
++#ifdef ESP_PLATFORM
++    static TickType_t lastEmptyLog = 0;
++    const TickType_t now = xTaskGetTickCount();
++    if (now - lastEmptyLog >= pdMS_TO_TICKS(5000)) {
++      ESP_LOGI("val-s1", "queue_wait index=%d refs=%u preloaded=%u offset=%d prev_found=%u",
++               currentTracksIndex, static_cast<unsigned>(currentTracks.size()),
++               static_cast<unsigned>(preloadedTracks.size()), offset,
++               static_cast<unsigned>(prevTrackIter != preloadedTracks.end()));
++      lastEmptyLog = now;
++    }
++#endif
+     return nullptr;
+   }
+ 

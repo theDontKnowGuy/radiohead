@@ -161,10 +161,19 @@ index 0000000..84f8e3b
 +    std::atomic<uint32_t> pcmBytes_{0};
 +};
 diff --git a/main/main.cpp b/main/main.cpp
-index b42adbc..28b5e1f 100644
+index b42adbc..5725805 100644
 --- a/main/main.cpp
 +++ b/main/main.cpp
-@@ -7,7 +7,7 @@
+@@ -1,13 +1,16 @@
+ #include <atomic>
++#include <deque>
+ #include <memory>
++#include <mutex>
+ #include <string>
++#include <string_view>
+ 
+ #include "BellHTTPServer.h"
+ #include "BellTask.h"
  #include "BellUtils.h"
  #include "CircularBuffer.h"
  #include "CSpotContext.h"
@@ -173,7 +182,7 @@ index b42adbc..28b5e1f 100644
  #include "Logger.h"
  #include "LoginBlob.h"
  #include "MDNSService.h"
-@@ -15,29 +15,133 @@
+@@ -15,29 +18,136 @@
  #include "TrackPlayer.h"
  #include "esp_attr.h"
  #include "esp_event.h"
@@ -206,24 +215,27 @@ index b42adbc..28b5e1f 100644
  static const char* TAG = "main";
 +static std::atomic<uint32_t> failedAllocations{0};
 +static std::atomic<uint32_t> lastFailedBytes{0};
++static std::atomic<uint32_t> lastFailedCaps{0};
 +
-+static void failedAllocation(size_t requested, uint32_t, const char*) {
++static void failedAllocation(size_t requested, uint32_t capabilities, const char*) {
 +    failedAllocations.fetch_add(1, std::memory_order_relaxed);
 +    lastFailedBytes.store(static_cast<uint32_t>(requested), std::memory_order_relaxed);
++    lastFailedCaps.store(capabilities, std::memory_order_relaxed);
 +}
 +
 +static void logMemorySample(const char* state) {
 +    constexpr uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
 +    constexpr uint32_t dma = MALLOC_CAP_DMA | MALLOC_CAP_8BIT;
 +    constexpr uint32_t psram = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-+    ESP_LOGI("val-s1", "state=%s int=%u,%u,%u dma=%u,%u,%u psram=%u,%u,%u stack=%u tasks=%u alloc_fail=%u last_fail=%u",
++    ESP_LOGI("val-s1", "state=%s int=%u,%u,%u dma=%u,%u,%u psram=%u,%u,%u stack=%u tasks=%u alloc_fail=%u last_fail=%u,%u",
 +             state,
 +             heap_caps_get_free_size(internal), heap_caps_get_minimum_free_size(internal), heap_caps_get_largest_free_block(internal),
 +             heap_caps_get_free_size(dma), heap_caps_get_minimum_free_size(dma), heap_caps_get_largest_free_block(dma),
 +             heap_caps_get_free_size(psram), heap_caps_get_minimum_free_size(psram), heap_caps_get_largest_free_block(psram),
 +             uxTaskGetStackHighWaterMark(nullptr), uxTaskGetNumberOfTasks(),
 +             failedAllocations.load(std::memory_order_relaxed),
-+             lastFailedBytes.load(std::memory_order_relaxed));
++             lastFailedBytes.load(std::memory_order_relaxed),
++             lastFailedCaps.load(std::memory_order_relaxed));
 +}
 +
 +static bool readNvsString(const char* nameSpace, const char* key, std::string& value,
@@ -312,7 +324,7 @@ index b42adbc..28b5e1f 100644
      esp_netif_init();
      esp_event_loop_create_default();
      esp_netif_create_default_wifi_sta();
-@@ -46,8 +150,8 @@ static void wifiConnect() {
+@@ -46,8 +156,8 @@ static void wifiConnect() {
      esp_wifi_init(&cfg);
  
      wifi_config_t wcfg = {};
@@ -323,7 +335,7 @@ index b42adbc..28b5e1f 100644
      wcfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
  
      esp_wifi_set_mode(WIFI_MODE_STA);
-@@ -80,38 +184,23 @@ static void wifiConnect() {
+@@ -80,45 +190,45 @@ static void wifiConnect() {
      ESP_LOGW(TAG, "WiFi/DNS timeout — continuing anyway");
  }
  
@@ -352,7 +364,23 @@ index b42adbc..28b5e1f 100644
 +    std::unique_ptr<MAX98357AAudioSink> audioSink;
      std::unique_ptr<bell::CircularBuffer> circBuf;
      std::atomic<bool> paused{false};
++    std::atomic<bool> playlistEnd{false};
 +    std::atomic<uint32_t> queueGeneration{0};
++    std::mutex pcmMutex;
++    std::deque<uint64_t> trackBoundaries;
++    std::string producerTrackId;
++    uint64_t producedBytes = 0;
++    uint64_t consumedBytes = 0;
++    uint32_t notifiedTracks = 0;
++
++    void flushPcm() {
++        ++queueGeneration;
++        std::lock_guard<std::mutex> lock(pcmMutex);
++        circBuf->emptyBuffer();
++        trackBoundaries.clear();
++        producerTrackId.clear();
++        consumedBytes = producedBytes;
++    }
  
  public:
      CSpotPlayer(std::shared_ptr<cspot::SpircHandler> h)
@@ -367,7 +395,16 @@ index b42adbc..28b5e1f 100644
  
          circBuf = std::make_unique<bell::CircularBuffer>(1024 * 128);
  
-@@ -128,16 +217,18 @@ public:
+         handler->getTrackPlayer()->setDataCallback(
+-            [this](uint8_t* data, size_t bytes, std::string_view) -> size_t {
+-                feed(data, bytes);
+-                return bytes;
++            [this](uint8_t* data, size_t bytes, std::string_view trackId) -> size_t {
++                return feed(data, bytes, trackId);
+             });
+ 
+         handler->setEventHandler(
+@@ -128,17 +238,24 @@ public:
                          paused = std::get<bool>(ev->data);
                          break;
                      case cspot::SpircHandler::EventType::VOLUME:
@@ -377,31 +414,49 @@ index b42adbc..28b5e1f 100644
                          break;
                      case cspot::SpircHandler::EventType::DISC:
                          paused = true;
-+                        ++queueGeneration;
-                         circBuf->emptyBuffer();
+-                        circBuf->emptyBuffer();
++                        playlistEnd = false;
++                        flushPcm();
                          break;
                      case cspot::SpircHandler::EventType::FLUSH:
                      case cspot::SpircHandler::EventType::SEEK:
                      case cspot::SpircHandler::EventType::PLAYBACK_START:
-+                        ++queueGeneration;
-                         circBuf->emptyBuffer();
+-                        circBuf->emptyBuffer();
++                        if (ev->eventType == cspot::SpircHandler::EventType::PLAYBACK_START)
++                            playlistEnd = false;
++                        flushPcm();
++                        break;
++                    case cspot::SpircHandler::EventType::DEPLETED:
++                        playlistEnd = true;
++                        ESP_LOGI("val-s1", "track queue depleted; waiting for PCM drain");
                          break;
                      default: break;
-@@ -149,7 +240,13 @@ public:
+                 }
+@@ -147,24 +264,64 @@ public:
+         startTask();
+     }
  
-     void feed(uint8_t* data, size_t len) {
-         size_t rem = len;
+-    void feed(uint8_t* data, size_t len) {
+-        size_t rem = len;
+-        while (rem > 0) {
+-            size_t w = circBuf->write(data + (len - rem), rem);
+-            if (w == 0) BELL_SLEEP_MS(10);
+-            rem -= w;
++    size_t feed(uint8_t* data, size_t len, std::string_view trackId) {
 +        const uint32_t generation = queueGeneration.load();
-+        const int64_t deadlineUs = esp_timer_get_time() + 2000000;
-         while (rem > 0) {
-+            if (generation != queueGeneration.load() || esp_timer_get_time() >= deadlineUs) {
-+                ESP_LOGW(TAG, "PCM producer cancelled or queue full");
-+                return;
-+            }
-             size_t w = circBuf->write(data + (len - rem), rem);
-             if (w == 0) BELL_SLEEP_MS(10);
-             rem -= w;
-@@ -158,7 +255,15 @@ public:
++        std::lock_guard<std::mutex> lock(pcmMutex);
++        if (generation != queueGeneration.load()) return len;
++        if (trackId != producerTrackId) {
++            // The decoder retries a zero return after the output drains.
++            // This also lets pause hold the producer without dropping PCM.
++            if (trackBoundaries.size() >= 32) return 0;
++            producerTrackId.assign(trackId.data(), trackId.size());
++            trackBoundaries.push_back(producedBytes);
+         }
++        const size_t written = circBuf->write(data, len);
++        producedBytes += written;
++        return written;
+     }
  
      void runTask() override {
          std::vector<uint8_t> buf(1024);
@@ -415,9 +470,43 @@ index b42adbc..28b5e1f 100644
 +                lastSampleUs = nowUs;
 +            }
              if (!paused) {
-                 size_t n = circBuf->read(buf.data(), buf.size());
-                 if (n > 0)
-@@ -182,9 +287,15 @@ public:
+-                size_t n = circBuf->read(buf.data(), buf.size());
+-                if (n > 0)
++                size_t n = 0;
++                uint32_t reached = 0;
++                uint32_t generation = 0;
++                {
++                    std::lock_guard<std::mutex> lock(pcmMutex);
++                    generation = queueGeneration.load();
++                    n = circBuf->read(buf.data(), buf.size());
++                    consumedBytes += n;
++                    while (!trackBoundaries.empty() &&
++                           trackBoundaries.front() < consumedBytes) {
++                        trackBoundaries.pop_front();
++                        ++reached;
++                    }
++                }
++                if (n > 0 && generation == queueGeneration.load()) {
+                     audioSink->feedPCMFrames(buf.data(), n);
+-                else
++                    for (uint32_t i = 0; i < reached &&
++                                         generation == queueGeneration.load(); ++i) {
++                        handler->notifyAudioReachedPlayback();
++                        ESP_LOGI("val-s1", "output_track_reached count=%u",
++                                 ++notifiedTracks);
++                    }
++                }
++                else {
++                    if (playlistEnd.exchange(false)) {
++                        ESP_LOGI("val-s1", "PCM drained; notifying Spotify of audio end");
++                        handler->notifyAudioEnded();
++                    }
+                     BELL_SLEEP_MS(10);
++                }
+             } else {
+                 BELL_SLEEP_MS(100);
+             }
+@@ -182,9 +339,15 @@ public:
  // DRAM_ATTR (.dram0.data) forces placement in internal DRAM.
  // .dram0.bss is an orphan section in IDF 6.0's linker script and cannot be used.
  static DRAM_ATTR StaticTask_t s_cspot_tcb;
@@ -434,9 +523,12 @@ index b42adbc..28b5e1f 100644
      // Force all pthreads spawned from this task (civetweb master + workers) to allocate
      // their stacks in internal RAM.  PSRAM stacks cause ESP32-S3 inter-core cache
      // coherency crashes.  With inherit_cfg=true the setting propagates to child threads.
-@@ -200,6 +311,15 @@ static void cspotMainTask(void*) {
+@@ -199,25 +362,39 @@ static void cspotMainTask(void*) {
+     mdns_hostname_set("cspot");
  
      std::atomic<bool> gotBlob{false};
++    std::atomic<uint32_t> zeroconfGets{0};
++    std::atomic<uint32_t> zeroconfPosts{0};
      auto blob   = std::make_shared<cspot::LoginBlob>(DEVICE_NAME);
 +    std::string storedBlob;
 +    if (readNvsString("spotify", "login_blob", storedBlob, 1024)) {
@@ -450,7 +542,19 @@ index b42adbc..28b5e1f 100644
      auto server = std::make_unique<bell::BellHTTPServer>(8080);
  
      server->registerGet("/spotify_info",
-@@ -215,9 +335,10 @@ static void cspotMainTask(void*) {
+-        [&server, blob](struct mg_connection* conn) {
++        [&server, blob, &zeroconfGets](struct mg_connection* conn) {
++            ESP_LOGI("val-s1", "zeroconf_get count=%u", ++zeroconfGets);
+             return server->makeJsonResponse(blob->buildZeroconfInfo());
+         });
+ 
+     server->registerPost("/spotify_info",
+-        [&server, blob, &gotBlob](struct mg_connection* conn) {
++        [&server, blob, &gotBlob, &zeroconfPosts](struct mg_connection* conn) {
++            ESP_LOGI("val-s1", "zeroconf_post count=%u", ++zeroconfPosts);
+             nlohmann::json obj;
+             obj["status"]       = 101;
+             obj["spotifyError"] = 0;
              obj["statusString"] = "ERROR-OK";
  
              auto info = mg_get_request_info(conn);
@@ -463,7 +567,7 @@ index b42adbc..28b5e1f 100644
  
                  mg_header hd[16];
                  int n = mg_split_form_urlencoded(body.data(), hd, 16);
-@@ -234,9 +355,11 @@ static void cspotMainTask(void*) {
+@@ -234,9 +411,11 @@ static void cspotMainTask(void*) {
                  }
  
                  blob->loadZeroconfQuery(qmap);
@@ -477,7 +581,7 @@ index b42adbc..28b5e1f 100644
                      ESP_LOGE(TAG, "Blob auth failed — credentials not loaded");
              }
              return server->makeJsonResponse(obj.dump());
-@@ -249,10 +372,11 @@ static void cspotMainTask(void*) {
+@@ -249,10 +428,11 @@ static void cspotMainTask(void*) {
      ESP_LOGI(TAG, "Waiting for Spotify app…");
      while (!gotBlob) BELL_SLEEP_MS(1000);
      ESP_LOGI(TAG, "Got credentials, starting player");
@@ -491,7 +595,7 @@ index b42adbc..28b5e1f 100644
  
      // DNS / TLS may fail transiently at startup — retry a few times
      for (int retry = 0; ; retry++) {
-@@ -267,6 +391,7 @@ static void cspotMainTask(void*) {
+@@ -267,6 +447,7 @@ static void cspotMainTask(void*) {
      }
  
      auto token = ctx->session->authenticate(blob);
@@ -499,7 +603,7 @@ index b42adbc..28b5e1f 100644
  
      if (!token.empty()) {
          ctx->session->startTask();
-@@ -282,14 +407,14 @@ static void cspotMainTask(void*) {
+@@ -282,14 +463,14 @@ static void cspotMainTask(void*) {
  
  // ---------------------------------------------------------------------------
  extern "C" void app_main() {
@@ -537,10 +641,21 @@ index 0d7a18d..67d7737 100644
 +spiffs,   data, spiffs,  0xc90000,0x360000,
 +coredump, data, coredump,0xFF0000,0x10000,
 diff --git a/sdkconfig.defaults b/sdkconfig.defaults
-index 4be3e03..9eb887f 100644
+index 4be3e03..50e1db7 100644
 --- a/sdkconfig.defaults
 +++ b/sdkconfig.defaults
-@@ -17,7 +17,7 @@ CONFIG_PTHREAD_DEFAULT_CORE_0=y
+@@ -8,7 +8,9 @@ CONFIG_SPIRAM=y
+ CONFIG_SPIRAM_MODE_OCT=y
+ CONFIG_SPIRAM_SPEED_80M=y
+ CONFIG_SPIRAM_USE_MALLOC=y
+-CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
++# Prefer PSRAM for allocations above 1 KiB to retain internal headroom
++# during concurrent decode, CDN and I2S work.
++CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
+ # PSRAM task stacks cause ESP32-S3 inter-core cache-coherency crashes — disallow them.
+ CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=n
+ # Pin all pthreads to Core 0 so civetweb/network threads never run on Core 1.
+@@ -17,7 +19,7 @@ CONFIG_PTHREAD_DEFAULT_CORE_0=y
  
  # Flash
  CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
@@ -549,7 +664,7 @@ index 4be3e03..9eb887f 100644
  CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
  
  # Partitions
-@@ -46,9 +46,11 @@ CONFIG_MDNS_TASK_STACK_SIZE=4096
+@@ -46,9 +48,11 @@ CONFIG_MDNS_TASK_STACK_SIZE=4096
  CONFIG_COMPILER_CXX_EXCEPTIONS=y
  CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=0
  
@@ -564,7 +679,7 @@ index 4be3e03..9eb887f 100644
  # Asymmetric TLS buffers: large RX (for server cert chain), small TX (for HTTP requests)
  CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
  CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
-@@ -59,3 +61,6 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+@@ -59,3 +63,6 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
  
  # Watchdog: give more time for OGG decode
  CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
