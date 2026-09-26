@@ -13,6 +13,7 @@
 #include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
+#include "spotify_adapter.h"
 #include "ui_controller.h"
 #include "web_server.h"
 #include "validation_diagnostics.h"
@@ -202,6 +203,15 @@ void setup() {
     }
 
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
+#if defined(RADIO_S2_HANDOFF_PROBE)
+    for (unsigned attempt = 0; attempt < 2; ++attempt) {
+        const bool released = audio.releaseOutputForHandoff(1500);
+        const bool restored = released && audio.restoreOutputAfterHandoff();
+        Serial.printf("[s2-handoff] attempt=%u released=%d restored=%d heap=%u\n",
+            attempt + 1, released, restored, ESP.getFreeHeap());
+        if (!restored) break;
+    }
+#endif
     mediaBegin();
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);
@@ -211,6 +221,9 @@ void setup() {
     }
     if (!isAP) {
         playStation(currentStationIdx);
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+        spotifyAdapterBegin();
+#endif
     }
     validationEvent("startup_playback_requested");
 
@@ -226,7 +239,7 @@ void setup() {
 void loop() {
     validationLoopEnter();
     const uint32_t audioStartedUs = micros();
-    audio.loop();
+    if (mediaLocalAudioAvailable()) audio.loop();
     validationAudioServiced(micros() - audioStartedUs);
     const uint32_t webStartedUs = micros();
     server.handleClient();

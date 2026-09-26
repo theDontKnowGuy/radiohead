@@ -34,6 +34,7 @@ struct PodcastEpisode;
 
 void mediaBegin();
 void mediaTick(unsigned long now);
+bool mediaLocalAudioAvailable();
 void parseM3UPro(const String& playlistUrl);
 String parseM3U(const String& url);
 // Starts a single bounded HTTPS job. Completion is published by mediaTick();

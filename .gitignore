@@ -10,3 +10,7 @@
 .vscode/launch.json
 .vscode/ipch
 .env
+managed_components/
+sdkconfig.esp32s3-spotify
+/sdkconfig
+/sdkconfig.old

@@ -1,6 +1,7 @@
 #include "display.h"
 #include "settings.h"
 #include <esp_heap_caps.h>
+#include <esp_attr.h>
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -416,7 +417,9 @@ const lgfx::IFont* uiFont(const lgfx::IFont* bitmap) {
     return uiFrameReady ? display_fonts::smooth(bitmap) : bitmap;
 }
 
-void serviceUiAudio() { audio.loop(); }
+void serviceUiAudio() {
+    if (mediaLocalAudioAvailable()) audio.loop();
+}
 
 void presentCanvas(int16_t top, int16_t height) {
     if (!uiFrameReady) return;
@@ -650,7 +653,11 @@ struct HomeStationTitleMarquee {
 HomeStationTitleMarquee homeStationTitleMarquee;
 // The full Home canvas lives in PSRAM. Retaining just the subtitle backdrop
 // lets the marquee repaint a 14 px band instead of pushing a new full frame.
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+EXT_RAM_BSS_ATTR uint16_t homeStationTitleBackdrop[kHomeStationTitleWidth * kHomeStationTitleHeight];
+#else
 uint16_t homeStationTitleBackdrop[kHomeStationTitleWidth * kHomeStationTitleHeight];
+#endif
 bool homeStationTitleBackdropReady = false;
 
 const lgfx::IFont* homeLabelFont() {
@@ -1195,7 +1202,11 @@ void drawHomeNumeralAtlas(const char* value, const uint8_t* atlas,
         cellHeight > kHomeNumeralMaxHeight) return;
 
     const size_t kCellBytes = cellWidth * cellHeight;
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    static EXT_RAM_BSS_ATTR uint8_t composedAlpha[kHomeNumeralMaxWidth * kHomeNumeralMaxHeight];
+#else
     static uint8_t composedAlpha[kHomeNumeralMaxWidth * kHomeNumeralMaxHeight];
+#endif
     for (uint8_t y = 0; y < cellHeight; ++y) {
         for (int16_t x = 0; x < composedWidth; ++x) {
             composedAlpha[static_cast<size_t>(y) * kHomeNumeralMaxWidth + x] = 0;
@@ -1330,7 +1341,11 @@ void drawArtwork(const String& name, int16_t x, int16_t y, int16_t size, uint16_
     }
     // Artwork is prepared in the browser and read only when this station/size
     // changes.  Rendering never decodes or downloads arbitrary image data.
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    static EXT_RAM_BSS_ATTR uint16_t artworkPixels[88 * 88];
+#else
     static uint16_t artworkPixels[88 * 88];
+#endif
     static int cachedSlot = -2;
     static int cachedSize = 0;
     static uint32_t cachedRevision = 0;

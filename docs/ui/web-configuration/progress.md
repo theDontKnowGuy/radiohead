@@ -35,7 +35,7 @@ copying or declaring unrelated TFT packages complete.
 | W2 | Committed/draft state, real player/volume/mute/tone, error/reconnect/conflict handling | W1; configuration C2/C3 contracts | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/media.cpp`, `radiohead.css` | Bounded player controls and revisioned JSON contract compile; browser/audio/device verification remains open. |
 | W3 | Stations CRUD/favorites, discovery/manual flows, test playback and previewed M3U | W1/W2; discovery package 1 | ready for review | `/root` · 2026-09-21 · `src/web_server.cpp`, `src/media.cpp` | Compiled contracts and browser flow; F3–F5/device checks remain open. |
 | W4 | Station artwork acquisition, browser preparation and durable identity-safe storage | W3; discovery packages 2/3 | ready for review | `/root` · 2026-09-21 · `src/settings.cpp`, `src/display.cpp`, `src/web_server.cpp` | RGB565 package/identity-safe lifecycle compiles; F6/H2/H3 require device evidence. |
-| W5 | Wi-Fi scan/hidden/security/password/connect/forget/recovery | W1/W2 | in progress | `/root` · 2026-09-23 · `src/web_server.cpp`, `src/settings.cpp`, `src/main.cpp`, `src/display.cpp`, TFT controller/tests | Adding bounded saved-network persistence shared by Web and TFT; build, fixture and device evidence pending. |
+| W5 | Wi-Fi scan/hidden/security/password/connect/forget/recovery | W1/W2 | ready for review | `/root` · 2026-09-25 · `src/web_server.cpp`, web progress ledger | S2 network state/draft/forget corrections compile and script parses; browser and device evidence remain open. |
 | W6 | Weather/provider access, units/visibility, timezone and 12/24-hour settings | W1/W2; configuration C3 | ready for review | `/root` · 2026-09-23 · `src/settings.cpp`, `src/app_state.cpp`, `include/settings.h` | Tel Aviv/Jerusalem is now the new-install and untouched-placeholder default; DST boundaries and build pass, while physical-device verification remains open. |
 | W7 | Custom background file/framing/preview/default/atomic commit | W1/W2; configuration C4 | not started | — | Define independent asset budget, close F9/H2/H3. |
 | W8 | Device info, diagnostics, OTA, restart/reset; release verification | W1/W2; W3–W7 for final release | ready for review | `/root` · 2026-09-22 · `src/web_server.cpp`, `src/firmware_updater.cpp`, `src/settings.cpp`, `src/display.cpp`, `scripts/release.sh` | Browser upload/recovery and GitHub release OTA compile; F11–F13/H6 and real release-channel checks remain unverified on hardware. |
@@ -45,6 +45,57 @@ Do not treat W8 as requiring all features before starting its independent device
 pages. Its **release completion** depends on the other packages. Existing
 configuration-removal and discovery packages retain their own ownership; link
 their work instead of implementing duplicate persistence/state machines.
+
+### 2026-09-25 — S2 / W5 Network correction
+
+- **State and affected files:** W5 is ready for review. The prior S2 routes and
+  bounded saved-network persistence were already present. This pass changes
+  `src/web_server.cpp` and this ledger; S0/S1 are accepted as dependencies for
+  this package without declaring their remaining browser/device gates passed.
+- **Implemented behavior:** Setup mode identifies the actual soft-AP SSID and
+  address. Disconnected state no longer presents `0.0.0.0` as a reachable
+  address. The form initializes from saved network metadata without returning
+  the password, while subsequent status polling leaves its draft intact.
+  Hidden SSIDs are submitted exactly as typed. Open-network selection clears
+  the submitted password; the server rejects contradictory password actions.
+  Forget names the network and explains restart and setup recovery before the
+  request. It now acknowledges durable removal and a scheduled reboot, leaving
+  the current connection in place long enough to send the response.
+- **Endpoint contract:** `POST /api/network/connect` and `/forget` return 202
+  after durable settings changes and deferred restart scheduling. A 202 does
+  not assert connection success. The next boot tries only the active saved
+  network, or starts the actual setup AP if none is saved or joining times out.
+  Other deliberately saved networks remain available to the TFT; forgetting
+  the active network can select one of those on reboot.
+- **Visual:** not verified; no firmware-served screenshots or keyboard review.
+  **Functional:** `node --check` on the embedded Network script,
+  `pio run -e esp32s3`, and `git diff --check` pass. Build reports
+  96,340 / 327,680 B RAM (29.4%) and 3,492,851 / 6,553,600 B flash (53.3%).
+  **Device:** not verified; no Wi-Fi scan, reboot, phone or AP test was run.
+- **Next action:** run F7/H4 on a radio and phone: scan while editing, hidden
+  exact SSID, open and secured joins, unchanged-password keep, explicit open
+  clear, forget with and without saved alternatives, wrong-password timeout,
+  setup AP recovery, and address/SSID displayed by browser and TFT.
+
+### 2026-09-25 — S2 live radio follow-up
+
+- Flashed the current `esp32s3` image over the ESP32-S3 USB serial/JTAG port;
+  esptool verified the written image and rebooted the radio. The saved network
+  remained configured. `GET /api/network` reported `connected`, the expected local
+  address, a configured password indicator without disclosing the password,
+  and RSSI near −83 dBm. `GET /network` served the 14,276-byte Network page
+  with its scan, hidden-network, change and forget controls.
+- `POST /api/network/scan/start` returned 202, then the asynchronous scan
+  completed with 17 visible secured networks. A following HTTP request timed
+  out from the computer's routed `192.168.44.x` network; later API and page
+  requests returned HTTP 200. USB output after a subsequent boot reported the
+  mDNS responder and `wifi=3` (connected). This does not establish whether
+  the scan caused the temporary HTTP timeout.
+- The supplied serial log shows station 1 repeatedly timing out during audio
+  stream connection at RSSI −81 to −84 dBm, while Wi-Fi remained connected.
+  It contains no Wi-Fi credential-change or setup-recovery event and therefore
+  does not close F7/H4. Browser draft/confirmation, credential replacement,
+  restart and setup-AP recovery remain for a controlled local browser test.
 
 ### 2026-09-23 — W9 branded AP recovery follow-up
 
@@ -168,7 +219,7 @@ revision requirements, and any disconnect/restart consequence.
 | Toggle mute | `POST /api/player/mute` | Form field: `revision` | JSON state after applying; stale revision: 409 current JSON. Preserves stream and selected volume. | Source review + compile; device not verified. |
 | Change custom tone | `POST /api/player/tone` | Form fields: `revision`, `bass`, `mid`, `treble`; each −15…15 | JSON state after applying. Invalid input: 400 JSON. Stale revision: 409 with current JSON state. Tone applies immediately; Preferences write is queued for 1 s of inactivity. | Source review + compile; device not verified. |
 | Read/scan Wi-Fi | `GET /api/network`; `POST /api/network/scan/start`; `GET /api/network/scan` | No secrets. Scan runs asynchronously and returns observed SSID, security and RSSI for at most 20 visible networks. | State JSON never returns a password. Scan reports `scanning`, `complete`, or `failed`; the existing connection form draft remains browser-local. | Source review + compile; device not verified. |
-| Connect/retry/forget Wi-Fi | `POST /api/network/connect`, `/retry`, `/forget` | `connect`: revision, SSID ≤32, password ≤63, and explicit `keep`/`replace`/`clear` semantics. | 400 invalid, 409 stale/busy, 202 attempt started. Credentials are committed only after the new SSID is observed connected; timeout restores the prior saved network, then actual setup AP recovery. Forget durably clears saved credentials before entering setup. | Source review + compile; device not verified. |
+| Connect/retry/forget Wi-Fi | `POST /api/network/connect`, `/retry`, `/forget` | `connect`: revision, exact SSID ≤32, password ≤63, and explicit `keep`/`replace`/`clear` semantics. | 400 invalid, 409 stale/busy, 202 means credentials were saved and a reboot was scheduled, not that connection succeeded. Next boot attempts the active saved network and falls back to setup AP after timeout; there is no in-place or previous-network recovery. Forget removes the active credential, acknowledges a scheduled reboot, then boots with another saved network or setup AP. | Source review + compile; device not verified. |
 | Read/save weather & time | `GET /api/weather`; `POST /api/weather/save` | Save requires revision, location ≤80, C/F, visibility, supported timezone, 12/24-hour choice, and explicit key `keep`/`replace`/`clear`. An exact supported `city,country` location replaces the submitted zone with its location zone. | JSON never returns API key. Successful persistence requests a bounded refresh but does not claim weather success; result exposes refreshing/available/freshness and clock-sync state. | Source review + compile; device not verified. |
 | Read device / diagnostics | `GET /api/device` | No arguments. | JSON reports real connection/address, build timestamp, ESP model, uptime, heap/PSRAM, sketch/update space, artwork storage and calibration presence. Service timing is explicitly `Not measured`; logs are `Not available`; no credentials are returned. | Source review + compile; device not verified. |
 | Firmware update | `POST /api/device/ota` | Multipart field `firmware`; browser locally reviews its filename/size and the Update library validates while writing. | `202` only after `Update.end(true)` succeeds and a deferred restart is scheduled. Failed/invalid writes return 500 and retain the active firmware. TFT receives write-byte progress; conflicting web and power actions are rejected/deferred while writing. | Source review + compile; device not verified. |
@@ -246,7 +297,7 @@ Next concrete action:
 ### 2026-09-21 — W5 Network and W6 Weather & time
 
 - State and affected files: W5/W6 are ready for review. `src/web_server.cpp` provides the responsive Network and Weather & time forms plus revisioned JSON contracts; `src/settings.cpp` owns persistence and a bounded timezone table; `src/display.cpp` owns weather freshness and the shared TFT visibility state; `src/main.cpp` applies the chosen time format/timezone and services the deferred web-requested reboot.
-- Implemented behavior: Wi-Fi scans are asynchronous and report observed SSID/security/RSSI without overwriting form drafts. Connect uses explicit keep/replace/clear password semantics and never returns stored credentials. It persists the requested network and schedules a short delayed reboot so the acknowledgement can leave the radio; it does not attempt an in-place connection or previous-network recovery. The next boot tries only the saved network and otherwise falls back to the actual setup AP. Forget persists credential removal before setup. The weather form supports location, C/F, Home visibility, OpenWeather key keep/replace/clear, 12/24-hour display and eight named zones with implemented recurring rules; its default is the prior Central European rule. Exact supported weather `city,country` locations select their corresponding zone, while unknown or ambiguous locations keep the submitted zone. A settings save requests a weather refresh but reports availability separately. Late/stale worker data is rejected; weather becomes unavailable after 30 minutes without a successful refresh. The TFT reads the same visibility, timezone, and clock-format settings.
+- Implemented behavior: Wi-Fi scans are asynchronous and report observed SSID/security/RSSI without overwriting form drafts. Connect uses explicit keep/replace/clear password semantics and never returns stored credentials. It persists the requested network and schedules a short delayed reboot so the acknowledgement can leave the radio; it does not attempt an in-place connection or previous-network recovery. The next boot tries only the active saved network and otherwise falls back to the actual setup AP. Forget persists credential removal before a deferred reboot; the next boot selects another deliberately saved network if one remains, or starts setup AP. The weather form supports location, C/F, Home visibility, OpenWeather key keep/replace/clear, 12/24-hour display and eight named zones with implemented recurring rules; its default is the prior Central European rule. Exact supported weather `city,country` locations select their corresponding zone, while unknown or ambiguous locations keep the submitted zone. A settings save requests a weather refresh but reports availability separately. Late/stale worker data is rejected; weather becomes unavailable after 30 minutes without a successful refresh. The TFT reads the same visibility, timezone, and clock-format settings.
 - Boot setup behavior: holding the encoder switch while booting starts the actual setup AP before the existing calibration interaction runs. Once calibration completes, the Network page is already served from that AP and can register a network through the W5 connection flow. The held press continues to request calibration; device evidence is still required for this combined path.
 - Network-form follow-up: removed the Retry connection and saved-password-clear controls; the scan action is labeled “Scan networks.” Selecting a discovered result now copies only its SSID into Network name, leaving security and password choices entirely manual.
 - Dependency decisions / actual endpoint changes: Added `GET /api/network`, async scan start/result, connect/retry/forget; `GET /api/weather` and `POST /api/weather/save`. All form mutations use deterministic revisions; they return JSON and never include Wi-Fi passwords or API keys. Wi-Fi connect/retry and retained legacy `/setwifi` save first and request a deferred reboot; `/setweather` and `/scan_data` remain non-restarting/non-blocking. No Jev/runtime AI was added: validation, bounds, persistence, restart timing, timezone selection and freshness calculations are deterministic.

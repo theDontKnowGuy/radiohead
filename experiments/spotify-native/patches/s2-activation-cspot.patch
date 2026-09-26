@@ -1,0 +1,34 @@
+diff --git a/cspot/include/SpircHandler.h b/cspot/include/SpircHandler.h
+index 7d558cd..b4468fe 100644
+--- a/cspot/include/SpircHandler.h
++++ b/cspot/include/SpircHandler.h
+@@ -29,7 +29,8 @@ class SpircHandler {
+     SEEK,
+     DEPLETED,
+     FLUSH,
+-    PLAYBACK_START
++    PLAYBACK_START,
++    ACTIVATE
+   };
+ 
+   typedef std::variant<TrackInfo, int, bool> EventData;
+diff --git a/cspot/src/SpircHandler.cpp b/cspot/src/SpircHandler.cpp
+index 24cd729..04b59df 100644
+--- a/cspot/src/SpircHandler.cpp
++++ b/cspot/src/SpircHandler.cpp
+@@ -164,6 +164,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
+       setPause(true);
+       break;
+     case MessageType_kMessageTypePlay:
++      sendEvent(EventType::ACTIVATE);
+       setPause(false);
+       break;
+     case MessageType_kMessageTypeNext:
+@@ -177,6 +178,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
+       }
+       break;
+     case MessageType_kMessageTypeLoad: {
++      sendEvent(EventType::ACTIVATE);
+       this->trackPlayer->start();
+ 
+       CSPOT_LOG(debug, "Load frame %d!", playbackState->remoteTracks.size());

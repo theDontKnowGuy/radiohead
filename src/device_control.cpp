@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "app_state.h"
+#include "media.h"
 #include "settings.h"
 #include "web_server.h"
 
@@ -57,7 +58,11 @@ void goToSleep() {
         return;
     }
     saveSettings();
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    stopStationPlayback();
+#else
     audio.stopSong();
+#endif
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE);
     tft.drawCenterString("Power Off", 160, 100, &fonts::FreeSansBold12pt7b);

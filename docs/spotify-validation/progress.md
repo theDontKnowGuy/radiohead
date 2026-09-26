@@ -1,4 +1,4 @@
-# Native Spotify S0–S1 evidence ledger
+# Native Spotify validation evidence ledger
 
 Started 2026-09-24 on branch `spotify/native-s0-s1` from `b47961c5684731e8e2d79c5c4f5999eab99aa5c8`.
 The source handoff is `docs/spotify-native-validation.md`. This ledger records observed
@@ -9,9 +9,93 @@ firmware backups are kept outside the repository.
 | --- | --- | --- | --- | --- |
 | S0 | PASS | PASS (user listening report) | PASS (baseline measured; existing defects below) | 30-minute private capture; `tools/spotify_validation_summary.py`. |
 | S1 | PASS (standalone build/upload) | FAIL (Wi-Fi interruption lost Spotify output; run 19 aborted) | PARTIAL (short-run resource counters clean; renewal only observed on earlier run 12) | Three cold restarts and remote controls checked; adjacent duplicate inconclusive. User explicitly skipped the two-hour run. See short-run continuation below. |
-| S2 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
+| S2 | PARTIAL (normal and integrated images build) | PARTIAL (idle handoff and authenticated boot; no playback transition) | FAIL (9,471 B internal free after authentication) | Output ownership is implemented for the experimental image; directed transitions and listening remain open. See [S2 audit](s2-output-handoff.md). |
 | S3 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
+
+## S2 start: 2026-09-25
+
+The user authorized starting S2 while treating S0/S1 as prerequisites, despite
+the outstanding S1 Wi-Fi recovery and long-run acceptance. The S2 ownership
+audit is in [s2-output-handoff.md](s2-output-handoff.md). The current standalone
+sink and Radiohead both allocate I2S controller 0 on the same pins; the
+current public audio-library API cannot release that output after `stopSong()`.
+The standalone Spotify worker has no bounded stop acknowledgement. These are
+implementation blockers, not S2 pass claims. The user explicitly authorized
+the narrow vendored Audio handoff patch on 2026-09-25.
+
+One independent local-source correction is implemented in `src/media.cpp`:
+radio, station-test and podcast selection preserve mute and reapply the saved
+volume/tone. The uninstrumented `pio run -e esp32s3` build passes at 96,372 B
+static RAM and 3,493,715 B linked flash after the final vendor fix. This
+binary omits the Spotify adapter.
+
+The direct ESP-IDF experiment builds to about 4.29 MB with 86,245 B static
+DIRAM headroom after placing three TFT scratch buffers in PSRAM only for that
+image. Its partition table is byte-identical to the normal table. The image
+is built from the pinned candidate using
+`experiments/spotify-native/build-integrated.sh`.
+
+The first device probe of the vendored Audio seam performed two idle
+release/restore cycles: both reported `released=1 restored=1`, with no panic
+or watchdog in the short capture. It was not an audible handoff. The first
+integrated boot fault was traced to cspot's separate Civetweb worker stack;
+pairing now uses Radiohead's existing port-80 server. The next boot could not
+reserve cspot's 16 KiB mercury worker stack. Moving the TFT scratch buffers
+to PSRAM allowed boot and authentication. A later app-only image authenticated
+with the S1 device identity and no panic in a 65-second capture. It reported
+50,391 B free internal RAM at discovery, 30,203 B at the AP attempt, and
+only 9,471 B free / 7,168 B largest block after authentication. The earlier
+image with a changed device name lost its S1 identity and failed
+authentication. Another rebooted capture showed transient AP retries with
+poor Wi-Fi signal. These are not stable playback results.
+
+A further experimental image enables ESP-IDF's supported
+`SPIRAM_TRY_ALLOCATE_WIFI_LWIP` option. It built and flashed app-only with
+hash verification. A 100-second capture had no panic and reported 56,823 B
+free internal RAM at discovery and 36,635 B at the first AP attempt, roughly
+6.4 KB more than the prior image at those points. It made three AP attempts
+without authenticating in that capture, so no post-authentication or playback
+memory improvement is claimed. Captured radio RSSI was around −83 to −85 dBm
+and the selected station repeatedly timed out.
+
+The final normal `esp32s3` build was restored to app0 with esptool write-hash
+verification. A 25-second private boot capture had no panic, abort or
+watchdog and showed the TFT renderer and radio audio task starting. NVS, OTA
+metadata, bootloader and LittleFS were not written during these app-only
+probes. Audible radio was not rechecked by the user after this final restore.
+
+The experimental adapter uses a 16-slot event mailbox, a single main-loop
+coordinator, and bounded I2S release acknowledgement. A fresh phone Load/Play
+event is distinguished from late decoded PCM events. Mute, volume, and a
+three-band tone are applied to Spotify PCM. The cspot service remains resident
+between transfers, so its detached worker lifecycle and S1 Wi-Fi recovery
+defect still require work. No 100 directed transitions, 20 rapid transitions,
+audible overlap checks, or integrated playback memory trend have passed.
+**S2 remains incomplete.**
+
+### S2 continuation: 2026-09-26
+
+The normal and integrated builds were reproduced from the current dirty
+worktree. `pio run -e esp32s3` passed at 96,372 B static RAM and 3,493,715 B
+linked flash; its 3,544,752-byte application image has SHA-256
+`888f1c939b170f4a3caaeffa6a9cf4adb86617a0f7e354097929dffe4056e2a8`.
+`RADIOHEAD_SPOTIFY_CANDIDATE=/tmp/radiohead-s2-cspot
+experiments/spotify-native/build-integrated.sh` also passed, including the
+partition-table comparison. Its 4,290,448-byte application image has SHA-256
+`ae26255891c9034cd9313fc192cd7cfce772fc3776690863d844bbfdd9d3914e`
+and leaves 2,263,152 B (35%) in the 6,553,600-byte OTA slot. `git diff
+--check` passed.
+
+No ESP32 serial device was present (`pio device list` showed only the host's
+debug and Bluetooth pseudo-terminals), so the image was not flashed and none
+of the required audible/directed transition cases could be rerun. The last
+measured post-authentication internal heap remains 9,471 B with a 7,168 B
+largest block. Code/build reproducibility therefore remains PARTIAL and S2
+hardware/function and resource acceptance remain unpassed. Completion still
+requires the intended radio connected over USB, the Premium phone/account,
+stable Wi-Fi, and the 100 directed plus 20 rapid/interrupted transition run
+specified by the handoff; no credentials should be supplied in chat.
 
 ## Baseline before changes
 

@@ -1,5 +1,25 @@
 # S1 native Spotify candidate (standalone)
 
+## S2 integrated experiment
+
+From the repository root, run
+`experiments/spotify-native/build-integrated.sh`. It builds the normal
+PlatformIO image to prepare the UI assets, prepares the pinned cspot/Bell
+candidate under `.pio/spotify-candidate` if absent, builds the direct
+ESP-IDF/Arduino image under `.pio/spotify-idf-build`, and compares its
+partition table with the normal image. Set
+`RADIOHEAD_SPOTIFY_CANDIDATE=/path/to/prepared/candidate` to reuse an
+already prepared checkout. The build requires the installed PlatformIO
+ESP-IDF 5.5.5 and Arduino 3.3.11 packages. The normal
+`pio run -e esp32s3` image contains no Spotify adapter.
+
+This image is experimental and has not passed S2 playback or transition
+acceptance. It reads S1 Spotify credentials and pairing from NVS and must be
+flashed app-only at `0x10000` if used for a device probe; do not erase or
+replace the partition table, OTA metadata or LittleFS. Current device
+evidence and resource concerns are in
+[the validation ledger](../../docs/spotify-validation/progress.md).
+
 This is a reproducible, isolated playback spike based on Waveshare commit
 `9c51b087` and its pinned cspot/Bell submodules. It is **not** part of the
 normal Radiohead build. `prepare.sh /path/to/empty-directory` fetches the exact

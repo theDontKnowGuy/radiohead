@@ -723,6 +723,7 @@ Audio::Audio(uint8_t i2sPort) {
     m_f_I2S_init = false;
     mutex_audioTask = xSemaphoreCreateMutex();
     mutex_audioTaskIsDecoding = xSemaphoreCreateMutex();
+    m_handoffAcknowledged = xSemaphoreCreateBinary();
     clientsecure.setInsecure();
     m_i2s_items.i2s_num = i2sPort; // i2s port number
 
@@ -730,15 +731,23 @@ Audio::Audio(uint8_t i2sPort) {
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 Audio::~Audio() {
+    if (m_handoffParked) {
+        m_handoffRequested.store(false, std::memory_order_release);
+        xTaskNotifyGive(m_audioTaskHandle);
+        m_handoffParked = false;
+    }
     stopSong();
     setDefaults();
 
-    i2s_channel_disable(m_i2s_tx_handle);
-    i2s_del_channel(m_i2s_tx_handle);
+    if (m_i2s_tx_handle) {
+        i2s_channel_disable(m_i2s_tx_handle);
+        i2s_del_channel(m_i2s_tx_handle);
+    }
     stopAudioTask();
     dsps_fft2r_deinit_fc32();
     vSemaphoreDelete(mutex_audioTask);
     vSemaphoreDelete(mutex_audioTaskIsDecoding);
+    if (m_handoffAcknowledged) vSemaphoreDelete(m_handoffAcknowledged);
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 void Audio::destroy_decoder() {
@@ -6326,6 +6335,7 @@ bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t MCLK) {
         goto exit;
     }
     I2Sstart();
+    if (result) m_handoffGpioCfg = gpio_cfg;
 
 exit:
 
@@ -6334,6 +6344,61 @@ exit:
 
     m_f_I2S_init = result;
     return m_f_I2S_init;
+}
+// Radiohead output handoff. The decoder task acknowledges at a point where it
+// cannot touch the sample buffer or I2S channel, then waits until restoration.
+bool Audio::releaseOutputForHandoff(uint32_t timeoutMs) {
+    if (m_handoffParked) return m_i2s_tx_handle == nullptr;
+    if (!m_f_I2S_init || !m_i2s_tx_handle || !m_audioTaskHandle || !m_handoffAcknowledged) return false;
+
+    xSemaphoreTake(m_handoffAcknowledged, 0); // discard an acknowledgement from a timed-out attempt
+    m_handoffRequested.store(true, std::memory_order_release);
+    const TickType_t waitTicks = std::max<TickType_t>(1, pdMS_TO_TICKS(timeoutMs));
+    if (xSemaphoreTake(m_handoffAcknowledged, waitTicks) != pdTRUE) {
+        m_handoffRequested.store(false, std::memory_order_release);
+        xTaskNotifyGive(m_audioTaskHandle);
+        return false;
+    }
+    m_handoffParked = true;
+    stopSong();
+    SamplesBuff.reset();
+    m_outBuff.clear();
+    m_resamplesBuff.clear();
+    if (m_f_i2s_channel_enabled) {
+        if (i2s_channel_disable(m_i2s_tx_handle) != ESP_OK) return false;
+        m_f_i2s_channel_enabled = false;
+    }
+    if (i2s_del_channel(m_i2s_tx_handle) != ESP_OK) return false;
+    m_i2s_tx_handle = nullptr;
+    m_f_I2S_init = false;
+    return true;
+}
+
+bool Audio::restoreOutputAfterHandoff() {
+    if (!m_handoffParked) return m_f_I2S_init && m_i2s_tx_handle != nullptr;
+    if (!m_i2s_tx_handle) {
+        if (!i2s_config()) {
+            if (m_i2s_tx_handle) {
+                i2s_del_channel(m_i2s_tx_handle);
+                m_i2s_tx_handle = nullptr;
+            }
+            return false;
+        }
+        i2s_event_callbacks_t callbacks = {};
+        callbacks.on_sent = i2s_tx_sent_callback;
+        if (i2s_channel_register_event_callback(m_i2s_tx_handle, &callbacks, this) != ESP_OK ||
+            i2s_channel_reconfig_std_gpio(m_i2s_tx_handle, &m_handoffGpioCfg) != ESP_OK) {
+            i2s_del_channel(m_i2s_tx_handle);
+            m_i2s_tx_handle = nullptr;
+            return false;
+        }
+    }
+    if (I2Sstart() != ESP_OK) return false;
+    m_f_I2S_init = true;
+    m_handoffRequested.store(false, std::memory_order_release);
+    m_handoffParked = false;
+    xTaskNotifyGive(m_audioTaskHandle);
+    return true;
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 uint32_t Audio::getFileSize() { // returns the size of webfile or local file
@@ -8234,6 +8299,11 @@ void Audio::audioTaskWrapper(void* param) {
 void Audio::audioTask() {
     while (m_f_audioTaskIsRunning) {
         vTaskDelay(1 / portTICK_PERIOD_MS); // periodically every x ms
+        if (m_handoffRequested.load(std::memory_order_acquire)) {
+            xSemaphoreGive(m_handoffAcknowledged);
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            continue;
+        }
         if (m_f_I2S_init) performAudioTask();
     }
     vTaskDelete(nullptr); // Delete this task

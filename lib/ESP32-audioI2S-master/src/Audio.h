@@ -293,6 +293,10 @@ class Audio {
     bool             setAudioPlayTime(uint16_t sec);
     bool             setTimeOffset(int sec);
     bool             setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t MCLK = I2S_GPIO_UNUSED);
+    // Radiohead: cooperatively park the decoder before another source owns I2S.
+    // Call from the application loop only, with no concurrent Audio API calls.
+    bool             releaseOutputForHandoff(uint32_t timeoutMs);
+    bool             restoreOutputAfterHandoff();
     bool             pauseResume();
     bool             isRunning() { return m_f_running; }
     void             loop();
@@ -526,7 +530,11 @@ class Audio {
 
     SemaphoreHandle_t mutex_audioTask;
     SemaphoreHandle_t mutex_audioTaskIsDecoding;
+    SemaphoreHandle_t m_handoffAcknowledged = nullptr;
     TaskHandle_t      m_audioTaskHandle = nullptr;
+    std::atomic<bool> m_handoffRequested{false};
+    bool              m_handoffParked = false;
+    i2s_std_gpio_config_t m_handoffGpioCfg = {};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
