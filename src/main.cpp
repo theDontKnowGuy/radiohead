@@ -43,6 +43,11 @@ void beginNetworkConnection() {
     // This must precede WiFi.begin() so the DHCP request and the mDNS responder
     // agree on the radio's name.
     WiFi.setHostname(kRadioMdnsHostname);
+    // Every access point in the house may advertise the same SSID.  The default
+    // fast scan stops at the first match, so scan every channel before selecting
+    // the matching access point with the strongest signal.
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(st_ssid.c_str(), st_pass.c_str());
     networkJoinStarted = true;
 }
@@ -57,7 +62,9 @@ void finishNetworkConnection() {
         return;
     }
 
-    Serial.println(WiFi.localIP());
+    Serial.printf("[wifi] connected: ip=%s bssid=%s rssi=%ld dBm\n",
+                  WiFi.localIP().toString().c_str(), WiFi.BSSIDstr().c_str(),
+                  static_cast<long>(WiFi.RSSI()));
     configTime(0, 0, ntpServer);
     applyConfiguredTimeZone();
 }
