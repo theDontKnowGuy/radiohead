@@ -56,6 +56,18 @@ StaticTask_t outputTcb, connectTcb;
 StackType_t outputStack[8 * 1024 / sizeof(StackType_t)];
 StackType_t connectStack[16 * 1024 / sizeof(StackType_t)];
 
+class RedactedLogger final : public bell::AbstractLogger {
+public:
+    void debug(std::string, int, std::string, const char*, ...) override {}
+    void info(std::string, int, std::string, const char*, ...) override {}
+    void error(std::string filename, int line, std::string, const char*, ...) override {
+        const size_t slash = filename.find_last_of("/\\");
+        const char* base = slash == std::string::npos ? filename.c_str() : filename.c_str() + slash + 1;
+        Serial.printf("[spotify] upstream error %s:%d (details redacted)\n", base, line);
+    }
+};
+RedactedLogger redactedLogger;
+
 void post(SpotifySignalType type, uint16_t volume = 0) {
     portENTER_CRITICAL(&signalMux);
     if (signalCount == kSignalCapacity) {
@@ -130,6 +142,8 @@ size_t feed(uint8_t* data, size_t length, std::string_view trackId) {
 void outputTask(void*) {
     std::unique_ptr<MAX98357AAudioSink> sink;
     uint32_t appliedToneRevision = UINT32_MAX;
+    uint32_t lastReportAt = millis();
+    uint64_t lastReportedBytes = 0;
     uint8_t buffer[1024];
     for (;;) {
         if (!outputRequested.load(std::memory_order_acquire)) {
@@ -188,6 +202,26 @@ void outputTask(void*) {
         } else {
             vTaskDelay(pdMS_TO_TICKS(5));
         }
+        const uint32_t now = millis();
+        if (now - lastReportAt >= 5000) {
+            size_t fill = 0;
+            {
+                std::lock_guard<std::mutex> lock(pcmMutex);
+                if (pcm) fill = pcm->size();
+            }
+            const uint64_t total = sink->pcmBytes();
+            Serial.printf(
+                "[s2-pcm] bytes_5s=%llu fill=%u/%u partial=%lu failures=%lu internal=%u dma=%u largest_dma=%u\n",
+                static_cast<unsigned long long>(total - lastReportedBytes),
+                static_cast<unsigned>(fill), static_cast<unsigned>(kPcmCapacity),
+                static_cast<unsigned long>(sink->partialWrites()),
+                static_cast<unsigned long>(sink->writeFailures()),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_8BIT)),
+                static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_8BIT)));
+            lastReportedBytes = total;
+            lastReportAt = now;
+        }
     }
 }
 
@@ -228,7 +262,7 @@ void onEvent(std::unique_ptr<cspot::SpircHandler::Event> event) {
 }
 
 void connectTask(void*) {
-    bell::setDefaultLogger();
+    bell::bellGlobalLogger = &redactedLogger;
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
     cfg.stack_alloc_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     cfg.inherit_cfg = true;

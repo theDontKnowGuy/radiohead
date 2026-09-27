@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">MAX98357A stereo wiring for the Radiohead ESP32-S3 project</title>
+  <desc id="desc">GPIO 15, GPIO 17, and GPIO 16 branch to two MAX98357A amplifier boards. A regulated 5 volt supply powers both amplifiers and shares ground with the ESP32. The left amplifier SD MODE pin is connected directly to VIN. The right amplifier SD MODE pin is connected to VIN through an additional 1 megaohm resistor. Each amplifier drives its own speaker through SPK plus and SPK minus.</desc>
+
+  <defs>
+    <style>
+      .background { fill: #f8fafc; }
+      .panel { fill: #ffffff; stroke: #334155; stroke-width: 2.5; }
+      .left-panel { fill: #eff6ff; stroke: #2563eb; stroke-width: 2.5; }
+      .right-panel { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 2.5; }
+      .supply-panel { fill: #fff7ed; stroke: #ea580c; stroke-width: 2.5; }
+      .note-panel { fill: #fffbeb; stroke: #d97706; stroke-width: 2; }
+      .title { fill: #0f172a; font: 700 34px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .subtitle { fill: #475569; font: 400 18px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .heading { fill: #0f172a; font: 700 22px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: #0f172a; font: 600 17px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .small { fill: #475569; font: 400 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .tiny { fill: #475569; font: 400 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .warning { fill: #92400e; font: 700 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .pin { fill: #f1f5f9; stroke: #94a3b8; stroke-width: 1.5; }
+      .pin-text { fill: #0f172a; font: 600 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .wire { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .bclk { stroke: #0284c7; }
+      .lrc { stroke: #16a34a; }
+      .din { stroke: #7c3aed; }
+      .power { stroke: #dc2626; }
+      .ground { stroke: #334155; }
+      .speaker-wire { stroke: #c2410c; }
+      .junction { stroke: #ffffff; stroke-width: 1.5; }
+      .resistor { fill: none; stroke: #dc2626; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .speaker { fill: #e2e8f0; stroke: #334155; stroke-width: 3; }
+      .sound { fill: none; stroke: #64748b; stroke-width: 3; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect class="background" width="1440" height="900"/>
+  <text class="title" x="720" y="52" text-anchor="middle">MAX98357A stereo wiring</text>
+  <text class="subtitle" x="720" y="82" text-anchor="middle">Both amplifiers share the I²S bus; SD_MODE chooses which stereo channel each one plays.</text>
+
+  <!-- ESP32-S3 -->
+  <rect class="panel" x="42" y="176" width="250" height="350" rx="18"/>
+  <text class="heading" x="167" y="214" text-anchor="middle">ESP32-S3</text>
+
+  <rect class="pin" x="70" y="246" width="194" height="44" rx="8"/>
+  <text class="pin-text" x="89" y="274">GPIO 15 · BCLK</text>
+  <rect class="pin" x="70" y="310" width="194" height="44" rx="8"/>
+  <text class="pin-text" x="89" y="338">GPIO 17 · LRC/WS</text>
+  <rect class="pin" x="70" y="374" width="194" height="44" rx="8"/>
+  <text class="pin-text" x="89" y="402">GPIO 16 · DIN</text>
+  <rect class="pin" x="70" y="438" width="194" height="44" rx="8"/>
+  <text class="pin-text" x="89" y="466">GND</text>
+  <text class="small" x="167" y="508" text-anchor="middle">MCLK is not connected</text>
+
+  <!-- Power supply -->
+  <rect class="supply-panel" x="42" y="570" width="250" height="190" rx="18"/>
+  <text class="heading" x="167" y="607" text-anchor="middle">REGULATED 5 V</text>
+  <text class="small" x="167" y="632" text-anchor="middle">Sized for both amplifiers</text>
+  <rect class="pin" x="70" y="650" width="194" height="38" rx="8"/>
+  <text class="pin-text" x="89" y="675">+5V</text>
+  <rect class="pin" x="70" y="704" width="194" height="38" rx="8"/>
+  <text class="pin-text" x="89" y="729">GND</text>
+
+  <!-- Left amplifier -->
+  <rect class="left-panel" x="640" y="126" width="420" height="290" rx="18"/>
+  <text class="heading" x="850" y="164" text-anchor="middle">MAX98357A · LEFT CHANNEL</text>
+  <rect class="pin" x="666" y="192" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="681" y="216">BCLK</text>
+  <rect class="pin" x="666" y="240" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="676" y="264">LRC/WS</text>
+  <rect class="pin" x="666" y="288" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="688" y="312">DIN</text>
+  <rect class="pin" x="666" y="336" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="688" y="360">GND</text>
+
+  <rect class="pin" x="800" y="192" width="88" height="36" rx="7"/>
+  <text class="pin-text" x="825" y="216">VIN</text>
+  <rect class="pin" x="800" y="288" width="118" height="36" rx="7"/>
+  <text class="pin-text" x="816" y="312">SD_MODE</text>
+  <path class="wire power" d="M844 228 V288"/>
+  <text class="label" x="925" y="260" text-anchor="middle">Direct jumper</text>
+  <text class="small" x="925" y="282" text-anchor="middle">SD_MODE &gt; 1.4 V</text>
+
+  <rect class="pin" x="940" y="192" width="94" height="36" rx="7"/>
+  <text class="pin-text" x="954" y="216">SPK+</text>
+  <rect class="pin" x="940" y="336" width="94" height="36" rx="7"/>
+  <text class="pin-text" x="954" y="360">SPK−</text>
+
+  <!-- Right amplifier -->
+  <rect class="right-panel" x="640" y="472" width="420" height="290" rx="18"/>
+  <text class="heading" x="850" y="510" text-anchor="middle">MAX98357A · RIGHT CHANNEL</text>
+  <rect class="pin" x="666" y="538" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="681" y="562">BCLK</text>
+  <rect class="pin" x="666" y="586" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="676" y="610">LRC/WS</text>
+  <rect class="pin" x="666" y="634" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="688" y="658">DIN</text>
+  <rect class="pin" x="666" y="682" width="92" height="36" rx="7"/>
+  <text class="pin-text" x="688" y="706">GND</text>
+
+  <rect class="pin" x="800" y="538" width="88" height="36" rx="7"/>
+  <text class="pin-text" x="825" y="562">VIN</text>
+  <rect class="pin" x="800" y="634" width="118" height="36" rx="7"/>
+  <text class="pin-text" x="816" y="658">SD_MODE</text>
+
+  <!-- Explicit external right-channel resistor -->
+  <path class="wire power" d="M844 574 V582"/>
+  <path class="resistor" d="M844 582 l-10 8 l20 8 l-20 8 l20 8 l-10 8"/>
+  <path class="wire power" d="M844 622 V634"/>
+  <text class="label" x="930" y="593" text-anchor="middle">ADD 1 MΩ</text>
+  <text class="tiny" x="930" y="614" text-anchor="middle">external pull-up to VIN</text>
+  <text class="tiny" x="976" y="660" text-anchor="middle">0.77–1.4 V to GND</text>
+
+  <rect class="pin" x="940" y="538" width="94" height="36" rx="7"/>
+  <text class="pin-text" x="954" y="562">SPK+</text>
+  <rect class="pin" x="940" y="682" width="94" height="36" rx="7"/>
+  <text class="pin-text" x="954" y="706">SPK−</text>
+
+  <!-- Shared I2S and power buses -->
+  <path class="wire bclk" d="M264 268 H370 V210 H666 M370 268 V556 H666"/>
+  <circle class="junction bclk" cx="370" cy="268" r="6"/>
+  <path class="wire lrc" d="M264 332 H404 V258 H666 M404 332 V604 H666"/>
+  <circle class="junction lrc" cx="404" cy="332" r="6"/>
+  <path class="wire din" d="M264 396 H438 V306 H666 M438 396 V652 H666"/>
+  <circle class="junction din" cx="438" cy="396" r="6"/>
+  <path class="wire ground" d="M264 460 H472 V354 H666 M472 460 V700 H666 M264 723 H472"/>
+  <circle class="junction ground" cx="472" cy="460" r="6"/>
+  <circle class="junction ground" cx="472" cy="723" r="6"/>
+  <path class="wire power" d="M264 669 H506 V174 H844 M506 556 H800"/>
+  <circle class="junction power" cx="506" cy="174" r="6"/>
+  <circle class="junction power" cx="506" cy="556" r="6"/>
+
+  <text class="small" x="318" y="252" fill="#0284c7">BCLK</text>
+  <text class="small" x="379" y="317" fill="#16a34a">LRC/WS</text>
+  <text class="small" x="413" y="381" fill="#7c3aed">DIN</text>
+  <text class="small" x="481" y="445">COMMON GND</text>
+  <text class="small" x="515" y="542" fill="#dc2626">+5 V BUS</text>
+
+  <!-- Speakers -->
+  <path class="wire speaker-wire" d="M1034 210 H1114 V238 H1165"/>
+  <path class="wire speaker-wire" d="M1034 354 H1114 V302 H1165"/>
+  <path class="speaker" d="M1165 218 H1204 L1250 184 V356 L1204 322 H1165 Z"/>
+  <path class="sound" d="M1270 222 Q1320 270 1270 318"/>
+  <path class="sound" d="M1290 202 Q1362 270 1290 338"/>
+  <text class="heading" x="1244" y="158" text-anchor="middle">LEFT SPEAKER</text>
+  <text class="small" x="1244" y="382" text-anchor="middle">Connect only to this amplifier</text>
+
+  <path class="wire speaker-wire" d="M1034 556 H1114 V584 H1165"/>
+  <path class="wire speaker-wire" d="M1034 700 H1114 V648 H1165"/>
+  <path class="speaker" d="M1165 564 H1204 L1250 530 V702 L1204 668 H1165 Z"/>
+  <path class="sound" d="M1270 568 Q1320 616 1270 664"/>
+  <path class="sound" d="M1290 548 Q1362 616 1290 684"/>
+  <text class="heading" x="1244" y="504" text-anchor="middle">RIGHT SPEAKER</text>
+  <text class="small" x="1244" y="728" text-anchor="middle">Connect only to this amplifier</text>
+
+  <!-- Safety and applicability notes -->
+  <rect class="note-panel" x="42" y="796" width="1356" height="74" rx="14"/>
+  <text class="warning" x="720" y="826" text-anchor="middle">Never connect SPK− to GND and never join the two amplifiers’ speaker outputs.</text>
+  <text class="small" x="720" y="852" text-anchor="middle">The added 1 MΩ resistor is for the common 5 V Adafruit-style board. Before connecting speakers, measure SD_MODE to GND; clones may require a different resistor.</text>
+</svg>

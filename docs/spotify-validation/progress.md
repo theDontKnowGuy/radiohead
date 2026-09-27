@@ -97,6 +97,27 @@ requires the intended radio connected over USB, the Premium phone/account,
 stable Wi-Fi, and the 100 directed plus 20 rapid/interrupted transition run
 specified by the handoff; no credentials should be supplied in chat.
 
+Later on 2026-09-26 the intended ESP32-S3 appeared as
+`/dev/cu.usbmodem1201` (USB VID:PID 303A:1001, revision 0.2, 8 MB embedded
+PSRAM). A read-only OTA-data probe confirmed sequence 1/app0. The integrated
+image above was then written app-only at `0x10000`; esptool's independent
+`verify-flash` comparison passed. NVS, OTA metadata, bootloader, partition
+table and LittleFS were not written.
+
+The image joined Wi-Fi, advertised the port-80 Spotify service, found the
+saved pairing, authenticated to Spotify and fetched a client-credentials
+access token without a panic or watchdog during the approximately 202-second
+capture. Wi-Fi initially measured about -85 dBm and suffered one beacon
+timeout; after reassociation it measured about -41 dBm. Discovery reported
+57,135 B free internal RAM / 31,744 B largest block, the successful AP attempt
+started at 36,083 B / 15,360 B, and post-authentication reported 27,279 B /
+15,360 B. This improves on the previous 9,471 B post-authentication result but
+does not measure playback. Queue-task stack reserve stabilized at 23,620 B.
+No phone Load/Play command arrived during the capture, so output acquisition,
+audible Spotify playback and any directed source transition remain NOT
+VERIFIED. The integrated image remains installed pending the interactive
+phone-driven run.
+
 ## Baseline before changes
 
 - `pio run -e esp32s3` **PASS** at source `b47961c` on 2026-09-24.

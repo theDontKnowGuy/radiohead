@@ -17,6 +17,20 @@ station playlists, podcasts, weather, alarms, audio settings, and OTA updates.
 The bundled `lib/ESP32-audioI2S-master` directory is third-party code and remains
 separate from the application modules.
 
+## Stereo speakers
+
+The firmware already sends stereo audio on the I2S bus. Two mono MAX98357A
+amplifiers share the same BCLK, LRC/WS, and DIN signals; their `SD_MODE` wiring
+selects left or right audio.
+
+![MAX98357A stereo wiring diagram](docs/hardware/max98357a-stereo-wiring.svg)
+
+The diagram shows the additional 1 MΩ pull-up used to select the right channel on
+the common 5 V Adafruit-style board. See the
+[MAX98357A stereo wiring notes](docs/hardware/max98357a-stereo.md) before connecting
+the second amplifier or using a different breakout. The speaker outputs are
+bridge-tied and must not be connected together or to ground.
+
 ## Build
 
 ```sh

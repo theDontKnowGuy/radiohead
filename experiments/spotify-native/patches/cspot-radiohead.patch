@@ -85,7 +85,20 @@ index 6b63604..e7709a2 100644
          // Execute seek if needed
          if (pendingSeekPositionMs > 0) {
            uint32_t seekPosition = pendingSeekPositionMs;
-@@ -260,7 +298,11 @@ void TrackPlayer::runTask() {
+@@ -245,7 +283,12 @@ void TrackPlayer::runTask() {
+               if (written == 0) {
+                 BELL_SLEEP_MS(50);
+               }
+               toWrite -= written;
++#ifdef ESP_PLATFORM
++              // Keep IDLE1 and the Arduino loop schedulable while decoding.
++              // Buffered PCM makes one tick per output chunk inexpensive.
++              BELL_SLEEP_MS(1);
++#endif
+             }
+           }
+         }
+@@ -260,7 +303,11 @@ void TrackPlayer::runTask() {
      }
  
      if (eof) {

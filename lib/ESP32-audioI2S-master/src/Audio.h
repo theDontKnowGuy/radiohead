@@ -506,7 +506,15 @@ class Audio {
 
   public:
     struct audioSettings {
+        // The integrated Spotify experiment must be able to recreate local
+        // I2S after cspot/TLS tasks have claimed internal RAM. Eight 256-frame
+        // descriptors retain about 46 ms at 44.1 kHz while halving the late
+        // DMA allocation. Normal firmware keeps the upstream-sized queue.
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+        uint16_t DMA_DESC_NUM = 8;
+#else
         uint16_t DMA_DESC_NUM = 16;                // number of I2S DMA buffer
+#endif
         uint16_t DMA_FRAME_NUM = 256;              // number of frames in one DMA buffer
         uint16_t FREQ_LS_HZ = 500;                 // IIR Filter, lowshelf
         uint16_t FREQ_PEAK_HZ = 1800;              // IIR Filter, peakingEQ
