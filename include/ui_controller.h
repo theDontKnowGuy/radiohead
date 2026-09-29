@@ -224,7 +224,6 @@ void uiControllerTap(UiTarget target, int value, unsigned long now, bool display
 void uiControllerTouchContact(UiTarget target, unsigned long now);
 void uiControllerTouchEnd();
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
-void uiControllerSetAlarmActive(bool active);
 void uiControllerReportDeviceActionFailure();
 void uiControllerReportWifiActionFailure();
 void uiControllerTick(unsigned long now);

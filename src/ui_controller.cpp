@@ -21,7 +21,6 @@ UiCommand pendingCommand;
 bool hasPendingCommand = false;
 bool pendingCommandWaitsForRender = false;
 int pendingVolumeDelta = 0;
-bool alarmIsActive = false;
 unsigned long volumeOverlayUntil = 0;
 UiCommand pendingToneCommand;
 bool hasPendingToneCommand = false;
@@ -628,7 +627,6 @@ void uiControllerBegin() {
     hasPendingCommand = false;
     pendingCommandWaitsForRender = false;
     pendingVolumeDelta = 0;
-    alarmIsActive = false;
     volumeOverlayUntil = 0;
     hasPendingToneCommand = false;
     repeatTarget = UiTarget::None;
@@ -636,7 +634,7 @@ void uiControllerBegin() {
 
 void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
     (void)displayWasDimmed;
-    if (detents == 0 || alarmIsActive) return;
+    if (detents == 0) return;
 
     // The encoder is deliberately device-wide. Touch owns navigation,
     // selection and confirmation, so a turn cannot change the page or focus.
@@ -647,7 +645,6 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
 
 void uiControllerPush(unsigned long now, bool displayWasDimmed) {
     (void)displayWasDimmed;
-    if (alarmIsActive) return;
 
     // A press is mute only; it cannot activate the focused item or accept a
     // dialog after navigation has changed the current page.
@@ -659,7 +656,6 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
 void uiControllerHold(unsigned long now, bool displayWasDimmed) {
     (void)now;
     (void)displayWasDimmed;
-    if (alarmIsActive) return;
 
     // The button classifier fires Hold once and suppresses Push on release.
     queue(UiCommandKind::EnterStandby);
@@ -668,7 +664,7 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {
     repeatTarget = UiTarget::None;
     syncCommittedTone();
-    if (alarmIsActive || displayWasDimmed) {
+    if (displayWasDimmed) {
         markDirty();
         return;
     }
@@ -682,7 +678,7 @@ void uiControllerTap(UiTarget target, int value, unsigned long now, bool display
 
 void uiControllerTouchContact(UiTarget target, unsigned long now) {
     syncCommittedTone();
-    if (alarmIsActive || state.page != UiPage::SettingsAudio || target != repeatTarget) {
+    if (state.page != UiPage::SettingsAudio || target != repeatTarget) {
         repeatTarget = UiTarget::None;
         return;
     }
@@ -701,7 +697,7 @@ void uiControllerTouchEnd() {
 
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
     (void)now;
-    if (alarmIsActive || displayWasDimmed || direction == 0) return;
+    if (displayWasDimmed || direction == 0) return;
     int* offset = nullptr;
     int count = 0;
     int rows = kRowsPerPage;
@@ -743,11 +739,6 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
     // selected; selection remains an explicit row action.
     if (state.page == UiPage::Stations) state.stationFavoriteFocus = false;
     markDirty();
-}
-
-void uiControllerSetAlarmActive(bool active) {
-    if (active) repeatTarget = UiTarget::None;
-    alarmIsActive = active;
 }
 
 void uiControllerReportDeviceActionFailure() {

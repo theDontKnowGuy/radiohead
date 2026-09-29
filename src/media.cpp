@@ -63,7 +63,6 @@ PodcastEpisode activePodcastEpisodeData;
 bool hasActivePodcastEpisode = false;
 bool podcastPaused = false;
 bool podcastControlError = false;
-std::atomic<uint8_t> latestVuLevel{0};
 void cancelStationRecovery();
 
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
@@ -132,7 +131,6 @@ void activateSpotify(uint32_t commandSequence) {
     playbackState = PlaybackState::Stopped;
     ignoreEofUntilPlaybackReady = false;
     songTitle = "";
-    latestVuLevel.store(0, std::memory_order_relaxed);
     audio.stopSong();
     if (!audio.releaseOutputForHandoff(1500)) {
         spotifyStatus = MediaStatus::Failed;
@@ -274,10 +272,6 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (outputOwner != OutputOwner::Local) return;
 #endif
-    if (message.e == Audio::evt_vu && message.vec1.size() >= 2) {
-        const uint32_t level = message.vec1[0] > message.vec1[1] ? message.vec1[0] : message.vec1[1];
-        latestVuLevel.store(static_cast<uint8_t>(level > UINT8_MAX ? UINT8_MAX : level), std::memory_order_relaxed);
-    }
     if (message.e == Audio::evt_info && message.msg != nullptr &&
         (strcmp(message.msg, "slow stream") == 0 || strcmp(message.msg, "Stream lost") == 0)) {
         // The audio library has its own stream-loss reconnect path.  Record the
@@ -614,10 +608,6 @@ void toggleRadioMute() {
 
 bool isStationMuted() {
     return radioMuted;
-}
-
-uint8_t mediaVuLevel() {
-    return latestVuLevel.load(std::memory_order_relaxed);
 }
 
 int playableStationCount() {

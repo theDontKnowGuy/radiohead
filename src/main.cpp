@@ -71,41 +71,6 @@ void finishNetworkConnection() {
     applyConfiguredTimeZone();
 }
 
-void updateAlarm(const tm& timeInfo, bool timeValid, bool switchPressed, unsigned long now) {
-    if (!isAP && timeValid && alarmActive) {
-        if (timeInfo.tm_hour == alarmH && timeInfo.tm_min == alarmM) {
-            if (!isAlarming && (now - alarmStartMillis > 61000 || alarmStartMillis == 0)) {
-                isAlarming = true;
-                alarmStartMillis = now;
-                lastAlarmStep = now;
-                alarmVolume = 5;
-                audio.setVolume(volCurve[alarmVolume]);
-                playStation(currentStationIdx);
-                setBrightness(255);
-                forceRedraw = true;
-            }
-            if (isAlarming && now - alarmStartMillis > 20000) {
-                isAlarming = false;
-                audio.setVolume(volCurve[mainVal]);
-                forceRedraw = true;
-            }
-            if (isAlarming && alarmVolume < 9 && now - lastAlarmStep > 4000) {
-                ++alarmVolume;
-                audio.setVolume(volCurve[alarmVolume]);
-                lastAlarmStep = now;
-            }
-        } else if (!isAlarming) {
-            alarmStartMillis = 0;
-        }
-    }
-
-    if (isAlarming && switchPressed) {
-        isAlarming = false;
-        audio.setVolume(volCurve[mainVal]);
-        forceRedraw = true;
-    }
-}
-
 void updatePowerState(unsigned long now) {
     static bool volumeBarVisible = false;
     if (now - lastVolChange < 3050) {
@@ -118,7 +83,7 @@ void updatePowerState(unsigned long now) {
     const bool dimTimeoutExpired =
         autoDimSeconds != AUTO_DIM_NEVER_SECONDS &&
         now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL;
-    if (dimTimeoutExpired && !isAlarming) {
+    if (dimTimeoutExpired) {
         if (!isDimmed) {
             setBrightness(20);
             isDimmed = true;
@@ -267,32 +232,25 @@ void loop() {
         strcpy(currentTime, "--:--");
     }
 
-    const bool alarmWasActive = isAlarming;
-    updateAlarm(timeInfo, timeValid, buttonEvent == ButtonEvent::Push, now);
-    uiControllerSetAlarmActive(isAlarming);
-
     // The first accepted contact owns the press. TouchPressLatch stays latched
-    // across navigation until release, including consumed dim/alarm presses.
+    // across navigation until release, including consumed dim-wake presses.
     const UiPage touchPage = uiControllerRenderState().page;
 
-    if (touchEvent == TouchEvent::Release || displayWasDimmed || alarmWasActive) {
+    if (touchEvent == TouchEvent::Release || displayWasDimmed) {
         uiControllerTouchEnd();
     }
     const int detents = consumeEncoderDetents();
-    if (!alarmWasActive) {
-        uiControllerTurn(detents, now, displayWasDimmed);
-        if (buttonEvent == ButtonEvent::Push) {
-            uiControllerPush(now, displayWasDimmed);
-        } else if (buttonEvent == ButtonEvent::Hold) {
-            uiControllerHold(now, displayWasDimmed);
-        }
-        const UiRenderState state = uiControllerRenderState();
-        if (touchEvent == TouchEvent::Begin && state.page == touchPage &&
-            !displayWasDimmed && !isAlarming) {
-            uiControllerTap(uiHitTest(state, touchX, touchY), touchX, now, false);
-        } else if (touchEvent == TouchEvent::Contact && !displayWasDimmed && !isAlarming) {
-            uiControllerTouchContact(uiHitTest(state, touchX, touchY), now);
-        }
+    uiControllerTurn(detents, now, displayWasDimmed);
+    if (buttonEvent == ButtonEvent::Push) {
+        uiControllerPush(now, displayWasDimmed);
+    } else if (buttonEvent == ButtonEvent::Hold) {
+        uiControllerHold(now, displayWasDimmed);
+    }
+    const UiRenderState touchState = uiControllerRenderState();
+    if (touchEvent == TouchEvent::Begin && touchState.page == touchPage && !displayWasDimmed) {
+        uiControllerTap(uiHitTest(touchState, touchX, touchY), touchX, now, false);
+    } else if (touchEvent == TouchEvent::Contact && !displayWasDimmed) {
+        uiControllerTouchContact(uiHitTest(touchState, touchX, touchY), now);
     }
     if (buttonEvent != ButtonEvent::None || touchEvent != TouchEvent::None) {
         lastInteraction = now;

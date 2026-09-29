@@ -147,10 +147,6 @@ int main() {
     assert(uiControllerRenderState().episodeOffset == 0);
     uiControllerTap(UiTarget::ListNext, 0, 0, true);
     assert(uiControllerRenderState().episodeOffset == 0);
-    uiControllerSetAlarmActive(true);
-    uiControllerTap(UiTarget::ListNext, 0, 0, false);
-    assert(uiControllerRenderState().episodeOffset == 0);
-    uiControllerSetAlarmActive(false);
     ready = false;
     uiControllerTap(UiTarget::ListNext, 0, 0, false);
     assert(uiControllerRenderState().episodeOffset == 0);
@@ -364,7 +360,7 @@ int main() {
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone && command.value == 8);
     assert(!uiControllerTakeCommand(command));
 
-    // Timer wrap and alarm suppression cannot manufacture another tap.
+    // Timer wrap cannot manufacture another tap.
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, ULONG_MAX - 200, false);
     assert(uiControllerTakeCommand(command));
@@ -372,8 +368,7 @@ int main() {
     assert(!uiControllerTakeCommand(command));
     uiControllerTouchContact(UiTarget::ToneMidIncrease, 249);
     assert(uiControllerTakeCommand(command) && command.secondary == -1);
-    uiControllerSetAlarmActive(true);
-    uiControllerSetAlarmActive(false);
+    uiControllerTouchEnd();
     uiControllerTouchContact(UiTarget::ToneMidIncrease, 900);
     assert(!uiControllerTakeCommand(command));
     gB = gM = gT = 0;

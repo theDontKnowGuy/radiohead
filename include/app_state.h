@@ -45,35 +45,6 @@ struct RadioStation {
     String url;
 };
 
-struct Skin {
-    uint16_t bgTop;
-    uint16_t bgBottom;
-    uint16_t textMain;
-    uint16_t textAccent;
-    uint16_t wifiSig;
-    uint16_t selMode;
-    uint16_t clk;
-    uint16_t hInfo;
-    uint16_t barLow;
-    uint16_t barMid;
-    uint16_t barHigh;
-    uint16_t volBar;
-    uint16_t almWarn;
-    String hexTop;
-    String hexBottom;
-    String hexMain;
-    String hexAccent;
-    String hexWifi;
-    String hexSel;
-    String hexClk;
-    String hexHInfo;
-    String hexBarL;
-    String hexBarM;
-    String hexBarH;
-    String hexVol;
-    String hexAlm;
-};
-
 struct PodcastShow {
     // This is a stable catalog identity, not a current list position. It is
     // deliberately separate from the display name used by the UI.
@@ -115,7 +86,6 @@ private:
 extern const char* ntpServer;
 extern RadioStation stations[STATION_COUNT];
 extern std::vector<RadioStation> m3uTempList;
-extern Skin currentSkin;
 extern const PodcastShow podcastShows[PODCAST_SHOW_COUNT];
 extern PodcastEpisode podcastEpisodes[MAX_EPISODES];
 extern const uint8_t volCurve[22];
@@ -125,7 +95,6 @@ extern Audio audio;
 extern WebServer server;
 extern Preferences pref;
 
-extern int visualMode;
 extern String owmKey;
 extern String owmCity;
 extern float tempC;
@@ -151,7 +120,6 @@ extern String podcastShowTft;
 extern int gB;
 extern int gM;
 extern int gT;
-extern bool showSpectrum;
 // Automatic dimming is a small, device-local preference.  It is expressed in
 // seconds so both the settings UI and the main-loop deadline avoid hidden
 // presentation-unit conversions.
@@ -162,20 +130,6 @@ extern volatile unsigned long lastInteraction;
 extern unsigned long lastVolChange;
 extern volatile int encoderPos;
 extern String songTitle;
-extern String lastDrawnSong;
-extern String lastDrawnStationName;
-extern int lastMain;
-extern int lastDrawnMode;
-extern int lastDrawnStationIdx;
-extern int barHeights[2];
-extern int alarmH;
-extern int alarmM;
-extern bool alarmActive;
-extern bool isAlarming;
-extern String lastDrawnTime;
-extern int alarmVolume;
-extern unsigned long lastAlarmStep;
-extern unsigned long alarmStartMillis;
 extern String st_ssid;
 extern String st_pass;
 extern bool isAP;

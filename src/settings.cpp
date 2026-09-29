@@ -1,6 +1,5 @@
 #include "settings.h"
 
-#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <time.h>
@@ -310,24 +309,6 @@ bool validateArtworkFile(File& file, uint32_t expectedIdentity) {
         remaining -= wanted;
     }
     return checksum == readLe32(header + 8);
-}
-
-bool isHexColor(const String& value) {
-    if (value.length() != 7 || value[0] != '#') {
-        return false;
-    }
-    for (size_t i = 1; i < value.length(); ++i) {
-        if (!isxdigit(static_cast<unsigned char>(value[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void normalizeColor(String& value, const char* fallback) {
-    if (!isHexColor(value)) {
-        value = fallback;
-    }
 }
 
 void truncate(String& value, size_t maximumLength) {
@@ -820,16 +801,7 @@ void saveSettings() {
     pref.putInt("mid", gM);
     pref.putInt("treb", gT);
     pref.putUShort("dimSec", autoDimSeconds);
-    pref.putBool("spec", showSpectrum);
-    pref.putInt("almH", alarmH);
-    pref.putInt("almM", alarmM);
-    pref.putBool("almA", alarmActive);
     pref.putBool("autoUpdate", firmwareAutoUpdate);
-    pref.putString("cTop", currentSkin.hexTop);
-    pref.putString("cBot", currentSkin.hexBottom);
-    pref.putString("cMain", currentSkin.hexMain);
-    pref.putString("cAcc", currentSkin.hexAccent);
-    pref.putString("cWifi", currentSkin.hexWifi);
     pref.putString("owmCity", owmCity);
     pref.putString("owmKey", owmKey);
     pref.putBool("useCelsius", useCelsius);
@@ -837,14 +809,6 @@ void saveSettings() {
     pref.putBool("clock24", use24HourClock);
     pref.putString("timezone", timeZoneId);
     pref.putUChar("wtVer", WEATHER_TIME_VERSION);
-    pref.putString("cSel", currentSkin.hexSel);
-    pref.putString("cClk", currentSkin.hexClk);
-    pref.putString("cHInf", currentSkin.hexHInfo);
-    pref.putString("cBarL", currentSkin.hexBarL);
-    pref.putString("cBarM", currentSkin.hexBarM);
-    pref.putString("cBarH", currentSkin.hexBarH);
-    pref.putString("cVol", currentSkin.hexVol);
-    pref.putString("cAlm", currentSkin.hexAlm);
 
     for (int i = 0; i < STATION_COUNT; ++i) {
         pref.putString(("n" + String(i)).c_str(), stations[i].name);
@@ -874,10 +838,6 @@ void loadSettings() {
     gM = pref.getInt("mid", 0);
     gT = pref.getInt("treb", 0);
     autoDimSeconds = normalizeAutoDimSeconds(pref.getUShort("dimSec", 30));
-    showSpectrum = pref.getBool("spec", true);
-    alarmH = pref.getInt("almH", 7);
-    alarmM = pref.getInt("almM", 0);
-    alarmActive = pref.getBool("almA", false);
     st_ssid = pref.getString("ssid", "");
     st_pass = pref.getString("pass", "");
     firmwareAutoUpdate = pref.getBool("autoUpdate", true);
@@ -919,34 +879,7 @@ void loadSettings() {
         owmCity == LEGACY_WEATHER_LOCATION && timeZoneId == "Europe/Paris") {
         timeZoneId = DEFAULT_TIME_ZONE_ID;
     }
-    currentSkin.hexTop = pref.getString("cTop", "#000000");
-    currentSkin.hexBottom = pref.getString("cBot", "#000000");
-    currentSkin.hexMain = pref.getString("cMain", "#FFFFFF");
-    currentSkin.hexAccent = pref.getString("cAcc", "#00FFFF");
-    currentSkin.hexWifi = pref.getString("cWifi", "#00FF00");
-    currentSkin.hexSel = pref.getString("cSel", "#0000FF");
-    currentSkin.hexClk = pref.getString("cClk", "#FFFFFF");
-    currentSkin.hexHInfo = pref.getString("cHInf", "#FFFFFF");
-    currentSkin.hexBarL = pref.getString("cBarL", "#00FF00");
-    currentSkin.hexBarM = pref.getString("cBarM", "#FFFF00");
-    currentSkin.hexBarH = pref.getString("cBarH", "#FF0000");
-    currentSkin.hexVol = pref.getString("cVol", "#00FFFF");
-    currentSkin.hexAlm = pref.getString("cAlm", "#FF0000");
 
-    normalizeColor(currentSkin.hexTop, "#000000");
-    normalizeColor(currentSkin.hexBottom, "#000000");
-    normalizeColor(currentSkin.hexMain, "#FFFFFF");
-    normalizeColor(currentSkin.hexAccent, "#00FFFF");
-    normalizeColor(currentSkin.hexWifi, "#00FF00");
-    normalizeColor(currentSkin.hexSel, "#0000FF");
-    normalizeColor(currentSkin.hexClk, "#FFFFFF");
-    normalizeColor(currentSkin.hexHInfo, "#FFFFFF");
-    normalizeColor(currentSkin.hexBarL, "#00FF00");
-    normalizeColor(currentSkin.hexBarM, "#FFFF00");
-    normalizeColor(currentSkin.hexBarH, "#FF0000");
-    normalizeColor(currentSkin.hexVol, "#00FFFF");
-    normalizeColor(currentSkin.hexAlm, "#FF0000");
-    updateColors();
     applyConfiguredTimeZone();
 
     for (int i = 0; i < STATION_COUNT; ++i) {
@@ -963,8 +896,6 @@ void loadSettings() {
     gB = constrain(gB, -15, 15);
     gM = constrain(gM, -15, 15);
     gT = constrain(gT, -15, 15);
-    alarmH = constrain(alarmH, 0, 23);
-    alarmM = constrain(alarmM, 0, 59);
     tempStationIdx = currentStationIdx;
 
     stationFavoriteMask = 0;

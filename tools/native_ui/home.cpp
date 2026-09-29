@@ -82,7 +82,7 @@ UiRenderState homeFocused(uint8_t index) {
     return state;
 }
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
-bool isAP = false, alarmActive = true;
+bool isAP = false;
 uint16_t autoDimSeconds = 30;
 constexpr uint16_t AUTO_DIM_NEVER_SECONDS = 0;
 constexpr const char* kRadioMdnsAddress = "radio.local";
@@ -113,7 +113,7 @@ public:
     Snapshot snapshot() const { return {}; }
 };
 FirmwareUpdater firmwareUpdater;
-int mainVal = 12, alarmH = 7, alarmM = 30;
+int mainVal = 12;
 String songTitle = "פרק 15 - 15 בספטמבר 2025";
 bool isStationMuted() { return false; }
 bool stationFavorites[] = {true, false, false};

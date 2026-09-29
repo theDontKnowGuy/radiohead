@@ -11,21 +11,13 @@ struct WeatherStatus {
 enum class UiTarget : uint8_t;
 struct UiRenderState;
 
-uint16_t hexTo565(String hex);
-void updateColors();
 void setBrightness(int duty);
-void drawAnalogVU();
-void drawWeatherIcon(int x, int y, int weatherId);
-// Starts the bounded background fetch only.  Rendering is deliberately separate
-// so the legacy weather painter cannot overwrite the native UI composition.
+// Starts the bounded background fetch only. Rendering uses the native UI.
 void updateWeatherData();
-void updateWeatherUI();
 // A configuration save invalidates an older result and requests one bounded
 // refresh.  Starting the task is not treated as a successful weather fetch.
 void invalidateWeatherData();
 WeatherStatus weatherStatus();
-void drawWifiSignal(int x, int y);
-void drawSpectrum();
 bool drawPngAsset(
     const uint8_t* pngData,
     size_t pngLength,

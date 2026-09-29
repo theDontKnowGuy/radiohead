@@ -86,7 +86,6 @@ RadioStation stations[STATION_COUNT] = {
 };
 
 std::vector<RadioStation> m3uTempList;
-Skin currentSkin;
 
 const PodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
     {"arba/podcast", 0, "ארבע אחרי הצהריים", "Arba Aharei Hatzohorayim", "arba", "podcast"},
@@ -151,7 +150,6 @@ Audio audio;
 WebServer server(80);
 Preferences pref;
 
-int visualMode = 3;
 String owmKey;
 String owmCity;
 float tempC = 0.0F;
@@ -173,7 +171,6 @@ String podcastShowTft;
 int gB = 0;
 int gM = 0;
 int gT = 0;
-bool showSpectrum = true;
 uint16_t autoDimSeconds = 30;
 bool isDimmed = false;
 volatile bool forceRedraw = false;
@@ -181,20 +178,6 @@ volatile unsigned long lastInteraction = 0;
 unsigned long lastVolChange = 0;
 volatile int encoderPos = 0;
 String songTitle;
-String lastDrawnSong = "INIT";
-String lastDrawnStationName = "INIT";
-int lastMain = -999;
-int lastDrawnMode = -1;
-int lastDrawnStationIdx = -1;
-int barHeights[2] = {0, 0};
-int alarmH = 7;
-int alarmM = 0;
-bool alarmActive = false;
-bool isAlarming = false;
-String lastDrawnTime;
-int alarmVolume = 0;
-unsigned long lastAlarmStep = 0;
-unsigned long alarmStartMillis = 0;
 String st_ssid;
 String st_pass;
 bool isAP = false;
