@@ -1,10 +1,11 @@
 #include "validation_diagnostics.h"
 
-#if defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS
+#if (defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS) || defined(RADIO_SPOTIFY_EXPERIMENT)
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <atomic>
+#include <cstring>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <esp_timer.h>
@@ -67,6 +68,8 @@ HeapSample sampleHeap(uint32_t capabilities) {
 }
 
 uint32_t stackReserve(const char* taskName) {
+    // ESP-IDF asserts when a lookup name reaches configMAX_TASK_NAME_LEN.
+    if (std::strlen(taskName) >= configMAX_TASK_NAME_LEN) return 0;
     const TaskHandle_t task = xTaskGetHandle(taskName);
     return task ? uxTaskGetStackHighWaterMark(task) : 0;
 }
@@ -83,10 +86,12 @@ void dumpEvents() {
 
 void validationBegin() {
     heap_caps_register_failed_alloc_callback(failedAllocation);
+#if defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS
     Serial.printf("[val] boot reset=%d idf=%s heap_integrity=%d\n",
                   static_cast<int>(esp_reset_reason()), esp_get_idf_version(),
                   heap_caps_check_integrity_all(false));
     Serial.println("[val] stack high-water units=bytes; heap capabilities overlap; send ! for event/integrity checkpoint");
+#endif
     validationEvent("boot");
     lastSampleMs = millis();
 }
@@ -111,10 +116,13 @@ void validationWebServiced(uint32_t elapsedUs) {
 void validationEvent(const char* event) {
     events[nextEvent] = {millis(), event};
     nextEvent = (nextEvent + 1) % kEventCount;
+#if defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS
     Serial.printf("[val-event] ms=%lu name=%s\n", millis(), event);
+#endif
 }
 
 void validationTick() {
+#if defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS
     if (Serial.available() && Serial.read() == '!') {
         Serial.printf("[val] checkpoint heap_integrity=%d\n", heap_caps_check_integrity_all(false));
         dumpEvents();
@@ -163,6 +171,51 @@ void validationTick() {
     maxAudioCallUs = 0;
     maxWebCallUs = 0;
     minimumInputFill = UINT32_MAX;
+#endif
 }
+
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+String validationDiagnosticsJson() {
+    // Called only by the read-only HTTP handler in the main loop. No heap scan
+    // or serialization runs in the decoder, PCM output, or audio service path.
+    const HeapSample internal = sampleHeap(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    const HeapSample dma = sampleHeap(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    const HeapSample psram = sampleHeap(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char buffer[1100];
+    const int length = snprintf(buffer, sizeof(buffer),
+        "{\"uptimeMs\":%lu,\"resetReason\":%d,\"tasks\":%u,"
+        "\"internal\":[%u,%u,%u],\"dma\":[%u,%u,%u],\"psram\":[%u,%u,%u],"
+        "\"allocationFailures\":%lu,\"lastFailedBytes\":%lu,\"lastFailedCaps\":%lu,"
+        "\"stackBytes\":{\"loop\":%u,\"Ctrl\":%u,\"PeriodicTask\":%u,"
+        "\"firmware-update\":%u,\"spotify_connect\":%u,\"spotify_output\":%u,"
+        "\"cspot_decoder\":%u,\"CSpotTrackQueue\":%u,\"mercury_dispatcher\":%u},"
+        "\"loopGapBuckets\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],"
+        "\"loopGapMaxUs\":%lu,\"audioCallMaxUs\":%lu,\"webCallMaxUs\":%lu}",
+        static_cast<unsigned long>(millis()), static_cast<int>(esp_reset_reason()),
+        static_cast<unsigned>(uxTaskGetNumberOfTasks()),
+        static_cast<unsigned>(internal.free), static_cast<unsigned>(internal.minimum), static_cast<unsigned>(internal.largest),
+        static_cast<unsigned>(dma.free), static_cast<unsigned>(dma.minimum), static_cast<unsigned>(dma.largest),
+        static_cast<unsigned>(psram.free), static_cast<unsigned>(psram.minimum), static_cast<unsigned>(psram.largest),
+        static_cast<unsigned long>(failedAllocations.load(std::memory_order_relaxed)),
+        static_cast<unsigned long>(lastFailedBytes.load(std::memory_order_relaxed)),
+        static_cast<unsigned long>(lastFailedCaps.load(std::memory_order_relaxed)),
+        static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+        static_cast<unsigned>(stackReserve("Ctrl")), static_cast<unsigned>(stackReserve("PeriodicTask")),
+        static_cast<unsigned>(stackReserve("firmware-update")),
+        static_cast<unsigned>(stackReserve("spotify_connect")),
+        static_cast<unsigned>(stackReserve("spotify_output")),
+        static_cast<unsigned>(stackReserve("cspot_decoder")),
+        static_cast<unsigned>(stackReserve("CSpotTrackQueue")),
+        // FreeRTOS truncates this upstream task name to 15 characters.
+        static_cast<unsigned>(stackReserve("mercury_dispatc")),
+        static_cast<unsigned long>(loopGaps.buckets[0]), static_cast<unsigned long>(loopGaps.buckets[1]),
+        static_cast<unsigned long>(loopGaps.buckets[2]), static_cast<unsigned long>(loopGaps.buckets[3]),
+        static_cast<unsigned long>(loopGaps.buckets[4]), static_cast<unsigned long>(loopGaps.buckets[5]),
+        static_cast<unsigned long>(loopGaps.buckets[6]), static_cast<unsigned long>(loopGaps.buckets[7]),
+        static_cast<unsigned long>(loopGaps.maxUs), static_cast<unsigned long>(maxAudioCallUs),
+        static_cast<unsigned long>(maxWebCallUs));
+    return length > 0 && static_cast<size_t>(length) < sizeof(buffer) ? String(buffer) : String("{}");
+}
+#endif
 
 #endif

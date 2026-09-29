@@ -19,11 +19,15 @@ header = output / "ui_background_asset.h"
 boot_source = project / "docs" / "boot.png"
 boot_png = output / "boot_320x240.png"
 boot_header = output / "BootLogo.h"
+boot_audio_source = project / "docs" / "audio" / "boot.aac"
+boot_audio_header = output / "BootAudio.h"
 
 if not source.is_file():
     raise RuntimeError("Missing required UI source image: docs/bg1.png")
 if not boot_source.is_file():
     raise RuntimeError("Missing required boot image: docs/boot.png")
+if not boot_audio_source.is_file():
+    raise RuntimeError("Missing required boot sound: docs/audio/boot.aac")
 
 output.mkdir(parents=True, exist_ok=True)
 header_is_current = header.exists() and "const unsigned char ui_background_png[]" in header.read_text(encoding="utf-8")
@@ -68,6 +72,27 @@ if not boot_header_is_current or boot_header.stat().st_mtime < boot_source.stat(
         + generated,
         encoding="utf-8",
     )
+
+# Converted and normalized from docs/audio/boot.m4a with:
+# python3 tools/prepare_boot_audio.py
+# The compact ADTS stream lives in the firmware image, so OTA updates and
+# devices with an empty LittleFS partition still play the same boot sound.
+boot_audio = boot_audio_source.read_bytes()
+if len(boot_audio) < 7 or boot_audio[:2] not in (b"\xff\xf1", b"\xff\xf9"):
+    raise RuntimeError("Boot sound is not an ADTS AAC stream")
+boot_audio_content = (
+    "#pragma once\n#include <stdint.h>\n"
+    "// Generated from docs/audio/boot.aac by tools/prepare_ui_assets.py.\n"
+    "const uint8_t boot_audio_aac[] = {\n"
+    + ",\n".join(
+        ", ".join(f"0x{byte:02x}" for byte in boot_audio[index:index + 16])
+        for index in range(0, len(boot_audio), 16)
+    )
+    + "\n};\n"
+    + f"constexpr uint32_t boot_audio_aac_len = {len(boot_audio)};\n"
+)
+if not boot_audio_header.exists() or boot_audio_header.read_text() != boot_audio_content:
+    boot_audio_header.write_text(boot_audio_content, encoding="utf-8")
 
 env.Append(CPPPATH=[str(output)])
 

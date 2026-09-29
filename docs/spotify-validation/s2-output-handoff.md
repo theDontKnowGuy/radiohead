@@ -1,7 +1,8 @@
 # S2 output ownership and experimental integration
 
-Date: 2026-09-25. Status: partial implementation. Integrated Spotify playback
-and directed transitions are **not verified**.
+Date: 2026-09-25; updated 2026-09-29. Status: partial implementation.
+Short-run integrated Spotify playback is verified; directed transitions and
+stability acceptance remain open.
 
 ## Ownership audit
 
@@ -69,6 +70,120 @@ the post-authentication effect remains unknown.
 The cspot session, decoder and queue tasks remain resident between source
 transfers. Their detached lifetime does not yet provide a general bounded
 stop/join after a session failure; S1's Wi-Fi/CDN failure also remains.
-No phone-to-radio playback handoff, radio/podcast return handoff, 100 directed
-transitions, 20 rapid transitions, memory trend, or audible overlap check
-has passed. The experimental image is not an S2 acceptance build.
+At the initial audit, no phone-to-radio playback handoff, radio/podcast return
+handoff, 100 directed transitions, 20 rapid transitions, memory trend, or
+audible overlap check had passed. The experimental image is not an S2
+acceptance build.
+
+## 2026-09-28 continuation
+
+The first integrated listening trial exposed Spotify PCM underruns, followed
+by decoder watchdogs and web timeouts after a Spotify-to-radio switch. The
+decoder now backpressures while local output owns I2S. Disabling Wi-Fi modem
+sleep, as in the earlier standalone receiver, restored a sustained 176.4 KB/s
+PCM output in a 14-window device sample with no empty polls or I2S errors.
+That image still left only about 6 KB of internal RAM when local radio and a
+podcast catalog ran after Spotify; web requests subsequently timed out.
+
+The September 28 candidate suspends the cspot decoder and waits up to one second
+for it to close the current CDN stream before local I2S is restored. It
+built and booted on device. At local startup, 10 radio-to-podcast and 10
+podcast-to-radio selections plus 20 immediate alternating selections all
+returned HTTP 200; the web player remained responsive and no watchdog or
+stream recovery appeared. The device reported 35,635 B free heap after that
+local run. A later Spotify-to-local command returned HTTP 303 but the owner
+heard silence until selecting a station manually, so directed handoff is
+still not accepted. See the
+[evidence ledger](progress.md) for image hashes and trial details.
+
+## 2026-09-29: USB serial caused a playback-rate failure
+
+The `f7d81dcd` S2 image included the Wi-Fi sleep fix, but playback became
+sluggish again after its serial capture ended. With a serial reader attached,
+its steady PCM reports were 881,664–882,688 bytes per five seconds. That
+image printed a diagnostic line from the I2S output task every five seconds.
+The installed Arduino 3.3.11 `cores/esp32/HWCDC.cpp` sets a 100 ms TX timeout
+and allows 20 consecutive timeouts when a USB host remains plugged in but
+stops reading: a roughly two-second wait. Opening USB serial also resets
+this test radio, changing the test state.
+
+The first HTTP-instrumented image, `7e32a071`, kept that periodic print.
+With USB serial closed, 28 steady samples each reported exactly 534,528 PCM
+bytes per five seconds, despite a nearly full PCM queue and zero I2S write
+failures. The owner heard sluggish/skipping audio across multiple songs.
+That is about three seconds of 44.1 kHz stereo output in each five-second
+window. The repeated fixed deficit strongly implicates the serial print,
+rather than CDN starvation, in the continuous slowdown.
+
+The installed follow-up image, SHA-256
+`32e24232ec8a09e69892a2c0ca5831ea704c12d21f9095529d7fab6b4ae26778`,
+removes **all serial writes from the Spotify output task**. It retains
+five-second counters at `GET /api/spotify/diagnostics` in the opt-in image.
+With USB serial closed, 19 steady HTTP samples reported 881,664–882,688
+PCM bytes per five seconds, zero empty polls and zero I2S write failures;
+the owner described playback as crystal clear. This confirms a short-run
+fix, not the full S2 stability or source-handoff acceptance.
+
+The same candidate expands the PSRAM PCM queue from 128 KiB to 384 KiB and
+waits for 320 KiB before output or after an underrun. The earlier 128 KiB
+image had one measured CDN/decode gap with a roughly 270 KiB five-second
+production deficit. The larger reserve is intended to absorb such a gap,
+but the serial-output change resolved the repeatable continuous slowdown.
+Do not infer that queue size alone fixed playback. Keep diagnostic reporting
+off the hot path; sample the read-only HTTP endpoint with USB serial closed.
+Recheck controller latency and handoffs with the larger queue.
+
+## 2026-09-29: short-run bidirectional handoff
+
+On the installed `32e24232…` image, a web `/next` command during Spotify
+playback released Spotify I2S, emptied its PCM queue, and reported station
+NYOX as `playing`; seven subsequent one-second player checks remained
+responsive. The owner then reported several radio-to-Spotify and
+Spotify-to-radio switches with clear audio and no handoff problem. This
+passes the short-run audible handoff check. The exact switch count and
+timing were not captured, so the required 100 directed and 20 rapid S2
+transitions, memory trend, and recovery cases remain open.
+
+## 2026-09-29: integrated Wi-Fi recovery probe
+
+The current opt-in app0 image is `ed4b809d…`, with a cspot decoder catch
+for the previously uncaught TLS stream-open exception. App0-only flashing
+and independent flash verification passed. During a user-controlled Wi-Fi
+interruption, HTTP polling was unreachable for about 32 seconds; the Spotify
+session and output remained active on return. Full-rate PCM resumed with
+zero sampled empty polls or I2S write failures, and the owner heard clear
+Spotify audio resume without selecting the device again. Device uptime was
+consistent with no reboot. This is one short-run integrated recovery pass;
+repeated outage, renewal, memory and long-run acceptance remain open.
+
+## 2026-09-29: local transition acceptance attempt
+
+On the `ed4b809d…` image with USB serial closed, 20 directed local transitions
+(ten radio-to-podcast and ten podcast-to-radio) reached the expected
+`playing` state and left Spotify output unowned. Podcast selection took a
+median 9.51 seconds to report `playing`; radio took 2.42 seconds. This is
+functional control evidence only; audible quality was not reported for the
+counted batch. A rapid alternating run timed out on its third HTTP command
+at five seconds, though the device later reported podcast playback and
+responsive status endpoints. The 20 rapid-transition gate therefore failed
+this attempt and remains open. No phone-controlled Spotify transition was
+captured in this run. See the [ledger](progress.md) for counts and private
+trace location.
+
+## 2026-09-29: phone-controlled short batch
+
+With the `ed4b809d…` image, the owner heard clear podcast-to-Spotify,
+Spotify-to-radio, radio-to-Spotify and Spotify-to-podcast handoffs without
+overlap. A podcast-to-radio-to-podcast listening pair and one subsequent
+podcast-to-Spotify-to-radio-to-podcast cycle were also clear. The owner chose
+a short batch instead of the proposed 20 phone transfers.
+
+On the second batch transfer, a Spotify Next tap moved playback to the phone.
+Radiohead released Spotify output, retained an authenticated session and
+reported local playback stopped. A later controlled Next tap succeeded and
+played the next song on Radiohead. This intermittent fallback fails the
+current image's S2 acceptance; the HTTP trace cannot identify the upstream
+event sequence that caused it. Pause/resume, mute preservation under phone
+volume and encoder changes, volume endpoints while muted, and one nonflat
+tone setting passed the reported listening/control checks. The exact counts,
+resource limits, and private trace names are in the [ledger](progress.md).

@@ -35,6 +35,8 @@ bool isPodcastShowFavorite(int i) { return i % 2 == 0; }
 bool podcastEpisodesReadyFor(int show) { return ready && show == 0; }
 PodcastPlaybackSnapshot podcastPlaybackSnapshot() { return {}; }
 PlaybackState mediaPlaybackState() { return PlaybackState::Stopped; }
+MediaSnapshot fixtureMedia;
+const MediaSnapshot& mediaSnapshot() { return fixtureMedia; }
 int mediaRequestedStation() { return -1; }
 int mediaPlayingStation() { return -1; }
 
@@ -393,5 +395,26 @@ int main() {
     assert(wrap.sample(true, 100, 100, UINT32_MAX - 10, x, y) == TouchEvent::Begin);
     assert(wrap.sample(false, 0, 0, 20, x, y) == TouchEvent::None);
     assert(wrap.sample(false, 0, 0, 80, x, y) == TouchEvent::Release);
-    puts("Raw sampling, immediate press/re-arm and production paging checks passed");
+    // A new Spotify source takes the foreground once. Back must remain usable
+    // during that session, and transfer away must restore Home.
+    uiControllerBegin();
+    fixtureMedia.source = MediaSource::None;
+    uiControllerTick(0);
+    fixtureMedia.source = MediaSource::Spotify;
+    fixtureMedia.status = MediaStatus::Connecting;
+    uiControllerTick(1);
+    assert(uiControllerRenderState().page == UiPage::SpotifyPlayer);
+    uiControllerTap(UiTarget::SpotifyBack, 0, 2, false);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    uiControllerTick(3);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    fixtureMedia.source = MediaSource::Radio;
+    uiControllerTick(4);
+    fixtureMedia.source = MediaSource::Spotify;
+    uiControllerTick(5);
+    assert(uiControllerRenderState().page == UiPage::SpotifyPlayer);
+    fixtureMedia.source = MediaSource::None;
+    uiControllerTick(6);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    puts("Raw sampling, press/re-arm, paging and Spotify source transitions passed");
 }

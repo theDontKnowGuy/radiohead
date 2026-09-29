@@ -11,6 +11,26 @@ enum class PlaybackState : uint8_t {
     Failed,
 };
 
+enum class MediaSource : uint8_t { None, Radio, Podcast, Spotify };
+enum class MediaStatus : uint8_t { Stopped, Connecting, Playing, Paused, Failed };
+
+struct MediaSnapshot {
+    MediaSource source = MediaSource::None;
+    MediaStatus status = MediaStatus::Stopped;
+    String name;
+    String title;
+    String artist;
+    String album;
+    String artworkIdentity;
+    uint32_t revision = 0;
+    bool canPause = false;
+    bool canPrevious = false;
+    bool canNext = false;
+};
+
+// Read on the Arduino loop, after mediaTick consumes worker events.
+const MediaSnapshot& mediaSnapshot();
+
 enum class PodcastLoadState : uint8_t {
     Idle,
     Loading,

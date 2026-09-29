@@ -17,6 +17,7 @@ enum class UiPage : uint8_t {
     RecordedShows,
     ShowEpisodes,
     PodcastPlayer,
+    SpotifyPlayer,
     StandbyConfirm,
     Settings,
     SettingsWifi,
@@ -35,6 +36,8 @@ enum class UiTarget : uint8_t {
     HomeRecordedShows,
     HomeFavorites,
     HomeSettings,
+    HomeActivePlayer,
+    SpotifyBack,
     ListeningStation,
     ListeningMute,
     ListeningVolume,
@@ -188,6 +191,7 @@ struct UiRenderState {
     bool volumeOverlay = false;
     uint8_t homeFocus = 0;
     PlaybackState playback = PlaybackState::Stopped;
+    const MediaSnapshot* media = nullptr;
     int requestedStation = -1;
     int playingStation = -1;
     // The station selected from a list is shown on Home before its potentially

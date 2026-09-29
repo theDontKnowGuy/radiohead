@@ -1,24 +1,45 @@
-# S1 native Spotify candidate (standalone)
+# Native Spotify firmware and standalone candidate
 
-## S2 integrated experiment
+## Default integrated firmware build
 
-From the repository root, run
-`experiments/spotify-native/build-integrated.sh`. It builds the normal
-PlatformIO image to prepare the UI assets, prepares the pinned cspot/Bell
-candidate under `.pio/spotify-candidate` if absent, builds the direct
-ESP-IDF/Arduino image under `.pio/spotify-idf-build`, and compares its
-partition table with the normal image. Set
+Run `pio run` or `pio run -e esp32s3` from the repository root. The default
+target builds the integrated Spotify firmware and places it at
+`.pio/build/esp32s3/firmware.bin`; serial upload with
+`pio run -e esp32s3 -t upload` uses its matching bootloader, partition table
+and OTA selection. The upload writes only those boot regions and app0; it
+preserves NVS, LittleFS and app1. The output also includes a matching
+`firmware.factory.bin` for initial programming. The pinned cspot/Bell
+candidate is prepared under `.pio/spotify-candidate` if absent, and the native
+ESP-IDF/Arduino build is cached under `.pio/spotify-idf-build`. Its partition
+table is compared with the PlatformIO table on every build. Set
 `RADIOHEAD_SPOTIFY_CANDIDATE=/path/to/prepared/candidate` to reuse an
-already prepared checkout. The build requires the installed PlatformIO
-ESP-IDF 5.5.5 and Arduino 3.3.11 packages. The normal
-`pio run -e esp32s3` image contains no Spotify adapter.
+already prepared checkout. Set `RADIOHEAD_SPOTIFY_BUILD=/path/to/build` to
+use a fresh ESP-IDF build directory with the standalone
+`experiments/spotify-native/build-integrated.sh` helper when changing candidate
+checkout paths. The default build requires the installed PlatformIO ESP-IDF
+5.5.5 and Arduino 3.3.11 packages.
 
-This image is experimental and has not passed S2 playback or transition
-acceptance. It reads S1 Spotify credentials and pairing from NVS and must be
-flashed app-only at `0x10000` if used for a device probe; do not erase or
-replace the partition table, OTA metadata or LittleFS. Current device
+The image reads Spotify credentials and pairing from NVS. S2 playback was
+accepted by the user; S3 resource/stress acceptance remains open. Current device
 evidence and resource concerns are in
 [the validation ledger](../../docs/spotify-validation/progress.md).
+The integrated adapter disables Wi-Fi modem sleep after association to sustain
+the 44.1 kHz stereo PCM rate measured in the corrected device trial. It also
+asks cspot's decoder to close its current CDN stream and acknowledge suspension
+before restoring local I2S. The user's S2 completion and remaining formal
+measurement gaps are recorded in the validation ledger.
+
+For S2 playback validation, leave the USB serial monitor closed. Opening it
+resets this test radio, and Arduino USB CDC output from the hot Spotify I2S
+task caused a repeatable two-second stall every five seconds when the host
+was plugged in but not reading. The output task now writes no serial logs.
+Read numeric PCM counters from `GET /api/spotify/diagnostics` instead. A
+steady 44.1 kHz, 16-bit stereo run should deliver about 882,000 PCM bytes
+per five seconds with `emptyPolls5s=0` and `writeFailures=0`; also confirm
+audio by listening. The 2026-09-29 device comparison and remaining limits
+are in [the S2 handoff](../../docs/spotify-validation/s2-output-handoff.md).
+
+## Historical standalone candidate
 
 This is a reproducible, isolated playback spike based on Waveshare commit
 `9c51b087` and its pinned cspot/Bell submodules. It is **not** part of the
@@ -90,6 +111,12 @@ interruption, the original candidate did not reassociate and the decoder
 spun while parsing an incomplete HTTP response. The additional recovery
 patches register an ESP-IDF station-disconnect handler, retry the same CDN
 range on a new socket after a short outage, and stop parsing at socket EOF.
+The opt-in integrated candidate also catches a TLS exception when the decoder
+opens a new CDN stream, drops that failed stream, and retries the current
+queue head after 500 ms. One user-controlled Wi-Fi interruption on the
+integrated image recovered full-rate PCM and clear audio without a reboot;
+see the validation ledger. This is a short-run result, not the S1 long-run
+acceptance gate.
 The first run with these changes regained IP and continued PCM, but repeated
 interruptions exposed a session connection lifetime race and a device panic.
 The run-19 patch snapshots the shared Shannon connection across send/receive
@@ -114,12 +141,12 @@ PATH="$HOME/.platformio/tools/tool-cmake/bin:$HOME/.platformio/tools/tool-ninja:
 -B build-radiohead build
 ```
 
-The test device had app0 active. Its app-only upload command is
+For the historical standalone candidate, the test device had app0 active. Its app-only upload command is
 `python -m esptool --chip esp32s3 --port /dev/cu.usbmodem11201 write-flash
 --flash-size 16MB 0x10000 build-radiohead/spotify-esp32.bin`. Confirm the
 active slot on any other device before using this command. Do not run the
 upstream `idf.py flash`: it also writes bootloader, partition table and OTA
-metadata. The restore command for this radio is
+metadata. The routine integrated firmware upload is now
 `pio run -e esp32s3 -t upload --upload-port /dev/cu.usbmodem11201`.
 
 The standalone candidate currently selects Ogg Vorbis 160 kbps with a 96 kbps

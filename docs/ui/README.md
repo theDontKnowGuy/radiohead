@@ -27,6 +27,9 @@ See the [station discovery and artwork plan](station-discovery-and-artwork-plan.
 for browser station search, editable stream/logo suggestions, image conversion and
 persistent artwork on the ESP32 without a project-operated backend.
 
+The [Spotify UI plan](spotify-ui-plan.md) defines the post-validation TFT player,
+shared web now-playing behavior, metadata contract, and acceptance checks.
+
 - [Earlier interaction proposal](interaction-plan.md) and its `radio-ui.html`
   prototype: **superseded; historical only; do not implement this direction**.
 

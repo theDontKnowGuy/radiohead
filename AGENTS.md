@@ -55,6 +55,12 @@ weather, OTA flow, and sleep behavior as parts of one product.
 ## Embedded constraints
 
 - Do not block or perform slow network work in the hot audio servicing path.
+- Do not write to USB `Serial` from the Spotify PCM/I2S output task. On this
+  ESP32-S3, a connected USB host with no serial reader can make Arduino's
+  `HWCDC::write` wait about two seconds; a five-second diagnostic print caused
+  repeatable Spotify slowdown. Use `/api/spotify/diagnostics` in the opt-in S2
+  image, and verify playback with the serial monitor closed. Opening the USB
+  serial port also resets this test radio. See `docs/spotify-validation/s2-output-handoff.md`.
 - Keep `audio.loop()` and `server.handleClient()` serviced frequently.
 - Avoid unbounded allocation, recursion, and large temporary buffers. Be especially
   careful with repeated `String` concatenation inside fast loops.

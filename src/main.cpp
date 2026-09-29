@@ -180,8 +180,12 @@ void setup() {
     // ask for station thumbnails.
     stationArtworkBegin();
 
+    audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
+    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    audio.setTone(gB, gM, gT);
     BootScreen::draw();
     const unsigned long bootScreenStartedAt = millis();
+    BootScreen::startAudio();
     if (!isAP && st_ssid.isEmpty()) {
         startSetupAccessPoint(SetupAccessReason::NoCredentials);
     } else if (!isAP) {
@@ -202,16 +206,6 @@ void setup() {
         }
     }
 
-    audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
-#if defined(RADIO_S2_HANDOFF_PROBE)
-    for (unsigned attempt = 0; attempt < 2; ++attempt) {
-        const bool released = audio.releaseOutputForHandoff(1500);
-        const bool restored = released && audio.restoreOutputAfterHandoff();
-        Serial.printf("[s2-handoff] attempt=%u released=%d restored=%d heap=%u\n",
-            attempt + 1, released, restored, ESP.getFreeHeap());
-        if (!restored) break;
-    }
-#endif
     mediaBegin();
     audio.setVolume(volCurve[mainVal]);
     audio.setTone(gB, gM, gT);

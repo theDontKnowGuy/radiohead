@@ -1014,7 +1014,7 @@ void drawSettingsBackground() {
     }
 }
 
-void drawHomeHeader(bool timeValid, const String& station) {
+void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages use the compact
     // shared page header below.
@@ -1030,7 +1030,6 @@ void drawHomeHeader(bool timeValid, const String& station) {
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
     canvas().drawString("Radiohead", 38, centerY, display_fonts::homeTitle());
-    const char* source = podcastMode ? "Recorded Show" : "Live Radio";
     captureHomeStationTitleBackdrop();
     prepareHomeStationTitle(station, source, millis());
     drawHomeStationTitle(millis());
@@ -2303,7 +2302,22 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     } else if (currentStationIdx >= 0 && currentStationIdx < STATION_COUNT) {
         station = stations[currentStationIdx].name;
     }
-    drawHomeHeader(timeValid, station);
+    const char* source = podcastMode ? "Recorded Show" : "Live Radio";
+    String spotifySource;
+    if (state.media != nullptr && state.media->source == MediaSource::Spotify) {
+        station = "Spotify";
+        spotifySource = state.media->status == MediaStatus::Paused ? "Paused" :
+            state.media->status == MediaStatus::Connecting ? "Connecting" :
+            state.media->status == MediaStatus::Failed ? "Unavailable" : "Playing";
+        if (state.media->status == MediaStatus::Paused && !state.media->title.isEmpty()) {
+            spotifySource += " · ";
+            spotifySource += state.media->title;
+        }
+        if (state.media->status == MediaStatus::Playing && !state.media->title.isEmpty())
+            spotifySource = state.media->title;
+        source = spotifySource.c_str();
+    }
+    drawHomeHeader(timeValid, station, source);
     float temperature = 0.0F;
     int condition = 0;
     bool hasWeather = false;
@@ -2353,6 +2367,73 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     } else {
         canvas().drawRoundRect(kHomeTileX[focus] - 2, kHomeTileY - 2, kHomeTileWidth + 4, kHomeTileHeight + 4, 9, kBlueFocus);
     }
+}
+
+void drawSpotifySurface(int16_t x, int16_t y, int16_t width, int16_t height) {
+    constexpr int16_t radius = 8;
+    if (uiFrameReady) {
+        // Blend against the freshly restored photo on the readable RGB565
+        // sprite. The eight short edge rows keep the corners transparent.
+        constexpr uint8_t insets[radius] = {4, 3, 2, 1, 1, 0, 0, 0};
+        constexpr uint8_t opacity = 184;
+        canvas().fillRectAlpha(x, y + radius, width, height - 2 * radius,
+                               opacity, kSurface);
+        for (int16_t row = 0; row < radius; ++row) {
+            const int16_t inset = insets[row];
+            canvas().fillRectAlpha(x + inset, y + row, width - 2 * inset, 1,
+                                   opacity, kSurface);
+            canvas().fillRectAlpha(x + inset, y + height - row - 1,
+                                   width - 2 * inset, 1, opacity, kSurface);
+        }
+    } else {
+        // Direct-TFT fallback has no readable backing pixels for alpha blend.
+        canvas().fillRoundRect(x, y, width, height, radius, kSurface);
+    }
+    canvas().drawRoundRect(x, y, width, height, radius, kBlueFocus);
+}
+
+void drawSpotifyArtwork(int16_t x, int16_t y) {
+    drawSpotifySurface(x, y, 94, 96);
+    const int16_t heights[] = {19, 34, 49, 37, 24};
+    for (int i = 0; i < 5; ++i)
+        canvas().fillRoundRect(x + 14 + i * 14, y + 48 - heights[i] / 2,
+                               6, heights[i], 3, kBlue);
+    canvas().fillCircle(x + 72, y + 21, 7, kHomeText);
+}
+
+void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
+                         bool timeValid) {
+    if (state.media == nullptr) return;
+    const MediaSnapshot& media = *state.media;
+    drawBackground();
+    // The shared header anchors Back, title, clock and Wi-Fi on one 22 px
+    // centerline, directly over the coastal photo.
+    drawPageHeader("Spotify", currentTime, timeValid);
+    drawSpotifyArtwork(13, 55);
+    drawSpotifySurface(113, 55, 194, 96);
+    const char* status = media.status == MediaStatus::Playing ? "PLAYING" :
+        media.status == MediaStatus::Paused ? "PAUSED" :
+        media.status == MediaStatus::Connecting ? "CONNECTING" :
+        media.status == MediaStatus::Failed ? "UNAVAILABLE" : "STOPPED";
+    canvas().fillRoundRect(124, 64, 84, 18, 5, kBlueDark);
+    text(status, 132, 68, uiFont(&fonts::Font0), kWhite, 73);
+    text(media.title.isEmpty() ? String("Spotify") : media.title,
+         124, 88, display_fonts::homeTitle(), kWhite, 172);
+    if (!media.artist.isEmpty())
+        text(media.artist, 124, 119, uiFont(&fonts::Font0), kWhite, 172);
+    if (!media.album.isEmpty())
+        text(media.album, 124, 136, uiFont(&fonts::Font0), kTextMuted, 172);
+    drawSpotifySurface(13, 162, 294, 62);
+    const char* heading = media.status == MediaStatus::Paused ? "Playback paused" :
+        media.status == MediaStatus::Connecting ? "Connecting to Spotify" :
+        media.status == MediaStatus::Failed ? "Spotify unavailable" :
+        "Playing from Spotify";
+    text(heading, 27, 176, uiFont(&fonts::FreeSansBold9pt7b), kWhite, 235);
+    text(media.status == MediaStatus::Paused ? "Resume in the Spotify app" :
+         "Control playback in the Spotify app", 27, 201,
+         uiFont(&fonts::Font0), kTextMuted, 228);
+    canvas().drawRoundRect(270, 179, 17, 29, 3, kBlueFocus);
+    canvas().drawLine(276, 204, 280, 204, kBlueFocus);
 }
 
 void renderUnavailable(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2421,10 +2502,15 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         return y < kStationListTop + kListRailHeight / 2 ? UiTarget::ListPrevious : UiTarget::ListNext;
     }
     if (state.page == UiPage::Home) {
+        if (state.media != nullptr && state.media->source == MediaSource::Spotify &&
+            contains(x, y, 8, 4, 192, 44)) return UiTarget::HomeActivePlayer;
         if (contains(x, y, kHomeTileX[0], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeLiveRadio;
         if (contains(x, y, kHomeTileX[1], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeRecordedShows;
         if (contains(x, y, kHomeTileX[2], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeFavorites;
         if (contains(x, y, kHomeTileX[3], kHomeTileY, kHomeTileWidth, kHomeTileHeight)) return UiTarget::HomeSettings;
+    } else if (state.page == UiPage::SpotifyPlayer) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight))
+            return UiTarget::SpotifyBack;
     } else if (state.page == UiPage::Listening) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::PlayerBack;
         if (contains(x, y, 0, 44, 110, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PlayerOptions;
@@ -2573,6 +2659,9 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
             break;
         case UiPage::Listening:
             renderListening(state, currentTime, timeValid);
+            break;
+        case UiPage::SpotifyPlayer:
+            renderSpotifyPlayer(state, currentTime, timeValid);
             break;
         case UiPage::Stations:
             renderStations(state, currentTime, timeValid);

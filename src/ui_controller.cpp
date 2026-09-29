@@ -16,6 +16,7 @@ constexpr int16_t kPodcastProgressWidth = 166;
 constexpr int kSettingsItemCount = 5;
 
 UiRenderState state;
+MediaSource lastMediaSource = MediaSource::None;
 UiCommand pendingCommand;
 bool hasPendingCommand = false;
 bool pendingCommandWaitsForRender = false;
@@ -322,7 +323,10 @@ void selectFocusedStation() {
 void handleTarget(UiTarget target, int value = 0) {
     switch (state.page) {
     case UiPage::Home:
-        if (target == UiTarget::HomeLiveRadio) {
+        if (target == UiTarget::HomeActivePlayer && mediaSnapshot().source == MediaSource::Spotify) {
+            state.page = UiPage::SpotifyPlayer;
+            markDirty();
+        } else if (target == UiTarget::HomeLiveRadio) {
             openStations();
         } else if (target == UiTarget::HomeFavorites) {
             openFavorites();
@@ -331,6 +335,9 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target == UiTarget::HomeSettings) {
             openSettings(true);
         }
+        break;
+    case UiPage::SpotifyPlayer:
+        if (target == UiTarget::SpotifyBack) closeToHome();
         break;
     case UiPage::Listening:
         if (target == UiTarget::ListeningStation) {
@@ -616,6 +623,7 @@ void handleTarget(UiTarget target, int value = 0) {
 
 void uiControllerBegin() {
     state = {};
+    lastMediaSource = MediaSource::None;
     pendingCommand = {};
     hasPendingCommand = false;
     pendingCommandWaitsForRender = false;
@@ -758,6 +766,17 @@ void uiControllerReportWifiActionFailure() {
 
 void uiControllerTick(unsigned long now) {
     syncCommittedTone();
+    const MediaSource source = mediaSnapshot().source;
+    if (source == MediaSource::Spotify && lastMediaSource != MediaSource::Spotify) {
+        // An incoming Connect session takes the foreground once. Back remains
+        // a usable way to return Home while the same session keeps playing.
+        state.page = UiPage::SpotifyPlayer;
+        repeatTarget = UiTarget::None;
+        markDirty();
+    } else if (state.page == UiPage::SpotifyPlayer && source != MediaSource::Spotify) {
+        closeToHome();
+    }
+    lastMediaSource = source;
     if (volumeOverlayUntil != 0 && static_cast<long>(now - volumeOverlayUntil) >= 0) {
         volumeOverlayUntil = 0;
         markDirty();
@@ -785,6 +804,7 @@ bool uiControllerTakeCommand(UiCommand& command) {
 
 UiRenderState uiControllerRenderState() {
     UiRenderState renderState = state;
+    renderState.media = &mediaSnapshot();
     renderState.volumeOverlay = volumeOverlayUntil != 0;
     renderState.playback = mediaPlaybackState();
     renderState.requestedStation = mediaRequestedStation();

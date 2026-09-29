@@ -7,10 +7,13 @@ namespace BootScreen {
 // The progress animation has a fixed pace so a quick network join does not
 // make the product mark flash past. A slower join may keep the completed bar
 // visible up to the caller's existing network timeout.
-constexpr unsigned long HoldMs = 7000;
+constexpr unsigned long HoldMs = 9500;
 
 // Paint the supplied 4:3 artwork edge to edge with an empty progress trough.
 void draw();
+
+// Start the firmware-embedded boot sound after the artwork is visible.
+void startAudio();
 
 // Animate from the caller's start time, then wait with a full bar only while
 // stillWaiting reports outstanding startup work and maxHoldMs has not elapsed.

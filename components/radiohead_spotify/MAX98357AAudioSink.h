@@ -25,4 +25,6 @@ private:
     std::atomic<uint32_t> pcmBytes_{0};
     float lowGain_ = 1.0f, midGain_ = 1.0f, highGain_ = 1.0f, headroom_ = 1.0f;
     float lowState_[2] = {}, highState_[2] = {};
+    int16_t lastSample_[2] = {};
+    bool flatTone_ = true;
 };

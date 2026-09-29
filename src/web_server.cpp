@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "spotify_adapter.h"
 #include "ui_web_assets.h"
+#include "validation_diagnostics.h"
 
 namespace {
 
@@ -391,6 +392,11 @@ void sendWeatherState(int status = 200) {
 }
 
 String currentPlaybackName() {
+    const MediaSnapshot& media = mediaSnapshot();
+    if (media.source == MediaSource::Spotify) return "Spotify";
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    if (media.source == MediaSource::None) return "Nothing playing";
+#endif
     if (mediaTestActive()) return mediaTestName();
     if (podcastMode) {
         const PodcastEpisode* episode = podcastActiveEpisode();
@@ -511,6 +517,18 @@ String m3uPreviewJson(const String& text, bool& valid) {
 }
 
 String playbackLabel() {
+    const MediaSnapshot& media = mediaSnapshot();
+    if (media.source == MediaSource::Podcast && media.status == MediaStatus::Paused)
+        return "Paused · Recorded Show";
+    if (media.source == MediaSource::Spotify) {
+        switch (media.status) {
+        case MediaStatus::Connecting: return "Connecting · Spotify";
+        case MediaStatus::Playing: return radioMuted ? "Muted · Spotify" : "Now playing · Spotify";
+        case MediaStatus::Paused: return "Paused · Spotify";
+        case MediaStatus::Failed: return "Unavailable · Spotify";
+        case MediaStatus::Stopped: return "Stopped · Spotify";
+        }
+    }
     switch (mediaPlaybackState()) {
     case PlaybackState::Connecting: return "Connecting…";
     case PlaybackState::Playing: return isStationMuted() ? "Muted" : "Now playing";
@@ -540,6 +558,16 @@ uint32_t playerRevision() {
 }
 
 const char* playbackStateName() {
+    const MediaSnapshot& media = mediaSnapshot();
+    if (media.source == MediaSource::Spotify) {
+        switch (media.status) {
+        case MediaStatus::Connecting: return "connecting";
+        case MediaStatus::Playing: return radioMuted ? "muted" : "playing";
+        case MediaStatus::Paused: return "paused";
+        case MediaStatus::Failed: return "failed";
+        case MediaStatus::Stopped: return "stopped";
+        }
+    }
     switch (mediaPlaybackState()) {
     case PlaybackState::Connecting: return "connecting";
     case PlaybackState::Playing: return radioMuted ? "muted" : "playing";
@@ -550,8 +578,16 @@ const char* playbackStateName() {
 }
 
 String playerStateJson() {
+    const MediaSnapshot& media = mediaSnapshot();
+    const char* source = media.source == MediaSource::Spotify ? "spotify" :
+        media.source == MediaSource::Podcast ? "podcast" :
+        media.source == MediaSource::Radio ? "radio" : "none";
+    const char* observedState = media.status == MediaStatus::Connecting ? "connecting" :
+        media.status == MediaStatus::Playing ? "playing" :
+        media.status == MediaStatus::Paused ? "paused" :
+        media.status == MediaStatus::Failed ? "failed" : "stopped";
     String json;
-    json.reserve(240);
+    json.reserve(650);
     json = "{\"revision\":" + String(playerRevision()) +
         ",\"volume\":" + String(mainVal) +
         ",\"muted\":" + String(radioMuted ? "true" : "false") +
@@ -559,7 +595,17 @@ String playerStateJson() {
         ",\"mid\":" + String(gM) +
         ",\"treble\":" + String(gT) +
         ",\"state\":\"" + String(playbackStateName()) +
-        "\",\"name\":\"" + jsonEscape(currentPlaybackName()) + "\"}";
+        "\",\"name\":\"" + jsonEscape(currentPlaybackName()) +
+        "\",\"source\":\"" + source +
+        "\",\"playbackState\":\"" + observedState +
+        "\",\"mediaRevision\":" + String(media.revision) +
+        ",\"title\":\"" + jsonEscape(media.title) +
+        "\",\"artist\":\"" + jsonEscape(media.artist) +
+        "\",\"album\":\"" + jsonEscape(media.album) +
+        "\",\"artworkIdentity\":\"" + jsonEscape(media.artworkIdentity) +
+        "\",\"actions\":{\"pause\":" + String(media.canPause ? "true" : "false") +
+        ",\"previous\":" + String(media.canPrevious ? "true" : "false") +
+        ",\"next\":" + String(media.canNext ? "true" : "false") + "}}";
     return json;
 }
 
@@ -760,6 +806,7 @@ $('release-auto').onchange=async()=>{try{const data=await request('/api/update/a
 
 void handleConfigShell(WebSection section) {
     String html;
+    const MediaSnapshot& media = mediaSnapshot();
     const String address = localAddress();
     const String addressLabel = address.isEmpty() ? String("Address unavailable") : address;
     // The Station editor carries its local-only discovery and image-preparation
@@ -774,14 +821,20 @@ void handleConfigShell(WebSection section) {
     appendNavigation(html, section);
     html += "<div class='rh-device'><span class='rh-online' aria-hidden='true'></span>" +
         htmlEscape(connectionState()) + "<strong>radiohead</strong><span dir='ltr'>" + htmlEscape(addressLabel) +
-        "</span></div></aside><main class='rh-main'><section class='rh-hero' aria-label='Current playback'><div><span class='rh-eyebrow'>" +
-        playbackLabel() + "</span><h2 class='rh-playingname'><bdi>" + htmlEscape(currentPlaybackName()) +
-        "</bdi></h2>";
-    if (!songTitle.isEmpty() && mediaPlaybackState() == PlaybackState::Playing && !podcastMode) {
-        html += "<p class='rh-muted'><bdi>" + htmlEscape(songTitle) + "</bdi></p>";
-    }
+        "</span></div></aside><main class='rh-main'><section class='rh-hero' aria-label='Current playback'>"
+        "<div class='rh-spotify-art' id='player-art' aria-hidden='true'" +
+        String(media.source == MediaSource::Spotify ? "" : " hidden") +
+        "><i></i><i></i><i></i><i></i><i></i><i></i></div><div class='rh-player-copy'>"
+        "<span class='rh-eyebrow' id='player-label'>" + playbackLabel() +
+        "</span><h2 class='rh-playingname'><bdi id='player-name'>" +
+        htmlEscape(media.source == MediaSource::Spotify && !media.title.isEmpty()
+            ? media.title : currentPlaybackName()) + "</bdi></h2>"
+        "<p class='rh-playingmeta'><bdi id='player-detail'>" +
+        htmlEscape(media.source == MediaSource::Spotify
+            ? media.artist + (media.album.isEmpty() ? "" : " · " + media.album)
+            : media.source == MediaSource::Radio ? media.title : String()) + "</bdi></p>";
     html += "</div><div class='rh-volume'><button class='rh-iconbutton' type='button' id='mute-button' data-role='mute' aria-label='" +
-        String(radioMuted ? "Unmute radio" : "Mute radio") + "' aria-pressed='" +
+        String(radioMuted ? "Unmute output" : "Mute output") + "' aria-pressed='" +
         String(radioMuted ? "true" : "false") + "'><svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 10v4h4l5 4V6l-5 4H4Z'/><path d='M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11'/></svg></button>"
         "<label for='volume-input'>Volume</label><input id='volume-input' type='range' min='0' max='21' value='" +
         String(mainVal) + "' aria-describedby='player-status'><output id='volume-value' for='volume-input'>" +
@@ -798,13 +851,18 @@ void handleConfigShell(WebSection section) {
         "(()=>{const volume=document.getElementById('volume-input'),value=document.getElementById('volume-value'),mute=document.getElementById('mute-button'),"
         "status=document.getElementById('player-status'),bass=document.getElementById('tone-bass'),mid=document.getElementById('tone-mid'),treble=document.getElementById('tone-treble');"
         "const tones=[bass,mid,treble],toneValues=['tone-bass-value','tone-mid-value','tone-treble-value'].map(id=>document.getElementById(id));let revision=" + String(playerRevision()) + ",volumeTimer=0,toneTimer=0,writing=false,pendingRequest=null;"
-        "const show=(message)=>{status.textContent=message};const reflect=(state)=>{revision=state.revision;if(document.activeElement!==volume)volume.value=state.volume;value.textContent=state.volume+' / 21';"
-        "mute.setAttribute('aria-pressed',state.muted);mute.setAttribute('aria-label',state.muted?'Unmute radio':'Mute radio');tones.forEach((tone,index)=>{if(document.activeElement!==tone)tone.value=[state.bass,state.mid,state.treble][index];toneValues[index].textContent=[state.bass,state.mid,state.treble][index]})};"
+        "const show=(message)=>{status.textContent=message};const reflect=(state)=>{revision=state.revision;if(document.activeElement!==volume&&!volumeTimer)volume.value=state.volume;if(!volumeTimer)value.textContent=state.volume+' / 21';"
+        "mute.setAttribute('aria-pressed',state.muted);mute.setAttribute('aria-label',state.muted?'Unmute output':'Mute output');"
+        "const spotify=state.source==='spotify',labels={connecting:'Connecting',playing:'Now playing',muted:'Muted',paused:'Paused',failed:'Unavailable',stopped:'Stopped'};"
+        "const observed=state.muted&&state.playbackState==='playing'?'muted':state.playbackState;document.getElementById('player-art').hidden=!spotify;document.getElementById('player-label').textContent=(state.source==='none'?'Nothing playing':(labels[observed]||'Nothing playing')+' · '+(spotify?'Spotify':state.source==='podcast'?'Recorded Show':'Live Radio'));"
+        "document.getElementById('player-name').textContent=spotify?(state.title||'Spotify'):(state.name||'Nothing playing');"
+        "document.getElementById('player-detail').textContent=spotify?[state.artist,state.album].filter(Boolean).join(' · '):(state.source==='radio'?state.title||'':'');"
+        "tones.forEach((tone,index)=>{if(document.activeElement!==tone&&!toneTimer)tone.value=[state.bass,state.mid,state.treble][index];if(!toneTimer)toneValues[index].textContent=[state.bass,state.mid,state.treble][index]})};"
         "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show('Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
-        "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>request('/api/player/volume',new URLSearchParams({volume:volume.value})),140)});"
+        "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{volumeTimer=0;request('/api/player/volume',new URLSearchParams({volume:volume.value}))},140)});"
         "mute.addEventListener('click',()=>request('/api/player/mute',new URLSearchParams()));"
-        "tones.forEach((tone,index)=>tone.addEventListener('input',()=>{toneValues[index].textContent=tone.value;clearTimeout(toneTimer);toneTimer=setTimeout(()=>request('/api/player/tone',new URLSearchParams({bass:bass.value,mid:mid.value,treble:treble.value})),180)}));"
-        "setInterval(async()=>{if(writing||document.hidden)return;try{const response=await fetch('/api/player',{cache:'no-store'});if(response.ok)reflect(await response.json())}catch(_){show('Radio connection lost.')}} ,3000)})();</script></body></html>";
+        "tones.forEach((tone,index)=>tone.addEventListener('input',()=>{toneValues[index].textContent=tone.value;clearTimeout(toneTimer);toneTimer=setTimeout(()=>{toneTimer=0;request('/api/player/tone',new URLSearchParams({bass:bass.value,mid:mid.value,treble:treble.value}))},180)}));"
+        "setInterval(async()=>{if(document.hidden)return;try{const response=await fetch('/api/player',{cache:'no-store'});if(response.ok)reflect(await response.json())}catch(_){show('Radio connection lost.')}} ,3000)})();</script></body></html>";
     server.send(200, "text/html; charset=utf-8", html);
 }
 
@@ -1087,6 +1145,12 @@ bool webUpdateInProgress() {
 
 void startWebServer() {
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
+    server.on("/api/spotify/resources", HTTP_GET, [] {
+        server.send(200, "application/json", validationDiagnosticsJson());
+    });
+    server.on("/api/spotify/diagnostics", HTTP_GET, [] {
+        server.send(200, "application/json", spotifyAdapterDiagnosticsJson());
+    });
     server.on("/spotify_info", HTTP_GET, [] {
         const String info = spotifyAdapterInfoJson();
         if (info.isEmpty()) {

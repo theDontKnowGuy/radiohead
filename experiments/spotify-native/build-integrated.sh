@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the opt-in S2 image with the pinned native candidate and the local radio.
+# Build the native Spotify image with the pinned candidate and the local radio.
 set -eu
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -11,10 +11,16 @@ esac
 idf=${IDF_PATH:-"$HOME/.platformio/packages/framework-espidf"}
 python=${IDF_PYTHON_ENV_PATH:-"$HOME/.platformio/penv/.espidf-5.5.5"}/bin/python
 arduino="$HOME/.platformio/packages/framework-arduinoespressif32"
-build="$repo/.pio/spotify-idf-build"
+build=${RADIOHEAD_SPOTIFY_BUILD:-"$repo/.pio/spotify-idf-build"}
+case "$build" in
+    /*) ;;
+    *) build="$repo/$build" ;;
+esac
 
 cd "$repo"
-pio run -e esp32s3
+if [ "${RADIOHEAD_SKIP_PIO_BASELINE:-0}" != 1 ]; then
+    pio run -e esp32s3
+fi
 if [ ! -d "$candidate" ]; then
     "$repo/experiments/spotify-native/prepare.sh" "$candidate"
 fi

@@ -354,6 +354,33 @@ body.radiohead-page #rh-config {
   z-index:1;
 }
 
+#rh-config .rh-spotify-art {
+  flex:none;
+  width:80px;
+  height:80px;
+  border:1px solid #4b93cd;
+  border-radius:8px;
+  background:#0d2948;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+}
+
+#rh-config .rh-spotify-art[hidden] { display:none; }
+#rh-config .rh-spotify-art i {
+  width:5px;
+  height:22px;
+  border-radius:5px;
+  background:#38a5ef;
+}
+#rh-config .rh-spotify-art i:nth-child(2),
+#rh-config .rh-spotify-art i:nth-child(5) { height:34px; }
+#rh-config .rh-spotify-art i:nth-child(3) { height:48px; }
+#rh-config .rh-spotify-art i:nth-child(4) { height:40px; }
+#rh-config .rh-spotify-art i:nth-child(6) { height:12px; background:#d5eafa; }
+#rh-config .rh-player-copy { flex:1; }
+
 #rh-config .rh-eyebrow {
   display:block;
   color:#b9c7db;
@@ -964,7 +991,8 @@ body.radiohead-page #rh-config {
     gap:15px;
   }
   #rh-config .rh-volume {
-    min-width:286px;
+    min-width:0;
+    width:100%;
   }
   #rh-config .rh-volume input {
     width:140px;

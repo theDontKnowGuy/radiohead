@@ -4,6 +4,12 @@ Updated: 2026-09-24. Initial source baseline: `b47961c`.
 Status: ready to execute; every hardware gate below is **NOT VERIFIED**.
 Research and candidate links: [Spotify investigation](spotify-integration-research.md).
 
+Update 2026-09-29: the user requested Spotify in the default `esp32s3`
+firmware. The historical normal-build gating requirement below is superseded
+by the default build promotion recorded in
+[the validation ledger](spotify-validation/progress.md). The S3/S4 acceptance
+status remains as recorded there.
+
 ## Binding scope
 
 The user wants actual Spotify Premium audio on the existing ESP32-S3 radio,
@@ -271,9 +277,11 @@ The final report must answer: does Spotify really play; can we repeatedly switch
 sources; what are worst-case internal/DMA/PSRAM and stack reserves; what failed
 and recovered; what remains unverified; how to reproduce and roll back?
 
-Only when S0–S4 have device evidence may Spotify UI work be planned as the next
-implementation stage. If native viability is blocked, finish with the concrete
-failure, attempted fixes and remaining native options. No Linux/RPi fallback.
+The [Spotify UI plan](ui/spotify-ui-plan.md) is prepared for the next stage.
+Only when S0–S4 have device evidence may Spotify UI implementation begin, unless
+the user explicitly changes that sequence. If native viability is blocked,
+finish with the concrete failure, attempted fixes and remaining native options.
+No Linux/RPi fallback.
 
 ## Copyable task for another agent
 

@@ -1,0 +1,35 @@
+diff --git a/cspot/src/TrackPlayer.cpp b/cspot/src/TrackPlayer.cpp
+--- a/cspot/src/TrackPlayer.cpp
++++ b/cspot/src/TrackPlayer.cpp
+@@ -1,5 +1,6 @@
+ #include "TrackPlayer.h"
+ 
++#include <exception>  // for exception
+ #include <mutex>        // for mutex, scoped_lock
+ #include <string>       // for string
+ #include <type_traits>  // for remove_extent_t
+@@ -237,7 +238,24 @@
+       currentTrackStream = track->getAudioFile();
+ 
+       // Open the stream
++#ifdef ESP_PLATFORM
++      try {
++        currentTrackStream->openStream();
++      } catch (const std::exception&) {
++        // A Wi-Fi interruption can make TLS connection setup throw. Keep the
++        // decoder alive and retry the current queue head after a short delay.
++        // Drop the failed stream before acknowledging a local-source handoff.
++        ESP_LOGW("val-s1", "cdn_stream_open_retry");
++        currentTrackStream = nullptr;
++        currentSongPlaying = false;
++        track = nullptr;
++        pendingReset = true;
++        BELL_SLEEP_MS(500);
++        continue;
++      }
++#else
+       currentTrackStream->openStream();
++#endif
+ 
+       if (pendingReset || !currentSongPlaying) {
+         currentTrackStream = nullptr;

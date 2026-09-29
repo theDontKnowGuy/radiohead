@@ -70,23 +70,41 @@ void cancelStationRecovery();
 enum class OutputOwner : uint8_t { Local, Spotify, Failed };
 std::atomic<OutputOwner> outputOwner{OutputOwner::Local};
 uint32_t sourceGeneration = 0;
+MediaStatus spotifyStatus = MediaStatus::Stopped;
+String spotifyTitle;
+String spotifyArtist;
+String spotifyAlbum;
+
+void clearSpotifyMetadata() {
+    spotifyTitle = "";
+    spotifyArtist = "";
+    spotifyAlbum = "";
+}
 
 uint8_t spotifyOutputLevel() {
     return radioMuted ? 0 : static_cast<uint8_t>(volCurve[mainVal] * 255U / 55U);
 }
 
 bool restoreLocalOutput(const char* reason) {
-    if (outputOwner == OutputOwner::Local) return true;
+    if (outputOwner == OutputOwner::Local) {
+        clearSpotifyMetadata();
+        spotifyStatus = MediaStatus::Stopped;
+        return true;
+    }
     ++sourceGeneration;
     spotifyAdapterDiscardPending();
+    clearSpotifyMetadata();
+    spotifyStatus = MediaStatus::Stopped;
     if (!spotifyAdapterReleaseOutput(1000)) {
         outputOwner = OutputOwner::Failed;
+        spotifyStatus = MediaStatus::Failed;
         Serial.printf("[s2] generation=%lu restore=%s spotify-stop-timeout\n",
             static_cast<unsigned long>(sourceGeneration), reason);
         return false;
     }
     if (!audio.restoreOutputAfterHandoff()) {
         outputOwner = OutputOwner::Failed;
+        spotifyStatus = MediaStatus::Failed;
         Serial.printf("[s2] generation=%lu restore=%s audio-restore-failed\n",
             static_cast<unsigned long>(sourceGeneration), reason);
         return false;
@@ -103,6 +121,8 @@ void activateSpotify(uint32_t commandSequence) {
     if (outputOwner == OutputOwner::Spotify) return;
     if (outputOwner == OutputOwner::Failed && !restoreLocalOutput("recover")) return;
     ++sourceGeneration;
+    clearSpotifyMetadata();
+    spotifyStatus = MediaStatus::Connecting;
     cancelStationRecovery();
     requestedStation = -1;
     playingStation = -1;
@@ -115,6 +135,8 @@ void activateSpotify(uint32_t commandSequence) {
     latestVuLevel.store(0, std::memory_order_relaxed);
     audio.stopSong();
     if (!audio.releaseOutputForHandoff(1500)) {
+        spotifyStatus = MediaStatus::Failed;
+        forceRedraw = true;
         outputOwner = audio.restoreOutputAfterHandoff()
             ? OutputOwner::Local : OutputOwner::Failed;
         Serial.printf("[s2] generation=%lu command=%lu radio-release-failed\n",
@@ -123,6 +145,8 @@ void activateSpotify(uint32_t commandSequence) {
     }
     spotifyAdapterSetTone(gB, gM, gT);
     if (!spotifyAdapterAcquireOutput(spotifyOutputLevel(), 1000)) {
+        spotifyStatus = MediaStatus::Failed;
+        forceRedraw = true;
         spotifyAdapterReleaseOutput(1000);
         if (audio.restoreOutputAfterHandoff()) outputOwner = OutputOwner::Local;
         else outputOwner = OutputOwner::Failed;
@@ -157,6 +181,24 @@ void serviceSpotifySignals() {
                     restoreLocalOutput("transfer-away");
                     playbackState = PlaybackState::Stopped;
                     forceRedraw = true;
+                } else if (spotifyStatus == MediaStatus::Failed) {
+                    clearSpotifyMetadata();
+                    spotifyStatus = MediaStatus::Stopped;
+                    forceRedraw = true;
+                }
+                break;
+            case SpotifySignalType::Playback:
+                if (outputOwner == OutputOwner::Spotify) {
+                    spotifyStatus = signal.paused ? MediaStatus::Paused : MediaStatus::Playing;
+                    forceRedraw = true;
+                }
+                break;
+            case SpotifySignalType::Metadata:
+                if (outputOwner == OutputOwner::Spotify) {
+                    spotifyTitle = signal.title;
+                    spotifyArtist = signal.artist;
+                    spotifyAlbum = signal.album;
+                    forceRedraw = true;
                 }
                 break;
             case SpotifySignalType::Volume:
@@ -167,7 +209,6 @@ void serviceSpotifySignals() {
                     forceRedraw = true;
                 }
                 break;
-            case SpotifySignalType::Pause:
             case SpotifySignalType::None:
                 break;
         }
@@ -943,6 +984,67 @@ void stopStationPlayback() {
 }
 
 PlaybackState mediaPlaybackState() { return playbackState; }
+
+const MediaSnapshot& mediaSnapshot() {
+    static MediaSnapshot snapshot;
+    static const String empty;
+    MediaSource source = MediaSource::None;
+    MediaStatus status = MediaStatus::Stopped;
+    const char* nameText = "";
+    const String* nameString = nullptr;
+    const String* title = &empty;
+    const String* artist = &empty;
+    const String* album = &empty;
+    bool canPause = false;
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    if (outputOwner == OutputOwner::Spotify || spotifyStatus == MediaStatus::Failed) {
+        source = MediaSource::Spotify;
+        status = spotifyStatus;
+        nameText = "Spotify";
+        title = &spotifyTitle;
+        artist = &spotifyArtist;
+        album = &spotifyAlbum;
+    } else
+#endif
+    if (podcastMode && hasActivePodcastEpisode &&
+        activePodcastShow >= 0 && activePodcastShow < PODCAST_SHOW_COUNT) {
+        source = MediaSource::Podcast;
+        status = playbackState == PlaybackState::Connecting ? MediaStatus::Connecting :
+            playbackState == PlaybackState::Failed ? MediaStatus::Failed :
+            playbackState == PlaybackState::Stopped ? MediaStatus::Stopped :
+            podcastPaused ? MediaStatus::Paused : MediaStatus::Playing;
+        nameText = podcastShows[activePodcastShow].webName;
+        title = &activePodcastEpisodeData.title;
+        canPause = playbackState == PlaybackState::Playing;
+    } else if (stationTestPlayback || requestedStation >= 0 || playingStation >= 0) {
+        source = MediaSource::Radio;
+        status = playbackState == PlaybackState::Connecting ? MediaStatus::Connecting :
+            playbackState == PlaybackState::Failed ? MediaStatus::Failed :
+            playbackState == PlaybackState::Playing ? MediaStatus::Playing : MediaStatus::Stopped;
+        const int slot = playingStation >= 0 ? playingStation : requestedStation;
+        nameString = stationTestPlayback ? &stationTestName :
+            (slot >= 0 && slot < STATION_COUNT ? &stations[slot].name : nullptr);
+        if (nameString == nullptr) nameText = "Live Radio";
+        title = &songTitle;
+    }
+    if (snapshot.revision == 0 || snapshot.source != source || snapshot.status != status ||
+        (nameString ? snapshot.name != *nameString : snapshot.name != nameText) ||
+        snapshot.title != *title || snapshot.artist != *artist || snapshot.album != *album ||
+        snapshot.canPause != canPause) {
+        snapshot.source = source;
+        snapshot.status = status;
+        snapshot.name = nameString ? *nameString : String(nameText);
+        snapshot.title = *title;
+        snapshot.artist = *artist;
+        snapshot.album = *album;
+        snapshot.artworkIdentity = "";
+        snapshot.canPause = canPause;
+        snapshot.canPrevious = false;
+        snapshot.canNext = false;
+        ++snapshot.revision;
+    }
+    return snapshot;
+}
 bool mediaLocalAudioAvailable() {
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     return outputOwner == OutputOwner::Local;

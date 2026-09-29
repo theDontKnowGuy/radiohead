@@ -3,11 +3,15 @@
 #include <stdint.h>
 
 // Only the experimental ESP-IDF image links the native Connect service.
-enum class SpotifySignalType : uint8_t { None, Activate, Pause, Stop, Volume };
+enum class SpotifySignalType : uint8_t { None, Activate, Playback, Metadata, Stop, Volume };
 struct SpotifySignal {
     SpotifySignalType type = SpotifySignalType::None;
     uint32_t sequence = 0;
     uint16_t volume = 0;
+    bool paused = false;
+    char title[97] = {};
+    char artist[81] = {};
+    char album[81] = {};
 };
 
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
@@ -16,6 +20,7 @@ struct SpotifySignal {
 #include <Arduino.h>
 void spotifyAdapterBegin();
 String spotifyAdapterInfoJson();
+String spotifyAdapterDiagnosticsJson();
 bool spotifyAdapterPairingSubmit(const std::map<std::string, std::string>& fields);
 SpotifySignal spotifyAdapterTakeSignal();
 bool spotifyAdapterAcquireOutput(uint8_t volume, uint32_t timeoutMs);

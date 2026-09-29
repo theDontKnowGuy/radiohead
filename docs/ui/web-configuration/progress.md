@@ -1,10 +1,10 @@
 # Web configuration implementation progress
 
-Last updated: 2026-09-23.
+Last updated: 2026-09-29.
 
-**Current state: design handoff and reusable CSS supplied; production integration
-not started by this task.** Existing endpoints are partial building blocks, not
-evidence that the new UI is implemented.
+**Current state:** The web configuration shell is implemented in firmware.
+Spotify's shared-player extension is ready for review; firmware-served browser
+and physical-device acceptance remain open.
 
 Read [the implementation handoff](README.md) before changing a package. This
 ledger covers the web work only; keep native TFT results in the existing
@@ -336,3 +336,11 @@ Next concrete action:
 - Visual result + evidence: native rendering and on-device alert legibility not verified.
 - Functional result + exact checks/revision: `pio run -e esp32s3` passed; embedded release-control JavaScript parsed with Node `new Function`; `git diff --check` and `bash -n scripts/release.sh` passed. Build: 94,252 B / 327,680 B RAM (28.8%) and 3,357,055 B / 6,553,600 B flash (51.2%).
 - Device result + measurements: not verified. Exercise page navigation after a no-release check, failed TLS request, manual release discovery/alert/install, automatic install/reboot, policy switching while a release is waiting, and ensure stream continuity throughout each worker stage.
+
+### 2026-09-29 — Spotify shared-player package U2 (ready for review)
+
+- State and affected files: `src/web_server.cpp` and `radiohead.css` add source-aware fields and presentation to the shared player on all five settings sections. Existing control fields, optimistic control revision, endpoints and 0–21 volume/−15…15 tone bounds remain.
+- Implemented behavior: `/api/player` adds `source`, canonical `playbackState`, `mediaRevision`, bounded metadata, empty artwork identity, and action availability. The strip polls every three seconds, replaces Spotify metadata on pause/transfer/source switch, uses `textContent` for remote strings, and keeps a focused or debounced volume/tone edit intact. The Spotify placeholder is CSS geometry; no image URL or credential is exposed.
+- Visual: not verified in a firmware-served browser. The desktop mockup remains a design reference.
+- Functional: embedded player JavaScript parsed with Node; an isolated DOM/fetch check passed for playing → paused → inactive, placeholder visibility, metadata clearing and a focused volume edit. Normal and integrated firmware builds passed. Browser/device HTTP checks remain open.
+- Device: not verified. Check phone-driven metadata, volume/mute/tone audibility, transfer away and browser/TFT agreement on the physical radio with USB serial closed.

@@ -1448,3 +1448,38 @@ photograph was captured for this screen.
 (29.6%) and flash is 3,375,847 B (51.5%). **Hardware:** not verified; exercise
 every status, the mode toggle, manual Update now/reboot, header back, and audio
 continuity on the device.
+
+## 2026-09-29 — Spotify Home and player UI (U0/U1)
+
+**Visual: pass for native production-render fixtures.** The 320×240
+[Home](evidence/2026-09-29-spotify-ui/spotify-home.png),
+[playing](evidence/2026-09-29-spotify-ui/spotify-playing.png),
+[paused](evidence/2026-09-29-spotify-ui/spotify-paused.png),
+[connecting](evidence/2026-09-29-spotify-ui/spotify-connecting.png),
+[failed](evidence/2026-09-29-spotify-ui/spotify-failed.png), and
+[mixed Hebrew/Latin long-title](evidence/2026-09-29-spotify-ui/spotify-mixed-long.png)
+fixtures use the production C++ drawing/font path. They were inspected at native
+size. The Spotify page places its back icon, title, time and Wi-Fi indicator on
+the same centerline directly over the coastal photo. Its artwork, status/detail
+and phone-control cards blend translucent navy over that restored background.
+Home keeps its established
+four-tile geometry, which sits lower than the new mockup's tiles. The simple
+code-native vector placeholder occupies the prepared artwork position; actual
+album artwork and hardware color/legibility acceptance remain open.
+
+**Functional: pass for build and fixture checks; device behavior not verified.**
+The pinned cspot `TRACK_INFO` and `PLAY_PAUSE` events feed a bounded metadata and
+source snapshot on the Arduino loop. A transition into Spotify opens the player;
+Back returns Home without stopping playback, and the Home summary can reopen it.
+Leaving Spotify dismisses the page. The native input fixture checks these
+transitions, and the render fixture checks header transparency, card blending,
+touch targets and the absence of unverified transport actions.
+`pio run -e esp32s3`, the integrated Spotify build, the native fixture and
+`git diff --check` passed. The normal image reports 96,532 / 327,680 B RAM
+(29.5%) and 3,609,735 / 6,553,600 B flash (55.1%); the integrated image is
+`0x435290` B with 33% of its smallest app partition free. No runtime AI service
+was added: source ownership, event ordering, bounds and UI state are
+deterministic. Remaining device checks:
+phone play/pause/transfer, radio/podcast override, encoder volume/mute/hold,
+Wi-Fi recovery, TFT refresh latency and uninterrupted audio with USB serial
+closed. S3/S4 validation and resource/soak thresholds are still authoritative.

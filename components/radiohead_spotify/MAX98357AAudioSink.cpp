@@ -61,6 +61,11 @@ void MAX98357AAudioSink::feedPCMFrames(const uint8_t* source, size_t bytes) {
             int16_t sample;
             memcpy(&sample, source + consumed + index * sizeof(sample), sizeof(sample));
             const unsigned channel = index & 1U;
+            lastSample_[channel] = sample;
+            if (flatTone_) {
+                scaled[index] = static_cast<int16_t>(static_cast<int32_t>(sample) * gain / 255);
+                continue;
+            }
             const float input = static_cast<float>(sample);
             // One-pole 200 Hz / 4 kHz crossover at the fixed 44.1 kHz PCM rate.
             lowState_[channel] += 0.0281f * (input - lowState_[channel]);
@@ -99,6 +104,12 @@ void MAX98357AAudioSink::volumeChanged(uint16_t volume) {
 }
 
 void MAX98357AAudioSink::setTone(int8_t bassDb, int8_t middleDb, int8_t trebleDb) {
+    const bool nextFlat = bassDb == 0 && middleDb == 0 && trebleDb == 0;
+    if (flatTone_ && !nextFlat) {
+        for (unsigned channel = 0; channel < 2; ++channel)
+            lowState_[channel] = highState_[channel] = lastSample_[channel];
+    }
+    flatTone_ = nextFlat;
     lowGain_ = powf(10.0f, std::clamp<int>(bassDb, -12, 12) / 20.0f);
     midGain_ = powf(10.0f, std::clamp<int>(middleDb, -12, 12) / 20.0f);
     highGain_ = powf(10.0f, std::clamp<int>(trebleDb, -12, 12) / 20.0f);

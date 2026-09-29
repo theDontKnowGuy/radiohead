@@ -1,0 +1,71 @@
+diff --git a/cspot/include/TrackPlayer.h b/cspot/include/TrackPlayer.h
+--- a/cspot/include/TrackPlayer.h
++++ b/cspot/include/TrackPlayer.h
+@@ -59,6 +59,9 @@
+ 
+   void stop();
+   void start();
++  void suspendForLocal();
++  void resumeForSpotify();
++  bool localSuspendAcknowledged() const;
+ 
+  private:
+   std::shared_ptr<cspot::Context> ctx;
+@@ -90,6 +93,8 @@
+   std::atomic<bool> inFuture = false;
+   std::atomic<size_t> pendingSeekPositionMs = 0;
+   std::atomic<bool> startPaused = false;
++  std::atomic<bool> localSuspended = false;
++  std::atomic<bool> localSuspendAck = false;
+ 
+   std::mutex runningMutex;
+ 
+diff --git a/cspot/src/TrackPlayer.cpp b/cspot/src/TrackPlayer.cpp
+--- a/cspot/src/TrackPlayer.cpp
++++ b/cspot/src/TrackPlayer.cpp
+@@ -109,6 +109,23 @@
+   std::scoped_lock lock(runningMutex);
+ }
+ 
++void TrackPlayer::suspendForLocal() {
++  localSuspendAck = false;
++  localSuspended = true;
++  resetState(true);
++  if (!isRunning) localSuspendAck = true;
++}
++
++void TrackPlayer::resumeForSpotify() {
++  startPaused = false;
++  localSuspendAck = false;
++  localSuspended = false;
++}
++
++bool TrackPlayer::localSuspendAcknowledged() const {
++  return localSuspendAck.load();
++}
++
+ void TrackPlayer::resetState(bool paused) {
+   // Mark for reset
+   this->pendingReset = true;
+@@ -153,6 +170,13 @@
+ #ifdef ESP_PLATFORM
+     sampleStack();
+ #endif
++    if (localSuspended) {
++      track = nullptr;
++      currentTrackStream = nullptr;
++      localSuspendAck = true;
++      BELL_SLEEP_MS(10);
++      continue;
++    }
+     // Ensure we even have any tracks to play
+     if (!this->trackQueue->hasTracks() ||
+         (!pendingReset && endOfQueueReached && trackQueue->isFinished())) {
+@@ -216,6 +240,7 @@
+       currentTrackStream->openStream();
+ 
+       if (pendingReset || !currentSongPlaying) {
++        currentTrackStream = nullptr;
+         continue;
+       }
+ 
