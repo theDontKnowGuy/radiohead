@@ -1,5 +1,6 @@
 .pio
 /build/
+.DS_Store
 /managed_components/
 /sdkconfig
 /sdkconfig.*
