@@ -113,10 +113,20 @@ line(d,[(4.8,6.5),(15.4,2.0)],icon,1.8)
 for x in [6.3,13.7]: d.ellipse(box((x-1.55,11.5,x+1.55,14.5)),fill=icon)
 finish('brand_radio',image)
 
-image,d=drawing(24,19)
-for r in [11,7]: d.arc(box((12-r,15-r,12+r,15+r)),215,325,fill=white,width=round(2.2*S))
-d.ellipse(box((10.4,13.4,13.6,16.6)),fill=white)
-finish('wifi',image)
+for name, radii in [('wifi_weak', []), ('wifi_fair', [7]), ('wifi', [11, 7])]:
+    image,d=drawing(24,19)
+    for r in radii:
+        d.arc(box((12-r,15-r,12+r,15+r)),215,325,fill=white,width=round(2.2*S))
+    d.ellipse(box((10.4,13.4,13.6,16.6)),fill=white)
+    finish(name,image)
+
+# The original two-arc icon remains the "good" state. Extend the same
+# geometry and stroke by one arc for excellent reception.
+image,d=drawing(32,19)
+for r in [15,11,7]:
+    d.arc(box((16-r,15-r,16+r,15+r)),215,325,fill=white,width=round(2.2*S))
+d.ellipse(box((14.4,13.4,17.6,16.6)),fill=white)
+finish('wifi_excellent',image)
 
 for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
     image,d=drawing(64,56)

@@ -42,6 +42,15 @@ bool drawPngAsset(
     return tft.drawPng(pngData, pngLength, x, y, maxWidth, maxHeight);
 }
 
+uint8_t wifiSignalLevel() {
+    if (isAP || WiFi.status() != WL_CONNECTED) return 0;
+    const int32_t rssi = WiFi.RSSI();
+    if (rssi >= -55) return 4;
+    if (rssi >= -67) return 3;
+    if (rssi >= -75) return 2;
+    return 1;
+}
+
 namespace {
 
 volatile bool weatherFetchInProgress = false;
@@ -824,6 +833,14 @@ void drawSettingsBackground() {
     }
 }
 
+void drawWiFiSignal(int16_t centerX, int16_t top) {
+    const uint8_t level = wifiSignalLevel();
+    if (level == 4) canvas().drawPng(ui_home_wifi_excellent, sizeof(ui_home_wifi_excellent), centerX - 16, top);
+    else if (level == 3) canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), centerX - 12, top);
+    else if (level == 2) canvas().drawPng(ui_home_wifi_fair, sizeof(ui_home_wifi_fair), centerX - 12, top);
+    else if (level == 1) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top);
+}
+
 void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages use the compact
@@ -857,14 +874,7 @@ void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // 11 px utility face. Keep it close to Wi-Fi while preserving its larger
     // 13 px optical height.
     canvas().drawString(date[0] == '\0' ? "" : date, 280, centerY - 1, display_fonts::caption());
-    if (uiFrameReady) {
-        // Visible Wi-Fi pixels span local y=4..16: optical center is y=10.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 287, centerY - 10);
-    } else {
-        canvas().drawArc(298, centerY, 4, 6, 210, 330, kWhite);
-        canvas().drawArc(298, centerY, 8, 10, 210, 330, kWhite);
-        canvas().fillCircle(298, centerY + 5, 1, kWhite);
-    }
+    drawWiFiSignal(299, centerY - 10);
 }
 
 void drawHomeWeatherIconFallback(int16_t x, int16_t y, bool hasWeather, int weatherId) {
@@ -1259,15 +1269,7 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
     canvas().drawString(timeValid ? currentTime : "--:--", 270,
                         kPageHeaderCenterY, headerFont);
 
-    if (uiFrameReady) {
-        // The asset's visible y=4..16 pixels center on the shared centerline.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), 282,
-                         kPageHeaderCenterY - 10);
-    } else {
-        canvas().drawArc(294, kPageHeaderCenterY - 2, 5, 8, 210, 330, kWhite);
-        canvas().drawArc(294, kPageHeaderCenterY - 2, 10, 13, 210, 330, kWhite);
-        canvas().fillCircle(294, kPageHeaderCenterY + 4, 2, kWhite);
-    }
+    drawWiFiSignal(294, kPageHeaderCenterY - 10);
 }
 
 void drawNetworkBootScreen(bool connected, const String& ipAddress) {
@@ -2228,17 +2230,20 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
         text(media.artist, 124, 119, uiFont(&fonts::Font0), kWhite, 172);
     if (!media.album.isEmpty())
         text(media.album, 124, 136, uiFont(&fonts::Font0), kTextMuted, 172);
-    drawSpotifySurface(13, 162, 294, 62);
-    const char* heading = media.status == MediaStatus::Paused ? "Playback paused" :
-        media.status == MediaStatus::Connecting ? "Connecting to Spotify" :
-        media.status == MediaStatus::Failed ? "Spotify unavailable" :
-        "Playing from Spotify";
-    text(heading, 27, 176, uiFont(&fonts::FreeSansBold9pt7b), kWhite, 235);
-    text(media.status == MediaStatus::Paused ? "Resume in the Spotify app" :
-         "Control playback in the Spotify app", 27, 201,
-         uiFont(&fonts::Font0), kTextMuted, 228);
-    canvas().drawRoundRect(270, 179, 17, 29, 3, kBlueFocus);
-    canvas().drawLine(276, 204, 280, 204, kBlueFocus);
+    if (media.status == MediaStatus::Playing || media.status == MediaStatus::Paused) {
+        drawSpotifySurface(13, 162, 294, 62);
+        drawPlayerIcon(ui_player_previous_track, 52, 164);
+        if (media.status == MediaStatus::Paused)
+            drawPlayerIcon(ui_player_play, 124, 157);
+        else
+            drawPlayerIcon(ui_player_pause, 124, 157);
+        drawPlayerIcon(ui_player_next_track, 210, 164);
+    } else {
+        drawSpotifySurface(13, 162, 294, 62);
+        const char* heading = media.status == MediaStatus::Connecting ? "Connecting to Spotify" :
+            media.status == MediaStatus::Failed ? "Spotify unavailable" : "Spotify stopped";
+        text(heading, 27, 184, uiFont(&fonts::FreeSansBold9pt7b), kWhite, 235);
+    }
 }
 
 void renderUnavailable(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2316,6 +2321,12 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
     } else if (state.page == UiPage::SpotifyPlayer) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight))
             return UiTarget::SpotifyBack;
+        if (state.media != nullptr && state.media->source == MediaSource::Spotify &&
+            (state.media->status == MediaStatus::Playing || state.media->status == MediaStatus::Paused)) {
+            if (contains(x, y, 52, 169, 58, 49)) return UiTarget::SpotifyPrevious;
+            if (contains(x, y, 131, 169, 58, 49)) return UiTarget::SpotifyPause;
+            if (contains(x, y, 210, 169, 58, 49)) return UiTarget::SpotifyNext;
+        }
     } else if (state.page == UiPage::Listening) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::PlayerBack;
         if (contains(x, y, 0, 44, 110, 96) || contains(x, y, 264, 44, 56, 96)) return UiTarget::PlayerOptions;

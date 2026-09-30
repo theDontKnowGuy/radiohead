@@ -753,15 +753,22 @@ bool podcastEpisodesReadyFor(int showIndex) {
 }
 
 bool playPodcastEpisode(int showIndex, int episodeIndex) {
-    if (!podcastEpisodesReadyFor(showIndex) || episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) return false;
+    if (!podcastEpisodesReadyFor(showIndex) || episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) {
+        Serial.printf("[podcast] start rejected show=%d episode=%d reason=selection\n", showIndex, episodeIndex);
+        return false;
+    }
 
     const PodcastShow& show = podcastShows[showIndex];
     PodcastEpisode& episode = podcastEpisodes[episodeIndex];
     if (!isHttpUrl(episode.audioUrl)) {
+        Serial.printf("[podcast] start rejected show=%d episode=%d reason=audio-url\n", showIndex, episodeIndex);
         return false;
     }
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
-    if (!restoreLocalOutput("podcast")) return false;
+    if (!restoreLocalOutput("podcast")) {
+        Serial.printf("[podcast] start rejected show=%d episode=%d reason=output-handoff\n", showIndex, episodeIndex);
+        return false;
+    }
 #endif
     Serial.println("Playing podcast");
 
@@ -792,6 +799,7 @@ bool playPodcastEpisode(int showIndex, int episodeIndex) {
     if (!audio.connecttohost(episode.audioUrl.c_str())) {
         playbackState = PlaybackState::Failed;
         forceRedraw = true;
+        Serial.printf("[podcast] start rejected show=%d episode=%d reason=stream-connect\n", showIndex, episodeIndex);
         return false;
     }
     return true;

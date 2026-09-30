@@ -59,6 +59,7 @@ std::deque<uint64_t> boundaries;
 std::string producerTrack;
 uint64_t producedBytes = 0, consumedBytes = 0;
 std::shared_ptr<cspot::SpircHandler> handler;
+std::atomic<int> pendingControl{-1};
 StaticTask_t outputTcb, connectTcb;
 StackType_t outputStack[8 * 1024 / sizeof(StackType_t)];
 StackType_t connectStack[16 * 1024 / sizeof(StackType_t)];
@@ -414,7 +415,18 @@ void connectTask(void*) {
         Serial.printf("[s2] authenticated internal=%u largest=%u\n",
             static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
-        for (;;) ctx->session->handlePacket();
+        for (;;) {
+            ctx->session->handlePacket();
+            const int control = pendingControl.exchange(-1, std::memory_order_acq_rel);
+            if (control < 0 || !outputOwned.load(std::memory_order_acquire)) continue;
+            switch (static_cast<SpotifyControl>(control)) {
+                case SpotifyControl::Previous: handler->previousSong(); break;
+                case SpotifyControl::Next: handler->nextSong(); break;
+                case SpotifyControl::TogglePause:
+                    handler->setPause(!paused.load(std::memory_order_acquire));
+                    break;
+            }
+        }
     } catch (const std::exception&) {
         Serial.println("[s2] Spotify session stopped");
         acceptPcm.store(false, std::memory_order_release);
@@ -422,6 +434,7 @@ void connectTask(void*) {
         outputRequested.store(false, std::memory_order_release);
         post(SpotifySignalType::Stop);
     }
+    pendingControl.store(-1, std::memory_order_release);
     // Detached Bell tasks have no general safe join; their callback targets
     // retain process lifetime until a controlled reboot.
     vTaskDelete(nullptr);
@@ -496,10 +509,19 @@ SpotifySignal spotifyAdapterTakeSignal() {
 }
 
 void spotifyAdapterDiscardPending() {
+    pendingControl.store(-1, std::memory_order_release);
     portENTER_CRITICAL(&signalMux);
     signalHead = signalCount = 0;
     portEXIT_CRITICAL(&signalMux);
     pendingActivation.store(false, std::memory_order_release);
+}
+
+bool spotifyAdapterControl(SpotifyControl control) {
+    if (!sessionReady.load(std::memory_order_acquire) ||
+        !outputOwned.load(std::memory_order_acquire)) return false;
+    int expected = -1;
+    return pendingControl.compare_exchange_strong(expected, static_cast<int>(control),
+                                                  std::memory_order_acq_rel);
 }
 
 bool spotifyAdapterAcquireOutput(uint8_t volume, uint32_t timeoutMs) {

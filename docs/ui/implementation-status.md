@@ -1449,6 +1449,26 @@ photograph was captured for this screen.
 every status, the mode toggle, manual Update now/reboot, header back, and audio
 continuity on the device.
 
+## 2026-09-30 — Spotify TFT transport controls
+
+**Visual: pass for native fixture; hardware not verified.** The Spotify player
+shows previous, play/pause and next controls in its lower card while Spotify is
+playing or paused. The production-render 320×240 fixture was inspected at native
+size. Connecting, stopped and failed states keep the status card without active
+transport targets.
+The transport icons now use the recorded-show player's rasterized SVG artwork:
+the same blue outlined play/pause asset and matching white track-skip symbols.
+
+**Functional: build and native input fixture pass; device behavior not verified.**
+Touch targets queue bounded commands through the UI controller. The integrated
+adapter consumes one pending command on the Spotify connection task, where the
+pinned cspot handler owns its playback state. The native fixture checks command
+routing and inactive controls while connecting. `pio run -e esp32s3`,
+`tools/check_touch_input.py`, `tools/render_ui_fonts.py` and `git diff --check`
+passed. On-device verification still needs taps during Spotify playback and
+pause with the USB serial monitor closed, including next/previous track behavior
+and uninterrupted audio.
+
 ## 2026-09-29 — Spotify Home and player UI (U0/U1)
 
 **Visual: pass for native production-render fixtures.** The 320×240

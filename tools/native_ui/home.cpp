@@ -184,6 +184,7 @@ int weatherID = 801, weatherStateMux = 0;
 // persistence into the native visual test binary.
 uint32_t stationArtworkContentRevision(int) { return 0; }
 bool loadStationArtwork(int, int, uint16_t*, size_t) { return false; }
+uint8_t wifiSignalLevel() { return 4; }
 #define portENTER_CRITICAL(mux) ((void)0)
 #define portEXIT_CRITICAL(mux) ((void)0)
 time_t fixtureTime(time_t*) { return 1789992000; }  // Mon, 21 Sep 2026 UTC
@@ -634,7 +635,9 @@ int main(int argc, char** argv) {
     save((dir + "/spotify-home.ppm").c_str());
     spotify.page = UiPage::SpotifyPlayer;
     assert(uiHitTest(spotify, 19, 22) == UiTarget::SpotifyBack);
-    assert(uiHitTest(spotify, 156, 191) == UiTarget::None);
+    assert(uiHitTest(spotify, 81, 193) == UiTarget::SpotifyPrevious);
+    assert(uiHitTest(spotify, 156, 191) == UiTarget::SpotifyPause);
+    assert(uiHitTest(spotify, 239, 193) == UiTarget::SpotifyNext);
     drawBackground();
     const auto photoHeader = frame.readPixel(160, 8);
     const auto photoTrackCard = frame.readPixel(116, 110);

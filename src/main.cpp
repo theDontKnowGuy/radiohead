@@ -311,11 +311,27 @@ void loop() {
         case UiCommandKind::PlayPodcastEpisode: {
             const int show = command.value / MAX_EPISODES;
             const int episode = command.value % MAX_EPISODES;
-            playPodcastEpisode(show, episode);
+            if (!playPodcastEpisode(show, episode)) {
+                uiControllerReportPodcastStartFailure();
+            }
             break;
         }
         case UiCommandKind::TogglePodcastPause:
             if (!togglePodcastPause()) Serial.println("Podcast pause unavailable");
+            break;
+        case UiCommandKind::SpotifyPrevious:
+        case UiCommandKind::SpotifyTogglePause:
+        case UiCommandKind::SpotifyNext:
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+            if (mediaSnapshot().source == MediaSource::Spotify &&
+                (mediaSnapshot().status == MediaStatus::Playing ||
+                 mediaSnapshot().status == MediaStatus::Paused)) {
+                const SpotifyControl control = command.kind == UiCommandKind::SpotifyPrevious ?
+                    SpotifyControl::Previous : command.kind == UiCommandKind::SpotifyNext ?
+                    SpotifyControl::Next : SpotifyControl::TogglePause;
+                spotifyAdapterControl(control);
+            }
+#endif
             break;
         case UiCommandKind::SeekPodcast:
             if (!seekPodcastBySeconds(command.value)) Serial.println("Podcast seek unavailable");
@@ -416,12 +432,21 @@ void loop() {
     static char lastRenderedTime[10] = "";
     static bool lastRenderedTimeValid = false;
     static unsigned long lastPodcastProgressRenderAt = 0;
+    static unsigned long lastWifiSignalCheckAt = 0;
+    static uint8_t lastWifiSignalLevel = 0;
+    bool wifiSignalChanged = false;
+    if (now - lastWifiSignalCheckAt >= 5000) {
+        lastWifiSignalCheckAt = now;
+        const uint8_t level = wifiSignalLevel();
+        wifiSignalChanged = level != lastWifiSignalLevel;
+        lastWifiSignalLevel = level;
+    }
     const UiRenderState state = uiControllerRenderState();
     const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
     const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
         !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
     const bool homeStationTitleDue = state.page == UiPage::Home && homeStationTitleRefreshDue(now);
-    if (state.dirty || forceRedraw || podcastProgressDue) {
+    if (state.dirty || forceRedraw || podcastProgressDue || wifiSignalChanged) {
         renderRadioUi(state, currentTime, timeValid);
         forceRedraw = false;
         uiControllerMarkRendered();

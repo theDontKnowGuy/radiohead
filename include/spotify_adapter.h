@@ -14,6 +14,10 @@ struct SpotifySignal {
     char album[81] = {};
 };
 
+enum class SpotifyControl : uint8_t { Previous, TogglePause, Next };
+// Enqueue for the Spotify connection task; never call cspot from the UI loop.
+bool spotifyAdapterControl(SpotifyControl control);
+
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
 #include <map>
 #include <string>

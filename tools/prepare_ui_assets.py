@@ -261,6 +261,8 @@ player_sources = {
     "pause": ("pause.svg", 72),
     "play": ("play.svg", 72),
     "forward_30": ("forward-30.svg", 58),
+    "previous_track": ("previous-track.svg", 58),
+    "next_track": ("next-track.svg", 58),
 }
 player_source_dir = project / "docs" / "ui" / "icons"
 player_output_dir = output / "player_icons"

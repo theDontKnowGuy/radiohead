@@ -38,6 +38,9 @@ enum class UiTarget : uint8_t {
     HomeSettings,
     HomeActivePlayer,
     SpotifyBack,
+    SpotifyPrevious,
+    SpotifyPause,
+    SpotifyNext,
     ListeningStation,
     ListeningMute,
     ListeningVolume,
@@ -145,6 +148,9 @@ enum class UiCommandKind : uint8_t {
     RequestPodcastEpisodes,
     PlayPodcastEpisode,
     TogglePodcastPause,
+    SpotifyPrevious,
+    SpotifyTogglePause,
+    SpotifyNext,
     SeekPodcast,
     TogglePodcastShowFavorite,
     EnterStandby,
@@ -226,6 +232,7 @@ void uiControllerTouchEnd();
 void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed);
 void uiControllerReportDeviceActionFailure();
 void uiControllerReportWifiActionFailure();
+void uiControllerReportPodcastStartFailure();
 void uiControllerTick(unsigned long now);
 bool uiControllerTakeCommand(UiCommand& command);
 UiRenderState uiControllerRenderState();

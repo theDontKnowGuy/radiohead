@@ -143,6 +143,27 @@
         19
       ],
       "sha256": "ba9dc93b2ca1a9f536ceb48190c4eb4fabbfb8643df7b2fafa1cff205d872df2"
+    },
+    "wifi_excellent": {
+      "size": [
+        32,
+        19
+      ],
+      "sha256": "653ac78b0e7001d083e90a4e73f5326b21da7c18476f177de70db50db07b0471"
+    },
+    "wifi_fair": {
+      "size": [
+        24,
+        19
+      ],
+      "sha256": "6bdfc2c8041ee7334a63284110a5cdc53c5f4d16362db95a6896709d279e6ffe"
+    },
+    "wifi_weak": {
+      "size": [
+        24,
+        19
+      ],
+      "sha256": "b7d44d7494160e4b2e7ecf6b65f83121f0608d428d06a63fe67e07934e6024e5"
     }
   }
 }

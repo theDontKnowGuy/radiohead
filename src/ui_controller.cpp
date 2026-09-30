@@ -337,6 +337,13 @@ void handleTarget(UiTarget target, int value = 0) {
         break;
     case UiPage::SpotifyPlayer:
         if (target == UiTarget::SpotifyBack) closeToHome();
+        else if (mediaSnapshot().source == MediaSource::Spotify &&
+                 (mediaSnapshot().status == MediaStatus::Playing ||
+                  mediaSnapshot().status == MediaStatus::Paused)) {
+            if (target == UiTarget::SpotifyPrevious) queue(UiCommandKind::SpotifyPrevious);
+            else if (target == UiTarget::SpotifyPause) queue(UiCommandKind::SpotifyTogglePause);
+            else if (target == UiTarget::SpotifyNext) queue(UiCommandKind::SpotifyNext);
+        }
         break;
     case UiPage::Listening:
         if (target == UiTarget::ListeningStation) {
@@ -752,6 +759,12 @@ void uiControllerReportWifiActionFailure() {
     state.wifiPendingNetwork = -1;
     state.wifiForgetting = false;
     state.wifiActionFailed = true;
+    markDirty();
+}
+
+void uiControllerReportPodcastStartFailure() {
+    if (state.page != UiPage::PodcastPlayer) return;
+    state.page = UiPage::ShowEpisodes;
     markDirty();
 }
 

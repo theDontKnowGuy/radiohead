@@ -399,6 +399,15 @@ int main() {
     fixtureMedia.status = MediaStatus::Connecting;
     uiControllerTick(1);
     assert(uiControllerRenderState().page == UiPage::SpotifyPlayer);
+    uiControllerTap(UiTarget::SpotifyPause, 0, 1, false);
+    assert(!uiControllerTakeCommand(command));
+    fixtureMedia.status = MediaStatus::Playing;
+    uiControllerTap(UiTarget::SpotifyPrevious, 0, 1, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SpotifyPrevious);
+    uiControllerTap(UiTarget::SpotifyPause, 0, 1, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SpotifyTogglePause);
+    uiControllerTap(UiTarget::SpotifyNext, 0, 1, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SpotifyNext);
     uiControllerTap(UiTarget::SpotifyBack, 0, 2, false);
     assert(uiControllerRenderState().page == UiPage::Home);
     uiControllerTick(3);
