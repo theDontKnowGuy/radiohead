@@ -64,6 +64,9 @@ bool forgetActiveWiFiNetwork();
 bool clearAllSavedWiFiCredentials();
 bool saveWeatherTimeSettings();
 bool saveFirmwareAutoUpdate(bool enabled);
+// Spotify Connect advertises this name after the next restart.
+String spotifyStationName();
+bool saveSpotifyStationName(const String& name);
 
 // Favorites live in their own versioned namespace so legacy radio settings and
 // their keys remain compatible.  Station IDs are catalog slots, not UI rows.

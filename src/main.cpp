@@ -23,7 +23,7 @@ namespace {
 constexpr unsigned long kNetworkJoinTimeoutMs = 30UL * 500UL;
 constexpr unsigned long kRoamScanIntervalMs = 10UL * 60UL * 1000UL;
 constexpr int32_t kRoamSignalMarginDb = 10;
-static_assert(kNetworkJoinTimeoutMs >= BootScreen::HoldMs);
+static_assert(kNetworkJoinTimeoutMs >= BootScreen::MaxHoldMs);
 bool networkJoinStarted = false;
 
 void serviceWifiRoaming(unsigned long now) {
@@ -193,14 +193,14 @@ void setup() {
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
     audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
     audio.setTone(gB, gM, gT);
-    BootScreen::draw();
-    const unsigned long bootScreenStartedAt = millis();
-    BootScreen::startAudio();
     if (!isAP && st_ssid.isEmpty()) {
         startSetupAccessPoint(SetupAccessReason::NoCredentials);
     } else if (!isAP) {
         beginNetworkConnection();
     }
+    BootScreen::draw();
+    const unsigned long bootScreenStartedAt = millis();
+    if (BootScreen::AudioStartDelayMs == 0) BootScreen::startAudio();
     BootScreen::hold(
         bootScreenStartedAt, networkJoinPending, kNetworkJoinTimeoutMs);
     if (networkJoinStarted) finishNetworkConnection();

@@ -158,6 +158,7 @@ bool useCelsius = true;
 bool showWeatherOnHome = true;
 bool use24HourClock = true;
 String timeZoneId = "Asia/Jerusalem";
+String spotifyConnectName = "Radiohead Native Test";
 int currentStationIdx = 0;
 int tempStationIdx = 0;
 int mainVal = 5;

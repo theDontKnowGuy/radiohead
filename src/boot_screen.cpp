@@ -136,31 +136,48 @@ void hold(
     bool (*stillWaiting)(),
     unsigned long maxHoldMs) {
     int lastPercent = -1;
-    unsigned long elapsed = 0;
+    bool audioStartAttempted = AudioStartDelayMs == 0;
+    unsigned long audioEndedAt = startedAt;
+    bool audioFinished = audioStartAttempted && !bootAudioStarted;
     uint32_t maxAudioPosition = 0;
     uint32_t maxAudioSeconds = 0;
-    while ((elapsed = millis() - startedAt) < HoldMs) {
+    while (true) {
+        const unsigned long now = millis();
+        const unsigned long elapsed = now - startedAt;
+        if (!audioStartAttempted && elapsed >= AudioStartDelayMs) {
+            audioStartAttempted = true;
+            startAudio();
+            if (!bootAudioStarted) {
+                audioFinished = true;
+                audioEndedAt = now;
+            }
+        }
         if (bootAudioStarted && audio.isRunning()) audio.loop();
         if (bootAudioStarted) {
             maxAudioPosition = std::max(maxAudioPosition, audio.getAudioFilePosition());
             maxAudioSeconds = std::max(maxAudioSeconds, audio.getAudioCurrentTime());
         }
-        const int percent = static_cast<int>((elapsed * 100UL) / HoldMs);
+        if (bootAudioStarted && !audioFinished &&
+            (bootAudioEnded || !audio.isRunning())) {
+            audioFinished = true;
+            audioEndedAt = millis();
+        }
+        const int percent = static_cast<int>(
+            (std::min(elapsed, ProgressMs) * 100UL) / ProgressMs);
         if (percent != lastPercent) {
             lastPercent = percent;
             drawProgress(percent);
         }
+        if (audioFinished && millis() - audioEndedAt >= AfterAudioMs) break;
+        if (elapsed >= MaxHoldMs) break;
         delay(2);
     }
 
     drawProgress(100);
+    tft.fillScreen(TFT_BLACK);
+    tft.waitDMA();
     while (stillWaiting != nullptr && stillWaiting() &&
            millis() - startedAt < maxHoldMs) {
-        if (bootAudioStarted && audio.isRunning()) audio.loop();
-        if (bootAudioStarted) {
-            maxAudioPosition = std::max(maxAudioPosition, audio.getAudioFilePosition());
-            maxAudioSeconds = std::max(maxAudioSeconds, audio.getAudioCurrentTime());
-        }
         delay(2);
     }
 
@@ -173,9 +190,6 @@ void hold(
         audio.stopSong();
         bootAudioStarted = false;
     }
-
-    tft.fillScreen(TFT_BLACK);
-    tft.waitDMA();
 }
 
 }  // namespace BootScreen

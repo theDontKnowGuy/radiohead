@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "docs/audio/boot.m4a"
 OUTPUT = ROOT / "docs/audio/boot.aac"
 TARGET_PEAK_DBFS = -1.5
+SILENCE_THRESHOLD = 100  # 16-bit PCM amplitude; ignore decoder noise.
+LEAD_IN_MS = 50
 
 
 def pcm_from_wav(path: Path) -> tuple[int, int, array.array]:
@@ -58,6 +60,17 @@ def main() -> None:
             check=True,
         )
         channels, sample_rate, pcm = pcm_from_wav(decoded)
+        frame_count = len(pcm) // channels
+        first_sound_frame = next(
+            (frame for frame in range(frame_count)
+             if max(abs(pcm[frame * channels + channel])
+                    for channel in range(channels)) > SILENCE_THRESHOLD),
+            None,
+        )
+        if first_sound_frame is None:
+            raise ValueError("Boot sound has no audible samples")
+        first_frame = max(0, first_sound_frame - sample_rate * LEAD_IN_MS // 1000)
+        pcm = pcm[first_frame * channels:]
         peak = max((abs(sample) for sample in pcm), default=0)
         if peak == 0:
             raise ValueError("Boot sound is silent")
@@ -75,7 +88,7 @@ def main() -> None:
             ["afconvert", str(normalized), str(OUTPUT), "-f", "adts", "-d", "aac", "-b", "128000"],
             check=True,
         )
-        print(f"Wrote {OUTPUT.relative_to(ROOT)}: {len(pcm) / channels / sample_rate:.2f} s, {gain:.1f}x gain")
+        print(f"Wrote {OUTPUT.relative_to(ROOT)}: {len(pcm) / channels / sample_rate:.2f} s, trimmed {first_frame / sample_rate:.2f} s, {gain:.1f}x gain")
 
 
 if __name__ == "__main__":

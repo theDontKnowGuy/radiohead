@@ -1,6 +1,13 @@
 # Web configuration implementation progress
 
-Last updated: 2026-09-29.
+### 2026-09-30 — Spotify Connect name (ready for review)
+
+- **Task:** `/root`; files: `src/web_server.cpp`, `src/settings.cpp`, `src/app_state.cpp`, `include/settings.h`, `include/app_state.h`, and `components/radiohead_spotify/spotify_adapter.cpp`.
+- **Implemented:** The Device page edits the bounded Spotify Connect name. It is saved in the radio Preferences namespace and loaded before Spotify starts on the next reboot. The existing name remains the default. cspot derives its Connect device ID from the name, so renaming may require selecting the newly named device in Spotify.
+- **Functional:** `pio run -e esp32s3` passes, including the integrated Spotify image; `git diff --check` passes. Browser and device checks remain open.
+- **Visual:** not verified in a browser. **Device:** not flashed or verified. Next action: save a name, restart, confirm it appears in Spotify Connect, then verify paired playback and the Device page after reboot.
+
+Last updated: 2026-09-30.
 
 **Current state:** The web configuration shell is implemented in firmware.
 Spotify's shared-player extension is ready for review; firmware-served browser

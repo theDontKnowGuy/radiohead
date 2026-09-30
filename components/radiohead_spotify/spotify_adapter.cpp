@@ -1,4 +1,5 @@
 #include "spotify_adapter.h"
+#include "settings.h"
 
 #include <algorithm>
 #include <atomic>
@@ -28,8 +29,7 @@
 #include "nvs.h"
 
 namespace {
-// Keep the S1 pairing identity while reusing its saved login blob.
-constexpr char kDeviceName[] = "Radiohead Native Test";
+// The cspot login blob derives its Connect device identity from its name.
 // A captured CDN/decode gap consumed about 270 KiB more PCM than it supplied.
 // Keep a larger PSRAM-backed reserve before starting output.
 constexpr size_t kPcmCapacity = 384 * 1024;
@@ -365,7 +365,8 @@ void connectTask(void*) {
         vTaskDelete(nullptr);
         return;
     }
-    auto blob = std::make_shared<cspot::LoginBlob>(kDeviceName);
+    const std::string deviceName = spotifyStationName().c_str();
+    auto blob = std::make_shared<cspot::LoginBlob>(deviceName);
     std::string savedBlob;
     std::atomic<bool> gotBlob{false};
     if (readNvs("login_blob", savedBlob, 1024)) {

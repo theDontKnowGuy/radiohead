@@ -105,6 +105,7 @@ extern bool useCelsius;
 extern bool showWeatherOnHome;
 extern bool use24HourClock;
 extern String timeZoneId;
+extern String spotifyConnectName;
 extern int currentStationIdx;
 extern int tempStationIdx;
 extern int mainVal;
