@@ -559,7 +559,7 @@ void prepareHomeStationTitle(const String& station, const char* source, unsigned
         : uiTextLayout(station).visual;
     const String sourceSuffix = station.isEmpty()
         ? String()
-        : String(" • ") + source;
+        : String(" • ") + uiTextLayout(String(source)).visual;
     homeStationTitleMarquee.identity = identity;
     homeStationTitleMarquee.stationVisual = stationVisual;
     homeStationTitleMarquee.sourceSuffix = sourceSuffix;
