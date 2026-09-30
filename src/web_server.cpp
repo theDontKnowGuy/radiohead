@@ -34,6 +34,7 @@ size_t otaUploadBytes = 0;
 size_t otaUploadExpectedBytes = 0;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
+bool webStationConnected = false;
 
 String networkMessage;
 enum class WebRestartAction : uint8_t { None, Network, Restart, FirmwareUpdate, FactoryReset };
@@ -1840,6 +1841,7 @@ void startWebServer() {
     });
 
     server.begin();
+    webStationConnected = !isAP && WiFi.status() == WL_CONNECTED;
     if (!isAP && WiFi.status() == WL_CONNECTED) {
         if (MDNS.begin(kRadioMdnsHostname)) {
             MDNS.addService("http", "tcp", 80);
@@ -1856,5 +1858,21 @@ void startWebServer() {
         } else {
             Serial.println("[wifi] mDNS responder failed to start");
         }
+    }
+}
+
+void serviceWebConnectivity() {
+    if (isAP) return;
+
+    const bool connected = WiFi.status() == WL_CONNECTED;
+    if (connected == webStationConnected) return;
+    webStationConnected = connected;
+    if (connected) {
+        // The old listening socket may have been invalidated when the STA
+        // interface lost its address. WebServer::begin() closes and reopens it.
+        server.begin();
+        Serial.println("[wifi] HTTP listener restarted after reconnect");
+    } else {
+        server.stop();
     }
 }

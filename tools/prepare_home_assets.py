@@ -7,7 +7,7 @@ from pathlib import Path
 import hashlib
 import json
 import math
-from PIL import Image, ImageDraw, ImageEnhance, __version__
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/ui/assets/home'
@@ -113,20 +113,20 @@ line(d,[(4.8,6.5),(15.4,2.0)],icon,1.8)
 for x in [6.3,13.7]: d.ellipse(box((x-1.55,11.5,x+1.55,14.5)),fill=icon)
 finish('brand_radio',image)
 
-for name, radii in [('wifi_weak', []), ('wifi_fair', [7]), ('wifi', [11, 7])]:
+def wifi_image(radii):
     image,d=drawing(24,19)
     for r in radii:
         d.arc(box((12-r,15-r,12+r,15+r)),215,325,fill=white,width=round(2.2*S))
     d.ellipse(box((10.4,13.4,13.6,16.6)),fill=white)
-    finish(name,image)
+    return image.resize((24,19),Image.Resampling.LANCZOS)
 
-# The original two-arc icon remains the "good" state. Extend the same
-# geometry and stroke by one arc for excellent reception.
-image,d=drawing(32,19)
-for r in [15,11,7]:
-    d.arc(box((16-r,15-r,16+r,15+r)),215,325,fill=white,width=round(2.2*S))
-d.ellipse(box((14.4,13.4,17.6,16.6)),fill=white)
-finish('wifi_excellent',image)
+wifi_full=wifi_image([11,7])
+save('wifi',wifi_full)
+for name,radii in [('wifi_fair',[7]),('wifi_weak',[])]:
+    # Keep exactly the original icon's pixels, removing only unwanted arcs.
+    variant=wifi_full.copy()
+    variant.putalpha(ImageChops.darker(wifi_full.getchannel('A'),wifi_image(radii).getchannel('A')))
+    save(name,variant)
 
 for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
     image,d=drawing(64,56)

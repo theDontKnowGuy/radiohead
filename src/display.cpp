@@ -835,10 +835,9 @@ void drawSettingsBackground() {
 
 void drawWiFiSignal(int16_t centerX, int16_t top) {
     const uint8_t level = wifiSignalLevel();
-    if (level == 4) canvas().drawPng(ui_home_wifi_excellent, sizeof(ui_home_wifi_excellent), centerX - 16, top);
-    else if (level == 3) canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), centerX - 12, top);
-    else if (level == 2) canvas().drawPng(ui_home_wifi_fair, sizeof(ui_home_wifi_fair), centerX - 12, top);
-    else if (level == 1) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top);
+    if (level == 4) canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), centerX - 12, top);
+    else if (level == 3) canvas().drawPng(ui_home_wifi_fair, sizeof(ui_home_wifi_fair), centerX - 12, top);
+    else if (level == 2) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top);
 }
 
 void drawHomeHeader(bool timeValid, const String& station, const char* source) {
@@ -2231,7 +2230,6 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
     if (!media.album.isEmpty())
         text(media.album, 124, 136, uiFont(&fonts::Font0), kTextMuted, 172);
     if (media.status == MediaStatus::Playing || media.status == MediaStatus::Paused) {
-        drawSpotifySurface(13, 162, 294, 62);
         drawPlayerIcon(ui_player_previous_track, 52, 164);
         if (media.status == MediaStatus::Paused)
             drawPlayerIcon(ui_player_play, 124, 157);

@@ -21,8 +21,53 @@
 namespace {
 
 constexpr unsigned long kNetworkJoinTimeoutMs = 30UL * 500UL;
+constexpr unsigned long kRoamScanIntervalMs = 10UL * 60UL * 1000UL;
+constexpr int32_t kRoamSignalMarginDb = 10;
 static_assert(kNetworkJoinTimeoutMs >= BootScreen::HoldMs);
 bool networkJoinStarted = false;
+
+void serviceWifiRoaming(unsigned long now) {
+    static unsigned long lastScanAt = 0;
+    static bool ownScan = false;
+    if (isAP || st_ssid.isEmpty()) return;
+
+    if (ownScan) {
+        const int count = WiFi.scanComplete();
+        if (count == WIFI_SCAN_RUNNING) return;
+        ownScan = false;
+        if (count > 0 && WiFi.status() == WL_CONNECTED && WiFi.SSID() == st_ssid) {
+            const int32_t currentRssi = WiFi.RSSI();
+            const String currentBssid = WiFi.BSSIDstr();
+            int bestIndex = -1;
+            int32_t bestRssi = currentRssi + kRoamSignalMarginDb;
+            for (int i = 0; i < count; ++i) {
+                if (WiFi.SSID(i) != st_ssid || WiFi.BSSIDstr(i) == currentBssid) continue;
+                const int32_t rssi = WiFi.RSSI(i);
+                if (rssi >= bestRssi) {
+                    bestRssi = rssi;
+                    bestIndex = i;
+                }
+            }
+            if (bestIndex >= 0) {
+                uint8_t bssid[6];
+                memcpy(bssid, WiFi.BSSID(bestIndex), sizeof(bssid));
+                const int32_t channel = WiFi.channel(bestIndex);
+                WiFi.scanDelete();
+                Serial.printf("[wifi] roaming to stronger AP: %ld -> %ld dBm\n",
+                              static_cast<long>(currentRssi), static_cast<long>(bestRssi));
+                WiFi.begin(st_ssid.c_str(), st_pass.c_str(), channel, bssid);
+                return;
+            }
+        }
+        WiFi.scanDelete();
+        return;
+    }
+
+    if (WiFi.status() != WL_CONNECTED || now - lastScanAt < kRoamScanIntervalMs ||
+        WiFi.scanComplete() != WIFI_SCAN_FAILED) return;
+    lastScanAt = now;
+    ownScan = WiFi.scanNetworks(true, false, false, 50, 0, st_ssid.c_str()) == WIFI_SCAN_RUNNING;
+}
 
 bool startSetupAccessPoint(SetupAccessReason reason) {
     // Retain the station interface for the configuration page's asynchronous
@@ -201,9 +246,11 @@ void loop() {
     if (mediaLocalAudioAvailable()) audio.loop();
     validationAudioServiced(micros() - audioStartedUs);
     const uint32_t webStartedUs = micros();
+    serviceWebConnectivity();
     server.handleClient();
     validationWebServiced(micros() - webStartedUs);
     serviceWebNetworkRequests(millis());
+    serviceWifiRoaming(millis());
     updateWeatherData();
 
     const unsigned long now = millis();

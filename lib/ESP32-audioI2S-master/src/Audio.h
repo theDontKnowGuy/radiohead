@@ -507,11 +507,11 @@ class Audio {
   public:
     struct audioSettings {
         // The integrated Spotify experiment must be able to recreate local
-        // I2S after cspot/TLS tasks have claimed internal RAM. Eight 256-frame
-        // descriptors retain about 46 ms at 44.1 kHz while halving the late
-        // DMA allocation. Normal firmware keeps the upstream-sized queue.
+        // I2S after cspot/TLS tasks have claimed internal RAM. Six 256-frame
+        // descriptors retain about 35 ms at 44.1 kHz while reducing the late
+        // DMA allocation to 12 KiB. Normal firmware keeps the upstream queue.
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
-        uint16_t DMA_DESC_NUM = 8;
+        uint16_t DMA_DESC_NUM = 6;
 #else
         uint16_t DMA_DESC_NUM = 16;                // number of I2S DMA buffer
 #endif

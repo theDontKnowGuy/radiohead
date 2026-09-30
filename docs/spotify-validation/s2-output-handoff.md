@@ -187,3 +187,17 @@ event sequence that caused it. Pause/resume, mute preservation under phone
 volume and encoder changes, volume endpoints while muted, and one nonflat
 tone setting passed the reported listening/control checks. The exact counts,
 resource limits, and private trace names are in the [ledger](progress.md).
+
+## 2026-09-30: Spotify-to-episode DMA failure
+
+The owner reproduced a failed transition to episode 1 of “יהיה בסדר”. The
+episode fetch returned HTTP 200 with eight playable entries, and the Spotify
+producer acknowledged release. Local I2S restoration then failed while
+allocating a 2,048-byte DMA buffer. The resource endpoint showed about 35 KB
+of DMA-capable memory free but only a 7,424-byte largest block, with allocation
+failures increasing. Repeated episode selections failed at the same handoff.
+
+The candidate reduces the integrated image's local I2S queue from eight to
+six 256-frame DMA descriptors, lowering its late DMA allocation from 16 KiB
+to 12 KiB. The normal image retains its existing 16-descriptor setting.
+Device playback and repeated handoffs remain unverified.
