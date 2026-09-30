@@ -78,12 +78,7 @@ env.AddPreAction("upload", build_integrated_image)
 # regions, so Preferences in NVS and the other OTA slot are preserved.
 env.Replace(
     UPLOADCMD=(
-        '$UPLOADER --chip esp32s3 --port "$UPLOAD_PORT" --baud $UPLOAD_SPEED '
-        '--before default-reset --after hard-reset write-flash -z '
-        '--flash-mode dio --flash-freq 80m --flash-size 16MB '
-        '0x0 "$PROJECT_DIR/.pio/spotify-idf-build/bootloader/bootloader.bin" '
-        '0x8000 "$PROJECT_DIR/.pio/spotify-idf-build/partition_table/partition-table.bin" '
-        '0xe000 "$PROJECT_DIR/.pio/spotify-idf-build/ota_data_initial.bin" '
-        '0x10000 $SOURCE'
+        f'"{sys.executable}" "$PROJECT_DIR/tools/flash_built_firmware.py" '
+        '--port "$UPLOAD_PORT" --baud $UPLOAD_SPEED'
     )
 )

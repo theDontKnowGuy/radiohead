@@ -4,9 +4,16 @@
 
 Run `pio run` or `pio run -e esp32s3` from the repository root. The default
 target builds the integrated Spotify firmware and places it at
-`.pio/build/esp32s3/firmware.bin`; serial upload with
-`pio run -e esp32s3 -t upload` uses its matching bootloader, partition table
-and OTA selection. The upload writes only those boot regions and app0; it
+`.pio/build/esp32s3/firmware.bin`. To flash that existing build without
+rebuilding it, run:
+
+```sh
+~/.platformio/penv/bin/python tools/flash_built_firmware.py --port /dev/cu.usbmodem11201
+```
+
+`pio run -e esp32s3 -t upload` builds first, then uses the same flash script.
+The upload uses the matching bootloader, partition table and OTA selection.
+It writes only those boot regions and app0; it
 preserves NVS, LittleFS and app1. The output also includes a matching
 `firmware.factory.bin` for initial programming. The pinned cspot/Bell
 candidate is prepared under `.pio/spotify-candidate` if absent, and the native
