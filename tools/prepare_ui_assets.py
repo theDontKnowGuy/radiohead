@@ -19,6 +19,9 @@ header = output / "ui_background_asset.h"
 boot_source = project / "docs" / "boot.png"
 boot_png = output / "boot_320x240.png"
 boot_header = output / "BootLogo.h"
+new_boot_source = project / "docs" / "ui" / "boot screen" / "bootscreen.png"
+new_boot_png = output / "boot_screen_new_320x240.png"
+new_boot_header = output / "BootScreenNew.h"
 boot_audio_source = project / "docs" / "audio" / "boot.aac"
 boot_audio_header = output / "BootAudio.h"
 
@@ -26,6 +29,8 @@ if not source.is_file():
     raise RuntimeError("Missing required UI source image: docs/bg1.png")
 if not boot_source.is_file():
     raise RuntimeError("Missing required boot image: docs/boot.png")
+if not new_boot_source.is_file():
+    raise RuntimeError(f"Missing required boot image: {new_boot_source}")
 if not boot_audio_source.is_file():
     raise RuntimeError("Missing required boot sound: docs/audio/boot.aac")
 
@@ -72,6 +77,28 @@ if not boot_header_is_current or boot_header.stat().st_mtime < boot_source.stat(
         + generated,
         encoding="utf-8",
     )
+
+# Resize the supplied source to the panel before embedding it in flash.
+if not new_boot_png.exists() or new_boot_png.stat().st_mtime < new_boot_source.stat().st_mtime:
+    run([
+        "/usr/bin/sips", "--resampleHeightWidth", "240", "320",
+        str(new_boot_source), "--out", str(new_boot_png),
+    ], check=True)
+new_boot_data = new_boot_png.read_bytes()
+new_boot_rows = [
+    ", ".join(f"0x{byte:02x}" for byte in new_boot_data[index:index + 16])
+    for index in range(0, len(new_boot_data), 16)
+]
+new_boot_content = (
+    "#pragma once\n#include <stdint.h>\n"
+    "// Generated from docs/ui/boot screen/bootscreen.png by tools/prepare_ui_assets.py.\n"
+    "const uint8_t boot_screen_new_png[] = {\n"
+    + ",\n".join(new_boot_rows)
+    + "\n};\n"
+    + f"constexpr uint32_t boot_screen_new_png_len = {len(new_boot_data)};\n"
+)
+if not new_boot_header.exists() or new_boot_header.read_text() != new_boot_content:
+    new_boot_header.write_text(new_boot_content, encoding="utf-8")
 
 # Converted and normalized from docs/audio/boot.m4a with:
 # python3 tools/prepare_boot_audio.py

@@ -9,13 +9,25 @@
 
 #include "app_state.h"
 #include "BootAudio.h"
+#ifndef RADIOHEAD_NEW_BOOT_SCREEN
+#define RADIOHEAD_NEW_BOOT_SCREEN 1
+#endif
+
+#if RADIOHEAD_NEW_BOOT_SCREEN
+#include "BootScreenNew.h"
+#else
 #include "BootLogo.h"
+#endif
 
 namespace BootScreen {
 namespace {
 
 constexpr int16_t kBarX = 80;
+#if RADIOHEAD_NEW_BOOT_SCREEN
+constexpr int16_t kBarY = 210;
+#else
 constexpr int16_t kBarY = 168;
+#endif
 constexpr int16_t kBarWidth = 160;
 constexpr int16_t kBarHeight = 8;
 constexpr int16_t kBarRadius = kBarHeight / 2;
@@ -104,7 +116,12 @@ void drawProgress(int percent) {
 
 void draw() {
     tft.fillScreen(TFT_BLACK);
-    if (!tft.drawPng(boot_logo_png, boot_logo_png_len, 0, 0, 320, 240)) {
+#if RADIOHEAD_NEW_BOOT_SCREEN
+    const bool drawn = tft.drawPng(boot_screen_new_png, boot_screen_new_png_len, 0, 0, 320, 240);
+#else
+    const bool drawn = tft.drawPng(boot_logo_png, boot_logo_png_len, 0, 0, 320, 240);
+#endif
+    if (!drawn) {
         Serial.println("[boot] boot artwork decode failed");
     }
     tft.drawRoundRect(
