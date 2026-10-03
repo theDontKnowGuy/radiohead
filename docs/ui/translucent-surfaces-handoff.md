@@ -28,7 +28,7 @@ physical-panel readback to obtain the pixels needed for alpha blending.
 
 ## Scope and prerequisites
 
-Read `AGENTS.md`, the required `radiohead-firmware` and `typesafe-ai` skills,
+Read `AGENTS.md`, the required `radiohead-firmware` ,
 `visual-contract.md`, `agent-implementation-guide.md`, and the latest entries in
 `implementation-status.md`. Inspect `uiconcept.png` and the user's newer example
 if available in the implementing session. Inspect status and overlapping diffs:

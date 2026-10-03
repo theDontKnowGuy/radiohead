@@ -40,3 +40,8 @@ void showNetworkQrScreen();
 // intentionally status-only: image validation and flash writes remain in the
 // Update library and web_server ownership.
 void setFirmwareUpdateProgress(bool active, uint8_t percent);
+
+// Restore the backlight after sleep and initialize the landscape TFT.
+void initializeDisplay();
+// Own redraw scheduling and its cached clock/progress/signal state.
+void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool timeValid);

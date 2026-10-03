@@ -1073,3 +1073,25 @@ void audio_showstreamtitle(const char* info) {
         forceRedraw = true;
     }
 }
+
+void mediaConfigureOutput() {
+    audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
+    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    audio.setTone(gB, gM, gT);
+}
+
+void mediaStartSavedPlayback() {
+    mediaBegin();
+    audio.setVolume(volCurve[mainVal]);
+    audio.setTone(gB, gM, gT);
+    if (playableStationCount() > 0 && selectedPlayableStationIndex() < 0) {
+        currentStationIdx = playableStationSlotAt(0);
+        tempStationIdx = currentStationIdx;
+    }
+    if (!isAP) {
+        playStation(currentStationIdx);
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+        spotifyAdapterBegin();
+#endif
+    }
+}

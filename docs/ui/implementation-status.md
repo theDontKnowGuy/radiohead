@@ -1,5 +1,17 @@
 # Touch UI implementation status
 
+## 2026-10-03 — Repository cleanup
+
+Removed screenshots superseded by later Home typography, shared headers, list
+controls and Settings revisions, along with the rejected first Live Radio preview.
+Historical results below remain as recorded; links to deleted screenshots are
+replaced with explicit removal notes. Retained later screenshots and unique
+Hebrew/weather cases remain evidence of their recorded revisions, not proof of
+current hardware acceptance. The superseded interaction proposal/browser prototype
+were also removed. Active assets, native fixtures and regeneration tools remain.
+The older supplied clock package is retained because the current outline recipe
+cannot reproduce that historical artwork exactly.
+
 ## 2026-09-23 — Matching web-handoff typography
 
 **Scope:** the TFT Settings → Web configuration handoff now uses the accepted
@@ -102,7 +114,7 @@ are unchanged; their settings are now web-only.
 
 **Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
 inspected at 320×240 and shows the four retained rows with no Weather & Time
-entry: [settings](evidence/2026-09-23-settings-without-weather/settings-smooth.png).
+entry: settings (superseded screenshot removed).
 
 **Functional: pass for source/host/build checks.** The controller test confirms
 that paging cannot leave the single Settings page and that its fourth row opens
@@ -297,15 +309,15 @@ path cannot safely depend on full-screen alpha readback. Non-Settings screens
 are unchanged.
 
 **Visual: pass for native geometry.** The production C++/LovyanGFX fixture was
-inspected at 320×240 across the full family: [main](evidence/2026-09-23-settings-header-contrast/settings-smooth.png),
-[second page](evidence/2026-09-23-settings-header-contrast/settings-page-two-smooth.png),
-[Audio](evidence/2026-09-23-settings-header-contrast/settings-audio-smooth.png),
-[Display](evidence/2026-09-23-settings-header-contrast/settings-display-smooth.png),
-[Device](evidence/2026-09-23-settings-header-contrast/settings-device-smooth.png),
-[Firmware](evidence/2026-09-23-settings-header-contrast/settings-firmware-smooth.png),
-[Network header](evidence/2026-09-23-settings-header-contrast/settings-network-smooth.png),
-[Weather & Time](evidence/2026-09-23-settings-header-contrast/settings-weather-time-smooth.png),
-and [confirmation](evidence/2026-09-23-settings-header-contrast/settings-restart-confirm-smooth.png).
+inspected at 320×240 across the full family: main (superseded screenshot removed),
+second page (superseded screenshot removed),
+Audio (superseded screenshot removed),
+Display (superseded screenshot removed),
+Device (superseded screenshot removed),
+Firmware (superseded screenshot removed),
+Network header (superseded screenshot removed),
+Weather & Time (superseded screenshot removed),
+and confirmation (superseded screenshot removed).
 The host Network fixture stubs QR content, so its image validates only the
 shared background/header treatment; production QR behavior is unchanged.
 
@@ -541,7 +553,7 @@ more preview or redraw work.
 
 **Visual: pass (native fixture).** Inspected the production 320×240 renderer
 with minimum/zero/maximum values:
-[audio settings](evidence/2026-09-21-audio-settings/settings-audio.png).
+audio settings (superseded screenshot removed).
 **Functional: pass (host/build).** `python3 tools/check_touch_input.py` covers
 preview/commit/cancel/back, all six bounds, repeat timing/release/slide, timer
 wrap, wake/alarm suppression, encoder coexistence and newer web edits.
@@ -746,10 +758,10 @@ so the bright focused first row cannot make its following gap look wider.
 
 **Verification:** `pio run -e esp32s3`, `python3 tools/check_touch_input.py`,
 `python3 tools/render_ui_fonts.py`, and `git diff --check` pass. Native 320 ×
-240 production renders are retained as [Stations](evidence/2026-09-20-right-rail/stations.png),
-[Recorded Shows](evidence/2026-09-20-right-rail/recorded-shows.png), and
-[Recorded Shows page 2](evidence/2026-09-20-right-rail/recorded-shows-page-two.png), and
-[Recorded Shows page 3](evidence/2026-09-20-right-rail/recorded-shows-page-three.png).
+240 production renders are retained as Stations (superseded screenshot removed),
+Recorded Shows (superseded screenshot removed), and
+Recorded Shows page 2 (superseded screenshot removed), and
+Recorded Shows page 3 (superseded screenshot removed).
 Static
 RAM remains **66,308 B (20.2%)**; flash is **2,775,447 B (42.3%)**. Device
 verification is still open: the physical image that prompted this work is
@@ -781,9 +793,9 @@ held/moving contact, intermittent contact, re-arming, page navigation without
 playback, last-episode access, old hidden-row rejection, loading/short/empty
 episodes, dim/alarm guards and rollover. `python3 tools/render_ui_fonts.py` passes
 the production renderer and footer boundary assertions. Native 320 × 240 renders
-were inspected: [stations](evidence/2026-09-20-buttons/stations.png),
-[shows](evidence/2026-09-20-buttons/shows.png),
-[episodes](evidence/2026-09-20-buttons/episodes.png). The sunset/blue design remains;
+were inspected: stations (superseded screenshot removed),
+shows (superseded screenshot removed),
+episodes (superseded screenshot removed). The sunset/blue design remains;
 the lower list density and paging controls are deliberate usability adaptations.
 
 `pio run -e esp32s3` passes: **66,308 B RAM (20.2%)**, **2,745,511 B flash
@@ -1107,7 +1119,7 @@ has a 1 px optical correction for its smaller face. The Wi-Fi asset is positione
 by its visible pixel center, rather than its transparent canvas bounds. The
 bitmap fallback icon follows the same header center.
 
-[Native Home evidence](evidence/2026-09-19-header/home-smooth.png) was inspected.
+Native Home evidence (superseded screenshot removed) was inspected.
 `tools/render_ui_fonts.py` and `git diff --check` pass. The firmware build passes:
 65,420 B static RAM (20.0%), 2,711,119 B flash (41.4%). Runtime buffers are unchanged.
 This revision was not flashed; physical confirmation remains pending.
@@ -1145,10 +1157,10 @@ PNG alpha compositing is used only in the readable memory canvas.
 
 ### Native evidence and checks
 
-- [Home](evidence/2026-09-19-home/home-smooth.png),
-  [long city/negative temperature](evidence/2026-09-19-home/home-long.png),
-  [104°F](evidence/2026-09-19-home/home-fahrenheit.png), and
-  [unavailable data](evidence/2026-09-19-home/home-unavailable.png).
+- Home (superseded screenshot removed),
+  long city/negative temperature (superseded screenshot removed),
+  104°F (superseded screenshot removed), and
+  unavailable data (superseded screenshot removed).
 - Weather examples: [clear](evidence/2026-09-19-home/home-weather-800.png),
   [overcast](evidence/2026-09-19-home/home-weather-804.png),
   [rain](evidence/2026-09-19-home/home-weather-500.png),
@@ -1201,15 +1213,15 @@ The production set now uses Roboto Regular/Medium, with these changes:
 - Layout, backgrounds, icons, hit regions and the PSRAM composition/transfer
   path remain as before, apart from a 1 px caption alignment adjustment.
 
-Compare the native [previous Home](evidence/2026-09-19-fonts/home-smooth.png) and
-[new Home](evidence/2026-09-19-typeface/home-smooth.png) at 320 × 240. Also checked:
-[long city/negative temperature](evidence/2026-09-19-typeface/home-long.png),
-[104°F](evidence/2026-09-19-typeface/home-fahrenheit.png),
-[unavailable](evidence/2026-09-19-typeface/home-unavailable.png),
-[Stations](evidence/2026-09-19-typeface/stations-smooth.png),
-[Player](evidence/2026-09-19-typeface/player-smooth.png),
-[Volume](evidence/2026-09-19-typeface/volume-smooth.png), and
-[Confirmation](evidence/2026-09-19-typeface/confirm-smooth.png).
+Compare the native previous Home (superseded screenshot removed) and
+new Home (superseded screenshot removed) at 320 × 240. Also checked:
+long city/negative temperature (superseded screenshot removed),
+104°F (superseded screenshot removed),
+unavailable (superseded screenshot removed),
+Stations (superseded screenshot removed),
+Player (superseded screenshot removed),
+Volume (superseded screenshot removed), and
+Confirmation (superseded screenshot removed).
 These are the actual production C++ layout and LovyanGFX font renderer in RAM.
 
 `tools/render_ui_fonts.py` passes: label insets, caption/temperature widths,
@@ -1254,20 +1266,20 @@ bidi layout, niqqud and comprehensive Unicode handling remain unfinished P2 work
 
 ### Evidence and verification for this typography change
 
-- [Native Home](evidence/2026-09-19-fonts/home-smooth.png) and
-  [bitmap comparison](evidence/2026-09-19-fonts/home-bitmap.png), both 320 × 240.
+- Native Home (superseded screenshot removed) and
+  bitmap comparison (superseded screenshot removed), both 320 × 240.
   The comparison uses the updated layout with the fallback bitmap fonts, not a
   reconstruction of the user's photograph.
-- Native [Stations](evidence/2026-09-19-fonts/stations-smooth.png),
-  [Player](evidence/2026-09-19-fonts/player-smooth.png),
-  [Volume](evidence/2026-09-19-fonts/volume-smooth.png), and
-  [Confirmation](evidence/2026-09-19-fonts/confirm-smooth.png) were inspected for
+- Native Stations (superseded screenshot removed),
+  Player (superseded screenshot removed),
+  Volume (superseded screenshot removed), and
+  Confirmation (superseded screenshot removed) were inspected for
   typography. These fixtures do **not** establish complete screen acceptance:
   existing artwork/transport substitutions and the volume panel's slider/value
   placement still differ from the concept.
-- [Long city/negative temperature](evidence/2026-09-19-fonts/home-long.png),
-  [104°F](evidence/2026-09-19-fonts/home-fahrenheit.png), and
-  [unavailable data](evidence/2026-09-19-fonts/home-unavailable.png) were inspected.
+- Long city/negative temperature (superseded screenshot removed),
+  104°F (superseded screenshot removed), and
+  unavailable data (superseded screenshot removed) were inspected.
 - `tools/render_ui_fonts.py` extracts the production C++ layout and links the
   actual pinned LovyanGFX sprite, PNG and VLW renderer with `display_fonts.cpp`.
   Only Arduino's String container and device state are adapted for the host.

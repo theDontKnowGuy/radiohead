@@ -27,3 +27,16 @@ enum class ButtonEvent : uint8_t {
 
 ButtonEvent pollEncoderButton(unsigned long now);
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now);
+
+// One input sample per loop; retain dim state from before any wake interaction.
+struct DeviceInput {
+    bool displayWasDimmed = false;
+    ButtonEvent button = ButtonEvent::None;
+    TouchEvent touch = TouchEvent::None;
+    int16_t touchX = 0;
+    int16_t touchY = 0;
+};
+
+DeviceInput pollDeviceInput(unsigned long now);
+void startDeviceControl();
+void updatePowerState(unsigned long now);

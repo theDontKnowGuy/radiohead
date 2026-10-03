@@ -36,13 +36,13 @@ clean background image; asset delivery and visual acceptance remain pending.
 ## 1. Instructions for every implementing agent
 
 1. Read [AGENTS.md](../../AGENTS.md), the local `radiohead-firmware` and
-   `typesafe-ai` skills, this guide, and the relevant module headers, source, and
+   skills, this guide, and the relevant module headers, source, and
    direct callers. Inspect `git status --short` and the overlapping diff first.
 2. Inspect the image itself and use it as the **visual and navigation reference**,
    with the [visual contract](visual-contract.md) as the acceptance checklist. The earlier
-   [interaction-plan.md](interaction-plan.md) and `radio-ui.html` are a different
-   visual direction. Do not silently substitute their paper/olive design for this
-   sunset/blue concept. Both earlier artifacts are superseded and historical only.
+   interaction proposal and browser prototype used a different visual direction
+   and have been removed. Do not silently substitute their paper/olive design for
+   this sunset/blue concept.
 3. Implement one bounded work package from section 10. State its inputs, files,
    acceptance checks, and dependencies before editing. Leave the next package a
    buildable result; do not implement all sixteen screens as one change.

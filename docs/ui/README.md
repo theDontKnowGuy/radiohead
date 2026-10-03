@@ -30,8 +30,8 @@ persistent artwork on the ESP32 without a project-operated backend.
 The [Spotify UI plan](spotify-ui-plan.md) defines the post-validation TFT player,
 shared web now-playing behavior, metadata contract, and acceptance checks.
 
-- [Earlier interaction proposal](interaction-plan.md) and its `radio-ui.html`
-  prototype: **superseded; historical only; do not implement this direction**.
+The superseded interaction proposal and cream/olive browser prototype were removed
+during repository cleanup. Use the visual contract and implementation guide above.
 
 The user has offered a clean background. Its handoff requirements and the visual
 comparison checklist are in the visual contract; the separate asset is pending.

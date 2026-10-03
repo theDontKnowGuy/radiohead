@@ -9,10 +9,6 @@ weather, OTA flow, and sleep behavior as parts of one product.
 
 ## Required skills
 
-- Use the `typesafe-ai` skill for every task in this repository, including explanation,
-  implementation, refactoring, diagnosis, and review. Use it to separate deterministic
-  work from semantic judgment and to consider whether a narrow Jev decision would
-  improve the workflow.
 - Use the `radiohead-firmware` skill for application code in `src/`, public interfaces
   in `include/`, or changes to `platformio.ini`.
 - A skill informs the work; it does not automatically justify adding an SDK, making a
@@ -95,7 +91,7 @@ For touchscreen work, inspect `docs/ui/uiconcept.png` and read
 [the UI agent implementation guide](docs/ui/agent-implementation-guide.md).
 The user explicitly wants a visually similar sunset/blue, artwork-led UI and has
 offered a clean background image. Preserve that direction across agent handoffs.
-The older `docs/ui/interaction-plan.md` and `docs/ui/radio-ui.html` are superseded;
+The superseded interaction proposal and cream/olive browser prototype were removed;
 the current cream/olive renderer is not the visual specification. P2/P3 require
 native-render visual evidence as well as functional checks. Do not defer the
 concept's background, artwork, Hebrew or layout to final polish, or mark packages

@@ -7,9 +7,9 @@ invitation to propose a different style. Keep it beautiful and restrained.
 
 Read this before the [implementation guide](agent-implementation-guide.md).
 The image governs appearance; the guide governs architecture, behavior and
-hardware adaptations. The old `interaction-plan.md` and `radio-ui.html` are
-superseded historical artifacts. The current cream/olive renderer is functional
-groundwork, not an approved visual baseline.
+hardware adaptations. The superseded interaction proposal and cream/olive browser
+prototype were removed during repository cleanup. The current cream/olive renderer
+is functional groundwork, not an approved visual baseline.
 
 ## What must remain recognizable
 

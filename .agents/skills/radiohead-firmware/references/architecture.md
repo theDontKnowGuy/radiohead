@@ -7,7 +7,7 @@ or behavior spanning multiple modules.
 
 - PlatformIO environment: `esp32s3`
 - Framework: Arduino on ESP32-S3
-- Board declaration: `esp32-s3-devkitc-1`
+- Board declaration: `esp32-s3-devkitc1-n16r8`
 - Flash configuration: 16 MB QSPI
 - PSRAM configuration: 8 MB Octal/OPI
 - Main build command: `pio run -e esp32s3`
@@ -18,14 +18,24 @@ or behavior spanning multiple modules.
 
 | Module | Owns |
 | --- | --- |
-| `src/main.cpp` | Boot sequence, Wi-Fi startup, alarm/encoder/power coordination, top-level loop and display refresh orchestration |
+| `src/main.cpp` | Minimal Arduino entry points forwarding to the application coordinator |
+| `src/application.cpp` | Startup sequence and cooperative service ordering, including clock and update-status sampling |
+| `src/wifi_network.cpp` | Wi-Fi join, setup AP fallback, NTP startup and asynchronous roaming |
+| `src/ui_runtime.cpp` | Input-to-controller bridge and execution of queued commands through owning modules |
+| `src/ui_controller.cpp` | Semantic UI state, navigation and command production without hardware side effects |
 | `src/app_state.cpp` | Shared device objects, constants, data models, catalog data, and cross-module state definitions |
-| `src/media.cpp` | Station playback, M3U resolution/import, podcast fetch/playback, stream-title callback |
+| `src/media.cpp` | I2S setup, saved playback startup, station/M3U/podcast playback, media state and Spotify output handoff |
 | `src/settings.cpp` | Preferences load/save and persisted-value normalization |
-| `src/display.cpp` | Colors, brightness, weather fetch/rendering, Wi-Fi indicator, spectrum and VU rendering |
-| `src/device_control.cpp` | Encoder sampling task, deep sleep, wake configuration, factory reset |
+| `src/display.cpp` | TFT/backlight initialization, native rendering/hit testing, redraw scheduling, weather fetch/status and Wi-Fi indicator |
+| `src/device_control.cpp` | Encoder task, input snapshots, calibration, dimming, physical power button, sleep/wake and factory reset |
 | `src/web_server.cpp` | HTML pages, request handlers, validation, M3U/firmware uploads, route registration |
+| `src/firmware_updater.cpp` | Background release checks and firmware installation |
+| `src/boot_screen.cpp` | Boot artwork, audio and bounded hold animation |
+| `src/display_fonts.cpp`, `src/ui_text.cpp` | Native typography and text preparation |
+| `src/validation_diagnostics.cpp` | Opt-in runtime timing and diagnostic evidence |
 | `include/*.h` | Public interfaces and shared types required across translation units |
+
+The refactor review and verification record is in `docs/firmware-architecture.md`.
 
 Do not create a catch-all utilities module. Put a helper beside the behavior it supports
 unless it has multiple concrete consumers and a stable abstraction.
@@ -51,10 +61,10 @@ conflicts, and the physical board before modifying them.
 - Podcast show and episode indexes must be checked before access.
 - `mainVal` indexes `volCurve` and must remain within `[0, 21]`.
 - AP/setup mode must not attempt normal station playback.
-- Podcast playback suppresses live stream-title replacement and displays a TFT-safe show
-  name because the selected TFT fonts do not handle Hebrew reliably.
-- Deep sleep saves settings and may arm a timer wake for the alarm in addition to the
-  external K0 wake source.
+- Podcast playback suppresses live stream-title replacement; text preparation preserves
+  readable Hebrew and mixed text in the native renderer.
+- Deep sleep saves settings and uses the external K0 wake source. Alarms and timer
+  wake are retired by the configuration and controls specification.
 
 ## External boundaries
 

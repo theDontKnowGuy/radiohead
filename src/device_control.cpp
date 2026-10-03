@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "app_state.h"
+#include "display.h"
 #include "media.h"
 #include "settings.h"
 #include "web_server.h"
@@ -254,4 +255,56 @@ void taskControl(void* parameter) {
         }
         vTaskDelay(1);
     }
+}
+
+void updatePowerState(unsigned long now) {
+    static bool volumeBarVisible = false;
+    if (now - lastVolChange < 3050) {
+        volumeBarVisible = true;
+    } else if (volumeBarVisible) {
+        forceRedraw = true;
+        volumeBarVisible = false;
+    }
+
+    const bool dimTimeoutExpired =
+        autoDimSeconds != AUTO_DIM_NEVER_SECONDS &&
+        now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL;
+    if (dimTimeoutExpired) {
+        if (!isDimmed) {
+            setBrightness(20);
+            isDimmed = true;
+        }
+    } else if (isDimmed) {
+        setBrightness(255);
+        isDimmed = false;
+    }
+
+    static uint32_t buttonPressedAt = 0;
+    static bool buttonActive = false;
+    if (digitalRead(PIN_K0) == LOW) {
+        if (!buttonActive) {
+            buttonPressedAt = now;
+            buttonActive = true;
+        }
+        if (now - buttonPressedAt > 5000) {
+            factoryReset();
+        }
+    } else if (buttonActive) {
+        if (now - buttonPressedAt > 1500) {
+            goToSleep();
+        }
+        buttonActive = false;
+    }
+}
+
+DeviceInput pollDeviceInput(unsigned long now) {
+    DeviceInput input;
+    input.displayWasDimmed = isDimmed;
+    input.button = pollEncoderButton(now);
+    input.touch = pollTouchEvent(input.touchX, input.touchY, now);
+    return input;
+}
+
+void startDeviceControl() {
+    xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0);
 }

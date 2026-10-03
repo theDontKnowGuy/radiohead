@@ -2,6 +2,7 @@
 #include "settings.h"
 #include <esp_heap_caps.h>
 #include <esp_attr.h>
+#include <driver/rtc_io.h>
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -2566,4 +2567,57 @@ void setFirmwareUpdateProgress(bool active, uint8_t percent) {
     firmwareUpdateOverlayActive = active;
     firmwareUpdatePercent = percent > 100 ? 100 : percent;
     forceRedraw = true;
+}
+
+void initializeDisplay() {
+    rtc_gpio_hold_dis(static_cast<gpio_num_t>(TFT_BLK));
+    rtc_gpio_deinit(static_cast<gpio_num_t>(TFT_BLK));
+    pinMode(TFT_BLK, OUTPUT);
+    digitalWrite(TFT_BLK, LOW);
+    delay(50);
+    ledcAttach(TFT_BLK, 5000, 8);
+    setBrightness(255);
+
+    tft.init();
+    tft.setRotation(1);
+    tft.fillScreen(TFT_BLACK);
+}
+
+void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool timeValid) {
+    static char lastRenderedTime[10] = "";
+    static bool lastRenderedTimeValid = false;
+    static unsigned long lastPodcastProgressRenderAt = 0;
+    static unsigned long lastWifiSignalCheckAt = 0;
+    static uint8_t lastWifiSignalLevel = 0;
+    bool wifiSignalChanged = false;
+    if (now - lastWifiSignalCheckAt >= 5000) {
+        lastWifiSignalCheckAt = now;
+        const uint8_t level = wifiSignalLevel();
+        wifiSignalChanged = level != lastWifiSignalLevel;
+        lastWifiSignalLevel = level;
+    }
+    const UiRenderState state = uiControllerRenderState();
+    const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
+    const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
+        !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
+    const bool homeStationTitleDue = state.page == UiPage::Home && homeStationTitleRefreshDue(now);
+    if (state.dirty || forceRedraw || podcastProgressDue || wifiSignalChanged) {
+        renderRadioUi(state, currentTime, timeValid);
+        forceRedraw = false;
+        uiControllerMarkRendered();
+        if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
+        strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
+        lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
+        lastRenderedTimeValid = timeValid;
+    } else if (lastRenderedTimeValid != timeValid || strcmp(lastRenderedTime, currentTime) != 0) {
+        // Each screen owns its complete header. Rebuild it on a minute change
+        // instead of overlaying the retired legacy status strip on top.
+        renderRadioUi(state, currentTime, timeValid);
+        if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
+        strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
+        lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
+        lastRenderedTimeValid = timeValid;
+    } else if (homeStationTitleDue) {
+        renderHomeStationTitleTick();
+    }
 }

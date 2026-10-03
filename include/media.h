@@ -88,3 +88,8 @@ int adjacentPlayableStationSlot(int stationIndex, int direction);
 PlaybackState mediaPlaybackState();
 int mediaRequestedStation();
 int mediaPlayingStation();
+
+// Configure local I2S before boot audio, using normalized persisted settings.
+void mediaConfigureOutput();
+// Initialize media state after boot audio and start the saved station outside AP mode.
+void mediaStartSavedPlayback();

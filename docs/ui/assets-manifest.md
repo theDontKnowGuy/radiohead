@@ -5,7 +5,7 @@
 | Sunset coast background | `docs/bg1.png` supplied by user | `.pio/ui_assets/background_320x240.png`, embedded C array | Base layer on concept fixtures | Source is 1448×1086 sRGB PNG; resampled directly to 320×240 (same 4:3 aspect ratio) with macOS `sips`. The build script emits a PNG byte array using `xxd`; LovyanGFX decodes it once for a full-page render. |
 | Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.92, then a uniform 16% black veil. The original source is retained. |
 | Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four identical 74×74 square, dense, slightly translucent category-gradient tiles; a 78×78 visible focus mask; four 38×38 #E8EEF3 icons; a 20×20 radio brand mark; 24×19 Wi-Fi; eight 64×56 weather assets whose visible ink is aligned by the renderer. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
-| Home clock atlas | Supplied `home_clock_assets_v3_heavier` package in `assets/home/home-clock-assets/` | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | The twelve supplied 32×38 grayscale alpha masks (0–9, colon, unavailable dash) are packed byte-for-byte, with their matching supplied RGBA files validating `#F5F5F5` and straight alpha. The manifest's baseline is 33 px; per-glyph advances are retained as exact 1/10,000-pixel units with 0.25 px tracking. The runtime adds one native pixel on each side of the colon, aligns the composed ink to `(301,41)`, then blends it once with the current RGB565 Home frame. No font, dilation, scaling, or alternate Home-clock asset path is used. |
+| Home clock atlas | Inter Display SemiBold 4.1 outlines, via `tools/prepare_home_clock_atlas.py` | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | Current committed masks are rasterized at 40 px into 36×42 straight-alpha cells. The JSON records font/rasterizer hashes, baseline, advances, tracking and colon spacing. Ordinary builds embed the committed atlas. The older supplied `assets/home/home-clock-assets/` package is historical reference, not a build or regeneration input. |
 | Episode player | `tools/prepare_podcast_assets.py` | `assets/podcast/*.png` → `.pio/ui_assets/ui_podcast_assets.h` | Recorded episode player | Direct 4:3 background with a 14–20% right-increasing black veil; a 115×115 rounded generic microphone/show image is used until actual local show artwork is supplied. |
 | Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 58×58 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
 | List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
@@ -18,7 +18,7 @@ No generated header is committed. RGB565 ordering remains a physical-device chec
 
 ```sh
 python3 tools/prepare_home_assets.py
-python3 tools/prepare_home_clock_atlas.py
+python3 tools/prepare_home_clock_atlas.py --font-dir /path/to/Inter-4.1/extras/otf
 ```
 
 ### Episode-player asset regeneration
@@ -112,10 +112,9 @@ python3 tools/render_ui_fonts.py
 
 This requires clang/clang++; Pillow is optional for PPM-to-PNG conversion. It
 uses real LovyanGFX drawing into RAM with no SDL window or display readback.
-Outputs remain in `.pio/ui_native`; inspected snapshots are copied to
-`evidence/2026-09-19-fonts/` (first DejaVu pass) and
-`evidence/2026-09-19-typeface/` (Roboto refinement). These are evidence, never
-whole-screen firmware assets.
+Outputs remain in `.pio/ui_native`; retained snapshots live under `evidence/`.
+The superseded first DejaVu and Roboto-refinement snapshots were removed during
+repository cleanup. These are evidence, never whole-screen firmware assets.
 
 ## Fixture builds
 
