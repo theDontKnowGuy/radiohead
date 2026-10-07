@@ -1,5 +1,33 @@
 # Web configuration implementation progress
 
+### 2026-10-07 — W6 weather API-key entry (ready for review)
+
+- **Task:** `/root`; affected files: `src/web_server.cpp` and this ledger.
+- **Observed:** The live radio reports weather visible but no configured key.
+  Existing key entry and durable keep/replace/clear support are hidden under
+  Provider access; the page only reports generic weather unavailability.
+- **Implemented:** Provider access opens automatically when no API key is saved.
+  The field explains entry/save and blank-to-keep behavior; Show entered API key
+  applies only to the draft. Success clears and masks the field, while failure
+  retains it. Explicit clear disables key entry and sends no draft credential.
+  Missing-key, refresh and availability feedback is separate from save feedback,
+  and polling leaves drafts and save acknowledgements intact. Save/Cancel wait
+  for initial state and cannot dispatch duplicate saves. Existing routes,
+  `radio` / `owmKey` persistence, and concurrent calibration edits are preserved.
+- **Functional: pass (host/build).** `node --check` and a temporary Node DOM/fetch
+  harness pass for missing-key entry, show/mask, replace/keep/clear, cancel,
+  draft-preserving polling, availability, and save/load failures. Harness:
+  `/tmp/radiohead-weather-key-check.cjs`; no real key was used or logged.
+  `pio run -e esp32s3` passes (35.54 seconds), including integrated Spotify.
+  RAM: 96,316 / 327,680 B (29.4%); Arduino flash: 3,581,651 / 6,553,600 B
+  (54.7%). Integrated image: 4,384,640 B; app partition free: 2,168,960 B.
+  Build log: `/tmp/radiohead-weather-key-build.log`. `git diff --check` passes;
+  no credential, generated binary or vendor changes were added by this package.
+- **Visual: not verified. Device: not verified.** No firmware was flashed.
+  Next: inspect the firmware-served page on desktop/phone; enter a real key,
+  verify weather arrives, then reboot and verify key persistence. F8/H1/H5
+  remain open for the full weather/time package.
+
 ### 2026-09-30 — Spotify Connect name (ready for review)
 
 - **Task:** `/root`; files: `src/web_server.cpp`, `src/settings.cpp`, `src/app_state.cpp`, `include/settings.h`, `include/app_state.h`, and `components/radiohead_spotify/spotify_adapter.cpp`.
