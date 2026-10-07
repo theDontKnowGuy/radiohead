@@ -105,20 +105,20 @@ bool factoryReset() {
     return true;
 }
 
-namespace {
-
-void configureTouchCalibration(bool forceRecalibration) {
-    pinMode(PIN_SW, INPUT_PULLUP);
-
+void initializeTouchCalibration() {
     TouchCalibration calibration = {};
-    const bool recalibrationRequested =
-        forceRecalibration || digitalRead(PIN_SW) == LOW;
-    if (!recalibrationRequested && loadTouchCalibration(calibration)) {
+    if (loadTouchCalibration(calibration)) {
         tft.setTouchCalibrate(calibration.data());
         Serial.println("Loaded saved touch calibration");
-        return;
+    } else {
+        // Keep the panel's configured coordinate bounds until the user
+        // explicitly calibrates in Settings. Boot must also work without a TFT.
+        Serial.println("Using default touch mapping; calibrate in Settings if needed");
     }
+}
 
+void startTouchCalibration() {
+    TouchCalibration calibration = {};
     tft.fillScreen(TFT_BLACK);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -149,21 +149,11 @@ void configureTouchCalibration(bool forceRecalibration) {
         95,
         &fonts::FreeSansBold12pt7b);
     tft.drawCenterString(
-        "Hold encoder at boot to redo",
+        "Redo in Settings > Device",
         tft.width() / 2,
         135,
         &fonts::FreeSans9pt7b);
     delay(1500);
-}
-
-}  // namespace
-
-void initializeTouchCalibration() {
-    configureTouchCalibration(false);
-}
-
-void startTouchCalibration() {
-    configureTouchCalibration(true);
 }
 
 int consumeEncoderDetents() {

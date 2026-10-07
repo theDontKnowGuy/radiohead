@@ -52,12 +52,25 @@ remaining muted; unmute uses that value. A dimmed but awake screen wakes while
 applying the explicit encoder volume/mute action once. Touch dim-wake still
 consumes its first press. No action may leak into a newly opened page.
 
-Preserve the deliberate encoder-held-at-boot calibration entry; it is an exception
-to normal-runtime controls. During OTA, defer power transitions until writing has
-finished safely and display the reason. Do not use encoder click to accept a
-destructive dialog.
+Startup calibration update, 2026-10-07: load saved touch calibration when available,
+otherwise retain the panel defaults and continue startup without waiting for touch.
+Interactive calibration is available only in TFT Settings > Device. Holding the
+encoder at boot requests Wi-Fi setup, not calibration. During OTA, defer power
+transitions until writing has finished safely and display the reason. Do not use
+encoder click to accept a destructive dialog.
 
 ### Power decisions that remain open
+
+Battery planning update, 2026-10-06: the user waived electrical off while charging
+and accepted a quick encoder double-click as immediate hardware off on battery.
+The [simple battery power plan](../hardware/battery-power-architecture-plan.md)
+specifies the proposed shared-button interface. Single-click mute and rotation
+remain; long-press software shutdown is still planned. Hardware double-click
+bypasses firmware save/OTA deferral; the plan documents charging-powered OTA
+validation and this limitation. This is an intentional exception to the original
+click contract, not implemented firmware or verified hardware. Source detection
+is not required for the proposed attempt-off/awake-standby fallback, which must
+not claim to identify the source or distinguish failed shutdown from USB power.
 
 The requested long-press intent is settled; the electrical behavior and separate
 Standby / Power Off menu are not. Source inspection found deep sleep with K0 wake,
@@ -105,7 +118,7 @@ if scan-tested, a QR code. Never include credentials in that code.
 | Station/show favorites | TFT; web equivalent where supported | Add/remove beside each entity. No manual reorder feature. |
 | Remove a saved station | TFT + Web | Confirm the exact station; distinguish deletion from removing a favorite. Do not silently play a replacement slot occupant. |
 | Add/edit recorded-show sources | Web, future capability | Still future work; existing show browsing/playback/favorites remain on TFT. |
-| Touch calibration | TFT | Preserve boot recovery; an in-device maintenance action is appropriate because calibration requires touching the panel. |
+| Touch calibration | TFT Settings > Device | Explicit maintenance action only; never require calibration during startup. Load saved calibration or use panel defaults. |
 | About | TFT | Firmware version, device name and web address; detailed diagnostics go on the web. |
 | Rename device | Web, future capability | Text entry; not a prerequisite for the core settings work. |
 | Firmware update | Web action; TFT status | Upload through the browser; reflect actual update progress/result on the TFT. |

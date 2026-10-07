@@ -11,8 +11,8 @@
 // calibration.  Returns false when a Preferences namespace cannot be cleared.
 bool factoryReset();
 void goToSleep();
-// Loads a saved calibration during boot, or starts the recovery flow when the
-// encoder is held or no valid calibration exists.
+// Loads saved calibration during boot; otherwise retains the panel defaults.
+// Never starts interactive calibration or waits for a touchscreen.
 void initializeTouchCalibration();
 // Always starts the interactive calibration flow for the Settings action.
 void startTouchCalibration();

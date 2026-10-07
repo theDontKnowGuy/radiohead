@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190" height="842" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 842" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190" height="842"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-842)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="1190" height="842" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="35" y="799" style="font-family: Helvetica-Bold; font-size: 27px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1598) scale(1,-1)">05 / Commissioning and firmware handoff</text>
+			<text x="35" y="771" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1542) scale(1,-1)">Prototype acceptance steps - firmware has NOT been changed or flashed.</text>
+			<path d="M 35,753 L 1155,753 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="35" y="32" style="font-family: Helvetica-Bold; font-size: 12px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,64) scale(1,-1)">REV A - DESK-REVIEWED PROTOTYPE / NOT HARDWARE-VALIDATED / 2026-10-05</text>
+			<text x="1050" y="32" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,64) scale(1,-1)">Sheet 5</text>
+			<rect x="35" y="417" width="545" height="300" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="690" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1380) scale(1,-1)">Before connecting the radio</text>
+			<text x="50" y="664" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1328) scale(1,-1)">1. Relay only: use a current-limited 5 V bench supply.</text>
+			<text x="50" y="643" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1286) scale(1,-1)">2. Header + to 5 V, - to GND. S to GND: relay must OFF.</text>
+			<text x="50" y="622" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1244) scale(1,-1)">3. S to +5 V: relay must ON; measure S current &lt;= 30 mA.</text>
+			<text x="50" y="601" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1202) scale(1,-1)">4. Identify COM/NO/NC by continuity; mark the terminals.</text>
+			<text x="50" y="580" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1160) scale(1,-1)">5. IP5310: identify KEY and ground button pads by continuity.</text>
+			<text x="50" y="559" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1118) scale(1,-1)">6. Confirm B- and output ground topology on the exact board.</text>
+			<text x="50" y="538" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1076) scale(1,-1)">7. Verify 5 V output and 4.2 V battery configuration.</text>
+			<text x="50" y="517" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1034) scale(1,-1)">8. Assemble controller; test with a dummy load first.</text>
+			<text x="50" y="496" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,992) scale(1,-1)">If the relay is active-LOW, this drawing must be revised.</text>
+			<rect x="625" y="417" width="530" height="300" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="640" y="690" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1380) scale(1,-1)">Firmware changes required before use</text>
+			<text x="640" y="664" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1328) scale(1,-1)">Early setup: GPIO18 OUTPUT LOW.</text>
+			<text x="640" y="643" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1286) scale(1,-1)">While start button is held, allow &gt;= 400 ms for KEY wake.</text>
+			<text x="640" y="622" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1244) scale(1,-1)">Then set GPIO18 HIGH before releasing start button.</text>
+			<text x="640" y="601" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1202) scale(1,-1)">Consume the power-on press; do not enter AP/calibration.</text>
+			<text x="640" y="580" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1160) scale(1,-1)">Normal GPIO7 input: pressed LOW; released HIGH.</text>
+			<text x="640" y="559" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1118) scale(1,-1)">Shutdown: wait for release, save state, stop audio.</text>
+			<text x="640" y="538" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1076) scale(1,-1)">Set GPIO18 LOW as the final action. No deep-sleep handoff.</text>
+			<text x="640" y="517" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1034) scale(1,-1)">During flash/OTA writing, defer power-off.</text>
+			<text x="640" y="496" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,992) scale(1,-1)">A reset/Hi-Z HOLD drops the relay in this simple design.</text>
+			<rect x="35" y="162" width="545" height="205" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="340" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,680) scale(1,-1)">User operation</text>
+			<text x="50" y="314" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,628) scale(1,-1)">OFF -&gt; hold encoder about 1 second, until takeover.</text>
+			<text x="50" y="293" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,586) scale(1,-1)">ON -&gt; short clicks mute; the IP5310 KEY stays inactive.</text>
+			<text x="50" y="272" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">OFF request -&gt; release encoder before power is cut.</text>
+			<text x="50" y="251" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,502) scale(1,-1)">USB connection may wake IP5310, but must not close relay.</text>
+			<text x="50" y="230" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,460) scale(1,-1)">Press held during shutdown would otherwise keep START on.</text>
+			<text x="50" y="209" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,418) scale(1,-1)">Boot recovery needs a separate intentional gesture.</text>
+			<rect x="625" y="162" width="530" height="205" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="640" y="340" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,680) scale(1,-1)">Required bench evidence</text>
+			<text x="640" y="314" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,628) scale(1,-1)">Test battery-only and USB-connected operation.</text>
+			<text x="640" y="293" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,586) scale(1,-1)">Measure relay start/hold at low battery, full battery and USB.</text>
+			<text x="640" y="272" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">Verify KEY low interval &gt;= 300 ms on battery startup.</text>
+			<text x="640" y="251" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,502) scale(1,-1)">Verify no backfeed at GPIO7/GPIO18 while ESP32 is off.</text>
+			<text x="640" y="230" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,460) scale(1,-1)">Test fast repeated clicks, held button and aborted startup.</text>
+			<text x="640" y="209" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,418) scale(1,-1)">Measure whole-pack OFF current after boost enters standby.</text>
+			<text x="640" y="188" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,376) scale(1,-1)">Test loud playback and charge/load transfer for resets.</text>
+			<text x="35" y="107" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,214) scale(1,-1)">Sources: TI SN74HC132 datasheet; onsemi 2N3904/2N3906; Injoinic IP5310 V1.37; Songle SRD datasheet.</text>
+			<text x="35" y="85" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,170) scale(1,-1)">This is a schematic plan, not a Fritzing .fzz project, PCB layout, SPICE proof or hardware certification.</text>
+			<text x="35" y="63" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,126) scale(1,-1)">Supply/cell markings and module input behavior remain acceptance dependencies; see README.md.</text>
+		</g>
+	</g>
+</svg>

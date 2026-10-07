@@ -1,0 +1,674 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Fritzing (https://fritzing.org/) -->
+<netlist date="2026-10-05T17:02:24" sketch="radiohead-relay-power.fzz">
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10000" label="R1" title="R1 / 100k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11150" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12890" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12690" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12530" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11790" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11750" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11190" label="VBAT_P" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B+">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10290" label="F1" title="F1 / 5A time-delay provisional"/>
+  </connector>
+  <connector id="connector13" name="14">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector0" name="+ or 1">
+   <part id="10160" label="C2" title="C2 / 1uF"/>
+  </connector>
+  <connector id="connector0" name="+ or 1">
+   <part id="10150" label="C1" title="C1 / 100nF"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10010" label="R2" title="R2 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10000" label="R1" title="R1 / 100k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11170" label="BUTTON_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12550" label="BUTTON_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12310" label="BUTTON_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12290" label="BUTTON_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11830" label="BUTTON_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10270" label="SW1" title="SW1 / encoder momentary"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector0" name="+ or 1">
+   <part id="10170" label="C3" title="C3 / 10nF"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10010" label="R2" title="R2 / 100k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11210" label="NOT_HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12370" label="NOT_HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12010" label="NOT_HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector4" name="5">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector1" name="C">
+   <part id="10210" label="Q1" title="Q1 / 2N3904"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10020" label="R3" title="R3 / 10k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11230" label="HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13010" label="HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11950" label="HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11710" label="HOLD" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="GPIO18 proposed">
+   <part id="10340" label="ESP32" title="ESP32 / existing dev board"/>
+  </connector>
+  <connector id="connector0" name="A">
+   <part id="10200" label="D2" title="D2 / 1N4148"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10140" label="R15" title="R15 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10020" label="R3" title="R3 / 10k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11250" label="Q1_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11990" label="Q1_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11270" label="Q1_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B">
+   <part id="10210" label="Q1" title="Q1 / 2N3904"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10030" label="R4" title="R4 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10030" label="R4" title="R4 / 100k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11290" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13170" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13130" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13090" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12990" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12950" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12910" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12810" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12650" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12570" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12510" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12490" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12410" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12270" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12210" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12090" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12030" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11890" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11850" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11810" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11770" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11730" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11650" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11570" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11490" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11370" label="GND" title="Net Label"/>
+  </connector>
+  <connector id="connector1" name="GND">
+   <part id="10360" label="MAX_RIGHT" title="MAX_RIGHT / MAX98357"/>
+  </connector>
+  <connector id="connector1" name="GND">
+   <part id="10350" label="MAX_LEFT" title="MAX_LEFT / MAX98357"/>
+  </connector>
+  <connector id="connector4" name="GND">
+   <part id="10340" label="ESP32" title="ESP32 / existing dev board"/>
+  </connector>
+  <connector id="connector5" name="button ground pad">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+  <connector id="connector3" name="USB-A GND">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+  <connector id="connector1" name="B-">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+  <connector id="connector1" name="-">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+  <connector id="connector3" name="P- or OUT-">
+   <part id="10280" label="PROTECT" title="PROTECT / 1S >=6A; exact board to verify"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10270" label="SW1" title="SW1 / encoder momentary"/>
+  </connector>
+  <connector id="connector12" name="13">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector11" name="12">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector6" name="7">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector2" name="E">
+   <part id="10250" label="Q5" title="Q5 / 2N3904"/>
+  </connector>
+  <connector id="connector2" name="E">
+   <part id="10240" label="Q4" title="Q4 / 2N3904"/>
+  </connector>
+  <connector id="connector2" name="E">
+   <part id="10220" label="Q2" title="Q2 / 2N3904"/>
+  </connector>
+  <connector id="connector2" name="E">
+   <part id="10210" label="Q1" title="Q1 / 2N3904"/>
+  </connector>
+  <connector id="connector1" name="- or 2">
+   <part id="10180" label="C4" title="C4 / 470uF 16V"/>
+  </connector>
+  <connector id="connector1" name="- or 2">
+   <part id="10170" label="C3" title="C3 / 10nF"/>
+  </connector>
+  <connector id="connector1" name="- or 2">
+   <part id="10160" label="C2" title="C2 / 1uF"/>
+  </connector>
+  <connector id="connector1" name="- or 2">
+   <part id="10150" label="C1" title="C1 / 100nF"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10140" label="R15" title="R15 / 100k"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10120" label="R13" title="R13 / 100k"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10100" label="R11" title="R11 / 100k"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10080" label="R9" title="R9 / 10k"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10050" label="R6" title="R6 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10040" label="R5" title="R5 / 1k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11310" label="OR_NODE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11970" label="OR_NODE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11930" label="OR_NODE" title="Net Label"/>
+  </connector>
+  <connector id="connector1" name="K band">
+   <part id="10200" label="D2" title="D2 / 1N4148"/>
+  </connector>
+  <connector id="connector1" name="K band">
+   <part id="10190" label="D1" title="D1 / 1N4148"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10040" label="R5" title="R5 / 1k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11330" label="Q2_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12050" label="Q2_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11350" label="Q2_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B">
+   <part id="10220" label="Q2" title="Q2 / 2N3904"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10050" label="R6" title="R6 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10060" label="R7" title="R7 / 1k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11390" label="Q2_C" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12070" label="Q2_C" title="Net Label"/>
+  </connector>
+  <connector id="connector1" name="C">
+   <part id="10220" label="Q2" title="Q2 / 2N3904"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10060" label="R7" title="R7 / 1k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11410" label="Q3_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12110" label="Q3_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11450" label="Q3_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B">
+   <part id="10230" label="Q3" title="Q3 / 2N3906"/>
+  </connector>
+  <connector id="connector1" name="2">
+   <part id="10070" label="R8" title="R8 / 47k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10070" label="R8" title="R8 / 47k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11430" label="5V_PRE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12930" label="5V_PRE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12850" label="5V_PRE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12790" label="5V_PRE" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12150" label="5V_PRE" title="Net Label"/>
+  </connector>
+  <connector id="connector2" name="USB-A +5V">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+  <connector id="connector3" name="COM">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+  <connector id="connector0" name="+">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+  <connector id="connector2" name="E">
+   <part id="10230" label="Q3" title="Q3 / 2N3906"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10080" label="R9" title="R9 / 10k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11470" label="RELAY_S" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12830" label="RELAY_S" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12130" label="RELAY_S" title="Net Label"/>
+  </connector>
+  <connector id="connector2" name="S">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+  <connector id="connector1" name="C">
+   <part id="10230" label="Q3" title="Q3 / 2N3906"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10090" label="R10" title="R10 / 22k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11510" label="START" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12430" label="START" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11910" label="START" title="Net Label"/>
+  </connector>
+  <connector id="connector7" name="8">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector0" name="A">
+   <part id="10190" label="D1" title="D1 / 1N4148"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10090" label="R10" title="R10 / 22k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11530" label="Q4_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12170" label="Q4_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11550" label="Q4_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B">
+   <part id="10240" label="Q4" title="Q4 / 2N3904"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10100" label="R11" title="R11 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10110" label="R12" title="R12 / 47k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11590" label="PRESSED" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12350" label="PRESSED" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12330" label="PRESSED" title="Net Label"/>
+  </connector>
+  <connector id="connector3" name="4">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector2" name="3">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10110" label="R12" title="R12 / 47k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11610" label="Q5_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12230" label="Q5_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11630" label="Q5_B" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="B">
+   <part id="10250" label="Q5" title="Q5 / 2N3904"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10120" label="R13" title="R13 / 100k"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="1">
+   <part id="10130" label="R14" title="R14 / 10k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11670" label="3V3_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13070" label="3V3_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector3" name="3V3">
+   <part id="10340" label="ESP32" title="ESP32 / existing dev board"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part id="10130" label="R14" title="R14 / 10k"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11690" label="BUTTON_READ" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13030" label="BUTTON_READ" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12250" label="BUTTON_READ" title="Net Label"/>
+  </connector>
+  <connector id="connector1" name="GPIO7">
+   <part id="10340" label="ESP32" title="ESP32 / existing dev board"/>
+  </connector>
+  <connector id="connector1" name="C">
+   <part id="10250" label="Q5" title="Q5 / 2N3904"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="+ or 1">
+   <part id="10180" label="C4" title="C4 / 470uF 16V"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="11870" label="5V_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13150" label="5V_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13110" label="5V_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="13050" label="5V_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12870" label="5V_RADIO" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="VIN">
+   <part id="10360" label="MAX_RIGHT" title="MAX_RIGHT / MAX98357"/>
+  </connector>
+  <connector id="connector0" name="VIN">
+   <part id="10350" label="MAX_LEFT" title="MAX_LEFT / MAX98357"/>
+  </connector>
+  <connector id="connector2" name="5V/VIN">
+   <part id="10340" label="ESP32" title="ESP32 / existing dev board"/>
+  </connector>
+  <connector id="connector4" name="NO">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="C">
+   <part id="10240" label="Q4" title="Q4 / 2N3904"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12190" label="KEY" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12970" label="KEY" title="Net Label"/>
+  </connector>
+  <connector id="connector4" name="button KEY pad">
+   <part id="10330" label="IP5310" title="IP5310 / USB-C + USB-A"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector5" name="6">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12390" label="START_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12470" label="START_N" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12450" label="START_N" title="Net Label"/>
+  </connector>
+  <connector id="connector9" name="10">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+  <connector id="connector8" name="9">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="B+">
+   <part id="10280" label="PROTECT" title="PROTECT / 1S >=6A; exact board to verify"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12590" label="CELL_PLUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12750" label="CELL_PLUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12710" label="CELL_PLUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="+">
+   <part id="10310" label="CELL2" title="CELL2 / matched 18650"/>
+  </connector>
+  <connector id="connector0" name="+">
+   <part id="10300" label="CELL1" title="CELL1 / matched 18650"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="B-">
+   <part id="10280" label="PROTECT" title="PROTECT / 1S >=6A; exact board to verify"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12610" label="CELL_MINUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12770" label="CELL_MINUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12730" label="CELL_MINUS" title="Net Label"/>
+  </connector>
+  <connector id="connector1" name="-">
+   <part id="10310" label="CELL2" title="CELL2 / matched 18650"/>
+  </connector>
+  <connector id="connector1" name="-">
+   <part id="10300" label="CELL1" title="CELL1 / matched 18650"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector2" name="P+ or OUT+">
+   <part id="10280" label="PROTECT" title="PROTECT / 1S >=6A; exact board to verify"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12630" label="PACK_PLUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="pin one">
+   <part id="12670" label="PACK_PLUS" title="Net Label"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part id="10290" label="F1" title="F1 / 5A time-delay provisional"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector10" name="11">
+   <part id="10260" label="U1" title="U1 / SN74HC132N"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector5" name="NC">
+   <part id="10320" label="RELAY" title="RELAY / existing Songle module"/>
+  </connector>
+ </net>
+</netlist>

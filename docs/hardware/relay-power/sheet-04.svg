@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190" height="842" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 842" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190" height="842"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-842)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="1190" height="842" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="35" y="799" style="font-family: Helvetica-Bold; font-size: 27px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1598) scale(1,-1)">04 / Pin map, bill of materials and state table</text>
+			<text x="35" y="771" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1542) scale(1,-1)">The accompanying connections.csv lists both endpoints of every added component.</text>
+			<path d="M 35,753 L 1155,753 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="35" y="32" style="font-family: Helvetica-Bold; font-size: 12px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,64) scale(1,-1)">REV A - DESK-REVIEWED PROTOTYPE / NOT HARDWARE-VALIDATED / 2026-10-05</text>
+			<text x="1050" y="32" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,64) scale(1,-1)">Sheet 4</text>
+			<rect x="35" y="387" width="330" height="335" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="695" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1390) scale(1,-1)">U1 top view / notch upward</text>
+			<text x="55" y="652" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1304) scale(1,-1)">1  BUTTON_N</text>
+			<text x="205" y="652" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1304) scale(1,-1)">14 VBAT_P</text>
+			<text x="55" y="619" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1238) scale(1,-1)">2  BUTTON_N</text>
+			<text x="205" y="619" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1238) scale(1,-1)">13 GND</text>
+			<text x="55" y="586" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1172) scale(1,-1)">3  PRESSED</text>
+			<text x="205" y="586" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1172) scale(1,-1)">12 GND</text>
+			<text x="55" y="553" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1106) scale(1,-1)">4  PRESSED</text>
+			<text x="205" y="553" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1106) scale(1,-1)">11 unused</text>
+			<text x="55" y="520" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1040) scale(1,-1)">5  NOT_HOLD</text>
+			<text x="205" y="520" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1040) scale(1,-1)">10 START_N</text>
+			<text x="55" y="487" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,974) scale(1,-1)">6  START_N</text>
+			<text x="205" y="487" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,974) scale(1,-1)">9  START_N</text>
+			<text x="55" y="454" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,908) scale(1,-1)">7  GND</text>
+			<text x="205" y="454" style="font-family: Helvetica; font-size: 15px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,908) scale(1,-1)">8  START</text>
+			<rect x="405" y="387" width="355" height="335" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="420" y="695" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1390) scale(1,-1)">Additional parts</text>
+			<text x="420" y="669" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1338) scale(1,-1)">1 x SN74HC132N + DIP-14 socket</text>
+			<text x="420" y="648" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1296) scale(1,-1)">4 x 2N3904 (Q1,Q2,Q4,Q5)</text>
+			<text x="420" y="627" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1254) scale(1,-1)">1 x 2N3906 (Q3)</text>
+			<text x="420" y="606" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1212) scale(1,-1)">2 x 1N4148 (D1,D2)</text>
+			<text x="420" y="585" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">7 x 100k resistors</text>
+			<text x="420" y="564" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1128) scale(1,-1)">3 x 10k resistors</text>
+			<text x="420" y="543" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1086) scale(1,-1)">2 x 1k resistors</text>
+			<text x="420" y="522" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1044) scale(1,-1)">2 x 47k resistors</text>
+			<text x="420" y="501" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1002) scale(1,-1)">1 x 22k resistor</text>
+			<text x="420" y="480" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,960) scale(1,-1)">100 nF, 1 uF, 10 nF capacitors</text>
+			<text x="420" y="459" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,918) scale(1,-1)">470 uF / 16 V bulk capacitor</text>
+			<text x="420" y="438" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,876) scale(1,-1)">Perfboard / connectors / rated wire</text>
+			<rect x="800" y="387" width="355" height="335" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="815" y="695" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1390) scale(1,-1)">Existing / pack hardware</text>
+			<text x="815" y="669" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1338) scale(1,-1)">Your Songle 5 V relay module</text>
+			<text x="815" y="648" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1296) scale(1,-1)">IP5310 USB-C + USB-A board</text>
+			<text x="815" y="627" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1254) scale(1,-1)">Two matched 18650 cells</text>
+			<text x="815" y="606" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1212) scale(1,-1)">1S pack protection &gt;= 6 A</text>
+			<text x="815" y="585" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">5 A pack fuse: provisional</text>
+			<text x="815" y="564" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1128) scale(1,-1)">5 V USB supply with load/charge margin</text>
+			<text x="815" y="543" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1086) scale(1,-1)">Do not carry radio power through</text>
+			<text x="815" y="522" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1044) scale(1,-1)">a solderless breadboard.</text>
+			<text x="815" y="501" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1002) scale(1,-1)">Use bench supply before real cells.</text>
+			<rect x="35" y="142" width="1120" height="185" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="300" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,600) scale(1,-1)">Logic state table</text>
+			<text x="55" y="272" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">BUTTON PRESSED</text>
+			<text x="360" y="272" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">HOLD</text>
+			<text x="530" y="272" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">START / KEY pull-down</text>
+			<text x="910" y="272" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,544) scale(1,-1)">RELAY</text>
+			<text x="55" y="246" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,492) scale(1,-1)">No</text>
+			<text x="360" y="246" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,492) scale(1,-1)">Low / unpowered</text>
+			<text x="530" y="246" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,492) scale(1,-1)">Off</text>
+			<text x="910" y="246" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,492) scale(1,-1)">Off</text>
+			<text x="55" y="220" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,440) scale(1,-1)">Yes</text>
+			<text x="360" y="220" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,440) scale(1,-1)">Low</text>
+			<text x="530" y="220" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,440) scale(1,-1)">On</text>
+			<text x="910" y="220" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,440) scale(1,-1)">On while pressed</text>
+			<text x="55" y="194" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,388) scale(1,-1)">No</text>
+			<text x="360" y="194" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,388) scale(1,-1)">High</text>
+			<text x="530" y="194" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,388) scale(1,-1)">Off</text>
+			<text x="910" y="194" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,388) scale(1,-1)">On</text>
+			<text x="55" y="168" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,336) scale(1,-1)">Yes</text>
+			<text x="360" y="168" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,336) scale(1,-1)">High</text>
+			<text x="530" y="168" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,336) scale(1,-1)">Off</text>
+			<text x="910" y="168" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,336) scale(1,-1)">On; GPIO7 reads press</text>
+			<text x="35" y="87" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,174) scale(1,-1)">GND always means protected pack P-. VBAT_P means protected pack P+.</text>
+			<text x="35" y="65" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,130) scale(1,-1)">Confirm protection and fuse ratings against the actual cells, enclosure wiring and measured load.</text>
+		</g>
+	</g>
+</svg>

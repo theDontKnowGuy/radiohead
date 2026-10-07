@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190" height="842" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 842" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190" height="842"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-842)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="1190" height="842" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="35" y="799" style="font-family: Helvetica-Bold; font-size: 27px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1598) scale(1,-1)">03 / Relay driver and isolated interfaces</text>
+			<text x="35" y="771" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1542) scale(1,-1)">All resistors are 1/4 W. Diode band = cathode. All NPN emitters connect to GND.</text>
+			<path d="M 35,753 L 1155,753 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="35" y="32" style="font-family: Helvetica-Bold; font-size: 12px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,64) scale(1,-1)">REV A - DESK-REVIEWED PROTOTYPE / NOT HARDWARE-VALIDATED / 2026-10-05</text>
+			<text x="1050" y="32" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,64) scale(1,-1)">Sheet 3</text>
+			<rect x="35" y="412" width="535" height="315" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="700" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1400) scale(1,-1)">Relay driver / active-HIGH module only</text>
+			<text x="55" y="668" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1336) scale(1,-1)">START -&gt; D1 anode; GPIO18 -&gt; D2 anode</text>
+			<text x="55" y="646" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1292) scale(1,-1)">D1 and D2 cathodes join at OR_NODE</text>
+			<text x="55" y="624" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1248) scale(1,-1)">D1/D2 = 1N4148; bands point toward OR_NODE</text>
+			<path d="M 105,577 L 125,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<rect x="125" y="570" width="58" height="14" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<path d="M 183,577 L 203,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="125" y="592" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1184) scale(1,-1)">R5 1k</text>
+			<text x="55" y="547" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1094) scale(1,-1)">OR_NODE</text>
+			<circle cx="265" cy="577" r="26" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.5; fill: none; fill-rule: evenodd;"/>
+			<path d="M 253,592 L 253,562 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 220,577 L 253,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 253,586 L 279,601 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 253,568 L 279,553 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 279,601 L 279,620 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 279,553 L 279,534 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<polygon points="268 559, 260 560, 266 567" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,25%); fill-rule: evenodd;"/>
+			<text x="305" y="585" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">Q2</text>
+			<text x="305" y="565" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1130) scale(1,-1)">2N3904 NPN</text>
+			<text x="228" y="585" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">B</text>
+			<text x="284" y="607" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1214) scale(1,-1)">C</text>
+			<text x="284" y="538" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1076) scale(1,-1)">E</text>
+			<path d="M 203,577 L 220,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="302" y="603" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1206) scale(1,-1)">C -&gt; R7 1k -&gt; Q3 base</text>
+			<text x="302" y="521" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(15%,44%,34%); stroke:none;" transform="translate(0,1042) scale(1,-1)">E -&gt; GND</text>
+			<text x="55" y="473" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,946) scale(1,-1)">R6: Q2 base -&gt; GND, 100k</text>
+			<text x="55" y="451" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,902) scale(1,-1)">Q3 PNP: emitter = 5V_PRE; collector = RELAY_S</text>
+			<text x="55" y="429" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,858) scale(1,-1)">R8: Q3 base -&gt; 5V_PRE, 47k; R9: RELAY_S -&gt; GND, 10k</text>
+			<rect x="620" y="412" width="535" height="315" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="635" y="700" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1400) scale(1,-1)">Q3 / supply 5 V to relay signal</text>
+			<circle cx="875" cy="577" r="26" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.5; fill: none; fill-rule: evenodd;"/>
+			<path d="M 863,592 L 863,562 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 830,577 L 863,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 863,586 L 889,601 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 863,568 L 889,553 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 889,601 L 889,620 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 889,553 L 889,534 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<polygon points="872 591, 882 594, 877 600" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,25%); fill-rule: evenodd;"/>
+			<text x="915" y="585" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">Q3</text>
+			<text x="915" y="565" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1130) scale(1,-1)">2N3906 PNP</text>
+			<text x="838" y="585" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1170) scale(1,-1)">B</text>
+			<text x="894" y="607" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1214) scale(1,-1)">E</text>
+			<text x="894" y="538" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1076) scale(1,-1)">C</text>
+			<text x="770" y="674" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,1348) scale(1,-1)">5V_PRE</text>
+			<path d="M 889,620 L 889,659 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 2;"/>
+			<path d="M 675,577 L 695,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<rect x="695" y="570" width="58" height="14" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<path d="M 753,577 L 773,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="695" y="592" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1184) scale(1,-1)">R7 1k</text>
+			<path d="M 773,577 L 830,577 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="645" y="545" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1090) scale(1,-1)">Q2 collector</text>
+			<path d="M 889,534 L 889,497 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="909" y="503" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,1006) scale(1,-1)">RELAY_S -&gt; module S</text>
+			<text x="640" y="457" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,914) scale(1,-1)">Driver intended for S input current &lt;= 30 mA.</text>
+			<text x="640" y="435" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,870) scale(1,-1)">First verify that HIGH turns your module ON.</text>
+			<rect x="35" y="127" width="535" height="245" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="345" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,690) scale(1,-1)">Q4 / wake IP5310 without GPIO backfeed</text>
+			<path d="M 110,272 L 130,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<rect x="130" y="265" width="58" height="14" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<path d="M 188,272 L 208,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="130" y="287" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,574) scale(1,-1)">R10 22k</text>
+			<text x="55" y="292" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,584) scale(1,-1)">START</text>
+			<circle cx="265" cy="272" r="26" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.5; fill: none; fill-rule: evenodd;"/>
+			<path d="M 253,287 L 253,257 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 220,272 L 253,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 253,281 L 279,296 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 253,263 L 279,248 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 279,296 L 279,315 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 279,248 L 279,229 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<polygon points="268 254, 260 255, 266 262" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,25%); fill-rule: evenodd;"/>
+			<text x="305" y="280" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,560) scale(1,-1)">Q4</text>
+			<text x="305" y="260" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,520) scale(1,-1)">2N3904 NPN</text>
+			<text x="228" y="280" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,560) scale(1,-1)">B</text>
+			<text x="284" y="302" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,604) scale(1,-1)">C</text>
+			<text x="284" y="233" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,466) scale(1,-1)">E</text>
+			<path d="M 208,272 L 220,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="305" y="320" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,640) scale(1,-1)">C -&gt; IP5310 KEY pad</text>
+			<text x="305" y="217" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(15%,44%,34%); stroke:none;" transform="translate(0,434) scale(1,-1)">E -&gt; GND</text>
+			<text x="55" y="172" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,344) scale(1,-1)">R11: Q4 base -&gt; GND, 100k</text>
+			<text x="55" y="150" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,300) scale(1,-1)">KEY ground pad joins common GND. Keep onboard button.</text>
+			<rect x="620" y="127" width="535" height="245" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="635" y="345" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,690) scale(1,-1)">Q5 / encoder input stays at 3.3 V</text>
+			<path d="M 695,272 L 715,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<rect x="715" y="265" width="58" height="14" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<path d="M 773,272 L 793,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="715" y="287" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,574) scale(1,-1)">R12 47k</text>
+			<text x="640" y="292" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,584) scale(1,-1)">PRESSED</text>
+			<circle cx="875" cy="272" r="26" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.5; fill: none; fill-rule: evenodd;"/>
+			<path d="M 863,287 L 863,257 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 830,272 L 863,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 863,281 L 889,296 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 863,263 L 889,248 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 889,296 L 889,315 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<path d="M 889,248 L 889,229 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<polygon points="878 254, 870 255, 876 262" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1; fill: rgb(9%,16%,25%); fill-rule: evenodd;"/>
+			<text x="915" y="280" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,560) scale(1,-1)">Q5</text>
+			<text x="915" y="260" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,520) scale(1,-1)">2N3904 NPN</text>
+			<text x="838" y="280" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,560) scale(1,-1)">B</text>
+			<text x="894" y="302" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,604) scale(1,-1)">C</text>
+			<text x="894" y="233" style="font-family: Helvetica; font-size: 11px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,466) scale(1,-1)">E</text>
+			<path d="M 793,272 L 830,272 Z" style="stroke: rgb(9%,16%,25%); stroke-linecap: butt; stroke-width: 1.7;"/>
+			<text x="915" y="320" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,640) scale(1,-1)">C -&gt; GPIO7 / BUTTON_READ</text>
+			<text x="915" y="217" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(15%,44%,34%); stroke:none;" transform="translate(0,434) scale(1,-1)">E -&gt; GND</text>
+			<text x="640" y="172" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,344) scale(1,-1)">R13: Q5 base -&gt; GND, 100k</text>
+			<text x="640" y="150" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,300) scale(1,-1)">R14: GPIO7 -&gt; switched ESP32 3.3 V, 10k</text>
+			<text x="35" y="82" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,164) scale(1,-1)">Q1/Q2/Q4/Q5 = 2N3904. Q3 = 2N3906. Use E/B/C from the actual purchased transistor datasheet.</text>
+			<text x="35" y="60" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,120) scale(1,-1)">The existing relay module already contains the coil driver and flyback diode.</text>
+		</g>
+	</g>
+</svg>

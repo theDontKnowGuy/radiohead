@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190" height="842" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 842" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190" height="842"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-842)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="1190" height="842" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="35" y="799" style="font-family: Helvetica-Bold; font-size: 27px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1598) scale(1,-1)">01 / Power wiring</text>
+			<text x="35" y="771" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1542) scale(1,-1)">Existing relay + IP5310 charger/boost board + a small start/hold interface</text>
+			<path d="M 35,753 L 1155,753 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="35" y="32" style="font-family: Helvetica-Bold; font-size: 12px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,64) scale(1,-1)">REV A - DESK-REVIEWED PROTOTYPE / NOT HARDWARE-VALIDATED / 2026-10-05</text>
+			<text x="1050" y="32" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,64) scale(1,-1)">Sheet 1</text>
+			<rect x="35" y="582" width="230" height="125" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="680" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1360) scale(1,-1)">Matched 18650 pair</text>
+			<text x="50" y="654" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1308) scale(1,-1)">1S2P: positives together</text>
+			<text x="50" y="633" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1266) scale(1,-1)">Negatives together</text>
+			<text x="50" y="612" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1224) scale(1,-1)">Cell model/rating: verify</text>
+			<rect x="335" y="582" width="245" height="125" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="350" y="680" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1360) scale(1,-1)">1S protection + fuse</text>
+			<text x="350" y="654" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1308) scale(1,-1)">Rated &gt;= 6 A continuous</text>
+			<text x="350" y="633" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1266) scale(1,-1)">Raw cells -&gt; B+ / B-</text>
+			<text x="350" y="612" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1224) scale(1,-1)">5 A fuse: provisional</text>
+			<rect x="665" y="562" width="250" height="145" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="680" y="680" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1360) scale(1,-1)">IP5310 module</text>
+			<text x="680" y="654" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1308) scale(1,-1)">Pack P+ -&gt; module B+</text>
+			<text x="680" y="633" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1266) scale(1,-1)">Pack P- -&gt; module B-</text>
+			<text x="680" y="612" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1224) scale(1,-1)">USB-C: charging input</text>
+			<text x="680" y="591" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1182) scale(1,-1)">USB-A: fixed 5 V output</text>
+			<path d="M 265,645 L 335,645 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<path d="M 580,645 L 665,645 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<rect x="35" y="347" width="320" height="150" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="470" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,940) scale(1,-1)">Songle relay module</text>
+			<text x="50" y="444" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,888) scale(1,-1)">Header + : 5V_PRE</text>
+			<text x="50" y="423" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,846) scale(1,-1)">Header - : GND</text>
+			<text x="50" y="402" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,804) scale(1,-1)">Header S : RELAY_S (sheet 3)</text>
+			<text x="50" y="381" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,762) scale(1,-1)">Identify COM / NO by continuity</text>
+			<rect x="455" y="347" width="300" height="150" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="470" y="470" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,940) scale(1,-1)">Relay power contacts</text>
+			<text x="470" y="444" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,888) scale(1,-1)">COM : 5V_PRE</text>
+			<text x="470" y="423" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,846) scale(1,-1)">NO : 5V_RADIO</text>
+			<text x="470" y="402" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,804) scale(1,-1)">NC : leave disconnected</text>
+			<text x="470" y="381" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,762) scale(1,-1)">Use screw terminals / rated wire</text>
+			<path d="M 790,562 L 790,532 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<path d="M 195,532 L 790,532 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<path d="M 195,532 L 195,497 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<path d="M 605,532 L 605,497 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<text x="815" y="529" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,1058) scale(1,-1)">5V_PRE = upstream +5 V</text>
+			<rect x="845" y="322" width="310" height="175" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="860" y="470" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,940) scale(1,-1)">Switched radio supply</text>
+			<text x="860" y="444" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,888) scale(1,-1)">ESP32-S3: 5V / VIN</text>
+			<text x="860" y="423" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,846) scale(1,-1)">Both MAX98357: VIN</text>
+			<text x="860" y="402" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,804) scale(1,-1)">TFT: correct existing supply</text>
+			<text x="860" y="381" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,762) scale(1,-1)">TFT 3.3 V only if specified</text>
+			<text x="860" y="360" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,720) scale(1,-1)">470 uF / 16 V to GND: C4</text>
+			<path d="M 755,437 L 845,437 Z" style="stroke: rgb(73%,21%,17%); stroke-linecap: butt; stroke-width: 3;"/>
+			<text x="767" y="452" style="font-family: Helvetica-Bold; font-size: 13px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,904) scale(1,-1)">5V_RADIO</text>
+			<rect x="35" y="137" width="540" height="135" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="245" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,490) scale(1,-1)">Common GND</text>
+			<text x="50" y="219" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,438) scale(1,-1)">Protected pack P- / IP5310 output ground / relay -</text>
+			<text x="50" y="198" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,396) scale(1,-1)">ESP32 GND / amplifier GNDs / TFT GND</text>
+			<text x="50" y="177" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,354) scale(1,-1)">Never bridge raw cell B- around the pack protector.</text>
+			<rect x="625" y="137" width="530" height="135" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="640" y="245" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,490) scale(1,-1)">Controller supply</text>
+			<text x="640" y="219" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,438) scale(1,-1)">VBAT_P = protected pack P+, before IP5310</text>
+			<text x="640" y="198" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,396) scale(1,-1)">U1 runs from VBAT_P, NOT switched 3.3 V.</text>
+			<text x="640" y="177" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,354) scale(1,-1)">5V_PRE powers the relay module, NOT 5V_RADIO.</text>
+			<text x="35" y="91" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,182) scale(1,-1)">No TP4056 in parallel with this charger. No programming USB cable during battery operation.</text>
+			<text x="35" y="69" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,138) scale(1,-1)">Keep speaker terminals on amplifier +/- outputs; neither speaker terminal goes to GND.</text>
+		</g>
+	</g>
+</svg>

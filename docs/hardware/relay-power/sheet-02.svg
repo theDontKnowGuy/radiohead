@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190" height="842" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 842" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190" height="842"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-842)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="1190" height="842" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="35" y="799" style="font-family: Helvetica-Bold; font-size: 27px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1598) scale(1,-1)">02 / Encoder and start logic</text>
+			<text x="35" y="771" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1542) scale(1,-1)">U1 = SN74HC132N, PDIP-14; named nets connect between sheets</text>
+			<path d="M 35,753 L 1155,753 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="35" y="32" style="font-family: Helvetica-Bold; font-size: 12px;fill: rgb(73%,21%,17%); stroke:none;" transform="translate(0,64) scale(1,-1)">REV A - DESK-REVIEWED PROTOTYPE / NOT HARDWARE-VALIDATED / 2026-10-05</text>
+			<text x="1050" y="32" style="font-family: Helvetica; font-size: 12px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,64) scale(1,-1)">Sheet 2</text>
+			<rect x="35" y="542" width="315" height="170" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="685" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1370) scale(1,-1)">Encoder push switch</text>
+			<text x="50" y="659" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1318) scale(1,-1)">SW1: BUTTON_N to GND</text>
+			<text x="50" y="638" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1276) scale(1,-1)">R1: VBAT_P -&gt; BUTTON_N, 100k</text>
+			<text x="50" y="617" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1234) scale(1,-1)">C3: BUTTON_N -&gt; GND, 10 nF</text>
+			<text x="50" y="596" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1192) scale(1,-1)">Move switch off direct GPIO7 wiring.</text>
+			<text x="50" y="575" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1150) scale(1,-1)">Encoder rotation A/B remain separate.</text>
+			<rect x="425" y="542" width="315" height="170" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="440" y="685" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1370) scale(1,-1)">U1A / invert button</text>
+			<text x="440" y="659" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1318) scale(1,-1)">Pin 1 = BUTTON_N</text>
+			<text x="440" y="638" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1276) scale(1,-1)">Pin 2 = BUTTON_N</text>
+			<text x="440" y="617" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1234) scale(1,-1)">Pin 3 = PRESSED</text>
+			<text x="440" y="596" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1192) scale(1,-1)">PRESSED = high only while pressed</text>
+			<path d="M 350,638 L 425,638 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<rect x="815" y="542" width="340" height="170" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="830" y="685" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,1370) scale(1,-1)">Q1 / detect firmware hold</text>
+			<text x="830" y="659" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1318) scale(1,-1)">GPIO18 -&gt; R3 10k -&gt; Q1 base</text>
+			<text x="830" y="638" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1276) scale(1,-1)">R4: Q1 base -&gt; GND, 100k</text>
+			<text x="830" y="617" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1234) scale(1,-1)">Q1 emitter = GND</text>
+			<text x="830" y="596" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1192) scale(1,-1)">Q1 collector = NOT_HOLD</text>
+			<text x="830" y="575" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,1150) scale(1,-1)">R2: NOT_HOLD -&gt; VBAT_P, 100k</text>
+			<rect x="35" y="327" width="315" height="150" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="450" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,900) scale(1,-1)">U1B / allow start only when off</text>
+			<text x="50" y="424" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,848) scale(1,-1)">Pin 4 = PRESSED</text>
+			<text x="50" y="403" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,806) scale(1,-1)">Pin 5 = NOT_HOLD</text>
+			<text x="50" y="382" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,764) scale(1,-1)">Pin 6 = START_N</text>
+			<text x="50" y="361" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,722) scale(1,-1)">START_N = NOT(PRESSED AND</text>
+			<text x="50" y="340" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,680) scale(1,-1)">                          NOT_HOLD)</text>
+			<rect x="425" y="327" width="315" height="150" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="440" y="450" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,900) scale(1,-1)">U1C / make START high</text>
+			<text x="440" y="424" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,848) scale(1,-1)">Pin 9 = START_N</text>
+			<text x="440" y="403" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,806) scale(1,-1)">Pin 10 = START_N</text>
+			<text x="440" y="382" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,764) scale(1,-1)">Pin 8 = START</text>
+			<text x="440" y="361" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,722) scale(1,-1)">START = PRESSED AND NOT_HOLD</text>
+			<path d="M 350,404 L 425,404 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<rect x="815" y="327" width="340" height="150" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="830" y="450" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,900) scale(1,-1)">Outputs to sheet 3</text>
+			<text x="830" y="424" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,848) scale(1,-1)">START -&gt; Q4 wakes IP5310</text>
+			<text x="830" y="403" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,806) scale(1,-1)">START -&gt; D1 enables relay</text>
+			<text x="830" y="382" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,764) scale(1,-1)">PRESSED -&gt; Q5 reads button</text>
+			<text x="830" y="361" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,722) scale(1,-1)">GPIO18 / HOLD -&gt; D2 holds relay</text>
+			<path d="M 740,404 L 815,404 Z" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 2;"/>
+			<rect x="35" y="122" width="530" height="135" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="50" y="230" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,460) scale(1,-1)">U1 supply and unused gate</text>
+			<text x="50" y="204" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,408) scale(1,-1)">Pin 14 = VBAT_P; pin 7 = GND</text>
+			<text x="50" y="183" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,366) scale(1,-1)">C1 100 nF + C2 1 uF between pins 14 and 7</text>
+			<text x="50" y="162" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,324) scale(1,-1)">Unused pins 12 and 13 = GND; pin 11 = no connection.</text>
+			<rect x="615" y="122" width="540" height="135" rx="8" ry="8" style="stroke: rgb(13%,42%,63%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(95%,96%,98%); fill-rule: evenodd;"/>
+			<text x="630" y="230" style="font-family: Helvetica-Bold; font-size: 17px;fill: rgb(13%,42%,63%); stroke:none;" transform="translate(0,460) scale(1,-1)">Firmware connection</text>
+			<text x="630" y="204" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,408) scale(1,-1)">GPIO18 = proposed POWER_HOLD (confirm board pad)</text>
+			<text x="630" y="183" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,366) scale(1,-1)">R15: GPIO18 -&gt; GND, 100k</text>
+			<text x="630" y="162" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,324) scale(1,-1)">GPIO7 = isolated encoder input from Q5; sheet 3</text>
+			<text x="35" y="84" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,168) scale(1,-1)">GPIO18 is unused in the inspected firmware pin map; board exposure still needs confirmation.</text>
+			<text x="35" y="62" style="font-family: Helvetica; font-size: 14px;fill: rgb(9%,16%,25%); stroke:none;" transform="translate(0,124) scale(1,-1)">No battery-voltage logic signal is wired directly into an ESP32 input.</text>
+		</g>
+	</g>
+</svg>

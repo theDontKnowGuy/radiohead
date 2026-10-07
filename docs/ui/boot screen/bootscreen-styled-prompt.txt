@@ -1,0 +1,8 @@
+Generated using the built-in image generation tool from bootscreen.png.
+
+Use case: style-transfer.
+Asset type: polished boot screen for a small internet radio display.
+Input image: edit target, the existing blue boot screen. Refine it with more style and finesse.
+Preserve the exact Hebrew wordmark from the source: preserve its correct right-to-left order and distinctive handwritten letter shapes, do not invent or substitute characters. Preserve the exact English text "Internet Radio" below it and the small coral sun associated with the right side of the wordmark.
+Art direction: elegant, warm coastal evening, restrained and sophisticated. Rich deep midnight/cobalt blue background with a very subtle luminous blue gradient and a faint warm sunset halo near the coral sun. Refine the original handwritten white wordmark into beautifully smooth, intentional curves, very crisp edges, subtle warm ivory white; remove the heavy dark drop shadow. Make the coral sun a refined, clean hand-drawn emblem with balanced slim rays and softly luminous peach/coral fill. Use finer, tastefully spaced typography for "Internet Radio", with strong readability at small display size. Harmonize scale and spacing; center the complete logo group optically in the canvas with generous negative space and a balanced vertical position. Subtle delicate curved radio-wave lines near the sun can lend a sense of music and signal, extremely understated. Fine sophisticated detailing, no clutter, no photorealistic scenery.
+Landscape canvas with the original approximately 4:3 aspect ratio. Full bleed boot-screen artwork only, no device frame, no mockup, no borders, no extra text, no loading indicators, no watermarks. Maintain high contrast and clear legibility. Output as opaque PNG.

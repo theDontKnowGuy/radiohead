@@ -15,7 +15,7 @@ constexpr uint8_t FAVORITES_VERSION = 2;
 constexpr uint8_t WEATHER_TIME_VERSION = 2;
 constexpr uint8_t SAVED_WIFI_VERSION = 1;
 constexpr const char* DEFAULT_TIME_ZONE_ID = "Asia/Jerusalem";
-constexpr const char* DEFAULT_SPOTIFY_STATION_NAME = "Radiohead Native Test";
+constexpr const char* DEFAULT_SPOTIFY_STATION_NAME = "Radiohead";
 constexpr const char* LEGACY_WEATHER_LOCATION = "Budapest,HU";
 constexpr uint16_t STATION_FAVORITE_BITS = (1U << STATION_COUNT) - 1U;
 constexpr uint16_t PODCAST_SHOW_FAVORITE_BITS = (1U << PODCAST_SHOW_COUNT) - 1U;
@@ -863,7 +863,9 @@ void loadSettings() {
     use24HourClock = pref.getBool("clock24", true);
     timeZoneId = pref.getString("timezone", DEFAULT_TIME_ZONE_ID);
     spotifyConnectName = pref.getString("spotifyName", DEFAULT_SPOTIFY_STATION_NAME);
-    if (spotifyConnectName.isEmpty() || spotifyConnectName.length() > 64)
+    // Retire the old test default on existing installs while retaining custom names.
+    if (spotifyConnectName == "Radiohead Native Test" ||
+        spotifyConnectName.isEmpty() || spotifyConnectName.length() > 64)
         spotifyConnectName = DEFAULT_SPOTIFY_STATION_NAME;
 
     if (st_ssid.length() > 32) {
