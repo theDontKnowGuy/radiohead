@@ -546,6 +546,36 @@ body.radiohead-page #rh-config {
   margin-top:6px;
 }
 
+#rh-config .rh-sectiontitle {
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+#rh-config .rh-sectiontitle svg {
+  stroke:currentColor;
+  stroke-width:1.7;
+  fill:none;
+}
+
+#rh-config h1.rh-sectiontitle svg {
+  width:28px;
+  height:28px;
+}
+
+#rh-config .rh-guide {
+  padding-left:22px;
+  margin:14px 0;
+}
+
+#rh-config .rh-guide li+li {
+  margin-top:10px;
+}
+
+#rh-config .rh-box code {
+  overflow-wrap:anywhere;
+}
+
 #rh-config .rh-field {
   display:grid;
   gap:7px;
@@ -1029,7 +1059,7 @@ body.radiohead-page #rh-config {
     padding:10px 12px;
   }
   #rh-config .rh-nav {
-    grid-template-columns:repeat(5,1fr);
+    grid-template-columns:repeat(6,minmax(0,1fr));
     gap:3px;
   }
   #rh-config .rh-nav :is(button,a) {
@@ -1305,6 +1335,12 @@ body.radiohead-page #rh-config {
   }
   #rh-config .rh-inlinecheck {
     min-height:44px;
+  }
+}
+
+@media(max-width:420px) {
+  #rh-config .rh-nav {
+    grid-template-columns:repeat(3,minmax(0,1fr));
   }
 }
 

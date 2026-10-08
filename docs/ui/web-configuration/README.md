@@ -37,14 +37,16 @@ The screenshots include a sample station added while checking the flow.
 
 ## 2. Deliverables and boundaries
 
-Build five web sections in this order: **Stations, Network, Weather & time,
-Appearance, Device & maintenance**. Stations is the default landing page. Preserve
+The 2026-10-08 user instruction adds a separate Spotify section. Build six web
+sections in this order: **Stations, Spotify, Network, Weather & time, Appearance,
+Device & maintenance**. Stations is the default landing page. Preserve
 existing useful show browsing/playback routes, but do not add a Recorded Shows
 configuration section until editable sources actually exist.
 
 Every section shares the brand header, section navigation, connection context,
 now-playing/volume/mute strip, and collapsed **Sound · custom tone** control group.
-On mobile, section navigation becomes a five-item row above the content.
+On mobile, section navigation becomes a six-item row above the content.
+At 420px and below, it wraps to two rows of three so labels and touch targets fit.
 
 Do not add alarms, EQ presets, sleep timers, brightness adjustment, idle-clock
 mode, visualizer controls, language selection, station/favorite reordering,
@@ -125,9 +127,9 @@ URLs remain left-to-right. No interface-language setting is implied.
   primary action per group. Do not nest unnecessary cards.
 - At 780px and below: sidebar narrows to 165px, main padding becomes 20px, paired
   form columns stack, and volume wraps below the now-playing title.
-- At 560px and below: sidebar becomes the five-item navigation row; content
+- At 560px and below: sidebar becomes the six-item navigation row; content
   padding is 16px; heading actions wrap naturally. All sections must fit at 320px.
-  Mobile labels are Stations / Network / Weather & time / Appearance / Device.
+  Mobile labels are Stations / Spotify / Network / Weather & time / Appearance / Device.
 - Dialogs: light surface over a dimmed page, dark text, neutral Cancel and an
   action-colored confirmation. Use the provided viewport overlay adaptation or
   a native modal dialog so long pages cannot hide the dialog above the user.
@@ -233,6 +235,28 @@ keep existing stations. If capacity is exceeded, explain and require correction
 before committing; no implicit replacement. Do not reinterpret an HLS segment
 playlist as a collection of independent radio stations. Apply the discovery plan's
 identity/artwork rules to every import path; imported URLs are not playback proof.
+
+### Spotify — Setup and listening (2026-10-08 addition)
+
+The **Spotify** tab at `/spotify` owns the existing Connect name and app credential
+forms; remove those forms and their scripts from Device. Use local SVG icons in
+navigation and headings, preserving the navy/coastal shell and shared player.
+Keep `/api/device/spotify-name`, `/api/device/spotify-credentials` and their saved
+keys compatible. Returned state must never contain the Client ID or Secret.
+
+Explain how to open or create a Spotify developer app, find its Settings and copy
+Client ID / View client secret, with links to the official Dashboard and
+[credential guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started).
+If creation requires a Redirect URI, the guide's loopback example may be supplied;
+it is not a radio pairing callback. Do not collect a Spotify account password.
+
+Explain Save → Device & maintenance / Restart radio → Spotify app's device picker,
+using the real Connect name. Include the Premium and same-Wi-Fi prerequisites,
+local network permission help for iPhone and
+[Spotify Connect help](https://support.spotify.com/us/article/spotify-connect/).
+A save confirms persistence; it does not establish successful authentication or
+playback. Name/credentials apply after restart. Preserve draft privacy, validation,
+cancel, failure/conflict behavior and the existing factory-reset policy.
 
 ### S2 — Network
 

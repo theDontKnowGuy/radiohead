@@ -28,11 +28,11 @@ checkout paths. The default build requires the installed PlatformIO ESP-IDF
 
 ### Spotify app setup
 
-Open the radio's web configuration at `/device`. Under **Spotify app credentials**,
+Open the radio's **Spotify** tab at `/spotify`. Under **App credentials**,
 enter your developer app's **Client ID** and **Client Secret**, select **Save
-credentials**, then use **Restart radio**. After restart, select the radio in
-Spotify Connect on your phone. Saving confirms storage, not Spotify authentication;
-both values are required for every replacement. Cancel discards only the draft.
+credentials**, then use **Device & maintenance → Restart radio**. After restart,
+select the radio in Spotify Connect on your phone. Saving confirms storage, not
+Spotify authentication; both values are required for every replacement. Cancel discards only the draft.
 Saved credentials are never returned to the browser. Show entered Client Secret
 reveals only the current draft, which is cleared and masked after a successful save.
 Use the radio's local configuration on a trusted network; it is served over HTTP.

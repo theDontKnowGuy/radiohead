@@ -4,10 +4,48 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../src/web_server.cpp'), 'utf8');
+const content = source.slice(source.indexOf('void appendSectionContent'));
+const spotifyContent = content.slice(content.indexOf('case WebSection::Spotify:'), content.indexOf('case WebSection::Device:'));
+const deviceContent = content.slice(content.indexOf('case WebSection::Device:'), content.indexOf('void handleConfigShell'));
+assert.match(spotifyContent, /id='spotify-name'/);
+assert.match(spotifyContent, /id='spotify-credentials-form'/);
+assert.match(spotifyContent, /developer\.spotify\.com\/dashboard/);
+assert.match(spotifyContent, /Listen with Spotify Connect/);
+assert.doesNotMatch(deviceContent, /spotify-name|spotify-client-secret|spotify-credentials-form/);
+assert.match(source, /server\.on\("\/spotify", \[\] \{ handleConfigShell\(WebSection::Spotify\); \}\)/);
 const script = source.match(/R"JS\(<script>\(\(\)=>\{const \$=id=>document\.getElementById\(id\);let state=null,saving=false;([\s\S]*?)<\/script>\)JS"/);
 assert.ok(script, 'Production credential script is present');
 const production = '(()=>{const $=id=>document.getElementById(id);let state=null,saving=false;' + script[1];
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+async function checkMovedName() {
+  const match = spotifyContent.match(/R"JS\(<script>(\(\(\)=>\{const \$=id=>document\.getElementById\(id\);let savedName=null,saving=false;[\s\S]*?)<\/script>\)JS"/);
+  assert.ok(match, 'Name script belongs to the Spotify page');
+  const elements = {}, handlers = {};
+  const $ = id => elements[id] ||= {value:'',disabled:true,focus(){}};
+  let failSave=false,posts=[];
+  vm.runInNewContext(match[1], {URLSearchParams,TextEncoder,
+    document:{getElementById:$},window:{addEventListener:(name,fn)=>handlers[name]=fn},
+    fetch:async(url,options={})=>{
+      if(options.method==='POST') {
+        assert.equal(url,'/api/device/spotify-name');posts.push(Object.fromEntries(options.body));
+        return {ok:!failSave,json:async()=>failSave?{error:'Name rejected.'}:{spotifyName:posts.at(-1).name}};
+      }
+      assert.equal(url,'/api/device');
+      return {ok:true,json:async()=>({spotifyName:'Radiohead fixture',updateInProgress:false})};
+    },
+  });
+  await flush();assert.equal($('spotify-name').value,'Radiohead fixture');
+  assert.equal($('spotify-name-save').disabled,false);
+  assert.equal($('spotify-connect-target').textContent,'Radiohead fixture');
+  $('spotify-name').value='  Kitchen fixture  ';await $('spotify-name-save').onclick();
+  assert.equal(posts[0].name,'Kitchen fixture');
+  assert.equal($('spotify-connect-target').textContent,'Kitchen fixture');
+  $('spotify-name').value='א'.repeat(33);await $('spotify-name-save').onclick();assert.equal(posts.length,1);
+  $('spotify-name').value='Retain this draft';failSave=true;await $('spotify-name-save').onclick();
+  assert.equal($('spotify-name').value,'Retain this draft');assert.equal($('spotify-name-save').disabled,false);
+  let warned=false;handlers.beforeunload({preventDefault(){warned=true;}});assert.equal(warned,true);
+}
 
 async function fixture({configured = false, failLoad = false, maintenance = false} = {}) {
   const elements = {}, handlers = {}, posts = [];
@@ -51,6 +89,7 @@ async function fixture({configured = false, failLoad = false, maintenance = fals
 }
 
 (async()=>{
+  await checkMovedName();
   const f=await fixture();
   assert.match(f.$('spotify-credentials-configured').textContent,/No Spotify/);
   assert.equal(f.$('spotify-credentials-save').disabled,false);

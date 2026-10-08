@@ -1,5 +1,35 @@
 # Web configuration implementation progress
 
+### 2026-10-08 — Separate Spotify tab and setup guide (ready for review)
+
+- **Task:** `/root`; files: web server, web CSS, existing browser fixture and setup
+  documentation. User explicitly requested a separate Spotify tab, superseding
+  the original five-section navigation specification for this addition.
+- **Implemented:** Moved both Spotify name and credential forms to `/spotify`, added local
+  SVG icons, linked Spotify developer credential instructions and Connect
+  playback guidance, and kept the established save APIs and NVS keys. Adapted the
+  mobile navigation for six sections, with two rows of three at 420px and below.
+  The guide displays the saved Connect name. Device retains maintenance controls;
+  stylesheet versioning refreshes previously cached navigation CSS.
+- **Functional: pass (host/build).** `node tools/check_spotify_web.cjs` covers
+  moved-form ownership, name load/save, UTF-8 byte limits, retained failed drafts,
+  unload guards and existing credential flows. Sanitized persistence checks
+  (`python3 tools/check_spotify_credentials.py`) and `git diff --check` pass.
+  `pio run -e esp32s3` passes (34.87 s), including the integrated Spotify image.
+  Arduino RAM: 96,244 / 327,680 B (29.4%); flash: 3,590,103 / 6,553,600 B
+  (54.8%). Integrated DIRAM: 260,359 / 341,760 B (76.18%); image: 4,392,048 B,
+  with 2,161,552 B app space free. Build log:
+  `/tmp/radiohead-spotify-tab-build.log`. No credentials, generated binaries or
+  vendor changes are included.
+- **Visual: partial, host pass.** Production tab markup and CSS checked on desktop
+  and at 320px, including icons, navigation, credential controls and listening
+  instructions. Screenshots: `/tmp/radiohead-spotify-tab-preview/desktop.png`,
+  `mobile.png` and `mobile-form.png`. Synthetic state only; this fixture does not
+  establish full firmware-served visual acceptance.
+- **Device: not verified.** No flash, real credential entry or playback changes
+  performed. Next: inspect firmware-served desktop/phone pages, save/restart and
+  verify Spotify playback/persistence with the serial monitor closed.
+
 ### 2026-10-08 — Spotify web credentials (ready for review)
 
 - **Task:** `/root`; files: `src/web_server.cpp`, `src/settings_spotify.cpp`,
@@ -15,7 +45,7 @@
 - **Contract:** `POST /api/device/spotify-credentials` accepts `revision`,
   `clientId`, `clientSecret` and requires `X-Radiohead-Config: 1` (no CORS).
   Each credential is bounded to 128 non-space printable ASCII bytes. Replies:
-  400 invalid input, 403 missing header, 409 stale revision, 503 maintenance or
+  400 invalid input, 403 missing header, 409 stale revision, 409 maintenance or
   scheduled restart, 500 storage failure, 200 durable save. `/api/device` exposes
   only `spotifyCredentialsConfigured` and `spotifyCredentialsRevision`; both
   responses are `no-store`. Revisions change at startup and after saves.
