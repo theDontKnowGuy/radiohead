@@ -26,6 +26,26 @@ use a fresh ESP-IDF build directory with the standalone
 checkout paths. The default build requires the installed PlatformIO ESP-IDF
 5.5.5 and Arduino 3.3.11 packages.
 
+### Spotify app setup
+
+Open the radio's web configuration at `/device`. Under **Spotify app credentials**,
+enter your developer app's **Client ID** and **Client Secret**, select **Save
+credentials**, then use **Restart radio**. After restart, select the radio in
+Spotify Connect on your phone. Saving confirms storage, not Spotify authentication;
+both values are required for every replacement. Cancel discards only the draft.
+Saved credentials are never returned to the browser. Show entered Client Secret
+reveals only the current draft, which is cleared and masked after a successful save.
+Use the radio's local configuration on a trusted network; it is served over HTTP.
+
+Credentials live as one versioned `spotify/app_creds` NVS blob; the integrated
+adapter falls back to existing `spotify/client_id` and `spotify/client_secret`
+only when that blob is absent. Old keys and `login_blob` are retained. Older
+standalone images do not read web-saved replacements. The existing factory-reset
+policy preserves the Spotify namespace, including app credentials and pairing.
+The form rejects stale writes, offers an explicit draft-discarding reload, and
+blocks writes during firmware maintenance or a scheduled restart. New credentials
+apply only after restart; saving does not interrupt the current Spotify session.
+
 The image reads Spotify credentials and pairing from NVS. S2 playback was
 accepted by the user; S3 resource/stress acceptance remains open. Current device
 evidence and resource concerns are in

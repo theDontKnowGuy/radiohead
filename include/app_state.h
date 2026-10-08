@@ -80,7 +80,9 @@ public:
 private:
     lgfx::Panel_ILI9341 panel_;
     lgfx::Bus_SPI bus_;
-    LightTouchXPT2046 touch_;
+    // Use the stock reader, including its pressure gate.
+    // The custom sampler above is retained for comparison but is inactive.
+    lgfx::Touch_XPT2046 touch_;
 };
 
 extern const char* ntpServer;

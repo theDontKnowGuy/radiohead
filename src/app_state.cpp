@@ -130,9 +130,8 @@ LGFX_Config::LGFX_Config() {
     touchConfig.pin_miso = TFT_MISO;
     touchConfig.pin_cs = TOUCH_CS;
     touchConfig.pin_int = -1;
-    // More acquisition time for light/high-resistance contact. The bounded
-    // 41-byte burst takes ~1.31 ms at 250 kHz; the display clock is unchanged.
-    touchConfig.freq = 250000;
+    // Stock XPT2046 acquisition at 1 MHz.
+    touchConfig.freq = 1000000;
     touchConfig.x_min = 300;
     touchConfig.x_max = 3900;
     touchConfig.y_min = 400;

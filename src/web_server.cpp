@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <time.h>
+#include <esp_random.h>
 
 #include "app_state.h"
 #include "device_control.h"
@@ -43,6 +44,7 @@ bool webRestartScheduled = false;
 unsigned long webRestartAt = 0;
 uint32_t networkConfigurationEpoch = 1;
 uint32_t weatherConfigurationEpoch = 1;
+uint32_t spotifyCredentialsEpoch = 1;
 constexpr unsigned long WEB_RESTART_DELAY_MS = 500;
 
 String htmlEscape(const String& value) {
@@ -232,7 +234,9 @@ String deviceStateJson() {
     String json;
     json.reserve(650);
     json = "{\"name\":\"radiohead\",\"spotifyName\":\"" + jsonEscape(spotifyStationName()) +
-        "\",\"connection\":\"" + jsonEscape(connectionState()) +
+        "\",\"spotifyCredentialsConfigured\":" + String(spotifyAppCredentialsConfigured() ? "true" : "false") +
+        ",\"spotifyCredentialsRevision\":" + String(spotifyCredentialsEpoch) +
+        ",\"connection\":\"" + jsonEscape(connectionState()) +
         "\",\"address\":\"" + jsonEscape(localAddress()) +
         "\",\"firmwareVersion\":\"" + jsonEscape(FIRMWARE_VERSION) +
         "\",\"firmwareReleased\":\"" + jsonEscape(FIRMWARE_RELEASED) +
@@ -779,13 +783,19 @@ $('weather-show-key').onchange=keyControls;$('weather-clear-key').onchange=keyCo
         html += "<div class='rh-pagehead'><div><h1>Device &amp; maintenance</h1><p>Device information and safe maintenance.</p></div></div>"
             "<section class='rh-box'><h2>Radio</h2><dl class='rh-data' id='device-about'><dt>Status</dt><dd>Loading…</dd></dl></section>"
             "<section class='rh-box'><h2>Spotify station name</h2><p class='rh-muted'>Name shown in Spotify Connect. Restart the radio after saving.</p><label class='rh-field'><span>Name</span><input id='spotify-name' maxlength='64' autocomplete='off'></label><div class='rh-footer'><span class='rh-formstatus' id='spotify-name-status' role='status'></span><button class='rh-button rh-primary' id='spotify-name-save' type='button'>Save name</button></div></section>"
+            "<form class='rh-box' id='spotify-credentials-form' autocomplete='off'><h2>Spotify app credentials</h2><p class='rh-muted'>Enter the Client ID and Client Secret from your Spotify developer app. To replace saved credentials, enter both values. Save, then restart the radio to apply them.</p>"
+            "<p class='rh-note' id='spotify-credentials-configured'>Loading Spotify settings…</p><div class='rh-grid2'>"
+            "<label class='rh-field'><span>Client ID</span><input id='spotify-client-id' type='text' maxlength='128' autocomplete='off' autocapitalize='none' spellcheck='false' dir='ltr' aria-describedby='spotify-credentials-status' disabled></label>"
+            "<label class='rh-field'><span>Client Secret</span><input id='spotify-client-secret' type='password' maxlength='128' autocomplete='new-password' autocapitalize='none' spellcheck='false' dir='ltr' aria-describedby='spotify-credentials-status' disabled></label></div>"
+            "<label class='rh-inlinecheck'><input id='spotify-show-secret' type='checkbox' disabled>Show entered Client Secret</label>"
+            "<div class='rh-footer'><span class='rh-formstatus' id='spotify-credentials-status' role='status'>Loading…</span><button class='rh-button' id='spotify-credentials-reload' type='button'>Reload settings</button><button class='rh-button' id='spotify-credentials-cancel' type='button' disabled>Cancel</button><button class='rh-button rh-primary' id='spotify-credentials-save' type='submit' disabled>Save credentials</button></div></form>"
             "<section class='rh-box'><details><summary>Open diagnostics</summary><p class='rh-muted'>Only measured device state is shown. Credentials are never included.</p><dl class='rh-data' id='device-diagnostics'></dl></details></section>"
             "<section class='rh-box' aria-labelledby='release-update'><h2 id='release-update'>Release updates</h2><p class='rh-muted'>The radio checks the official GitHub release channel hourly. Firmware and its manifest are fetched only over GitHub TLS and the image digest is verified before restart.</p><label class='rh-field'><span>When a new release is found</span><select id='release-auto'><option value='1'>Install automatically</option><option value='0'>Manual — choose Install update here</option></select></label><div class='rh-footer'><span class='rh-formstatus' id='release-status' role='status'>Checking update status…</span><button class='rh-button' id='release-check' data-maintenance-action type='button'>Check now</button><button class='rh-button rh-primary' id='release-install' data-maintenance-action type='button' hidden>Install update</button></div></section>"
             "<section class='rh-box' aria-labelledby='firmware-update'><h2 id='firmware-update'>Firmware update</h2><p class='rh-muted'>Choose a firmware .bin, review it, then start the update. Keep power connected until the update is complete.</p>"
             "<label class='rh-upload' for='firmware-file'><input id='firmware-file' type='file' accept='.bin,application/octet-stream'>Choose firmware .bin</label><p class='rh-note' id='firmware-review'>Choose a file to review its name and size.</p>"
             "<div class='rh-footer'><span class='rh-formstatus' id='firmware-status' role='status'>No update selected.</span><button class='rh-button rh-primary' id='firmware-start' data-maintenance-action type='button' disabled>Review update</button></div></section>"
             "<section class='rh-box'><h2>Restart</h2><p class='rh-muted'>Restarting stops playback. Your stations, Wi-Fi and settings are kept.</p><div class='rh-footer'><button class='rh-button' id='device-restart' data-maintenance-action type='button'>Restart radio</button></div></section>"
-            "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, favorites and station artwork. Touch calibration is kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
+            "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration are kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
             R"HTML(<div class='rh-overlay' id='device-dialog' hidden><section class='rh-dialog' role='dialog' aria-modal='true' aria-labelledby='device-dialog-title'><h2 id='device-dialog-title'></h2><p id='device-dialog-copy'></p><label class='rh-field' id='device-reset-label' hidden><span>Type RESET to continue</span><input id='device-reset-confirm' autocomplete='off'></label><div class='rh-footer'><button class='rh-button' id='device-dialog-cancel' type='button'>Cancel</button><button class='rh-button rh-primary' id='device-dialog-confirm' type='button'></button></div></section></div><script>)HTML";
         html += R"JS((()=>{const $=id=>document.getElementById(id);let state=null,file=null,dialogAction=null,lastFocus=null;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -795,7 +805,7 @@ function setBusy(busy){document.querySelectorAll('[data-maintenance-action]').fo
 function render(data){state=data;$('spotify-name').value=data.spotifyName;$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware version',`${data.firmwareVersion} · ${data.firmwareReleased}`)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
 async function refresh(){try{render(await fetch('/api/device',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){$('firmware-status').textContent=error.message;}}
 function closeDialog(){const dialog=$('device-dialog');dialog.hidden=true;$('device-reset-confirm').value='';$('device-reset-label').hidden=true;if(lastFocus)lastFocus.focus();}
-function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Touch calibration remains. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':'The radio will validate and write the selected firmware, then restart. Keep power connected until it reconnects.';$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
+function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration remain. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':'The radio will validate and write the selected firmware, then restart. Keep power connected until it reconnects.';$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
 async function post(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
 function updateFile(){file=$('firmware-file').files[0]||null;if(!file){$('firmware-review').textContent='Choose a file to review its name and size.';$('firmware-start').disabled=true;return;}const enough=!state||!state.freeSketchBytes||file.size<=state.freeSketchBytes;$('firmware-review').textContent=`${file.name} · ${bytes(file.size)}. Compatibility is checked by the radio while writing.`;$('firmware-start').disabled=!enough;if(!enough)$('firmware-status').textContent='This file is larger than the currently reported free update space.';else $('firmware-status').textContent='Ready to review update.';}
 function upload(){if(!file)return;setBusy(true);$('firmware-status').textContent='Sending firmware to the radio…';const form=new FormData();form.set('firmware',file,file.name);const request=new XMLHttpRequest();request.open('POST','/api/device/ota');request.upload.onprogress=e=>{if(e.lengthComputable)$('firmware-status').textContent=`Sending firmware to the radio… ${Math.round(e.loaded*100/e.total)}%`;};request.onerror=()=>{$('firmware-status').textContent='The browser connection was lost. Reopen the radio after it restarts.';};request.onload=()=>{let data={};try{data=JSON.parse(request.responseText)}catch(_){data={error:'The radio returned an invalid response.'};}if(request.status>=200&&request.status<300){$('firmware-status').textContent='Firmware was written. The radio is restarting; reconnect, then confirm its firmware build.';}else{$('firmware-status').textContent=data.error||'Firmware update failed; the radio kept its current firmware.';setBusy(false);}};request.send(form);}
@@ -808,6 +818,20 @@ async function pollUpdateStatus(){clearTimeout(pollTimer);try{const data=await f
 $('release-check').onclick=async()=>{try{$('release-check').disabled=true;$('release-install').hidden=true;$('release-status').textContent='Checking for updates…';updatePolls=0;await request('/api/update/check');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-check').disabled=false;}};
 $('release-install').onclick=async()=>{if(!confirm('Download, verify and install this release now? The radio will restart.'))return;try{$('release-install').disabled=true;$('release-check').disabled=true;$('release-status').textContent='Starting update…';updatePolls=0;await request('/api/update/install');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-install').disabled=false;$('release-check').disabled=false;}};
 $('release-auto').onchange=async()=>{try{const data=await request('/api/update/auto',{enabled:$('release-auto').value});renderRemote(data);updatePolls=0;pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;pollUpdateStatus();}};pollUpdateStatus();})();</script>)JS";
+        html += R"JS(<script>(()=>{const $=id=>document.getElementById(id);let state=null,saving=false;
+const fields=['spotify-client-id','spotify-client-secret'];
+function dirty(){return fields.some(id=>$(id).value.length>0);}
+function controls(){const blocked=saving||!state||state.updateInProgress;[...fields,'spotify-show-secret','spotify-credentials-save','spotify-credentials-cancel'].forEach(id=>$(id).disabled=blocked);$('spotify-credentials-reload').disabled=saving;}
+function discard(){fields.forEach(id=>{$(id).value='';$(id).removeAttribute('aria-invalid');});$('spotify-show-secret').checked=false;$('spotify-client-secret').type='password';}
+function apply(data){state=data;discard();$('spotify-credentials-configured').textContent=data.spotifyCredentialsConfigured?'Credentials configured. Saved values are never shown.':'No Spotify app credentials saved.';fields.forEach(id=>$(id).placeholder=data.spotifyCredentialsConfigured?'Enter a replacement value':'Enter your app credential');controls();}
+async function reload(){if(saving||dirty()&&!confirm('Discard entered Spotify credentials and reload settings?'))return;try{const response=await fetch('/api/device',{cache:'no-store'});if(!response.ok)throw Error('Spotify settings are unavailable.');apply(await response.json());$('spotify-credentials-status').textContent=state.updateInProgress?'Firmware maintenance is in progress. Wait for the radio to restart.':'No changes yet';}catch(error){$('spotify-credentials-status').textContent=error.message;}finally{controls();}}
+$('spotify-credentials-form').onsubmit=async event=>{event.preventDefault();if(saving||!state||state.updateInProgress)return;const values=fields.map(id=>$(id).value.trim());for(let i=0;i<values.length;i++){if(!/^[!-~]{1,128}$/.test(values[i])){$(fields[i]).setAttribute('aria-invalid','true');$(fields[i]).focus();$('spotify-credentials-status').textContent='Enter both credentials, each up to 128 ASCII characters without spaces.';return;}}saving=true;controls();$('spotify-credentials-status').textContent='Saving credentials…';try{const response=await fetch('/api/device/spotify-credentials',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Radiohead-Config':'1'},body:new URLSearchParams({revision:state.spotifyCredentialsRevision,clientId:values[0],clientSecret:values[1]})});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Credentials could not be saved.');apply({...state,...data});$('spotify-credentials-status').textContent='Credentials saved. Restart the radio to apply them, then select it in Spotify Connect.';}catch(error){$('spotify-credentials-status').textContent=error.message;}finally{saving=false;controls();}};
+$('spotify-show-secret').onchange=()=>{$('spotify-client-secret').type=$('spotify-show-secret').checked?'text':'password';};
+fields.forEach(id=>$(id).oninput=()=>{$(id).removeAttribute('aria-invalid');$('spotify-credentials-status').textContent=dirty()?'Unsaved changes':'No changes yet';});
+$('spotify-credentials-cancel').onclick=()=>{if(saving)return;discard();$('spotify-credentials-status').textContent='Draft discarded.';};$('spotify-credentials-reload').onclick=reload;
+window.addEventListener('beforeunload',event=>{if(dirty()||saving){event.preventDefault();event.returnValue='';}});
+document.addEventListener('click',event=>{if(!event.target.closest('.rh-nav a')||!dirty()&&!saving)return;if(saving||!confirm('Discard entered Spotify credentials and leave this page?')){event.preventDefault();event.stopImmediatePropagation();}else discard();},true);
+reload();})();</script>)JS";
         break;
     }
 }
@@ -1152,6 +1176,12 @@ bool webUpdateInProgress() {
 }
 
 void startWebServer() {
+    // Invalidate forms left open across a reboot as well as concurrent saves.
+    spotifyCredentialsEpoch = esp_random();
+    // A custom header prevents cross-site HTML forms from replacing credentials.
+    // The configuration endpoint does not grant cross-origin access.
+    const char* configurationHeaders[] = {"X-Radiohead-Config"};
+    server.collectHeaders(configurationHeaders, 1);
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     server.on("/api/spotify/resources", HTTP_GET, [] {
         server.send(200, "application/json", validationDiagnosticsJson());
@@ -1300,7 +1330,34 @@ void startWebServer() {
     });
     server.on("/api/weather", HTTP_GET, [] { sendWeatherState(); });
     server.on("/api/device", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json; charset=utf-8", deviceStateJson());
+    });
+    server.on("/api/device/spotify-credentials", HTTP_POST, [] {
+        server.sendHeader("Cache-Control", "no-store");
+        if (server.header("X-Radiohead-Config") != "1") {
+            server.send(403, "application/json; charset=utf-8", "{\"error\":\"Save credentials from the radio configuration page.\"}");
+            return;
+        }
+        if (webRestartScheduled || webMaintenanceBusy()) { sendMaintenanceBusy(); return; }
+        if (server.arg("revision") != String(spotifyCredentialsEpoch)) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"Spotify settings changed. Reload settings to review before replacing them.\"}");
+            return;
+        }
+        const String clientId = server.arg("clientId");
+        const String clientSecret = server.arg("clientSecret");
+        if (!isValidSpotifyAppCredential(clientId) || !isValidSpotifyAppCredential(clientSecret)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Enter both credentials, each up to 128 ASCII characters without spaces.\"}");
+            return;
+        }
+        if (!saveSpotifyAppCredentials(clientId, clientSecret)) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Spotify credentials could not be saved.\"}");
+            return;
+        }
+        ++spotifyCredentialsEpoch;
+        server.send(200, "application/json; charset=utf-8",
+                    "{\"spotifyCredentialsConfigured\":true,\"spotifyCredentialsRevision\":" +
+                    String(spotifyCredentialsEpoch) + "}");
     });
     server.on("/api/device/spotify-name", HTTP_POST, [] {
         if (webMaintenanceBusy()) { sendMaintenanceBusy(); return; }

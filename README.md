@@ -17,11 +17,78 @@ station playlists, podcasts, weather, alarms, audio settings, and OTA updates.
 The bundled `lib/ESP32-audioI2S-master` directory is third-party code and remains
 separate from the application modules.
 
+## Encoder wiring and controls
+
+The radio has **one physical button: the encoder's push switch**. Disconnect power
+before wiring. These are ESP32-S3 GPIO numbers, not physical header positions.
+
+| Encoder module pin | ESP32-S3 connection |
+| --- | --- |
+| `+` / `VCC` | **3.3 V**, not 5 V |
+| `GND` | Common GND |
+| `CLK` / `A` | GPIO 4 (`PIN_A`) |
+| `DT` / `B` | GPIO 5 (`PIN_B`) |
+| `SW` | GPIO 7 (`PIN_SW`) |
+
+Encoder modules may pull their signal pins up to VCC. Use 3.3 V so these signals
+stay within the ESP32-S3's input limits; its GPIOs are not 5 V tolerant. See the
+[Espressif datasheet](https://documentation.espressif.com/esp32_s3_datasheet_en.pdf).
+A bare mechanical encoder needs no VCC connection: connect its rotary common and
+one switch contact to GND, A/B to GPIO 4/5, and the other switch contact to GPIO 7.
+The firmware enables internal pull-ups.
+
+- Turn to change volume; short-click to mute/unmute.
+- Hold the switch while powering on or resetting to request Wi-Fi setup/recovery.
+  Boot checks for a pressed switch, without a timed hold threshold. Release after
+  setup mode starts. This does not start touch calibration.
+- During normal operation, a hold of approximately 700 ms requests sleep.
+
+Leave GPIO 6 (`PIN_K0`) disconnected for this one-button wiring. **Current firmware
+limitation:** deep-sleep wake still uses GPIO 6, so the encoder on GPIO 7 cannot
+yet wake the radio from deep sleep. Moving wake to GPIO 7 and retiring the old K0
+sleep/factory-reset handler remains firmware work. Do not bridge GPIO 6 and 7.
+
+The future [battery power plan](docs/hardware/battery-power-architecture-plan.md)
+also uses this one switch and GPIO 7, through an adapted BSS138 interface to the
+IP5310 KEY input. It replaces the relay proposal. That circuit requires different
+switch wiring and bench validation; its software shutdown sequence is not yet
+implemented.
+
 ## Stereo speakers
 
 The firmware already sends stereo audio on the I2S bus. Two mono MAX98357A
 amplifiers share the same BCLK, LRC/WS, and DIN signals; their `SD_MODE` wiring
 selects left or right audio.
+
+With power disconnected, wire the two MAX98357A boards as follows:
+
+| Connection | Left amplifier | Right amplifier |
+| --- | --- | --- |
+| Regulated 5 V supply | `VIN` | `VIN` |
+| Common GND with ESP32-S3 | `GND` | `GND` |
+| GPIO 15 (`I2S_BCK`) | `BCLK` | `BCLK` |
+| GPIO 17 (`I2S_LRC`) | `LRC` / `WS` | `LRC` / `WS` |
+| GPIO 16 (`I2S_DIN`, ESP32 data output) | `DIN` | `DIN` |
+| Gain selection | Leave `GAIN` unconnected | Leave `GAIN` unconnected |
+| Speaker terminals | Left speaker to this board's `SPK+` / `SPK-` | Right speaker to this board's `SPK+` / `SPK-` |
+
+The amps accept the ESP32's 3.3 V I2S signals while powered from 5 V. No MCLK is
+needed. Use a supply and wiring sized for both amps plus the radio, and keep I2S
+wires short. Use speakers rated at least 4 ohms with a suitable power rating.
+Unconnected `GAIN` selects the default 9 dB gain. See the
+[Adafruit MAX98357A pinout guide](https://learn.adafruit.com/adafruit-max98357-i2s-class-d-mono-amp/pinouts).
+
+For common **Adafruit-style boards powered at 5 V**:
+
+- Left amp: connect `SD` / `SD_MODE` directly to its `VIN`.
+- Right amp: connect `SD` / `SD_MODE` to its `VIN` through an **additional 1 MΩ
+  resistor**, retaining the board's existing pull-up.
+
+Before attaching speakers, measure `SD` to GND: left must be above 1.4 V; right
+must be between 0.77 and 1.4 V. Clone pull-ups can differ, so choose the resistor
+for the measured voltage if needed. Then test channel separation at low volume
+using known left/right audio. Electrical and playback checks remain on-device
+verification; this table does not claim they have been performed.
 
 ![MAX98357A stereo wiring diagram](docs/hardware/max98357a-stereo-wiring.svg)
 

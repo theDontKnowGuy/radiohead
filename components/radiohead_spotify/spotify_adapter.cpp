@@ -358,9 +358,8 @@ void connectTask(void*) {
     cfg.stack_alloc_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     cfg.inherit_cfg = true;
     esp_pthread_set_cfg(&cfg);
-    std::string clientId, clientSecret;
-    if (!readNvs("client_id", clientId, 128) ||
-        !readNvs("client_secret", clientSecret, 128)) {
+    String savedClientId, savedClientSecret;
+    if (!loadSpotifyAppCredentials(savedClientId, savedClientSecret)) {
         Serial.println("[s2] Spotify app credentials absent");
         vTaskDelete(nullptr);
         return;
@@ -387,8 +386,8 @@ void connectTask(void*) {
     while (!paired.load(std::memory_order_acquire)) vTaskDelay(pdMS_TO_TICKS(100));
     try {
         auto ctx = cspot::Context::createFromBlob(blob);
-        ctx->config.clientId = clientId;
-        ctx->config.clientSecret = clientSecret;
+        ctx->config.clientId = savedClientId.c_str();
+        ctx->config.clientSecret = savedClientSecret.c_str();
         bool authenticated = false;
         for (int attempt = 0; attempt < 10 && !authenticated; ++attempt) {
             Serial.printf("[s2] AP attempt=%d internal=%u largest=%u\n", attempt + 1,

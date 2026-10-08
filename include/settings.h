@@ -67,6 +67,13 @@ bool saveFirmwareAutoUpdate(bool enabled);
 // Spotify Connect advertises this name after the next restart.
 String spotifyStationName();
 bool saveSpotifyStationName(const String& name);
+// Private application use only: web responses expose configured state, never
+// these values. A complete replacement takes effect after restart.
+constexpr size_t SPOTIFY_APP_CREDENTIAL_MAX_BYTES = 128;
+bool isValidSpotifyAppCredential(const String& value);
+bool loadSpotifyAppCredentials(String& clientId, String& clientSecret);
+bool spotifyAppCredentialsConfigured();
+bool saveSpotifyAppCredentials(const String& clientId, const String& clientSecret);
 
 // Favorites live in their own versioned namespace so legacy radio settings and
 // their keys remain compatible.  Station IDs are catalog slots, not UI rows.

@@ -1,5 +1,52 @@
 # Web configuration implementation progress
 
+### 2026-10-08 — Spotify web credentials (ready for review)
+
+- **Task:** `/root`; files: `src/web_server.cpp`, `src/settings_spotify.cpp`,
+  `include/settings.h`, `src/CMakeLists.txt`, integrated Spotify adapter,
+  `tools/check_spotify_credentials.py`, `tools/check_spotify_web.cjs`,
+  `tools/native_spotify/`, native Spotify README and this ledger. Existing
+  worktree changes to root README and touch configuration are preserved.
+- **Implemented:** Device page Client ID/Secret form with configured state,
+  draft-only Show secret, Save/Cancel, input errors, draft-preserving failures,
+  explicit reload and navigation guard. Both values are required for replacement;
+  success clears/remasks the draft. Save applies after an explicit restart and
+  does not restart or change the active playback session.
+- **Contract:** `POST /api/device/spotify-credentials` accepts `revision`,
+  `clientId`, `clientSecret` and requires `X-Radiohead-Config: 1` (no CORS).
+  Each credential is bounded to 128 non-space printable ASCII bytes. Replies:
+  400 invalid input, 403 missing header, 409 stale revision, 503 maintenance or
+  scheduled restart, 500 storage failure, 200 durable save. `/api/device` exposes
+  only `spotifyCredentialsConfigured` and `spotifyCredentialsRevision`; both
+  responses are `no-store`. Revisions change at startup and after saves.
+- **Persistence:** One versioned `spotify/app_creds` blob saves the pair together.
+  Integrated startup reads it, falling back to legacy `client_id/client_secret`
+  only when absent. Legacy keys and `login_blob` stay intact. A malformed new
+  record cannot revive old credentials. Existing factory reset preserves Spotify
+  credentials/pairing; its web copy now states that policy. CMake source discovery
+  tracks the added unit while respecting ESP-IDF's script-mode requirements.
+- **Functional: pass (host/build).** Sanitized native checks cover absent/legacy
+  data, both invalid fields, limits, complete replacement, failed writes/reads,
+  malformed records and bounded unterminated data. Node checks cover entry,
+  reveal/remask, duplicate submit, cancel, maintenance, load/save failures,
+  conflict/reload and navigation guards. `pio run -e esp32s3` passes (42.35 s),
+  including the integrated image. Arduino RAM: 96,244 / 327,680 B (29.4%);
+  flash: 3,584,287 / 6,553,600 B (54.7%). Integrated DIRAM: 260,359 / 341,760 B
+  (76.18%); image: 4,386,192 B, with 2,167,408 B app space free. These are static
+  reports, not runtime/audio measurements. Build log:
+  `/tmp/radiohead-spotify-web-build.log`. `git diff --check` passes.
+- **Visual: partial.** Desktop production-form markup/CSS inspected in a host
+  browser fixture (`/tmp/radiohead-spotify-preview/desktop.png`). Navy forms and
+  existing CSS/assets are reused. Phone layout and full firmware-served visual
+  acceptance remain open.
+- **Device: partial, read-only.** No firmware was flashed by this task. The radio
+  was subsequently observed serving the new form with empty credential fields;
+  `GET /api/device` returned HTTP 200, `Cache-Control: no-store`, configured=true
+  and a numeric revision with no credential fields. No real credentials were
+  entered, changed or logged. Next: save a real pair, restart, verify persistence
+  and Spotify playback with the serial monitor closed; check phone layout and
+  audio continuity while saving. These acceptance gates remain open.
+
 ### 2026-10-07 — W6 weather API-key entry (ready for review)
 
 - **Task:** `/root`; affected files: `src/web_server.cpp` and this ledger.
