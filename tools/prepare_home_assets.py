@@ -7,7 +7,8 @@ from pathlib import Path
 import hashlib
 import json
 import math
-from PIL import Image, ImageChops, ImageDraw, ImageEnhance, __version__
+from PIL import Image, ImageDraw, ImageEnhance, __version__
+from prepare_wifi_assets import prepare_wifi_assets
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/ui/assets/home'
@@ -113,20 +114,7 @@ line(d,[(4.8,6.5),(15.4,2.0)],icon,1.8)
 for x in [6.3,13.7]: d.ellipse(box((x-1.55,11.5,x+1.55,14.5)),fill=icon)
 finish('brand_radio',image)
 
-def wifi_image(radii):
-    image,d=drawing(24,19)
-    for r in radii:
-        d.arc(box((12-r,15-r,12+r,15+r)),215,325,fill=white,width=round(2.2*S))
-    d.ellipse(box((10.4,13.4,13.6,16.6)),fill=white)
-    return image.resize((24,19),Image.Resampling.LANCZOS)
-
-wifi_full=wifi_image([11,7])
-save('wifi',wifi_full)
-for name,radii in [('wifi_fair',[7]),('wifi_weak',[])]:
-    # Keep exactly the original icon's pixels, removing only unwanted arcs.
-    variant=wifi_full.copy()
-    variant.putalpha(ImageChops.darker(wifi_full.getchannel('A'),wifi_image(radii).getchannel('A')))
-    save(name,variant)
+wifi_recipe = prepare_wifi_assets(OUT)
 
 for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
     image,d=drawing(64,56)
@@ -151,6 +139,7 @@ for kind in ['clear','partly','cloudy','rain','snow','storm','mist','unknown']:
     finish('weather_'+kind,image)
 
 manifest={'pillow':__version__,'background_source':'docs/bg1.png',
+          'wifi_recipe':wifi_recipe,
           'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
           'recipe':'direct 320x240 Lanczos (no crop), saturation 0.92, uniform 16% black veil; 74x74 square category tiles with dense, slightly translucent gradients and visible borders; 38px icons and 20px Home brand radio mark from original geometry at 4x',
           'assets':{}}

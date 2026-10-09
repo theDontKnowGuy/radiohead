@@ -1,5 +1,64 @@
 # Touch UI implementation status
 
+## 2026-10-09 — Wi-Fi header optical alignment
+
+The reduced Wi-Fi variants retain transparent space where their outer arcs were
+removed, making them sit below the adjacent header text. Center the visible
+mark by raising the two-arc variant 2 px, one-arc 4 px, and dot-only 6 px. Applies
+to Home and the shared page header; the full icon/menu and RSSI thresholds stay
+unchanged. This supersedes the fixed-dot screen placement in the preceding icon
+entry.
+
+**Visual: pass (native fixture). Functional: pass (build/render checks).**
+Re-rendered `.pio/ui_native/home-wifi-level-{0..4}.png` and
+`settings-wifi-menu.png` with the production layout/PNG decoder, using
+`.pio/typography-venv/bin/python tools/render_ui_fonts.py --wifi-only`.
+Inspected Home and the shared Settings header. The decoded variants' visible
+vertical centers agree within 0.5 px. `pio run -e esp32s3` passes, including the
+integrated Spotify image (35.47 s), and `git diff --check` passes.
+Arduino RAM: 96,260 / 327,680 B (29.4%); flash: 3,694,087 / 6,553,600 B (56.4%).
+Integrated image: 4,496,080 B; app partition free: 2,057,520 B.
+Build log: `/tmp/radiohead-wifi-alignment-build.log`. These totals include
+preserved concurrent work. No assets, credentials, vendor code or compiled
+artifacts were added by this alignment change.
+
+**Hardware: not verified; not flashed.** Check the Home header on the physical
+TFT after installing the updated firmware.
+
+## 2026-10-09 — Supplied three-arc Wi-Fi icon
+
+Replace the old two-arc icon with the user's supplied rounded three-arc shape,
+adapted to transparent white ink. Prepare matching two-arc, one-arc and dot-only
+variants at the existing 24 × 19 size. Keep the dot at a fixed position and show
+it for every connected signal level. Use the full icon in the Network menu.
+Existing RSSI thresholds remain unchanged: excellent shows three arcs, good two,
+fair one, weak the dot alone; disconnected/setup mode has no signal icon.
+`tools/prepare_wifi_assets.py` traces the supplied reference geometry into the
+existing asset system and can regenerate only these icons. The Home generator
+uses the same recipe; provenance, dimensions and hashes are in the manifest.
+
+**Visual: pass (native fixture). Functional: pass (build/render checks).**
+Inspected production LovyanGFX/PNG-decoder renders at 320 × 240 for all connected
+levels and the Settings menu. Evidence: `.pio/ui_native/home-wifi-level-{0..4}.png`,
+`settings-wifi-menu.png`, `wifi-level-{0..4}.png`, `wifi-menu-fallback.png`.
+Command: `.pio/typography-venv/bin/python tools/render_ui_fonts.py --wifi-only`.
+Decoded-pixel checks confirm the dot body stays fixed across connected levels,
+arc pixel counts increase, disconnected is blank and the fallback menu uses the
+same full asset. Asset preview: `/tmp/radiohead-wifi-assets-preview.png`.
+The focused fixture avoids the previously recorded unrelated full-suite failure;
+no full-suite pass is claimed.
+
+`pio run -e esp32s3` and `git diff --check` pass. Arduino RAM: 96,252 / 327,680 B
+(29.4%); flash: 3,694,055 / 6,553,600 B (56.4%). Integrated Spotify image:
+4,496,048 B; app partition free: 2,057,552 B. Build log:
+`/tmp/radiohead-wifi-icons-build.log` (59.62 s). Concurrent SSID-scan work and
+existing README/framework-plan edits were preserved. Only the intended Wi-Fi
+prepared assets changed; no vendor edits, credentials or compiled artifacts
+were added.
+
+**Hardware: not verified; not flashed.** Check native icon legibility on the TFT
+and two arcs at approximately −62 dBm after installing the firmware.
+
 ## 2026-10-09 — Settings confirmation button spacing
 
 Restart, factory reset and Forget Wi-Fi share a taller dialog, with their

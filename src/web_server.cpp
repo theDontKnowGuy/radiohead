@@ -783,7 +783,7 @@ const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function statusText(s){return ({connected:'Connected',restarting:'Restarting…',setup:'Setup mode',disconnected:'Disconnected'})[s.state]||'Unknown';}
 function passwordControls(){const open=$('network-security').value==='open';$('network-password-field').hidden=open;$('network-show-password').parentElement.hidden=open;$('network-password-help').textContent=$('network-ssid').value===state?.configuredSsid&&state?.hasSavedPassword?'Leave blank to keep the stored password.':'Enter a password for this network.';}
 function resetDraft(){if(!state)return;$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-security').value=state.configuredSsid&&!state.hasSavedPassword?'open':'secured';$('network-show-password').checked=false;$('network-password').type='password';passwordControls();}
-function render(s){state=s;if(!draftInitialized){resetDraft();draftInitialized=true;}$('network-state').textContent=statusText(s);$('network-name').textContent=s.ssid||'Not configured';$('network-signal').textContent=s.state==='connected'?s.rssi+' dBm':'Not available';$('network-bssid').textContent=s.state==='connected'&&s.bssid?s.bssid:'Not available';$('network-address').textContent=s.address||'—';$('network-forget').disabled=!s.configuredSsid||restarting;const recovery=$('network-recovery');if(s.state==='setup'){recovery.hidden=false;recovery.textContent=`Setup recovery is available on ${s.setupSsid||'the radio setup network'} at ${s.address}.`;}else if(s.message){recovery.hidden=false;recovery.textContent=s.message;}else recovery.hidden=true;}
+function render(s){state=s;if(!draftInitialized){resetDraft();draftInitialized=true;if(!s.configuredSsid)scan();}$('network-state').textContent=statusText(s);$('network-name').textContent=s.ssid||'Not configured';$('network-signal').textContent=s.state==='connected'?s.rssi+' dBm':'Not available';$('network-bssid').textContent=s.state==='connected'&&s.bssid?s.bssid:'Not available';$('network-address').textContent=s.address||'—';$('network-forget').disabled=!s.configuredSsid||restarting;const recovery=$('network-recovery');if(s.state==='setup'){recovery.hidden=false;recovery.textContent=`Setup recovery is available on ${s.setupSsid||'the radio setup network'} at ${s.address}.`;}else if(s.message){recovery.hidden=false;recovery.textContent=s.message;}else recovery.hidden=true;}
 async function refresh(){if(restarting)return;try{render(await fetch('/api/network',{cache:'no-store'}).then(r=>r.json()));passwordControls();}catch(_){$('network-form-status').textContent='Radio connection lost. Reopen the radio after joining its network.';}}
 function selectNetwork(ssid){$('network-ssid').value=ssid;$('network-form-status').textContent='Network name copied. Choose its security and enter a password if needed.';}
 function renderScan(data){const out=$('network-results');if(data.state==='scanning'){out.innerHTML='<p class="rh-note">Scanning nearby networks…</p>';clearTimeout(scanTimer);scanTimer=setTimeout(loadScan,700);return;}if(data.state==='failed'){out.innerHTML='<p class="rh-note rh-error">Wi-Fi scan failed. Try again.</p>';return;}out.innerHTML=data.networks?.length?data.networks.map(n=>`<button type="button" class="rh-result" data-ssid="${esc(n.ssid)}"><span><bdi>${esc(n.ssid)}</bdi><small>${esc(n.security)} · ${n.rssi} dBm</small></span></button>`).join(''):'<p class="rh-note">No visible networks found. Enter a hidden network name instead.</p>';out.querySelectorAll('[data-ssid]').forEach(b=>b.onclick=()=>selectNetwork(b.dataset.ssid));}
@@ -1191,12 +1191,26 @@ String networkScanJson() {
     const int scan = wifiBrowserScanComplete();
     if (scan == WIFI_SCAN_RUNNING) return "{\"state\":\"scanning\"}";
     if (scan < 0) return "{\"state\":\"failed\"}";
-    String json = "{\"state\":\"complete\",\"networks\":[";
-    int emitted = 0;
-    for (int index = 0; index < scan && emitted < 20; ++index) {
+    // Limit distinct names, not access points. Inspect the entire scan so a
+    // stronger duplicate beyond the response limit can still replace its AP.
+    int networkIndices[20];
+    int networkCount = 0;
+    for (int index = 0; index < scan; ++index) {
         const String ssid = WiFi.SSID(index);
         if (ssid.isEmpty()) continue;
-        if (emitted++) json += ',';
+        int match = 0;
+        while (match < networkCount && WiFi.SSID(networkIndices[match]) != ssid) ++match;
+        if (match < networkCount) {
+            if (WiFi.RSSI(index) > WiFi.RSSI(networkIndices[match])) networkIndices[match] = index;
+        } else if (networkCount < 20) {
+            networkIndices[networkCount++] = index;
+        }
+    }
+    String json = "{\"state\":\"complete\",\"networks\":[";
+    for (int network = 0; network < networkCount; ++network) {
+        const int index = networkIndices[network];
+        const String ssid = WiFi.SSID(index);
+        if (network) json += ',';
         const wifi_auth_mode_t security = WiFi.encryptionType(index);
         json += "{\"ssid\":\"" + jsonEscape(ssid) +
             "\",\"security\":\"" + wifiSecurityLabel(security) +

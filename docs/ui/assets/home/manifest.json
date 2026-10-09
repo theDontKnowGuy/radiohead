@@ -142,21 +142,33 @@
         24,
         19
       ],
-      "sha256": "ba9dc93b2ca1a9f536ceb48190c4eb4fabbfb8643df7b2fafa1cff205d872df2"
+      "sha256": "24ecdc4ab2fac1de9837e6dfe7eef879ba4f8dc3ead70d8e34cf654146dc4c80"
     },
     "wifi_fair": {
       "size": [
         24,
         19
       ],
-      "sha256": "f3a26c555e5cc316ed7bb86f87f7d228780302d3b1a0b1dd31ffbd2aa2b46f0c"
+      "sha256": "7f6a78522af24a22227da76801050aa7e3de33149f959ff507a9c7eda5938e33"
     },
     "wifi_weak": {
       "size": [
         24,
         19
       ],
-      "sha256": "a6bcb83921b735d507f267d6476d6332ca27c8e06ea2415a043691656fc72ea9"
+      "sha256": "f9f42c27de4a46523492c1c3e44f1778b41df0001fe39b6936e87c83a73f072e"
+    },
+    "wifi_dot": {
+      "size": [
+        24,
+        19
+      ],
+      "sha256": "93695d79f79f8b71ae49eab0c880c9ccd421acd2bd29281eb1cfe5f5109a4e41"
     }
+  },
+  "wifi_recipe": {
+    "reference": "User-supplied 612x612 three-arc Wi-Fi icon, 2026-10-09; traced geometry",
+    "recipe": "Rounded cubic strokes and persistent circle; white ink on transparency; 24x19 at 16x supersampling, Lanczos; remove outer arcs without moving the dot",
+    "pillow": "12.1.1"
   }
 }

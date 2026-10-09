@@ -8,8 +8,8 @@ enum class BootMode : uint8_t {
     NewArtwork = 1,
 };
 
-// Preserve the former RADIOHEAD_NEW_BOOT_SCREEN=1 production default.
-constexpr BootMode DEFAULT_BOOT_MODE = BootMode::NewArtwork;
+// New installs and factory resets start with the original screen (mode 0).
+constexpr BootMode DEFAULT_BOOT_MODE = BootMode::Original;
 
 constexpr bool isSupportedBootMode(BootMode mode) {
     return mode == BootMode::Original || mode == BootMode::NewArtwork;

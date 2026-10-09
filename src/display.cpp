@@ -843,10 +843,11 @@ void drawSettingsBackground() {
 void drawWiFiSignal(int16_t centerX, int16_t top) {
     const uint8_t level = wifiSignalLevel();
     if (level == 4) canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), centerX - 12, top);
-    // Removing outer arcs leaves the visible pixels lower in the 24x19 asset.
-    // Center each reduced mark on the same line as the original icon.
+    // Center the visible mark on the header text, accounting for the extra
+    // transparent space left above each variant when outer arcs are removed.
     else if (level == 3) canvas().drawPng(ui_home_wifi_fair, sizeof(ui_home_wifi_fair), centerX - 12, top - 2);
-    else if (level == 2) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top - 6);
+    else if (level == 2) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top - 4);
+    else if (level == 1) canvas().drawPng(ui_home_wifi_dot, sizeof(ui_home_wifi_dot), centerX - 12, top - 6);
 }
 
 void drawHomeHeader(bool timeValid, const String& station, const char* source) {
@@ -1761,13 +1762,7 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         // Use the same prepared Wi-Fi mark as the page headers. This keeps the
         // Settings destination immediately recognizable and avoids a second,
         // slightly different network symbol.
-        if (uiFrameReady) {
-            canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), x - 12, y - 10);
-        } else {
-            canvas().drawArc(x, y - 2, 7, 10, 210, 330, color);
-            canvas().drawArc(x, y - 2, 13, 16, 210, 330, color);
-            canvas().fillCircle(x, y + 5, 2, color);
-        }
+        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), x - 12, y - 10);
         break;
     case 1:  // Display
         canvas().drawRoundRect(x - 13, y - 9, 26, 18, 3, color);

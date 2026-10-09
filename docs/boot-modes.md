@@ -8,11 +8,11 @@ Both screens are embedded in the same firmware image; the former
 | 0 | `BootMode::Original` | `docs/boot.png` | 168 |
 | 1 | `BootMode::NewArtwork` | `docs/ui/boot screen/bootscreen.png` | 210 |
 
-Mode 1 remains the default for missing, unreadable or unsupported stored values.
+Mode 0 is the default for missing, unreadable or unsupported stored values.
 The selection is one unsigned byte at `radio/bootMode` in Preferences. Existing
 settings remain intact; normal settings saves do not write this independently
 owned key. Factory reset clears it with the other radio settings and restores
-mode 1. Preferences survive ordinary firmware updates.
+mode 0. Preferences survive ordinary firmware updates.
 
 `loadSettings()` loads the mode before drawing the boot screen. `bootMode` is
 active for this startup; `configuredBootMode` is the durable next-startup choice.

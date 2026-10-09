@@ -184,7 +184,8 @@ int weatherID = 801, weatherStateMux = 0;
 // persistence into the native visual test binary.
 uint32_t stationArtworkContentRevision(int) { return 0; }
 bool loadStationArtwork(int, int, uint16_t*, size_t) { return false; }
-uint8_t wifiSignalLevel() { return 4; }
+uint8_t fixtureWifiSignalLevel = 4;
+uint8_t wifiSignalLevel() { return fixtureWifiSignalLevel; }
 #define portENTER_CRITICAL(mux) ((void)0)
 #define portEXIT_CRITICAL(mux) ((void)0)
 time_t fixtureTime(time_t*) { return 1789992000; }  // Mon, 21 Sep 2026 UTC
@@ -215,12 +216,36 @@ void save(const char* path) {
     fclose(file);
 }
 int main(int argc, char** argv) {
-    assert(argc == 2 || (argc == 3 && std::string(argv[2]) == "--network-boot-only"));
+    assert(argc == 2 || (argc == 3 && (std::string(argv[2]) == "--network-boot-only" ||
+                                     std::string(argv[2]) == "--wifi-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--wifi-only") {
+        const std::string dir = argv[1];
+        for (uint8_t level = 0; level <= 4; ++level) {
+            fixtureWifiSignalLevel = level;
+            renderHome({}, "15:01", true);
+            save((dir + "/home-wifi-level-" + std::to_string(level) + ".ppm").c_str());
+            frame.fillScreen(TFT_BLACK);
+            drawWiFiSignal(12, 0);
+            save((dir + "/wifi-level-" + std::to_string(level) + ".ppm").c_str());
+        }
+        fixtureWifiSignalLevel = 3;
+        UiRenderState settings;
+        settings.page = UiPage::Settings;
+        renderSettings(settings, "15:01", true);
+        save((dir + "/settings-wifi-menu.ppm").c_str());
+        // The direct-TFT fallback must use the same full three-arc asset.
+        antialias = false;
+        frame.fillScreen(TFT_BLACK);
+        drawSettingsGlyph(0, 12, 10);
+        save((dir + "/wifi-menu-fallback.ppm").c_str());
+        puts("Native Wi-Fi icon fixtures rendered through production layout/PNG decoder.");
+        return 0;
+    }
     if (argc == 3) {
         const std::string dir = argv[1];
         assert(frame.textWidth("Joining saved Wi-Fi", display_fonts::caption()) <= 137);

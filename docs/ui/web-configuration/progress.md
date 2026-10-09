@@ -1,5 +1,47 @@
 # Web configuration implementation progress
 
+### 2026-10-09 — Automatic scan during initial Wi-Fi setup (ready for device testing)
+
+- **Scope:** Start the existing asynchronous scan once when the Network page
+  first loads settings with no configured SSID. Retain manual rescanning and
+  form drafts; a saved but disconnected network does not trigger the scan.
+- **Implemented:** The Network script starts a scan during its first successful
+  settings render if `configuredSsid` is empty. The existing draft-initialization
+  guard prevents periodic state refreshes from repeatedly scanning.
+- **Functional: pass (host/build).** Embedded JavaScript syntax and isolated
+  DOM/fetch checks cover automatic scan/polling, saved connected/disconnected/
+  setup networks, draft preservation, initial state-load recovery, scan failure
+  and manual rescanning. Harness: `/tmp/radiohead-wifi-autoscan-check.cjs`.
+  `pio run -e esp32s3` and `git diff --check` pass. Build log:
+  `/tmp/radiohead-wifi-autoscan-build.log`. RAM 96,252 B (29.4%); flash
+  3,694,087 B (56.4%); integrated image 4,496,064 B, with 2,057,536 B free.
+- **Visual/device:** Not verified; not flashed. On a radio with no saved Wi-Fi,
+  open Network and confirm scan results appear without a button press; verify
+  manual retry and audio continuity. Existing unique-SSID scan results remain.
+
+### 2026-10-09 — Unique Wi-Fi scan names (ready for device testing)
+
+- **Scope:** Return each visible SSID once, using its strongest scanned access
+  point's RSSI and security. Keep exact/case-sensitive names, the 20-network
+  response limit, asynchronous scan ownership and existing selection behavior.
+- **Implemented:** `src/web_server.cpp` keeps up to 20 representative scan
+  indices, checks the full result set for stronger duplicates, and emits RSSI
+  and security from the chosen AP. Equal signals retain the first match.
+- **Functional: pass (host/build).** The extracted production JSON handler
+  passes ASan/UBSan checks for stronger/weaker/tied duplicates, security pairing,
+  case-sensitive and escaped/Hebrew names, hidden names, the 20-unique limit,
+  late duplicates, scanning/failure/empty states and result cleanup. Temporary
+  harness: `/tmp/radiohead-wifi-scan-check.py`. All seven scenarios in
+  `python3 tools/check_wifi_roaming.py` pass. `git diff --check` passes.
+  `pio run -e esp32s3` passes after retrying an image-generation failure while
+  another firmware build was active. Log: `/tmp/radiohead-wifi-scan-build.log`.
+- **Build:** Arduino RAM 96,252 / 327,680 B (29.4%); flash 3,694,055 /
+  6,553,600 B (56.4%). Integrated Spotify image 4,496,048 B, with 2,057,552 B
+  app-slot headroom. Reports include concurrent unrelated work preserved here.
+- **Visual/device:** Not verified; no browser styling changes or device flash.
+  After flashing, scan a multi-AP network and confirm one row per visible SSID
+  with the strongest observed RSSI; check audio continuity during scanning.
+
 ### 2026-10-09 — Connected AP MAC address (ready for device testing)
 
 - **Scope:** Show the connected access point's BSSID in Network > Connection to

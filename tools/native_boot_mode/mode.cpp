@@ -49,6 +49,10 @@ int main() {
     values["radio/vol"] = uint8_t(8);
     values["touch/data"] = std::string("fixture-calibration");
     loadBootModeSettings();
+    expectModes(BootMode::Original, BootMode::Original);
+    assert(saveBootMode(BootMode::NewArtwork));
+    expectModes(BootMode::Original, BootMode::NewArtwork);
+    loadBootModeSettings();
     expectModes(BootMode::NewArtwork, BootMode::NewArtwork);
     assert(saveBootMode(BootMode::Original));
     expectModes(BootMode::NewArtwork, BootMode::Original);
@@ -78,6 +82,7 @@ int main() {
     expectModes(DEFAULT_BOOT_MODE, DEFAULT_BOOT_MODE);
     failOpen = false;
     assert(saveBootMode(BootMode::NewArtwork));
+    loadBootModeSettings();
     failWrite = true;
     assert(!saveBootMode(BootMode::Original));
     expectModes(BootMode::NewArtwork, BootMode::NewArtwork);
@@ -122,9 +127,9 @@ int main() {
     server.request(HTTP_POST); // Reverting a pending change needs no restart.
     assert(server.status == 200);
     expectModes(BootMode::NewArtwork, BootMode::NewArtwork);
-    assert(saveBootMode(BootMode::Original));
+    assert(saveBootMode(BootMode::NewArtwork));
     values.erase("radio/bootMode"); // Existing factory reset clears radio NVS.
     loadBootModeSettings();
-    expectModes(DEFAULT_BOOT_MODE, DEFAULT_BOOT_MODE);
+    expectModes(BootMode::Original, BootMode::Original);
     std::cout << "Boot mode storage and HTTP handler checks passed.\n";
 }

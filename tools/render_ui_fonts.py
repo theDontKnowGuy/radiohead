@@ -47,8 +47,18 @@ for index, path in enumerate(c + cpp):
 exe = out / 'home'
 subprocess.run(['clang++', '-Wl,-dead_strip', *objects, '-o', str(exe)], check=True)
 network_boot_only = '--network-boot-only' in sys.argv[1:]
-subprocess.run([str(exe), str(out)] + (['--network-boot-only'] if network_boot_only else []),
+wifi_only = '--wifi-only' in sys.argv[1:]
+mode_args = ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
+subprocess.run([str(exe), str(out)] + mode_args,
                check=True, env={**os.environ, 'TZ': 'UTC'})
+if wifi_only:
+    from PIL import Image
+    for pattern in ('home-wifi-level-*.ppm', 'wifi-level-*.ppm',
+                    'settings-wifi-menu.ppm', 'wifi-menu-fallback.ppm'):
+        for path in out.glob(pattern):
+            Image.open(path).save(path.with_suffix('.png'))
+    print(f'PNG Wi-Fi evidence: {out}')
+    sys.exit(0)
 if network_boot_only:
     try:
         from PIL import Image

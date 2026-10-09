@@ -17,6 +17,10 @@ station playlists, podcasts, weather, alarms, audio settings, and OTA updates.
 The bundled `lib/ESP32-audioI2S-master` directory is third-party code and remains
 separate from the application modules.
 
+The [framework consolidation plan](docs/framework-consolidation-plan.md) recommends
+one authoritative ESP-IDF build, retaining Arduino as a component. Implementation
+and device validation of that consolidation are pending.
+
 ## Encoder wiring and controls
 
 The radio has **one physical button: the encoder's push switch**. Disconnect power
