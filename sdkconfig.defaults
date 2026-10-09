@@ -1,4 +1,5 @@
-# Experimental direct ESP-IDF/Arduino build. Keep Radiohead's partition layout.
+# Authoritative ESP-IDF build with Arduino-ESP32 as a component.
+# Captured against the effective integrated ESP-IDF 5.5.5 baseline.
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_AUTOSTART_ARDUINO=y
 CONFIG_FREERTOS_HZ=1000

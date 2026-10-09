@@ -12,7 +12,7 @@ set -euo pipefail
 
 REPO="${RADIOHEAD_REPO:-theDontKnowGuy/radiohead}"
 RELEASE_ENVS="${RADIOHEAD_RELEASE_ENVS:-esp32s3}"
-PIO="${PIO:-pio}"
+PYTHON="${PYTHON:-python3}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STAGING="$ROOT/build/release"
 HEADER="$ROOT/include/FirmwareVersion.h"
@@ -34,7 +34,7 @@ read_define() {
 }
 
 command -v gh >/dev/null 2>&1 || die "gh CLI not found"
-command -v "$PIO" >/dev/null 2>&1 || die "pio not found (set PIO=... if needed)"
+command -v "$PYTHON" >/dev/null 2>&1 || die "python3 not found (set PYTHON=... if needed)"
 
 VERSION="$(read_define FIRMWARE_VERSION)"
 RELEASED="$(read_define FIRMWARE_RELEASED)"
@@ -56,9 +56,9 @@ gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 && die "release $TAG alrea
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 for env in $RELEASE_ENVS; do
+    [ "$env" = esp32s3 ] || die "unsupported native build environment: $env"
     echo "==> Building $env"
-    "$PIO" run --project-dir "$ROOT" -e "$env" -t clean >/dev/null
-    "$PIO" run --project-dir "$ROOT" -e "$env"
+    "$PYTHON" "$ROOT/tools/build_firmware.py" --build-dir "$STAGING/idf-build"
     image="$ROOT/.pio/build/$env/firmware.bin"
     [ -f "$image" ] || die "no firmware image for $env"
     cp "$image" "$STAGING/radiohead-$env-$VERSION.bin"

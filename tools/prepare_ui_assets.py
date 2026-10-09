@@ -9,9 +9,7 @@ import json
 from pathlib import Path
 from subprocess import run
 
-Import("env")
-
-project = Path(env.subst("$PROJECT_DIR"))
+project = Path(__file__).resolve().parents[1]
 source = project / "docs" / "bg1.png"
 output = project / ".pio" / "ui_assets"
 png = output / "background_320x240.png"
@@ -121,7 +119,6 @@ boot_audio_content = (
 if not boot_audio_header.exists() or boot_audio_header.read_text() != boot_audio_content:
     boot_audio_header.write_text(boot_audio_content, encoding="utf-8")
 
-env.Append(CPPPATH=[str(output)])
 
 # The browser configuration shell is served from program flash.  Keeping the
 # stylesheet and coast photograph as separate HTTP resources prevents each

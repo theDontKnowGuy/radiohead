@@ -105,8 +105,35 @@ bridge-tied and must not be connected together or to ground.
 ## Build
 
 ```sh
+python3 tools/build_firmware.py
+# Equivalent PlatformIO convenience target:
 pio run -e esp32s3
 ```
+
+The complete firmware is compiled once through ESP-IDF 5.5.5 / CMake, with
+Arduino-ESP32 3.3.11 as a component and Spotify included. PlatformIO installs
+the pinned toolchain and libraries; it does not compile a second application.
+The entry command also prepares the pinned cspot/Bell candidate and generates
+UI assets. Asset generation currently requires macOS `sips`, `xxd`, and Swift.
+Python 3, PlatformIO and Git must be installed; the first build needs network
+access for dependencies. Framework updates remain a separate change.
+
+The OTA application stays at `.pio/build/esp32s3/firmware.bin`. Matching factory,
+ELF, bootloader, partition and initial OTA images plus `artifacts.json` are
+exported from the same native build. Flash an existing build with:
+
+```sh
+~/.platformio/penv/bin/python tools/flash_built_firmware.py --port /dev/cu.usbmodem11201
+```
+
+`pio run -e esp32s3 -t upload` builds then uses the same validated uploader.
+It writes the bootloader, partition table, initial OTA selection and app0,
+preserving NVS, LittleFS and app1. `--dry-run` prints that command without
+opening the serial port. `pio run -e esp32s3 -t clean` removes the default native
+build and exported artifacts. Use a fresh `--build-dir` after changing component
+paths or configuration defaults; `--output-dir` can isolate comparison artifacts.
+See the [consolidation verification record](docs/framework-consolidation-validation.md)
+for build evidence, baseline recovery artifacts and pending physical-device checks.
 
 ## Switch boot screens over HTTP
 

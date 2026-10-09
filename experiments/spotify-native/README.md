@@ -17,14 +17,19 @@ It writes only those boot regions and app0; it
 preserves NVS, LittleFS and app1. The output also includes a matching
 `firmware.factory.bin` for initial programming. The pinned cspot/Bell
 candidate is prepared under `.pio/spotify-candidate` if absent, and the native
-ESP-IDF/Arduino build is cached under `.pio/spotify-idf-build`. Its partition
-table is compared with the PlatformIO table on every build. Set
+ESP-IDF/Arduino build is cached under `.pio/idf-build`. The authoritative entry
+command is `python3 tools/build_firmware.py`; `pio run` delegates to it without
+compiling a preliminary Arduino application. The exported hash manifest and
+partition entries are checked before upload. Set
 `RADIOHEAD_SPOTIFY_CANDIDATE=/path/to/prepared/candidate` to reuse an
 already prepared checkout. Set `RADIOHEAD_SPOTIFY_BUILD=/path/to/build` to
-use a fresh ESP-IDF build directory with the standalone
-`experiments/spotify-native/build-integrated.sh` helper when changing candidate
-checkout paths. The default build requires the installed PlatformIO ESP-IDF
-5.5.5 and Arduino 3.3.11 packages.
+use a fresh ESP-IDF build directory (or pass `--build-dir`) when changing candidate
+checkout paths. `experiments/spotify-native/build-integrated.sh` remains a
+compatibility wrapper for the same entry command. It installs the pinned
+PlatformIO ESP-IDF 5.5.5 / Arduino 3.3.11 packages and libraries before building.
+UI asset generation currently requires macOS tools. Baseline recovery and
+pending hardware acceptance are recorded in
+[the consolidation verification record](../../docs/framework-consolidation-validation.md).
 
 ### Spotify app setup
 

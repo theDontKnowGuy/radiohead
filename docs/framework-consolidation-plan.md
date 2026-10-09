@@ -2,8 +2,9 @@
 
 Date: 2026-10-09
 
-Status: documented recommendation; implementation and hardware validation have
-not started under this plan.
+Status: stages 1–3 implemented and compiler/host verification for stage 4 passed.
+Baseline device measurements and consolidation hardware acceptance remain pending.
+See [the verification record](framework-consolidation-validation.md).
 
 ## Decision
 
@@ -24,11 +25,10 @@ combination reflects the dependencies chosen for each implementation. Espressif
 officially supports [Arduino as an ESP-IDF component](https://docs.espressif.com/projects/arduino-esp32/en/latest/esp-idf_component.html),
 including retaining Arduino `setup()` and `loop()` entry points.
 
-## Current implementation
+## Pre-consolidation implementation (baseline `abcf67b`)
 
-- [platformio.ini](../platformio.ini) declares an Arduino build and attaches
-  [build_spotify_default.py](../tools/build_spotify_default.py) as a post-build
-  script.
+- `platformio.ini` declared an Arduino build and attached the now-retired
+  `tools/build_spotify_default.py` as a post-build script.
 - PlatformIO builds the Arduino application first. The script then invokes
   [build-integrated.sh](../experiments/spotify-native/build-integrated.sh) to
   build the entire application again through ESP-IDF, including Spotify, and
@@ -153,10 +153,10 @@ scheduled by this plan.
 
 | Stage | Status | Evidence required |
 | --- | --- | --- |
-| Baseline | Pending | Exact source/dependency state, build reports and device observations |
-| Self-contained native build | Pending | Fresh build without preliminary Arduino compilation |
-| Single build/export/upload flow | Pending | Artifact and flash-layout checks; updated callers/documentation |
-| Consolidation acceptance | Pending | Host/build checks and comparable on-device results |
+| Baseline | Build/source record complete; device measurements pending | Recovery image/configuration saved locally; exact source and sizes in verification record |
+| Self-contained native build | Compiler verified | Fresh `.pio/idf-build`, explicit dependency/asset preparation, configuration parity |
+| Single build/export/upload flow | Host verified | Native and delegated builds, artifact rejection checks, upload dry run, updated release/OTA callers |
+| Consolidation acceptance | Host checks passed; hardware pending | Incremental rebuild evidence complete; physical-device matrix and resource measurements remain |
 | Selective Arduino removal | Optional; unscheduled | A specific problem and measured justification |
 
 Record compiler/host verification separately from physical-device evidence. The
@@ -164,5 +164,6 @@ build consolidation is complete when one reproducible application build produces
 all matching artifacts, required device checks pass, and known baseline defects
 and remaining Spotify acceptance gaps are explicitly carried forward.
 
-This documentation change implements no migration, performs no firmware build,
-and supplies no new device evidence.
+The implemented entry command is `python3 tools/build_firmware.py`; PlatformIO
+is a convenience delegate. This record supplies compiler/host evidence only.
+It does not establish hardware acceptance or close outstanding Spotify S3/S4 gaps.

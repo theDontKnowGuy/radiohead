@@ -6,13 +6,22 @@ or behavior spanning multiple modules.
 ## Build target
 
 - PlatformIO environment: `esp32s3`
-- Framework: Arduino on ESP32-S3
+- Authoritative build: ESP-IDF 5.5.5 / CMake with Arduino-ESP32 3.3.11 as a component
 - Board declaration: `esp32-s3-devkitc1-n16r8`
 - Flash configuration: 16 MB QSPI
 - PSRAM configuration: 8 MB Octal/OPI
-- Main build command: `pio run -e esp32s3`
+- Main build command: `python3 tools/build_firmware.py`
+- Convenience command: `pio run -e esp32s3` delegates to that same native build
 
-`platformio.ini` is authoritative when these notes and configuration disagree.
+`CMakeLists.txt`, component CMake files, `sdkconfig.defaults`, and `partitions.csv`
+own the firmware graph, definitions, device configuration and layout.
+`platformio.ini` pins dependency installation and supplies convenience targets;
+it does not compile a preliminary Arduino application. Assets are generated
+explicitly by the native entry command. Output remains
+`.pio/build/esp32s3/firmware.bin`, with matching boot, partition, initial OTA,
+factory, ELF and hash-manifest artifacts beside it. Use
+`tools/flash_built_firmware.py` for a validated, settings-preserving upload.
+See `docs/framework-consolidation-validation.md` for evidence and pending device checks.
 
 ## Module ownership
 
