@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "Audio.h"
+#include "boot_mode.h"
 
 constexpr int I2S_BCK = 15;
 constexpr int I2S_DIN = 16;
@@ -96,6 +97,11 @@ extern LGFX_Config tft;
 extern Audio audio;
 extern WebServer server;
 extern Preferences pref;
+
+// Active for this boot; shared by rendering and future mode-specific branding.
+extern BootMode bootMode;
+// Durable selection for the next boot. Saving never changes the active mode.
+extern BootMode configuredBootMode;
 
 extern String owmKey;
 extern String owmCity;

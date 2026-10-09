@@ -89,7 +89,12 @@ PlaybackState mediaPlaybackState();
 int mediaRequestedStation();
 int mediaPlayingStation();
 
-// Configure local I2S before boot audio, using normalized persisted settings.
+// Startup-noise experiment: quiet the I2S pins before other setup work.
+// Call only before I2S owns the pins; this does not control amplifier SD_MODE.
+void mediaPrepareBootOutput();
+// Configure local I2S before boot audio, keeping experiment output at zero.
 void mediaConfigureOutput();
+// Restore normalized persisted volume once the boot sound has opened.
+void mediaEnableBootOutput();
 // Initialize media state after boot audio and start the saved station outside AP mode.
 void mediaStartSavedPlayback();

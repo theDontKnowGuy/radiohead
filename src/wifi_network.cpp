@@ -10,19 +10,64 @@
 namespace {
 constexpr unsigned long kRoamScanIntervalMs = 10UL * 60UL * 1000UL;
 constexpr int32_t kRoamSignalMarginDb = 10;
+constexpr uint32_t kRoamScanMaxMsPerChannel = 120;
+constexpr unsigned long kBrowserScanRetentionMs = 30UL * 1000UL;
+enum class ScanOwner : uint8_t { None, Browser, Roaming };
+ScanOwner scanOwner = ScanOwner::None;
+bool browserResultsReady = false;
+unsigned long browserResultsReadyAt = 0;
 bool networkJoinStarted = false;
 }  // namespace
 
+WifiScanStartResult startWifiBrowserScan() {
+    if (scanOwner == ScanOwner::Roaming || WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+        return WifiScanStartResult::Busy;
+    }
+    WiFi.scanDelete();
+    scanOwner = ScanOwner::None;
+    browserResultsReady = false;
+    if (WiFi.scanNetworks(true, true) != WIFI_SCAN_RUNNING) {
+        return WifiScanStartResult::Failed;
+    }
+    scanOwner = ScanOwner::Browser;
+    return WifiScanStartResult::Started;
+}
+
+int wifiBrowserScanComplete() {
+    return scanOwner == ScanOwner::Browser ? WiFi.scanComplete() : WIFI_SCAN_FAILED;
+}
+
+void clearWifiBrowserScan() {
+    if (scanOwner != ScanOwner::Browser) return;
+    WiFi.scanDelete();
+    scanOwner = ScanOwner::None;
+    browserResultsReady = false;
+}
+
 void serviceWifiRoaming(unsigned long now) {
     static unsigned long lastScanAt = 0;
-    static bool ownScan = false;
-    if (isAP || st_ssid.isEmpty()) return;
 
-    if (ownScan) {
+    // Keep browser results long enough to fetch, but release abandoned scans
+    // without waiting for another HTTP request (including in setup AP mode).
+    if (scanOwner == ScanOwner::Browser) {
         const int count = WiFi.scanComplete();
         if (count == WIFI_SCAN_RUNNING) return;
-        ownScan = false;
-        if (count > 0 && WiFi.status() == WL_CONNECTED && WiFi.SSID() == st_ssid) {
+        if (count == WIFI_SCAN_FAILED) {
+            clearWifiBrowserScan();
+        } else if (!browserResultsReady) {
+            browserResultsReady = true;
+            browserResultsReadyAt = now;
+        } else if (now - browserResultsReadyAt >= kBrowserScanRetentionMs) {
+            clearWifiBrowserScan();
+        }
+        return;
+    }
+
+    if (scanOwner == ScanOwner::Roaming) {
+        const int count = WiFi.scanComplete();
+        if (count == WIFI_SCAN_RUNNING) return;
+        scanOwner = ScanOwner::None;
+        if (!isAP && count > 0 && WiFi.status() == WL_CONNECTED && WiFi.SSID() == st_ssid) {
             const int32_t currentRssi = WiFi.RSSI();
             const String currentBssid = WiFi.BSSIDstr();
             int bestIndex = -1;
@@ -50,10 +95,14 @@ void serviceWifiRoaming(unsigned long now) {
         return;
     }
 
+    if (isAP || st_ssid.isEmpty()) return;
     if (WiFi.status() != WL_CONNECTED || now - lastScanAt < kRoamScanIntervalMs ||
         WiFi.scanComplete() != WIFI_SCAN_FAILED) return;
     lastScanAt = now;
-    ownScan = WiFi.scanNetworks(true, false, false, 50, 0, st_ssid.c_str()) == WIFI_SCAN_RUNNING;
+    // Arduino's default active minimum is 100 ms; the maximum must not be 50 ms.
+    if (WiFi.scanNetworks(true, false, false, kRoamScanMaxMsPerChannel, 0, st_ssid.c_str()) == WIFI_SCAN_RUNNING) {
+        scanOwner = ScanOwner::Roaming;
+    }
 }
 
 bool startSetupAccessPoint(SetupAccessReason reason) {

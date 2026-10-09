@@ -32,9 +32,9 @@ uint8_t wifiSignalLevel();
 // from a complete page render leaves the audio service path responsive.
 bool homeStationTitleRefreshDue(unsigned long now);
 void renderHomeStationTitleTick();
-// Presents the branded network handoff for either the connected LAN or the
-// setup access point. The caller keeps HTTP servicing responsive while a
-// timed connected-network handoff is visible.
+// Presents the branded network handoff for a joining/connected LAN or the
+// setup access point. The caller refreshes on connectivity changes and keeps
+// HTTP servicing responsive while the timed startup handoff is visible.
 void showNetworkQrScreen();
 // OTA writes update this overlay from the web-server upload handler.  It is
 // intentionally status-only: image validation and flash writes remain in the

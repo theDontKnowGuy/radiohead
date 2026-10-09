@@ -148,6 +148,8 @@ LGFX_Config tft;
 Audio audio;
 WebServer server(80);
 Preferences pref;
+BootMode bootMode = DEFAULT_BOOT_MODE;
+BootMode configuredBootMode = DEFAULT_BOOT_MODE;
 
 String owmKey;
 String owmCity;

@@ -17,9 +17,8 @@
 #include "validation_diagnostics.h"
 #include "web_server.h"
 
-static_assert(NETWORK_JOIN_TIMEOUT_MS >= BootScreen::MaxHoldMs);
-
 void setup() {
+    mediaPrepareBootOutput();
     Serial.begin(115200);
     validationBegin();
 
@@ -39,6 +38,7 @@ void setup() {
     stationArtworkBegin();
 
     mediaConfigureOutput();
+    const unsigned long networkJoinStartedAt = millis();
     if (!isAP && st_ssid.isEmpty()) {
         startSetupAccessPoint(SetupAccessReason::NoCredentials);
     } else if (!isAP) {
@@ -47,20 +47,33 @@ void setup() {
     BootScreen::draw();
     const unsigned long bootScreenStartedAt = millis();
     if (BootScreen::AudioStartDelayMs == 0) BootScreen::startAudio();
-    BootScreen::hold(
-        bootScreenStartedAt, networkJoinPending, NETWORK_JOIN_TIMEOUT_MS);
-    finishNetworkConnection();
-    validationEvent(isAP ? "setup_ap" : "wifi_ready");
-
-    startWebServer();
+    BootScreen::hold(bootScreenStartedAt);
     showNetworkQrScreen();
+    startWebServer();
     if (!isAP) {
         const unsigned long configurationScreenStartedAt = millis();
-        while (millis() - configurationScreenStartedAt < 10000) {
+        bool connectedShown = !networkJoinPending();
+        // The QR screen gets its normal ten seconds even while joining. Only
+        // entry into the radio waits for any remaining Wi-Fi join budget.
+        while (millis() - configurationScreenStartedAt < 10000 ||
+               (networkJoinPending() &&
+                millis() - networkJoinStartedAt < NETWORK_JOIN_TIMEOUT_MS)) {
+            serviceWebConnectivity();
             server.handleClient();
+            serviceWebNetworkRequests(millis());
+            if (mediaLocalAudioAvailable()) audio.loop();
+            const bool connected = !networkJoinPending();
+            if (connected != connectedShown) {
+                connectedShown = connected;
+                showNetworkQrScreen();
+            }
             delay(2);
         }
     }
+    finishNetworkConnection();
+    serviceWebConnectivity();
+    if (isAP) showNetworkQrScreen();
+    validationEvent(isAP ? "setup_ap" : "wifi_ready");
 
     mediaStartSavedPlayback();
     validationEvent("startup_playback_requested");

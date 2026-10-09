@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <ctime>
 
+#include "boot_mode.h"
+
 using TouchCalibration = std::array<uint16_t, 8>;
 
 struct TimeZoneOption {
@@ -22,6 +24,11 @@ struct ArtworkStorageInfo {
 
 bool loadTouchCalibration(TouchCalibration& calibration);
 void loadSettings();
+// Startup only: load the stored mode into active and configured state.
+void loadBootModeSettings();
+// Write only radio/bootMode. Returns false without changing configured state on
+// validation/storage failure. The active mode changes at the next startup.
+bool saveBootMode(BootMode mode);
 bool saveTouchCalibration(const TouchCalibration& calibration);
 void saveSettings();
 // Coalesce rapid, user-driven web or encoder changes before touching flash.

@@ -8,33 +8,35 @@
 #include <FSImpl.h>
 
 #include "app_state.h"
+#include "media.h"
 #include "BootAudio.h"
-#ifndef RADIOHEAD_NEW_BOOT_SCREEN
-#define RADIOHEAD_NEW_BOOT_SCREEN 1
-#endif
-
-#if RADIOHEAD_NEW_BOOT_SCREEN
 #include "BootScreenNew.h"
-#else
 #include "BootLogo.h"
-#endif
 
 namespace BootScreen {
 namespace {
 
 constexpr int16_t kBarX = 80;
-#if RADIOHEAD_NEW_BOOT_SCREEN
-constexpr int16_t kBarY = 210;
-#else
-constexpr int16_t kBarY = 168;
-#endif
 constexpr int16_t kBarWidth = 160;
 constexpr int16_t kBarHeight = 8;
 constexpr int16_t kBarRadius = kBarHeight / 2;
 
-// Sampled from the blue/cyan treatment in the supplied artwork.
-constexpr uint32_t kBarColor = 0x1BB8EE;
-constexpr uint32_t kBarTroughColor = 0x0C3764;
+struct BootStyle {
+    const uint8_t* artwork;
+    size_t artworkBytes;
+    int16_t barY;
+    uint32_t barColor;
+    uint32_t barTroughColor;
+    unsigned long progressMs;
+};
+
+// Keep style values independent so the second mode can evolve separately.
+const BootStyle kOriginalStyle = {boot_logo_png, boot_logo_png_len, 168, 0x1BB8EE, 0x0C3764, ProgressMs};
+const BootStyle kNewArtworkStyle = {boot_screen_new_png, boot_screen_new_png_len, 210, 0xFFFFFF, 0x0C3764, ProgressMs * 3 / 2};
+
+const BootStyle& activeStyle() {
+    return bootMode == BootMode::Original ? kOriginalStyle : kNewArtworkStyle;
+}
 constexpr const char* kBootAudioPath = "/boot.aac";
 bool bootAudioStarted = false;
 bool bootDecoderReady = false;
@@ -105,28 +107,26 @@ fs::FS& bootAudioFilesystem() {
 
 void drawProgress(int percent) {
     if (percent <= 0) return;
+    const BootStyle& style = activeStyle();
     const int16_t width = std::max<int16_t>(
         static_cast<int16_t>((kBarWidth * std::min(percent, 100)) / 100),
         kBarHeight);
     tft.fillRoundRect(
-        kBarX, kBarY, width, kBarHeight, kBarRadius, kBarColor);
+        kBarX, style.barY, width, kBarHeight, kBarRadius, style.barColor);
 }
 
 }  // namespace
 
 void draw() {
+    const BootStyle& style = activeStyle();
     tft.fillScreen(TFT_BLACK);
-#if RADIOHEAD_NEW_BOOT_SCREEN
-    const bool drawn = tft.drawPng(boot_screen_new_png, boot_screen_new_png_len, 0, 0, 320, 240);
-#else
-    const bool drawn = tft.drawPng(boot_logo_png, boot_logo_png_len, 0, 0, 320, 240);
-#endif
+    const bool drawn = tft.drawPng(style.artwork, style.artworkBytes, 0, 0, 320, 240);
     if (!drawn) {
         Serial.println("[boot] boot artwork decode failed");
     }
     tft.drawRoundRect(
-        kBarX, kBarY, kBarWidth, kBarHeight, kBarRadius,
-        kBarTroughColor);
+        kBarX, style.barY, kBarWidth, kBarHeight, kBarRadius,
+        style.barTroughColor);
 }
 
 void startAudio() {
@@ -143,15 +143,14 @@ void startAudio() {
         }
     };
     bootAudioStarted = audio.connecttoFS(bootAudioFilesystem(), kBootAudioPath);
+    if (bootAudioStarted) mediaEnableBootOutput();
     Serial.printf("[boot] sound opened=%d bytes=%lu volume=%u\n",
                   bootAudioStarted, static_cast<unsigned long>(audio.getFileSize()),
                   audio.getVolume());
 }
 
-void hold(
-    unsigned long startedAt,
-    bool (*stillWaiting)(),
-    unsigned long maxHoldMs) {
+void hold(unsigned long startedAt) {
+    const unsigned long progressMs = activeStyle().progressMs;
     int lastPercent = -1;
     bool audioStartAttempted = AudioStartDelayMs == 0;
     unsigned long audioEndedAt = startedAt;
@@ -180,23 +179,19 @@ void hold(
             audioEndedAt = millis();
         }
         const int percent = static_cast<int>(
-            (std::min(elapsed, ProgressMs) * 100UL) / ProgressMs);
+            (std::min(elapsed, progressMs) * 100UL) / progressMs);
         if (percent != lastPercent) {
             lastPercent = percent;
             drawProgress(percent);
         }
-        if (audioFinished && millis() - audioEndedAt >= AfterAudioMs) break;
+        if (audioFinished && millis() - audioEndedAt >= AfterAudioMs &&
+            (bootMode == BootMode::Original || elapsed >= progressMs)) break;
         if (elapsed >= MaxHoldMs) break;
         delay(2);
     }
 
     drawProgress(100);
-    tft.fillScreen(TFT_BLACK);
     tft.waitDMA();
-    while (stillWaiting != nullptr && stillWaiting() &&
-           millis() - startedAt < maxHoldMs) {
-        delay(2);
-    }
 
     if (bootAudioStarted) {
         Serial.printf("[boot] sound progress read=%lu/%lu seconds=%lu decoder=%d eof=%d running=%d\n",

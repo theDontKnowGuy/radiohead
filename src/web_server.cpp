@@ -19,6 +19,7 @@
 #include "spotify_adapter.h"
 #include "ui_web_assets.h"
 #include "validation_diagnostics.h"
+#include "wifi_network.h"
 
 namespace {
 
@@ -36,6 +37,31 @@ size_t otaUploadExpectedBytes = 0;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
 bool webStationConnected = false;
+bool webSetupAccessPoint = false;
+bool webMdnsStarted = false;
+
+// Startup may register HTTP routes before the station interface has an address.
+// Advertise the same services once the asynchronous join completes.
+void startWebMdns() {
+    if (!webMdnsStarted && !isAP && WiFi.status() == WL_CONNECTED) {
+        if (MDNS.begin(kRadioMdnsHostname)) {
+            webMdnsStarted = true;
+            MDNS.addService("http", "tcp", 80);
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+            const bool spotifyServiceAdded = MDNS.addService("spotify-connect", "tcp", 80);
+            Serial.printf("[s2] spotify mDNS service=%d\n", spotifyServiceAdded);
+            if (spotifyServiceAdded) {
+                MDNS.addServiceTxt("spotify-connect", "tcp", "VERSION", "1.0");
+                MDNS.addServiceTxt("spotify-connect", "tcp", "CPath", "/spotify_info");
+                MDNS.addServiceTxt("spotify-connect", "tcp", "Stack", "SP");
+            }
+#endif
+            Serial.printf("[wifi] mDNS responder: http://%s.local\n", kRadioMdnsHostname);
+        } else {
+            Serial.println("[wifi] mDNS responder failed to start");
+        }
+    }
+}
 
 String networkMessage;
 enum class WebRestartAction : uint8_t { None, Network, Restart, FirmwareUpdate, FactoryReset };
@@ -231,6 +257,12 @@ void sendMaintenanceBusy() {
                 "{\"error\":\"Firmware maintenance is in progress. Wait for the radio to restart.\"}");
 }
 
+String bootModeStateFieldsJson() {
+    return "\"bootMode\":" + String(static_cast<uint8_t>(bootMode)) +
+        ",\"configuredBootMode\":" + String(static_cast<uint8_t>(configuredBootMode)) +
+        ",\"bootModeRestartRequired\":" + String(bootMode != configuredBootMode ? "true" : "false");
+}
+
 String deviceStateJson() {
     const ArtworkStorageInfo artwork = artworkStorageInfo();
     TouchCalibration calibration = {};
@@ -240,6 +272,7 @@ String deviceStateJson() {
     json = "{\"name\":\"radiohead\",\"spotifyName\":\"" + jsonEscape(spotifyStationName()) +
         "\",\"spotifyCredentialsConfigured\":" + String(spotifyAppCredentialsConfigured() ? "true" : "false") +
         ",\"spotifyCredentialsRevision\":" + String(spotifyCredentialsEpoch) +
+        "," + bootModeStateFieldsJson() +
         ",\"connection\":\"" + jsonEscape(connectionState()) +
         "\",\"address\":\"" + jsonEscape(localAddress()) +
         "\",\"firmwareVersion\":\"" + jsonEscape(FIRMWARE_VERSION) +
@@ -330,6 +363,7 @@ String networkStateJson() {
         "\",\"configuredSsid\":\"" + jsonEscape(st_ssid) +
         "\",\"hasSavedPassword\":" + String(st_pass.isEmpty() ? "false" : "true") +
         ",\"address\":\"" + jsonEscape(localAddress()) +
+        "\",\"bssid\":\"" + jsonEscape(connected ? WiFi.BSSIDstr() : String()) +
         "\",\"rssi\":" + String(connected ? WiFi.RSSI() : 0) +
         ",\"message\":\"" + jsonEscape(networkMessage) + "\"";
     if (isAP) {
@@ -733,7 +767,7 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
     case WebSection::Network:
         html += R"HTML(<div class='rh-pagehead'><div><h1>Network</h1><p>Keep your radio connected.</p></div></div>
 <section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>
-<dt>Status</dt><dd id='network-state'>Loading…</dd><dt>Network</dt><dd id='network-name'><bdi>—</bdi></dd><dt>Signal</dt><dd id='network-signal'>Not available</dd><dt>Address</dt><dd id='network-address' dir='ltr'>—</dd></dl>
+<dt>Status</dt><dd id='network-state'>Loading…</dd><dt>Network</dt><dd id='network-name'><bdi>—</bdi></dd><dt>Signal</dt><dd id='network-signal'>Not available</dd><dt>AP MAC address (BSSID)</dt><dd id='network-bssid' dir='ltr'>Not available</dd><dt>Address</dt><dd id='network-address' dir='ltr'>—</dd></dl>
 <div class='rh-row'><button class='rh-button rh-danger' type='button' id='network-forget'>Forget network</button></div><p class='rh-note rh-warning' id='network-recovery' hidden></p></section>
 <section class='rh-box' aria-labelledby='change-network'><h2 id='change-network'>Change Wi-Fi</h2><p>Scan results report the radio's observed security. Scanning does not replace your draft.</p>
 <div class='rh-row'><button class='rh-button' type='button' id='network-scan'>Scan networks</button><button class='rh-button rh-quiet' type='button' id='network-hidden'>Hidden network…</button></div><div id='network-results' class='rh-results' aria-live='polite'></div>
@@ -749,7 +783,7 @@ const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function statusText(s){return ({connected:'Connected',restarting:'Restarting…',setup:'Setup mode',disconnected:'Disconnected'})[s.state]||'Unknown';}
 function passwordControls(){const open=$('network-security').value==='open';$('network-password-field').hidden=open;$('network-show-password').parentElement.hidden=open;$('network-password-help').textContent=$('network-ssid').value===state?.configuredSsid&&state?.hasSavedPassword?'Leave blank to keep the stored password.':'Enter a password for this network.';}
 function resetDraft(){if(!state)return;$('network-ssid').value=state.configuredSsid||'';$('network-password').value='';$('network-security').value=state.configuredSsid&&!state.hasSavedPassword?'open':'secured';$('network-show-password').checked=false;$('network-password').type='password';passwordControls();}
-function render(s){state=s;if(!draftInitialized){resetDraft();draftInitialized=true;}$('network-state').textContent=statusText(s);$('network-name').textContent=s.ssid||'Not configured';$('network-signal').textContent=s.state==='connected'?s.rssi+' dBm':'Not available';$('network-address').textContent=s.address||'—';$('network-forget').disabled=!s.configuredSsid||restarting;const recovery=$('network-recovery');if(s.state==='setup'){recovery.hidden=false;recovery.textContent=`Setup recovery is available on ${s.setupSsid||'the radio setup network'} at ${s.address}.`;}else if(s.message){recovery.hidden=false;recovery.textContent=s.message;}else recovery.hidden=true;}
+function render(s){state=s;if(!draftInitialized){resetDraft();draftInitialized=true;}$('network-state').textContent=statusText(s);$('network-name').textContent=s.ssid||'Not configured';$('network-signal').textContent=s.state==='connected'?s.rssi+' dBm':'Not available';$('network-bssid').textContent=s.state==='connected'&&s.bssid?s.bssid:'Not available';$('network-address').textContent=s.address||'—';$('network-forget').disabled=!s.configuredSsid||restarting;const recovery=$('network-recovery');if(s.state==='setup'){recovery.hidden=false;recovery.textContent=`Setup recovery is available on ${s.setupSsid||'the radio setup network'} at ${s.address}.`;}else if(s.message){recovery.hidden=false;recovery.textContent=s.message;}else recovery.hidden=true;}
 async function refresh(){if(restarting)return;try{render(await fetch('/api/network',{cache:'no-store'}).then(r=>r.json()));passwordControls();}catch(_){$('network-form-status').textContent='Radio connection lost. Reopen the radio after joining its network.';}}
 function selectNetwork(ssid){$('network-ssid').value=ssid;$('network-form-status').textContent='Network name copied. Choose its security and enter a password if needed.';}
 function renderScan(data){const out=$('network-results');if(data.state==='scanning'){out.innerHTML='<p class="rh-note">Scanning nearby networks…</p>';clearTimeout(scanTimer);scanTimer=setTimeout(loadScan,700);return;}if(data.state==='failed'){out.innerHTML='<p class="rh-note rh-error">Wi-Fi scan failed. Try again.</p>';return;}out.innerHTML=data.networks?.length?data.networks.map(n=>`<button type="button" class="rh-result" data-ssid="${esc(n.ssid)}"><span><bdi>${esc(n.ssid)}</bdi><small>${esc(n.security)} · ${n.rssi} dBm</small></span></button>`).join(''):'<p class="rh-note">No visible networks found. Enter a hidden network name instead.</p>';out.querySelectorAll('[data-ssid]').forEach(b=>b.onclick=()=>selectNetwork(b.dataset.ssid));}
@@ -1154,7 +1188,7 @@ void sendStationArtworkThumbnail() {
 }
 
 String networkScanJson() {
-    const int scan = WiFi.scanComplete();
+    const int scan = wifiBrowserScanComplete();
     if (scan == WIFI_SCAN_RUNNING) return "{\"state\":\"scanning\"}";
     if (scan < 0) return "{\"state\":\"failed\"}";
     String json = "{\"state\":\"complete\",\"networks\":[";
@@ -1169,7 +1203,7 @@ String networkScanJson() {
             "\",\"open\":" + String(security == WIFI_AUTH_OPEN ? "true" : "false") +
             ",\"rssi\":" + String(WiFi.RSSI(index)) + "}";
     }
-    WiFi.scanDelete();
+    clearWifiBrowserScan();
     return json + "]}";
 }
 
@@ -1265,12 +1299,12 @@ void startWebServer() {
     });
     server.on("/api/network", HTTP_GET, [] { sendNetworkState(); });
     server.on("/api/network/scan/start", HTTP_POST, [] {
-        if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+        const WifiScanStartResult result = startWifiBrowserScan();
+        if (result == WifiScanStartResult::Busy) {
             server.send(409, "application/json; charset=utf-8", "{\"error\":\"A Wi-Fi scan is already in progress.\"}");
             return;
         }
-        WiFi.scanDelete();
-        if (WiFi.scanNetworks(true, true) == WIFI_SCAN_FAILED) {
+        if (result == WifiScanStartResult::Failed) {
             server.send(500, "application/json; charset=utf-8", "{\"error\":\"Wi-Fi scan could not start.\"}");
             return;
         }
@@ -1352,6 +1386,28 @@ void startWebServer() {
     server.on("/api/device", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json; charset=utf-8", deviceStateJson());
+    });
+    server.on("/api/device/boot-mode", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json; charset=utf-8", "{" + bootModeStateFieldsJson() + "}");
+    });
+    server.on("/api/device/boot-mode", HTTP_POST, [] {
+        server.sendHeader("Cache-Control", "no-store");
+        if (server.header("X-Radiohead-Config") != "1") {
+            server.send(403, "application/json; charset=utf-8", "{\"error\":\"Include X-Radiohead-Config: 1 to save boot mode.\"}");
+            return;
+        }
+        if (webRestartScheduled || webMaintenanceBusy()) { sendMaintenanceBusy(); return; }
+        const String mode = server.arg("mode");
+        if (mode != "0" && mode != "1") {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Boot mode must be 0 (original) or 1 (new artwork).\"}");
+            return;
+        }
+        if (!saveBootMode(mode == "0" ? BootMode::Original : BootMode::NewArtwork)) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Boot mode could not be saved.\"}");
+            return;
+        }
+        server.send(200, "application/json; charset=utf-8", "{" + bootModeStateFieldsJson() + "}");
     });
     server.on("/api/device/spotify-credentials", HTTP_POST, [] {
         server.sendHeader("Cache-Control", "no-store");
@@ -1861,9 +1917,9 @@ void startWebServer() {
     });
     server.on("/scan", [] { redirectTo("/?scan=1"); });
     server.on("/scan_data", [] {
-        if (WiFi.scanComplete() != WIFI_SCAN_RUNNING) {
-            WiFi.scanDelete();
-            WiFi.scanNetworks(true, true);
+        if (startWifiBrowserScan() == WifiScanStartResult::Busy) {
+            server.send(202, "application/json; charset=utf-8", "{\"state\":\"scanning\"}");
+            return;
         }
         server.send(202, "application/json; charset=utf-8", networkScanJson());
     });
@@ -1947,36 +2003,22 @@ void startWebServer() {
 
     server.begin();
     webStationConnected = !isAP && WiFi.status() == WL_CONNECTED;
-    if (!isAP && WiFi.status() == WL_CONNECTED) {
-        if (MDNS.begin(kRadioMdnsHostname)) {
-            MDNS.addService("http", "tcp", 80);
-#if defined(RADIO_SPOTIFY_EXPERIMENT)
-            const bool spotifyServiceAdded = MDNS.addService("spotify-connect", "tcp", 80);
-            Serial.printf("[s2] spotify mDNS service=%d\n", spotifyServiceAdded);
-            if (spotifyServiceAdded) {
-                MDNS.addServiceTxt("spotify-connect", "tcp", "VERSION", "1.0");
-                MDNS.addServiceTxt("spotify-connect", "tcp", "CPath", "/spotify_info");
-                MDNS.addServiceTxt("spotify-connect", "tcp", "Stack", "SP");
-            }
-#endif
-            Serial.printf("[wifi] mDNS responder: http://%s.local\n", kRadioMdnsHostname);
-        } else {
-            Serial.println("[wifi] mDNS responder failed to start");
-        }
-    }
+    webSetupAccessPoint = isAP;
+    startWebMdns();
 }
 
 void serviceWebConnectivity() {
-    if (isAP) return;
-
-    const bool connected = WiFi.status() == WL_CONNECTED;
-    if (connected == webStationConnected) return;
+    const bool connected = !isAP && WiFi.status() == WL_CONNECTED;
+    if (connected == webStationConnected && isAP == webSetupAccessPoint) return;
+    const bool enteredSetup = isAP && !webSetupAccessPoint;
     webStationConnected = connected;
-    if (connected) {
+    webSetupAccessPoint = isAP;
+    if (connected || enteredSetup) {
         // The old listening socket may have been invalidated when the STA
         // interface lost its address. WebServer::begin() closes and reopens it.
         server.begin();
-        Serial.println("[wifi] HTTP listener restarted after reconnect");
+        startWebMdns();
+        Serial.println("[wifi] HTTP listener restarted after network became available");
     } else {
         server.stop();
     }

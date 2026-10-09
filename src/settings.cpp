@@ -842,6 +842,7 @@ void serviceSettingsSave(unsigned long now) {
 }
 
 void loadSettings() {
+    loadBootModeSettings();
     pref.begin("radio", true);
     const bool hasStoredWeatherLocation = pref.isKey("owmCity");
     const uint8_t storedWeatherTimeVersion = pref.getUChar("wtVer", 0);

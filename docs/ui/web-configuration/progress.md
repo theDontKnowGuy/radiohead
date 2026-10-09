@@ -1,5 +1,91 @@
 # Web configuration implementation progress
 
+### 2026-10-09 — Connected AP MAC address (ready for device testing)
+
+- **Scope:** Show the connected access point's BSSID in Network > Connection to
+  identify the AP used by the radio. Use live connection state; clear the value
+  in disconnected/setup mode. Preserve ongoing startup and boot-mode changes.
+- **Implemented:** `/api/network` reports `bssid` from `WiFi.BSSIDstr()` only
+  while connected as a station. Network > Connection shows **AP MAC address
+  (BSSID)** left-to-right and refreshes through the existing 2.5-second polling.
+  Disconnected/setup/missing values show **Not available**.
+- **Functional: pass (host/build).** Embedded JavaScript syntax and an isolated
+  render check pass for AP address changes and disconnected/setup/empty values.
+  Temporary harness: `/tmp/radiohead-ap-bssid-check.cjs` (synthetic addresses).
+  `pio run -e esp32s3` passes, including the integrated image (56.35 s).
+  Arduino RAM: 96,252 / 327,680 B (29.4%); flash: 3,693,263 / 6,553,600 B
+  (56.4%). Integrated image: 4,495,344 B; app partition free: 2,058,256 B.
+  Build log: `/tmp/radiohead-ap-bssid-build.log`. `git diff --check` passes;
+  no secrets, generated artifacts or vendor edits added by this task.
+- **Visual/device: not verified; not flashed.** Reuses the Connection panel's
+  existing data-row styling. After flashing, compare the displayed BSSID with
+  the router/AP's Wi-Fi radio address and observe it across a roaming switch.
+
+### 2026-10-09 — Wi-Fi roaming scan fixes (ready for device testing)
+
+- **Scope:** Fix roaming scan timing and abandoned browser scan results blocking
+  roaming. Preserve the ten-minute interval, same-SSID selection, 10 dB margin,
+  Wi-Fi credentials and existing scan routes. Preserve concurrent boot changes.
+- **Implemented:** Centralized scan ownership in `wifi_network`, retain completed browser
+  results for 30 seconds, and prevent browser routes from replacing or consuming
+  roaming scans. Use a 120 ms active-scan maximum with the library's 100 ms minimum.
+- **Functional: pass (host/build).** `python3 tools/check_wifi_roaming.py` compiles
+  production `wifi_network.cpp` with a simulated Wi-Fi driver and ASan/UBSan.
+  Checks scan timing, strongest same-SSID selection, the exact 10 dB threshold,
+  browser/roaming ownership while running and after completion, consumed and
+  abandoned results, scan failures, setup-mode cleanup and unsigned timer wrap.
+  `pio run -e esp32s3` passes, including the integrated Spotify image (59.23 s).
+  Arduino RAM: 96,252 / 327,680 B (29.4%); flash: 3,692,635 / 6,553,600 B
+  (56.3%). Integrated image: 4,494,576 B; app partition free: 2,059,024 B.
+  These are shared-worktree reports, including unrelated changes preserved by
+  this task. Build log: `/tmp/radiohead-wifi-roaming-build.log`.
+  `git diff --check` passes; no secrets, generated artifacts or vendor changes
+  were added by this task.
+- **Visual: unchanged; not newly verified. Device: not verified; not flashed.**
+  After flashing, verify browser scan/result retrieval and closing the browser
+  mid-scan, then automatic switching between same-SSID APs at the ten-minute
+  scan interval. Check playback/reconnection with USB serial closed.
+
+### 2026-10-09 — Persisted boot modes (ready for device testing)
+
+- **Scope:** Include both existing boot screens in one image, persist a software
+  mode selection, and expose an API without adding a web/TFT selector. Keep the
+  new-artwork default and current branding/colors; future mode-specific branding
+  remains a follow-up.
+- **Contract:** `GET|POST /api/device/boot-mode`, with `mode=0` (original)
+  or `mode=1` (new artwork). Saves apply after an explicit restart and must report
+  storage failures. The POST uses the existing configuration request header and
+  maintenance/restart guards. Factory reset restores the default.
+- **Baseline:** `pio run -e esp32s3` passes. Arduino RAM 96,244 B; flash
+  3,590,103 B. Integrated image 4,392,048 B, with 2,161,552 B app space free.
+- **Implemented:** Stable `BootMode` IDs and shared active/configured state;
+  `radio/bootMode` unsigned-byte persistence with default/fallback to mode 1.
+  Checked single-key writes never change active state. Normal settings saves do
+  not overwrite the next-boot selection. GET, POST and `/api/device` expose
+  `bootMode`, `configuredBootMode`, and `bootModeRestartRequired`. Both existing
+  artwork/bar definitions now ship together with independent style values.
+  Software usage and reset policy are documented in `docs/boot-modes.md`.
+- **Functional: pass (host/build).** `python3 tools/check_boot_modes.py` runs the
+  production persistence code and extracted HTTP handlers with ASan/UBSan.
+  Covers absent/corrupt/wrong-type data, both save/reboot directions, open/write
+  failures, unrelated-key preservation, invalid API input, request-header and
+  maintenance/restart guards, active-versus-configured responses, cancellation
+  of a pending mode change, and simulated reset. `git diff --check` passes.
+  `pio run -e esp32s3` passes (34.40 s), including the integrated image.
+  Arduino RAM 96,244 / 327,680 B (29.4%); flash 3,692,335 / 6,553,600 B
+  (56.3%). Integrated image 4,494,320 B, with 2,059,280 B app space free.
+  Relative to baseline: reported Arduino RAM unchanged; flash +102,232 B;
+  integrated image +102,272 B. Both PNGs are present in flash `.rodata`.
+  These are shared-worktree reports including concurrent boot-audio edits,
+  which were preserved. Build log: `/tmp/radiohead-boot-modes-build.log`.
+- **Visual: not verified.** Existing artwork, bar positions and colors retained;
+  no new native boot render evidence captured. Branding/color changes are later
+  work, not claimed here.
+- **Device: not verified; not flashed.** Save/restart each mode on the radio,
+  verify artwork/bar/audio and AP/connected startup, then ordinary settings-save,
+  OTA retention and factory-reset behavior. No secrets, generated artifacts or
+  vendored changes were added by this task.
+
 ### 2026-10-08 — Separate Spotify tab and setup guide (ready for review)
 
 - **Task:** `/root`; files: web server, web CSS, existing browser fixture and setup
@@ -456,3 +542,12 @@ Next concrete action:
 - Visual: not verified in a firmware-served browser. The desktop mockup remains a design reference.
 - Functional: embedded player JavaScript parsed with Node; an isolated DOM/fetch check passed for playing → paused → inactive, placeholder visibility, metadata clearing and a focused volume edit. Normal and integrated firmware builds passed. Browser/device HTTP checks remain open.
 - Device: not verified. Check phone-driven metadata, volume/mute/tone audibility, transfer away and browser/TFT agreement on the physical radio with USB serial closed.
+
+### 2026-10-09 — Startup Wi-Fi handoff (ready for device testing)
+
+- Scope: remove the post-boot blank Wi-Fi wait; keep the QR welcome screen visible while joining and gate radio startup at its end. Start/reopen HTTP and mDNS when the network becomes usable, including setup-AP fallback. Existing forms/routes and saved keys remain.
+- Functional: `pio run -e esp32s3`, `python3 tools/check_startup_sequence.py` and `git diff --check` pass. Sixteen host scenarios cover early/late joining, no network, short-boot deadline extension, missing credentials, explicit setup and a dropped/recovered connection for normal and Spotify mDNS registration. HTTP/restart/audio servicing continues during the QR hold. No web routes/forms or persistence keys changed.
+- Build: normal target RAM 96,252 B (29.4%, unchanged); flash 3,693,027 B (56.4%, +392 B). The post-build integrated Spotify image is 4,495,024 B (+448 B), with 2,058,576 B of application-slot headroom.
+- Visual: `python3 tools/render_ui_fonts.py --network-boot-only` passes; connecting/connected/setup layouts inspected at native 320 × 240 under `.pio/ui_native/`. QR module grids in that host seam are placeholders; camera readability is not verified. No browser UI was restyled.
+- Broader native fixture: the default full renderer still fails the existing Spotify `photoHintCard` pixel assertion; the pre-change source snapshot reproduces that failure. It is outside this startup change.
+- Device: not verified or flashed. Check both boot modes with fast/slow/unavailable saved Wi-Fi, the final setup fallback, actual QR scanning/mDNS reachability, HTTP during the handoff, and boot/station/Spotify audio with USB serial closed.

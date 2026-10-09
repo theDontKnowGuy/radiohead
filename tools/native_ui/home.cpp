@@ -215,12 +215,25 @@ void save(const char* path) {
     fclose(file);
 }
 int main(int argc, char** argv) {
-    assert(argc == 2);
+    assert(argc == 2 || (argc == 3 && std::string(argv[2]) == "--network-boot-only"));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3) {
+        const std::string dir = argv[1];
+        assert(frame.textWidth("Joining saved Wi-Fi", display_fonts::caption()) <= 137);
+        assert(frame.textWidth("Connecting...", display_fonts::homeTitle()) <= 137);
+        drawNetworkBootScreen(true, "");
+        save((dir + "/configuration-boot-connecting.ppm").c_str());
+        drawNetworkBootScreen(true, "192.168.11.199");
+        save((dir + "/configuration-boot-smooth.ppm").c_str());
+        drawNetworkBootScreen(false, "192.168.4.1");
+        save((dir + "/wifi-setup-boot-smooth.ppm").c_str());
+        puts("Native network boot layout checks passed (QR grids are fixture placeholders).");
+        return 0;
+    }
     const auto visibleLeft = [](const char* value, int16_t x, int16_t y,
                                 const lgfx::IFont* font, lgfx::textdatum_t datum) {
         frame.fillScreen(TFT_BLACK);
@@ -814,6 +827,12 @@ int main(int argc, char** argv) {
     assert(uiHitTest(restartConfirm, 22, 22) == UiTarget::SettingsBack);
     renderSettingsConfirmation(restartConfirm, "15:01", true);
     save((dir + "/settings-restart-confirm-smooth.ppm").c_str());
+    restartConfirm.settingsConfirmAction = 2;
+    renderSettingsConfirmation(restartConfirm, "15:01", true);
+    save((dir + "/settings-reset-confirm-smooth.ppm").c_str());
+    restartConfirm.settingsConfirmAction = 3;
+    renderSettingsConfirmation(restartConfirm, "15:01", true);
+    save((dir + "/settings-forget-confirm-smooth.ppm").c_str());
     UiRenderState unavailable;
     unavailable.page = UiPage::Unavailable;
     unavailable.unavailableDestination = 4;
@@ -821,6 +840,8 @@ int main(int argc, char** argv) {
     save((dir + "/unavailable-smooth.ppm").c_str());
     drawNetworkBootScreen(true, "192.168.11.199");
     save((dir + "/configuration-boot-smooth.ppm").c_str());
+    drawNetworkBootScreen(true, "");
+    save((dir + "/configuration-boot-connecting.ppm").c_str());
     drawNetworkBootScreen(false, "192.168.4.1");
     save((dir + "/wifi-setup-boot-smooth.ppm").c_str());
     // Full restoration: a second render must exactly match a clean first render.

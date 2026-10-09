@@ -1,7 +1,8 @@
 #pragma once
 
 void startWebServer();
-// Reopens the HTTP listener after a station Wi-Fi disconnect/reconnect cycle.
+// Reopens HTTP and starts mDNS on a late join/reconnect, or reopens HTTP when
+// startup falls back to the setup AP.
 void serviceWebConnectivity();
 // Services browser-triggered restarts without blocking audio or HTTP servicing.
 // It is called once from the Arduino loop.

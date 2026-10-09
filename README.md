@@ -104,6 +104,37 @@ bridge-tied and must not be connected together or to ground.
 pio run -e esp32s3
 ```
 
+## Switch boot screens over HTTP
+
+Both screens are included in the firmware. The selection is stored on the device
+and takes effect after restart. Mode `0` is the original screen; mode `1` is the
+new artwork and the default.
+
+Select the original screen:
+
+```sh
+curl -X POST http://radio.local/api/device/boot-mode \
+  -H 'X-Radiohead-Config: 1' --data 'mode=0'
+```
+
+Select the new screen:
+
+```sh
+curl -X POST http://radio.local/api/device/boot-mode \
+  -H 'X-Radiohead-Config: 1' --data 'mode=1'
+```
+
+After a successful save, restart to apply it (playback stops during reboot):
+
+```sh
+curl -X POST http://radio.local/api/device/restart
+```
+
+Check the active and saved modes with
+`curl http://radio.local/api/device/boot-mode`. If `radio.local` does not resolve,
+replace it with the radio's displayed IP address. See
+[persisted boot modes](docs/boot-modes.md) for response fields and reset behavior.
+
 ## TFT display and touch wiring
 
 The firmware uses a **240 × 320 ILI9341 SPI TFT with an XPT2046 resistive-touch

@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 import re
 import subprocess
+import sys
 
 root = Path(__file__).resolve().parents[1]
 lgfx = root / '.pio/libdeps/esp32s3/LovyanGFX/src'
@@ -45,7 +46,19 @@ for index, path in enumerate(c + cpp):
     subprocess.run(command + ['-O2', '-ffunction-sections', '-fdata-sections', '-Wno-deprecated-declarations', '-Wno-vla-cxx-extension'] + includes + ['-c', str(path), '-o', str(obj)], check=True)
 exe = out / 'home'
 subprocess.run(['clang++', '-Wl,-dead_strip', *objects, '-o', str(exe)], check=True)
-subprocess.run([str(exe), str(out)], check=True, env={**os.environ, 'TZ': 'UTC'})
+network_boot_only = '--network-boot-only' in sys.argv[1:]
+subprocess.run([str(exe), str(out)] + (['--network-boot-only'] if network_boot_only else []),
+               check=True, env={**os.environ, 'TZ': 'UTC'})
+if network_boot_only:
+    try:
+        from PIL import Image
+    except ImportError:
+        print(f'PPM network boot evidence: {out}')
+    else:
+        for name in ('configuration-boot-connecting', 'configuration-boot-smooth', 'wifi-setup-boot-smooth'):
+            Image.open(out / f'{name}.ppm').save(out / f'{name}.png')
+        print(f'PNG network boot evidence: {out}')
+    sys.exit(0)
 assert (out / 'home-smooth.ppm').read_bytes() == (out / 'home-restored.ppm').read_bytes()
 assert (out / 'header-updated.ppm').read_bytes() == (out / 'header-fresh.ppm').read_bytes()
 try:

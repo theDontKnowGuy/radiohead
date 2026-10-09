@@ -1,5 +1,49 @@
 # Touch UI implementation status
 
+## 2026-10-09 — Settings confirmation button spacing
+
+Restart, factory reset and Forget Wi-Fi share a taller dialog, with their
+Cancel/action buttons moved from y=142 to y=160 and enlarged to 44 px high.
+Button labels and touch regions use the same geometry. Both explanatory lines
+remain above the controls; confirmation actions and navigation are unchanged.
+
+**Visual: pass (native fixture); functional: pass (build/targeted hit checks).**
+Inspected all three production LovyanGFX renders at 320 × 240:
+`.pio/ui_native/settings-{restart,reset,forget}-confirm-smooth.png` (generated,
+ignored evidence). The native fixture now includes all three dialogs. A focused
+host run also checked that the text area no longer activates buttons and that
+the relocated top/bottom touch bounds work. The full `render_ui_fonts.py` run
+stops earlier on an unrelated Spotify assertion at `(299, 190)`; no full-suite
+pass is claimed. `pio run -e esp32s3` and `git diff --check` pass. Arduino RAM
+96,244 B; flash 3,692,391 B (+56 B against the preceding recorded build);
+integrated image 4,494,320 B with 2,059,280 B app space free.
+
+**Hardware: not verified; not flashed.** Check legibility and both buttons on
+the physical TFT. No P2/P3 hardware acceptance is closed by these fixtures.
+
+## 2026-10-09 — Persisted boot modes
+
+Both existing boot artworks now ship in one image. Software can select mode 0
+(original) or mode 1 (new artwork) using a checked Preferences setter or the
+HTTP API documented in [boot-modes.md](../boot-modes.md). Selection applies after
+restart; mode 1 remains the default. Each mode owns its artwork, progress-bar
+position and colors. Current visuals and shared boot sound/timing are retained;
+future second-mode branding can read the shared active `bootMode`.
+
+**Functional: pass (host/build).** Production storage and HTTP handlers pass
+sanitized native checks, including corrupt/missing values, failures and pending
+state. `pio run -e esp32s3` and `git diff --check` pass. Arduino RAM 96,244 B;
+flash 3,692,335 B; integrated image 4,494,320 B, with 2,059,280 B app space free.
+These shared-worktree results include preserved concurrent boot-audio changes.
+See the [web progress entry](web-configuration/progress.md) for the full contract,
+size comparison and verification scope.
+
+**Visual: not verified; hardware: not verified; not flashed.** No new native boot
+render evidence or physical observations are claimed. Verify both screens,
+progress placement/color, sound, connected/AP startup, save/reboot, OTA retention
+and factory reset on the physical radio. Reverting source restores build-time
+selection and leaves the ignored new Preferences key inert.
+
 ## 2026-10-03 — Repository cleanup
 
 Removed screenshots superseded by later Home typography, shared headers, list
@@ -1515,3 +1559,33 @@ deterministic. Remaining device checks:
 phone play/pause/transfer, radio/podcast override, encoder volume/mute/hold,
 Wi-Fi recovery, TFT refresh latency and uninterrupted audio with USB serial
 closed. S3/S4 validation and resource/soak thresholds are still authoritative.
+
+## 2026-10-09 — QR startup without a Wi-Fi blank-screen wait
+
+**Functional: pass for build and host simulation; hardware not verified.**
+Wi-Fi starts alongside the boot screen. Removed the Wi-Fi wait and black clear
+from `BootScreen::hold()`. The configuration QR appears after the bounded boot
+audio/animation, shows joining status until connected, and retains its normal
+ten-second hold. Only entering radio runtime waits for remaining join time; a
+failed join retains setup-AP recovery. HTTP/mDNS start on late connection, HTTP
+reopens on setup fallback, and HTTP/restart/audio service runs during the hold.
+`python3 tools/check_startup_sequence.py` passes sixteen simulated scenarios
+using production setup, Wi-Fi resolution and HTTP/mDNS lifecycle functions.
+
+**Visual: pass for focused native layouts; hardware/QR scans not verified.**
+`python3 tools/render_ui_fonts.py --network-boot-only` renders the production
+layout/font path with host QR placeholders. Connecting, connected and setup
+320 × 240 layouts were inspected with readable, unclipped status/address lines:
+[connecting](../../.pio/ui_native/configuration-boot-connecting.png),
+[connected](../../.pio/ui_native/configuration-boot-smooth.png), and
+[setup](../../.pio/ui_native/wifi-setup-boot-smooth.png). These are local generated
+evidence, reproducible under `.pio`, not checked-in assets or scan evidence.
+The full native renderer has an existing Spotify `photoHintCard` assertion failure,
+reproduced from the pre-change source snapshot; that acceptance remains open.
+
+**Build:** `pio run -e esp32s3` and `git diff --check` pass. Normal RAM
+96,252 B (29.4%, unchanged), flash 3,693,027 B (56.4%, +392 B). Post-build
+integrated image 4,495,024 B (+448 B), 2,058,576 B application-slot headroom.
+No flash performed. Device checks remain: both boot modes, fast/slow/unavailable
+saved Wi-Fi, setup fallback, QR camera scans/local URL reachability, and audio
+continuity with USB serial closed.

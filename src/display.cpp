@@ -275,6 +275,10 @@ constexpr uint16_t kHomeGreen = 0x1266;
 constexpr uint16_t kHomePurple = 0x494E;
 constexpr uint16_t kHomeSlate = 0x2A4B;
 constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
+// Leave space below both confirmation text lines; drawing and touch use the
+// same button geometry for restart, factory reset and forgetting Wi-Fi.
+constexpr int16_t kSettingsConfirmButtonTop = 160;
+constexpr int16_t kSettingsConfirmButtonHeight = 44;
 
 // NETWORK_QR_BEGIN
 struct QrGrid {
@@ -687,8 +691,10 @@ void drawConfigurationHandoffDetails(const String& heading, bool connected,
     if (connected) {
         handoffLine("Scan QR or open:", 98, display_fonts::caption(), kTextMuted);
         handoffLine(ConfigQrCode::Url, 126, display_fonts::homeTitle(), kBlueFocus);
-        handoffLine("Or", 154, display_fonts::caption(), kTextMuted);
-        handoffLine(ipAddress, 182, display_fonts::homeTitle(), kWhite);
+        handoffLine(ipAddress.isEmpty() ? "Joining saved Wi-Fi" : "Or", 154,
+                    display_fonts::caption(), kTextMuted);
+        handoffLine(ipAddress.isEmpty() ? "Connecting..." : ipAddress, 182,
+                    display_fonts::homeTitle(), kWhite);
     } else {
         handoffLine("After joining, open:", 98, display_fonts::caption(), kTextMuted);
         handoffLine(ipAddress, 126, display_fonts::homeTitle(), kBlueFocus);
@@ -2036,7 +2042,7 @@ void renderSettingsConfirmation(const UiRenderState& state, const char* currentT
     if (forgetNetwork) renderWiFiSettings(state, currentTime, timeValid);
     else renderSettings(state, currentTime, timeValid);
     const bool factoryReset = state.settingsConfirmAction == 2;
-    canvas().fillRoundRect(27, 54, 266, 132, 12, kWhite);
+    canvas().fillRoundRect(27, 54, 266, 162, 12, kWhite);
     text(forgetNetwork ? String("Forget ") + st_ssid + "?" :
          factoryReset ? String("Factory reset radio?") : String("Restart radio?"), 48, 76,
          uiFont(&fonts::FreeSans9pt7b), kNavy, 226);
@@ -2046,13 +2052,15 @@ void renderSettingsConfirmation(const UiRenderState& state, const char* currentT
     text(forgetNetwork ? "Another saved network can reconnect." :
          factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
          48, 130, uiFont(&fonts::Font0), kSurfaceRaised, 226);
-    canvas().fillRoundRect(45, 142, 104, 36, 6, kSlate);
-    canvas().fillRoundRect(171, 142, 104, 36, 6, factoryReset || forgetNetwork ? kRed : kBlue);
+    canvas().fillRoundRect(45, kSettingsConfirmButtonTop, 104, kSettingsConfirmButtonHeight, 6, kSlate);
+    canvas().fillRoundRect(171, kSettingsConfirmButtonTop, 104, kSettingsConfirmButtonHeight, 6,
+                           factoryReset || forgetNetwork ? kRed : kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString("Cancel", 97, 160, uiFont(&fonts::Font0));
+    const int16_t buttonCenterY = kSettingsConfirmButtonTop + kSettingsConfirmButtonHeight / 2;
+    canvas().drawString("Cancel", 97, buttonCenterY, uiFont(&fonts::Font0));
     canvas().drawString(forgetNetwork ? "Forget" : factoryReset ? "Reset" : "Restart",
-                        223, 160, uiFont(&fonts::Font0));
+                        223, buttonCenterY, uiFont(&fonts::Font0));
 }
 
 void renderConfirm(const UiRenderState& state, const char* currentTime, bool timeValid) {
@@ -2452,8 +2460,8 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) {
             return UiTarget::SettingsBack;
         }
-        if (contains(x, y, 45, 142, 104, 36)) return UiTarget::SettingsConfirmCancel;
-        if (contains(x, y, 171, 142, 104, 36)) return UiTarget::SettingsConfirmAccept;
+        if (contains(x, y, 45, kSettingsConfirmButtonTop, 104, kSettingsConfirmButtonHeight)) return UiTarget::SettingsConfirmCancel;
+        if (contains(x, y, 171, kSettingsConfirmButtonTop, 104, kSettingsConfirmButtonHeight)) return UiTarget::SettingsConfirmAccept;
     } else if (state.page == UiPage::Unavailable) {
         if (contains(x, y, 0, 0, 320, 240)) return UiTarget::ListBack;
     }
@@ -2558,8 +2566,11 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
 
 void showNetworkQrScreen() {
     initCanvas();
+    // The LAN QR uses a stable mDNS URL, so it can appear before DHCP finishes.
+    // An empty address renders a truthful pending state instead of 0.0.0.0.
     drawNetworkBootScreen(!isAP,
-                          isAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString());
+                          isAP ? WiFi.softAPIP().toString() :
+                          WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String());
     presentCanvas(0, 240);
 }
 

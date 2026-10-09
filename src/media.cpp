@@ -6,6 +6,7 @@
 #include <WiFiClientSecure.h>
 #include <atomic>
 #include <cstring>
+#include <driver/gpio.h>
 #include <esp_heap_caps.h>
 #include <new>
 
@@ -15,6 +16,10 @@
 #include "spotify_adapter.h"
 
 namespace {
+
+// Temporary startup-noise experiment. Set false to restore the old sequence
+// in both the PlatformIO baseline and the integrated Spotify image.
+constexpr bool kBootQuietOutputExperiment = true;
 
 bool isHttpUrl(const String& url) {
     return url.length() <= 512 &&
@@ -1074,10 +1079,33 @@ void audio_showstreamtitle(const char* info) {
     }
 }
 
+void mediaPrepareBootOutput() {
+    if (!kBootQuietOutputExperiment) return;
+
+    // No SD_MODE control is wired. A stopped BCLK keeps the MAX98357A in
+    // standby once firmware runs; hold all I2S lines low until setPinout().
+    // Set each output latch before enabling its driver to avoid a high pulse.
+    for (const int pin : {I2S_BCK, I2S_LRC, I2S_DIN}) {
+        const auto gpio = static_cast<gpio_num_t>(pin);
+        gpio_set_level(gpio, 0);
+        gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
+    }
+    audio.setVolume(0);
+}
+
 void mediaConfigureOutput() {
+    if (kBootQuietOutputExperiment) audio.setVolume(0);
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
-    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    if (!kBootQuietOutputExperiment) {
+        audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    }
     audio.setTone(gB, gM, gT);
+}
+
+void mediaEnableBootOutput() {
+    if (kBootQuietOutputExperiment) {
+        audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    }
 }
 
 void mediaStartSavedPlayback() {
