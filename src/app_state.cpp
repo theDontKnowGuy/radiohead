@@ -85,8 +85,6 @@ RadioStation stations[STATION_COUNT] = {
     {"Empty Slot 10", ""},
 };
 
-std::vector<RadioStation> m3uTempList;
-
 const PodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
     {"arba/podcast", 0, "ארבע אחרי הצהריים", "Arba Aharei Hatzohorayim", "arba", "podcast"},
     {"ilanadayan/podcast", 1, "אילנה דיין", "Ilana Dayan", "ilanadayan", "podcast"},

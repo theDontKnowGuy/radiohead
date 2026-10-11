@@ -5,6 +5,12 @@ Date: 2026-09-21
 Status: implementation specification following the user's configuration review.
 No firmware changes or hardware acceptance are claimed by this document.
 
+Web scope update, 2026-10-11: the user removed the Appearance tab and M3U import
+functionality and requested that station logo upload/configuration be hidden.
+These instructions supersede the earlier web navigation/import/logo-editor
+requirements below. Keep displaying existing saved artwork; no TFT appearance
+or artwork-storage removal is requested.
+
 ## Authority and scope
 
 This document supersedes conflicting configuration, encoder, alarm, timer and

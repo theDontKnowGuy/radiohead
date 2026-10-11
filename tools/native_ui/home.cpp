@@ -8,6 +8,7 @@
 #include <string>
 #include <lgfx/v1/LGFX_Sprite.hpp>
 #include "ConfigQrCode.h"
+#include "boot_mode.h"
 #include "display_fonts.h"
 #include "ui_controller.h"
 #include "ui_text.h"
@@ -83,6 +84,8 @@ UiRenderState homeFocused(uint8_t index) {
 }
 bool isAlphaNumeric(char c) { return std::isalnum(static_cast<unsigned char>(c)); }
 bool isAP = false;
+BootMode bootMode = BootMode::Original;
+BootMode configuredBootMode = BootMode::Original;
 uint16_t autoDimSeconds = 30;
 constexpr uint16_t AUTO_DIM_NEVER_SECONDS = 0;
 constexpr const char* kRadioMdnsAddress = "radio.local";
@@ -233,12 +236,37 @@ void renderFirmwareUpdateFixtures(const std::string& dir) {
 int main(int argc, char** argv) {
     assert(argc == 2 || (argc == 3 && (std::string(argv[2]) == "--network-boot-only" ||
                                      std::string(argv[2]) == "--wifi-only" ||
-                                     std::string(argv[2]) == "--firmware-only")));
+                                     std::string(argv[2]) == "--firmware-only" ||
+                                     std::string(argv[2]) == "--branding-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--branding-only") {
+        const std::string dir = argv[1];
+        // A saved next-startup choice must not change this startup's labels.
+        configuredBootMode = BootMode::NewArtwork;
+        assert(std::string(displayBrandName()) == "Radiohead");
+        renderHome({}, "15:01", true);
+        save((dir + "/branding-original-home.ppm").c_str());
+        drawNetworkBootScreen(true, "192.168.11.199");
+        save((dir + "/branding-original-boot.ppm").c_str());
+        bootMode = BootMode::NewArtwork;
+        configuredBootMode = BootMode::Original;
+        const UiTextLayout brand = uiTextLayout(displayBrandName());
+        assert(brand.rightToLeft && brand.visual == "רדסב היהי וידר");
+        assert(frame.textWidth(brand.visual.c_str(), display_fonts::homeTitle()) <= 140);
+        assert(frame.textWidth(brand.visual.c_str(), display_fonts::smooth(&fonts::FreeSans9pt7b)) <= 137);
+        renderHome({}, "15:01", true);
+        save((dir + "/branding-new-home.ppm").c_str());
+        drawNetworkBootScreen(true, "192.168.11.199");
+        save((dir + "/branding-new-boot.ppm").c_str());
+        drawNetworkBootScreen(false, "192.168.4.1");
+        save((dir + "/branding-new-setup.ppm").c_str());
+        puts("Native active-mode branding and Hebrew layout checks passed.");
+        return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--firmware-only") {
         renderFirmwareUpdateFixtures(argv[1]);
         return 0;

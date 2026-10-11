@@ -94,7 +94,6 @@ private:
 
 extern const char* ntpServer;
 extern RadioStation stations[STATION_COUNT];
-extern std::vector<RadioStation> m3uTempList;
 extern const PodcastShow podcastShows[PODCAST_SHOW_COUNT];
 extern PodcastEpisode podcastEpisodes[MAX_EPISODES];
 extern const uint8_t volCurve[22];

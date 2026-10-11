@@ -8,6 +8,13 @@ reusable CSS, and a separate progress ledger. It does **not** claim that the
 firmware has these capabilities today. Read [progress.md](progress.md) before
 working and update it when handing off.
 
+User scope update, 2026-10-11: use five sections — **Stations, Spotify, Network,
+Weather & time, Device & maintenance**. Remove Appearance and all M3U import
+functionality; hide station logo upload/configuration while retaining display of
+saved logos. Add 20 px of space between Add station and the saved-station list.
+This supersedes conflicting section counts, import flows and logo editor controls
+in the original handoff below; the frozen visual references remain historical.
+
 ## 1. Sources and precedence
 
 1. The user's explicit instructions and

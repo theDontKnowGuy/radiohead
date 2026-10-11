@@ -1648,3 +1648,64 @@ integrated image 4,495,024 B (+448 B), 2,058,576 B application-slot headroom.
 No flash performed. Device checks remain: both boot modes, fast/slow/unavailable
 saved Wi-Fi, setup fallback, QR camera scans/local URL reachability, and audio
 continuity with USB serial closed.
+
+## 2026-10-11 — Automatic firmware download feedback
+
+**Functional: pass for build and focused host checks; hardware not verified.**
+Automatic and requested GitHub installations now show a status overlay on every
+page, with the actual flash-written download percentage, verification at 100%,
+and installed/restarting only after successful `Update.end()`. Failed install
+attempts show “Current firmware kept” for eight seconds, then restore the current
+page; routine manifest-check failures remain in Firmware updates settings.
+The display wakes and stays lit during transfers/results. Home marquee refreshes
+are suppressed while either remote-install or browser-upload feedback is visible.
+The background worker publishes mutex-protected progress; loop-owned display
+sampling is limited to four times per second. Update policy, routes, persistence,
+network transfer ownership, and validation/restart behavior remain unchanged.
+
+`python3 tools/check_firmware_update_display.py` passes early download failure,
+one-shot notice expiration, manifest failure, progress throttling, success, and
+backlight scenarios using the production sampling function. These are host
+state-transition checks, not real download or audio measurements.
+
+**Visual: pass for focused native layouts; physical TFT not verified.**
+`python3 tools/render_ui_fonts.py --firmware-only` renders the production overlay
+at 0%, 50%, verification/100%, installed, failed, and bitmap-font fallback.
+Generated PPMs are under `.pio/ui_native/firmware-*.ppm`; download, installed,
+failure and fallback were inspected at 320 × 240 with no clipped labels.
+The complete renderer still stops at the previously documented Spotify
+`photoHintCard` assertion before these cases; it is not a passing full-suite run.
+
+**Build:** `pio run -e esp32s3` and `git diff --check` pass. Integrated image
+4,511,216 B; application-slot headroom 2,042,384 B (31%). Native size report:
+DIRAM 260,395 B used / 81,365 B remaining; external static RAM 40,224 B.
+No pre-change size baseline captured for this package. No device flash performed.
+Remaining hardware checks: automatic update from Home/player/settings while
+dimmed, slow/stalled transfer and failure recovery, visible success/restart,
+and audio/web responsiveness with USB serial closed. P2/P3 hardware acceptance
+remains open.
+
+## 2026-10-11 — Hebrew branding for boot mode 1
+
+**Functional: build and focused native checks pass; hardware not verified.**
+The active `BootMode::NewArtwork` now selects `רדיו יהיה בסדר` for Home,
+the network startup header, and the connected QR-panel heading. Mode 0 retains
+`Radiohead` and `Set up Radiohead`. Saved next-startup mode changes do not alter
+the current branding. The QR heading uses the full Hebrew name without the
+English “Set up” prefix, which would exceed its 137 px text area. Web branding,
+Spotify Connect naming, persisted keys, and startup behavior are unchanged.
+
+**Visual: pass for focused native renders; physical TFT not verified.**
+`python3 tools/render_ui_fonts.py --branding-only` checks active versus saved
+mode selection, Hebrew visual order, and label widths, and renders the production
+Home/QR layouts. The new Home, connected startup, setup-AP startup, and original
+Home images were inspected at 320 × 240 with complete Hebrew text and no overlap.
+Generated evidence is under `.pio/ui_native/branding-*.ppm` (PNG copies made with
+the local Pillow-equipped Python); QR grids are host placeholders, not scan evidence.
+
+`pio run -e esp32s3` and `git diff --check` pass. Firmware is 4,511,968 B with
+2,041,632 B application-slot headroom (31%); DIRAM is 260,395 B used /
+81,365 B remaining, and external static RAM is 40,224 B. No flash performed.
+Device acceptance remains: restart in each mode, inspect Hebrew and original
+branding on Home/connected/setup screens, and verify audio continuity with USB
+serial closed. Existing P2/P3 hardware acceptance remains open.

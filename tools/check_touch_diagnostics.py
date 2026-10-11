@@ -85,6 +85,8 @@ UiRenderState uiControllerRenderState() { return {}; }
 struct PodcastPlaybackSnapshot { bool active=false, paused=false; };
 PodcastPlaybackSnapshot podcastPlaybackSnapshot() { return {}; }
 bool wifiSignalLevel() { return false; }
+bool firmwareUpdateOverlayActive = false;
+bool releaseUpdateOverlayActive() { return false; }
 bool homeStationTitleRefreshDue(unsigned long) { return false; }
 void renderRadioUi(const UiRenderState&,const char*,bool) { ++paints; tft.pixels=uiFrame.pixels; }
 void renderHomeStationTitleTick() { tft.pixels=uiFrame.pixels; }

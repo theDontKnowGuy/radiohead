@@ -1,5 +1,38 @@
 # Web configuration implementation progress
 
+### 2026-10-11 — Web configuration simplification (ready for device testing)
+
+- User-authorized scope: remove the Appearance tab and M3U import functionality,
+  add spacing between Add station and the saved-station list, and hide station
+  logo upload/configuration. This supersedes earlier web retention requirements
+  for these controls. Existing saved artwork remains displayed.
+- Implemented: five navigation sections; old `/appearance` and `/skin` links
+  redirect to Stations. M3U file/paste/remote import controls, handlers/endpoints,
+  parsing helpers and temporary catalog state are removed (old import routes now
+  return the normal 404). Playlist stream playback remains supported. Logo URL,
+  file upload, framing and preview controls/scripts are removed; saved artwork
+  display/storage and its existing API remain. Add station has a 20 px bottom
+  gap; mobile navigation uses five columns, wrapping to three below 420 px.
+  The stylesheet URL version changes so cached browsers receive the new spacing.
+- Functional: `pio run -e esp32s3` and `git diff --check` pass. Embedded raw
+  JavaScript parses; `/tmp/radiohead-web-simplification-check.cjs` exercises
+  production Stations markup/script at 1280/320 px with synthetic API data:
+  edit/cancel/add/directory selection/save, five tabs, removed controls, exactly
+  20 px spacing, no horizontal overflow and no script errors. Existing Spotify
+  and touch-diagnostics browser checks also pass.
+- Build: DIRAM 260,331 / 341,760 B (76.17%); padded firmware 4,496,400 B,
+  with 2,057,200 B free in the application slot. Log:
+  `/tmp/radiohead-web-simplification-build.log`. These are shared-worktree totals;
+  unrelated display/font/boot changes were preserved. No secrets, generated
+  artifacts or vendored edits were added to tracked files.
+- Visual: inspected desktop Stations and 320 px editor fixtures using the supplied
+  CSS/coastal asset under `.pio/web_simplification/` (`stations-1280.png`,
+  `stations-320.png`, `editor-1280.png`, `editor-320.png`). Shell/player data are
+  synthetic; this is browser-fixture evidence, not firmware-served evidence.
+- Device: not flashed or hardware-verified. After flashing, verify navigation,
+  station edits/save/favorites/test, saved logos and audio continuity, and confirm
+  old import URLs cannot change the station list. Hardware acceptance remains open.
+
 ### 2026-10-09 — Automatic scan during initial Wi-Fi setup (ready for device testing)
 
 - **Scope:** Start the existing asynchronous scan once when the Network page

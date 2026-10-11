@@ -687,6 +687,11 @@ void text(const String& value, int16_t x, int16_t y, const lgfx::IFont* font, ui
     canvas().drawString(rendered.c_str(), x, y);
 }
 
+const char* displayBrandName() {
+    // Branding follows this startup's artwork, not a saved next-boot change.
+    return bootMode == BootMode::NewArtwork ? "רדיו יהיה בסדר" : "Radiohead";
+}
+
 void drawConfigurationHandoffDetails(const String& heading, bool connected,
                                      const String& ipAddress) {
     auto handoffLine = [](const String& value, int16_t centerY,
@@ -694,7 +699,9 @@ void drawConfigurationHandoffDetails(const String& heading, bool connected,
         canvas().setFont(font);
         canvas().setTextColor(color);
         canvas().setTextDatum(ML_DATUM);
-        const String rendered = ellipsize(value, 137);
+        const UiTextLayout layout = uiTextLayout(value);
+        const String rendered = layout.rightToLeft
+            ? ellipsizeRightToLeft(layout.visual, 137) : ellipsize(layout.visual, 137);
         canvas().drawString(rendered.c_str(), 172, centerY, font);
     };
 
@@ -876,7 +883,8 @@ void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     }
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
-    canvas().drawString("Radiohead", 38, centerY, display_fonts::homeTitle());
+    canvas().drawString(uiTextLayout(displayBrandName()).visual.c_str(),
+                        38, centerY, display_fonts::homeTitle());
     captureHomeStationTitleBackdrop();
     prepareHomeStationTitle(station, source, millis());
     drawHomeStationTitle(millis());
@@ -1312,7 +1320,8 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
 
     canvas().setTextDatum(ML_DATUM);
     canvas().setTextColor(kHomeText);
-    canvas().drawString("Radiohead", 36, 16, display_fonts::homeTitle());
+    canvas().drawString(uiTextLayout(displayBrandName()).visual.c_str(),
+                        36, 16, display_fonts::homeTitle());
     text("INTERNET RADIO", 37, 28, uiFont(&fonts::Font0), kBlueFocus, 130);
 
     // Hardware inspection showed the mathematically centered card crowding the
@@ -1332,7 +1341,8 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     // hierarchy: five rows, 28 px apart, with 18 px address lines.
     canvas().clearClipRect();
     drawConfigurationHandoffDetails(
-        connected ? String("Set up Radiohead") : String("Connect to Wi-Fi"),
+        connected ? (bootMode == BootMode::NewArtwork
+            ? String(displayBrandName()) : String("Set up Radiohead")) : String("Connect to Wi-Fi"),
         connected, ipAddress);
 }
 

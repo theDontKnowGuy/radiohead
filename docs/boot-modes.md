@@ -61,9 +61,11 @@ artwork, bar position, fill and trough colors, and progress duration. Mode 0 kee
 its cyan fill and 4.5-second animation; mode 1 uses a white fill and a 6.75-second
 animation (50% longer). Mode 1 waits for that animation before closing even if
 the audio ends early or fails to open. Both retain the blue trough, boot sound,
-audio tail and maximum hold limit. Future second-mode branding can use the shared
-active `bootMode`; a replacement name has not been selected.
-Changing the mode after startup must not change branding until restart.
+audio tail and maximum hold limit. Mode 1 displays `רדיו יהיה בסדר` in the
+Home and network-startup headers and the connected setup heading, using the
+native Hebrew text layout. Mode 0 keeps `Radiohead`. Branding follows the active
+`bootMode`; changing the saved mode after startup does not change labels until
+restart. Web branding and the Spotify Connect device name are independent.
 
 Wi-Fi joining starts alongside the boot artwork. Finishing the boot sound/bar
 never waits for Wi-Fi or clears the display to black: the configuration QR screen

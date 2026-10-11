@@ -672,40 +672,6 @@ int adjacentPlayableStationSlot(int stationIndex, int direction) {
     return playableStationSlotAt((visibleIndex + (direction > 0 ? 1 : count - 1)) % count);
 }
 
-void parseM3UPro(const String& playlistUrl) {
-    m3uTempList.clear();
-    if (!isHttpUrl(playlistUrl)) {
-        return;
-    }
-
-    HTTPClient http;
-    if (!http.begin(playlistUrl)) {
-        return;
-    }
-    http.setTimeout(3000);
-    const int httpCode = http.GET();
-
-    String currentExtName = "Unknown Station";
-    if (httpCode == HTTP_CODE_OK) {
-        readHttpLines(http, [&](const String& line) {
-            if (line.startsWith("#EXTINF:")) {
-                const int commaIndex = line.indexOf(',');
-                if (commaIndex != -1) {
-                    currentExtName = line.substring(commaIndex + 1);
-                    if (currentExtName.length() > 80) {
-                        currentExtName.remove(80);
-                    }
-                }
-            } else if (isHttpUrl(line)) {
-                m3uTempList.push_back({currentExtName, line});
-                currentExtName = "Unknown Station";
-            }
-            return m3uTempList.size() >= 30;
-        });
-    }
-    http.end();
-}
-
 String parseM3U(const String& url) {
     if (!isHttpUrl(url) || (!url.endsWith(".m3u") && !url.endsWith(".m3u8"))) {
         return url;

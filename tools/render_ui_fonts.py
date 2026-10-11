@@ -39,6 +39,7 @@ for index, path in enumerate(c + cpp):
     objects.append(str(obj))
     deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / 'include/ui_text.h', root / '.pio/ui_assets/ui_font_assets.h']
     if path.name == 'home.cpp':
+        deps += [root / 'include/boot_mode.h']
         deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_header_assets.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_home_temperature_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h']
     if obj.exists() and all(obj.stat().st_mtime > dep.stat().st_mtime for dep in deps):
         continue
@@ -49,9 +50,20 @@ subprocess.run(['clang++', '-Wl,-dead_strip', *objects, '-o', str(exe)], check=T
 network_boot_only = '--network-boot-only' in sys.argv[1:]
 wifi_only = '--wifi-only' in sys.argv[1:]
 firmware_only = '--firmware-only' in sys.argv[1:]
-mode_args = ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
+branding_only = '--branding-only' in sys.argv[1:]
+mode_args = ['--branding-only'] if branding_only else ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
 subprocess.run([str(exe), str(out)] + mode_args,
                check=True, env={**os.environ, 'TZ': 'UTC'})
+if branding_only:
+    try:
+        from PIL import Image
+    except ImportError:
+        print(f'PPM branding evidence: {out} (install Pillow for PNG copies)')
+    else:
+        for path in out.glob('branding-*.ppm'):
+            Image.open(path).save(path.with_suffix('.png'))
+        print(f'PNG branding evidence: {out}')
+    sys.exit(0)
 if firmware_only:
     try:
         from PIL import Image
