@@ -1,7 +1,9 @@
 #include "device_control.h"
 
 #include <WiFi.h>
+#include <driver/gpio.h>
 #include <driver/rtc_io.h>
+#include <esp_sleep.h>
 #include <time.h>
 
 #include "app_state.h"
@@ -13,10 +15,22 @@
 namespace {
 
 constexpr unsigned long kButtonDebounceMs = 25;
-constexpr unsigned long kButtonHoldMs = 700;
+constexpr unsigned long kButtonHoldMs = 3000;
 constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+
+// Sleep wake is level-triggered. Consume both the initiating hold and the
+// waking press, including bounce, so neither leaks into the next boot.
+void waitForPowerButtonsRelease() {
+    unsigned long releasedAt = millis();
+    while (millis() - releasedAt < kButtonDebounceMs) {
+        if (digitalRead(PIN_SW) == LOW || digitalRead(PIN_K0) == LOW) {
+            releasedAt = millis();
+        }
+        delay(1);
+    }
+}
 
 // Observe the production poll without another SPI read or drawing over the UI.
 // Skip output when USB is disconnected or lacks room for the complete report.
@@ -58,6 +72,18 @@ void goToSleep() {
         Serial.println("Power transition deferred while firmware update is writing");
         return;
     }
+    // GPIO38 is not RTC-capable on ESP32-S3: encoder wake requires light
+    // sleep. Keep the separate K0 wake button without changing the wiring.
+    pinMode(PIN_SW, INPUT_PULLUP);
+    pinMode(PIN_K0, INPUT_PULLUP);
+    if (gpio_wakeup_enable(static_cast<gpio_num_t>(PIN_SW), GPIO_INTR_LOW_LEVEL) != ESP_OK ||
+        gpio_wakeup_enable(static_cast<gpio_num_t>(PIN_K0), GPIO_INTR_LOW_LEVEL) != ESP_OK ||
+        esp_sleep_enable_gpio_wakeup() != ESP_OK) {
+        gpio_wakeup_disable(static_cast<gpio_num_t>(PIN_SW));
+        gpio_wakeup_disable(static_cast<gpio_num_t>(PIN_K0));
+        Serial.println("Unable to configure button wake; staying awake");
+        return;
+    }
     saveSettings();
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     stopStationPlayback();
@@ -66,17 +92,23 @@ void goToSleep() {
 #endif
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE);
-    tft.drawCenterString("Power Off", 160, 100, &fonts::FreeSansBold12pt7b);
+    tft.drawCenterString("Sleeping", 160, 100, &fonts::FreeSansBold12pt7b);
 
-    delay(5000);
+    waitForPowerButtonsRelease();
     WiFi.disconnect(true);
     delay(100);
     tft.writeCommand(0x10);
     ledcWrite(TFT_BLK, 0);
     delay(50);
     rtc_gpio_hold_en(static_cast<gpio_num_t>(TFT_BLK));
-    esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(PIN_K0), 0);
-    esp_deep_sleep_start();
+    const esp_err_t result = esp_light_sleep_start();
+    if (result != ESP_OK) {
+        Serial.printf("Sleep failed (%d); restarting\n", static_cast<int>(result));
+    }
+    // Reuse the existing startup path to restore display, Wi-Fi and playback.
+    // Release first so encoder wake cannot request the boot-time setup AP.
+    waitForPowerButtonsRelease();
+    ESP.restart();
 }
 
 bool factoryReset() {

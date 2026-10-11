@@ -76,8 +76,11 @@ conflicts, and the physical board before modifying them.
 - AP/setup mode must not attempt normal station playback.
 - Podcast playback suppresses live stream-title replacement; text preparation preserves
   readable Hebrew and mixed text in the native renderer.
-- Deep sleep saves settings and uses the external K0 wake source. Alarms and timer
-  wake are retired by the configuration and controls specification.
+- A 3-second encoder hold requests light sleep, saving settings and enabling
+  encoder-switch (GPIO38) and K0 wake. Stable button release is consumed on both
+  sides of sleep; wake restarts through normal startup. GPIO38 cannot wake deep
+  sleep. Alarms and timer wake are retired by the configuration and controls
+  specification; electrical battery power-off remains unimplemented.
 
 ## External boundaries
 

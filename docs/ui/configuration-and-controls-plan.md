@@ -44,8 +44,26 @@ volume slider or mute button. Existing web remote-volume controls may remain.
 
 Use one debounce/short/hold classifier. A hold fires once and must not also emit a
 mute click on release. A short click is resolved on release so the beginning of a
-long press does not mute first. Retain the current 700 ms hold threshold initially.
+long press does not mute first. The encoder hold threshold is 3 seconds (updated
+2026-10-11 at the user's request; supersedes the initial 700 ms threshold).
 Preserve encoder direction, detents, bounds and shared-task synchronization.
+
+Encoder sleep/wake update, 2026-10-11: use light sleep so another encoder press
+can wake the radio on its existing GPIO38 wiring; K0 also remains a wake source.
+Consume a stable release before sleep and after wake, then restart through the
+normal display/network/playback startup path. This prevents immediate wake from
+the initiating hold and prevents a wake press from requesting Wi-Fi setup.
+The old five-second power-screen delay is removed. This is sleep, not electrical
+power-off; battery shutdown remains open. Build/host checks are separate from
+physical sleep current, button wake and resumed-playback acceptance.
+
+Verification for this update: `pio run -e esp32s3`,
+`python3 tools/check_encoder_power.py`, `python3 tools/check_touch_input.py`
+and `git diff --check` passed. The encoder host checks cover bounce, the 3-second
+boundary, once-per-hold behavior, no mute on hold release, timer rollover and
+stable release of both wake buttons. Image size is 4,498,640 bytes with 2,054,960
+bytes free in the app slot; DIRAM usage is 260,315 bytes (76.17%), with 81,445
+bytes remaining. Firmware was not flashed and hardware acceptance is pending.
 
 Implementation defaults: turning while muted adjusts the stored volume while
 remaining muted; unmute uses that value. A dimmed but awake screen wakes while
@@ -73,7 +91,8 @@ is not required for the proposed attempt-off/awake-standby fallback, which must
 not claim to identify the source or distinguish failed shutdown from USB power.
 
 The requested long-press intent is settled; the electrical behavior and separate
-Standby / Power Off menu are not. Source inspection found deep sleep with K0 wake,
+Standby / Power Off menu are not. Initial source inspection found deep sleep with K0 wake
+(superseded by the encoder light-sleep update above),
 but no battery-source detection or controllable power-latch/PMIC implementation
 in application code. This is a code observation, not a hardware inventory.
 
