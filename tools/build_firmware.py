@@ -25,11 +25,17 @@ def resolve_path(value):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--build-dir", default=os.environ.get("RADIOHEAD_SPOTIFY_BUILD", ".pio/idf-build"))
-    parser.add_argument("--output-dir", default=".pio/build/esp32s3")
+    parser.add_argument("--tft-color-test", action="store_true",
+                        help="Build only the TFT color diagnostic in separate default directories")
+    parser.add_argument("--build-dir")
+    parser.add_argument("--output-dir")
     parser.add_argument("--prepared", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    build, output = resolve_path(args.build_dir), resolve_path(args.output_dir)
+    build = resolve_path(args.build_dir or (
+        ".pio/idf-tft-color-test" if args.tft_color_test else
+        os.environ.get("RADIOHEAD_SPOTIFY_BUILD", ".pio/idf-build")))
+    output = resolve_path(args.output_dir or (
+        ".pio/build/tft-color-test" if args.tft_color_test else ".pio/build/esp32s3"))
     core = resolve_path(os.environ.get("PLATFORMIO_CORE_DIR", Path.home() / ".platformio"))
     pio = os.environ.get("PIO", shutil.which("pio") or str(core / "penv/bin/pio"))
     if not args.prepared:
@@ -82,8 +88,10 @@ def main():
         python_env.mkdir(parents=True, exist_ok=True)
         run([sys.executable, idf / "tools/idf_tools.py", "install-python-env"], env=child)
     build.mkdir(parents=True, exist_ok=True)
+    diagnostic = "ON" if args.tft_color_test else "OFF"
     run([python, idf / "tools/idf.py", "-B", build, "-D", f"SDKCONFIG={build / 'sdkconfig'}",
-         "-D", f"SDKCONFIG_DEFAULTS={ROOT / 'sdkconfig.defaults'}", "build", "size"], env=child)
+         "-D", f"SDKCONFIG_DEFAULTS={ROOT / 'sdkconfig.defaults'}",
+         "-D", f"RADIOHEAD_TFT_COLOR_TEST={diagnostic}", "build", "size"], env=child)
     flash = json.loads((build / "flasher_args.json").read_text())
     validate_layout(build, flash["flash_files"], flash["flash_settings"])
     output.mkdir(parents=True, exist_ok=True)
@@ -106,7 +114,8 @@ def main():
     (output / "artifacts.json").write_text(json.dumps(manifest, indent=2) + "\n")
     validate_export(output)
     size = (output / "firmware.bin").stat().st_size
-    print(f"Native Spotify image: {output / 'firmware.bin'} ({size:,} bytes; {APP_SLOT_SIZE - size:,} bytes free)")
+    label = "TFT color test" if args.tft_color_test else "Native Spotify"
+    print(f"{label} image: {output / 'firmware.bin'} ({size:,} bytes; {APP_SLOT_SIZE - size:,} bytes free)")
 
 
 if __name__ == "__main__":

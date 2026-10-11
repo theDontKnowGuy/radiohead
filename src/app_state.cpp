@@ -120,14 +120,14 @@ LGFX_Config::LGFX_Config() {
     panelConfig.pin_rst = TFT_RST;
     panelConfig.panel_width = 240;
     panelConfig.panel_height = 320;
-    panelConfig.bus_shared = true;
+    panelConfig.bus_shared = false;
     panel_.config(panelConfig);
 
     auto touchConfig = touch_.config();
-    touchConfig.spi_host = SPI2_HOST;
-    touchConfig.pin_sclk = TFT_SCLK;
-    touchConfig.pin_mosi = TFT_MOSI;
-    touchConfig.pin_miso = TFT_MISO;
+    touchConfig.spi_host = SPI3_HOST;
+    touchConfig.pin_sclk = TOUCH_SCLK;
+    touchConfig.pin_mosi = TOUCH_MOSI;
+    touchConfig.pin_miso = TOUCH_MISO;
     touchConfig.pin_cs = TOUCH_CS;
     touchConfig.pin_int = -1;
     // Stock XPT2046 acquisition at 1 MHz.
@@ -136,7 +136,7 @@ LGFX_Config::LGFX_Config() {
     touchConfig.x_max = 3900;
     touchConfig.y_min = 400;
     touchConfig.y_max = 3900;
-    touchConfig.bus_shared = true;
+    touchConfig.bus_shared = false;
     touchConfig.offset_rotation = 0;
     touch_.config(touchConfig);
     panel_.setTouch(&touch_);

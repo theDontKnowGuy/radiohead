@@ -50,7 +50,7 @@ flowchart LR
     PMIC -->|5 V output| RADIO[ESP32 + existing TFT supply path + both amplifiers]
     SW[Encoder switch] ---|Replaces KEY-to-GND button| PMIC
     PMIC ---|KEY signal only| SHIFT[Adapted BSS138 level shifter]
-    SHIFT ---|LV1 / existing GPIO 7| ESP[ESP32]
+    SHIFT ---|LV1 / existing GPIO 38| ESP[ESP32]
     ESP -->|Switched 3.3 V to LV| SHIFT
 ```
 
@@ -72,7 +72,7 @@ flowchart LR
 ## Replacing the button and connecting the ESP32
 
 Use the encoder's **two switch contacts**, not rotary A/B. Remove the old direct
-switch-to-GPIO-7 connection. On an encoder breakout, check for a SW pull-up or
+switch-to-GPIO-38 connection. On an encoder breakout, check for a SW pull-up or
 LED and isolate that circuitry from KEY. Rotary A/B wiring stays as it is.
 
 With power removed, identify the original button's switched pair and GND.
@@ -90,7 +90,7 @@ actual AliExpress board.
 | Encoder switch contact 1 | IP5310 KEY button pad |
 | Encoder switch contact 2 | IP5310 button GND pad |
 | Level shifter HV1 | Same KEY pad |
-| Level shifter LV1 | Existing ESP32 GPIO 7 (`PIN_SW`) |
+| Level shifter LV1 | Existing ESP32 GPIO 38 (`PIN_SW`) |
 | Level shifter LV supply | ESP32's switched 3.3 V rail |
 | Level shifter GND | Common GND |
 | Level shifter HV supply and unused channels | Unconnected after the modification below |
@@ -104,7 +104,7 @@ resistor also separates KEY from the unused channels' shared HV pull-up network.
 Resulting signal circuit:
 
 ```text
-ESP32 switched 3.3 V ----+---- existing 10k ---- GPIO 7 / LV1
+ESP32 switched 3.3 V ----+---- existing 10k ---- GPIO 38 / LV1
                         |                         |
                         +---- BSS138 gate         +-- source
                                                       drain ---- KEY ---- switch ---- GND
@@ -112,9 +112,14 @@ ESP32 switched 3.3 V ----+---- existing 10k ---- GPIO 7 / LV1
                                                   IP5310's original KEY circuitry
 ```
 
-GPIO 7 normally remains an input. For a simulated press, pull LOW; for release,
+GPIO 38 normally remains an input. For a simulated press, pull LOW; for release,
 return to high impedance. **Never drive HIGH push-pull.** One channel handles
 sensing and shutdown without a new GPIO.
+
+The [separate touch SPI wiring](touch-spi-wiring.md) moved `PIN_SW` from GPIO7
+to GPIO38; GPIO7 now carries touch T_DIN. On DevKitC revisions with an RGB LED
+on GPIO38, include that attached LED input in the powered/unpowered interface
+measurements below and do not drive the LED from firmware.
 
 This adaptation needs bench verification. The MOSFET principle transfers LOW in
 either direction and isolates the unpowered low side in the standard application.
@@ -153,7 +158,7 @@ AliExpress browser restrictions were not bypassed.
 3. Save settings and quiesce storage/audio before software shutdown. Keep the
    loop responsive and suppress interpretation of generated button events.
 4. After at least 1.2 seconds of released-button quiet time, try two LOW pulses
-   of 350 ms separated by 150 ms released, then release GPIO 7. These are initial
+   of 350 ms separated by 150 ms released, then release GPIO 38. These are initial
    bench timings, not validated values. Restart the quiet interval if the user
    presses before the sequence. Test power collapse during pulse two and require
    the board to remain off with the radio attached.
@@ -162,7 +167,7 @@ AliExpress browser restrictions were not bypassed.
    a separate source-detection board, but cannot distinguish USB power from a
    failed shutdown; report that honestly. Encoder input can leave standby.
    Review K0 and `/off` consistently.
-6. `taskControl()` currently configures GPIO 7 as an input. It must not race the
+6. `taskControl()` currently configures GPIO 38 as an input. It must not race the
    shutdown sequence's pin-mode changes. Centralize pin ownership in
    `device_control`; keep startup coordination in `main`.
 

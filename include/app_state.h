@@ -12,10 +12,13 @@
 constexpr int I2S_BCK = 15;
 constexpr int I2S_DIN = 16;
 constexpr int I2S_LRC = 17;
-constexpr int PIN_A = 4;
-constexpr int PIN_B = 5;
+// GPIO35-37 are reserved for octal PSRAM on the N16R8 target.
+constexpr int PIN_A = 39;
+constexpr int PIN_B = 40;
+// Keep the separate power button on an RTC GPIO for ext0 deep-sleep wake.
 constexpr int PIN_K0 = 6;
-constexpr int PIN_SW = 7;
+// Reserved for the encoder switch; do not drive the board RGB LED on GPIO38.
+constexpr int PIN_SW = 38;
 constexpr int TFT_BLK = 3;
 constexpr int TFT_SCLK = 12;
 constexpr int TFT_MOSI = 11;
@@ -23,6 +26,9 @@ constexpr int TFT_MISO = 13;
 constexpr int TFT_DC = 9;
 constexpr int TFT_CS = 8;
 constexpr int TFT_RST = 10;
+constexpr int TOUCH_SCLK = 4;
+constexpr int TOUCH_MOSI = 7;
+constexpr int TOUCH_MISO = 5;
 constexpr int TOUCH_CS = 14;
 
 constexpr int STATION_COUNT = 10;

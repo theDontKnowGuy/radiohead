@@ -12,6 +12,9 @@ or behavior spanning multiple modules.
 - PSRAM configuration: 8 MB Octal/OPI
 - Main build command: `python3 tools/build_firmware.py`
 - Convenience command: `pio run -e esp32s3` delegates to that same native build
+- Optional TFT-only diagnostic: `python3 tools/build_firmware.py --tft-color-test`
+  enables `RADIOHEAD_TFT_COLOR_TEST`; normal builds explicitly disable it.
+  Diagnostic sources/artifacts are separate from the normal radio image.
 
 `CMakeLists.txt`, component CMake files, `sdkconfig.defaults`, and `partitions.csv`
 own the firmware graph, definitions, device configuration and layout.
@@ -54,7 +57,8 @@ unless it has multiple concrete consumers and a stable abstraction.
 The current mapping is declared in `include/app_state.h`:
 
 - I2S: BCK 15, DIN 16, LRC 17
-- Encoder: A 4, B 5, K0 6, switch 7
+- Encoder: A 39, B 40, switch 38; separate K0 power/wake button 6
+- Touch: SPI3, SCLK 4, MOSI 7, MISO 5, CS 14 (separate from TFT SPI2)
 - TFT backlight: 1
 - TFT SPI/panel wiring is configured by `LGFX_Config` in `src/app_state.cpp`
 

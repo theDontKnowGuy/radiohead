@@ -30,16 +30,22 @@ before wiring. These are ESP32-S3 GPIO numbers, not physical header positions.
 | --- | --- |
 | `+` / `VCC` | **3.3 V**, not 5 V |
 | `GND` | Common GND |
-| `CLK` / `A` | GPIO 4 (`PIN_A`) |
-| `DT` / `B` | GPIO 5 (`PIN_B`) |
-| `SW` | GPIO 7 (`PIN_SW`) |
+| `CLK` / `A` | GPIO 39 (`PIN_A`) |
+| `DT` / `B` | GPIO 40 (`PIN_B`) |
+| `SW` | GPIO 38 (`PIN_SW`) |
 
 Encoder modules may pull their signal pins up to VCC. Use 3.3 V so these signals
 stay within the ESP32-S3's input limits; its GPIOs are not 5 V tolerant. See the
 [Espressif datasheet](https://documentation.espressif.com/esp32_s3_datasheet_en.pdf).
 A bare mechanical encoder needs no VCC connection: connect its rotary common and
-one switch contact to GND, A/B to GPIO 4/5, and the other switch contact to GPIO 7.
+one switch contact to GND, A/B to GPIO 39/40, and the other switch contact to GPIO 38.
 The firmware enables internal pull-ups.
+
+GPIO 35–37 are reserved for octal PSRAM on the configured N16R8 target.
+GPIO 39/40 cannot simultaneously serve external pin-based JTAG; USB debugging
+uses different pins. Some DevKitC revisions connect their RGB LED input to
+GPIO 38, so leave that LED unused by firmware when using this encoder wiring.
+See [Espressif's board pin restrictions](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html).
 
 - Turn to change volume; short-click to mute/unmute.
 - Hold the switch while powering on or resetting to request Wi-Fi setup/recovery.
@@ -48,12 +54,15 @@ The firmware enables internal pull-ups.
 - During normal operation, a hold of approximately 700 ms requests sleep.
 
 Leave GPIO 6 (`PIN_K0`) disconnected for this one-button wiring. **Current firmware
-limitation:** deep-sleep wake still uses GPIO 6, so the encoder on GPIO 7 cannot
-yet wake the radio from deep sleep. Moving wake to GPIO 7 and retiring the old K0
-sleep/factory-reset handler remains firmware work. Do not bridge GPIO 6 and 7.
+limitation:** deep-sleep wake still uses GPIO 6, so the encoder on GPIO 38 cannot
+wake the radio from deep sleep. GPIO 38 is not an RTC GPIO and cannot replace
+GPIO 6 in the existing ext0 wake path. If retaining a separate K0 button, keep
+it on GPIO 6; its sleep/factory-reset handler remains active. Do not bridge
+GPIO 6 and 38. GPIO 7 now carries touch data and must not connect to a button.
+See [ESP32-S3 wake-pin requirements](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/api-reference/system/sleep_modes.html#external-wakeup-ext0).
 
 The future [battery power plan](docs/hardware/battery-power-architecture-plan.md)
-also uses this one switch and GPIO 7, through an adapted BSS138 interface to the
+also uses this one switch and GPIO 38, through an adapted BSS138 interface to the
 IP5310 KEY input. It replaces the relay proposal. That circuit requires different
 switch wiring and bench validation; its software shutdown sequence is not yet
 implemented.
@@ -173,7 +182,8 @@ controller**, displayed in **320 × 240 landscape** orientation. The connections
 match the pin constants in [include/app_state.h](include/app_state.h) and the
 LovyanGFX configuration in [src/app_state.cpp](src/app_state.cpp). Numbers refer to
 ESP32-S3 **GPIO numbers**, not physical header positions. The table records the
-owner's working wiring in the actual TFT header order.
+new separate-bus wiring in the actual TFT header order; hardware verification
+of this remap remains pending.
 
 Disconnect power before wiring. This device's TFT `VCC` is connected to **5 V DC**;
 its signal connections use **3.3 V logic**. Display, touch controller, ESP32-S3, and
@@ -187,6 +197,10 @@ ESP32-S3 electrical limits are documented in the
 
 ### Complete header wiring, in pin order
 
+Read the labels printed on the TFT module: this numbering starts at `VCC` and
+ends at `T_IRQ`. Viewing the header from the opposite side reverses its apparent
+left-to-right order; match labels rather than counting from a viewing direction.
+
 | Header position | TFT module pin | ESP32-S3 connection | Function |
 | ---: | --- | --- | --- |
 | 1 | `VCC` | 5 V DC supply | Module power; owner's working connection |
@@ -198,14 +212,15 @@ ESP32-S3 electrical limits are documented in the
 | 7 | `SCK` | GPIO 12 | SPI clock (`TFT_SCLK`) |
 | 8 | `LED` | GPIO 3 | Backlight PWM (`TFT_BLK`); owner's working connection |
 | 9 | `SDO(MISO)` | **Not connected** | Display readback; not needed by the current application |
-| 10 | `T_CLK` | GPIO 12 | Touch clock, shared with display `SCK` |
+| 10 | `T_CLK` | GPIO 4 | Separate SPI3 touch clock (`TOUCH_SCLK`) |
 | 11 | `T_CS` | GPIO 14 | Separate touch chip select (`TOUCH_CS`) |
-| 12 | `T_DIN` | GPIO 11 | Touch data in, shared with display `SDI(MOSI)` |
-| 13 | `T_DO` | GPIO 13 | Touch data out to ESP32-S3 (`TFT_MISO`) |
+| 12 | `T_DIN` | GPIO 7 | Separate SPI3 touch data in (`TOUCH_MOSI`) |
+| 13 | `T_DO` | GPIO 5 | Touch data out to ESP32-S3 (`TOUCH_MISO`) |
 | 14 | `T_IRQ` | **Not connected** | Touch interrupt; firmware uses polling |
 
-Despite the constant name `TFT_MISO`, GPIO 13 receives **touch data from `T_DO`**
-in this wiring. Display `SDO(MISO)` remains disconnected. Current display rendering
+GPIO 13 remains assigned to `TFT_MISO` in firmware but is unconnected in this
+wiring. Touch `T_DO` moves from GPIO 13 to GPIO 5. Display `SDO(MISO)` remains
+disconnected. Current display rendering
 does not read pixels or registers back from the physical TFT; pixel reads in the
 renderer use its in-memory canvas. Keep `T_DO` connected for touch to work.
 
@@ -219,20 +234,30 @@ control input on its
 [ILI9341 breakout](https://learn.adafruit.com/adafruit-2-4-color-tft-touchscreen-breakout/pinouts).
 Tying the backlight permanently to the supply bypasses firmware dimming and shutdown.
 
-Both controllers share the SPI2 clock and outgoing data lines, with separate chip
-selects. The return line is connected only to the touch controller:
+The TFT uses SPI2; touch uses SPI3 at 1 MHz. They have separate clock, outgoing
+data and chip-select connections. Power down, disconnect the existing SCK/T_CLK
+and SDI/T_DIN joins, and move touch T_DO from GPIO 13 to GPIO 5:
 
 ```text
-ESP32-S3 GPIO 12 ──┬── TFT SCK
-                  └── Touch T_CLK
-ESP32-S3 GPIO 11 ──┬── TFT SDI (MOSI)
-                  └── Touch T_DIN
-ESP32-S3 GPIO 13 ───── Touch T_DO
+ESP32-S3 GPIO 12 ───── TFT SCK        (SPI2)
+ESP32-S3 GPIO 11 ───── TFT SDI (MOSI) (SPI2)
 ESP32-S3 GPIO  8 ───── TFT CS
+ESP32-S3 GPIO  9 ───── TFT DC
+ESP32-S3 GPIO 10 ───── TFT RESET
+ESP32-S3 GPIO  3 ───── TFT LED / backlight control
+ESP32-S3 GPIO  4 ───── Touch T_CLK    (SPI3)
+ESP32-S3 GPIO  7 ───── Touch T_DIN    (SPI3)
+ESP32-S3 GPIO  5 ───── Touch T_DO     (SPI3)
 ESP32-S3 GPIO 14 ───── Touch T_CS
 TFT SDO (MISO)  ────── Not connected
 Touch T_IRQ     ────── Not connected
 ```
+
+Move the encoder off GPIO 4/5/7 before connecting touch there. The complete
+old-to-new mapping is in [the separate touch SPI wiring guide](docs/hardware/touch-spi-wiring.md).
+`pio run -e esp32s3` and `git diff --check` passed for this remap. The normal radio
+image was restored on 2026-10-11 with verified flash hashes. Touch, encoder,
+boot-held Wi-Fi setup and K0 sleep/wake checks remain pending.
 
 Keep `CS` and `T_CS` separate. Pins on a module's optional microSD connector
 (`SD_CS`, `SD_SCK`, `SD_MOSI`, `SD_MISO`) are not used by this firmware and should
@@ -240,6 +265,30 @@ be left unconnected. `SDI` and `SDO` in the display table are TFT data pins, not
 microSD connections. This wiring requires an SPI display and XPT2046 controller;
 raw resistive-touch terminals (`X+`, `X-`, `Y+`, `Y-`) are not substitutes for the
 `T_*` pins.
+
+### Simple TFT color test
+
+For a lit backlight with no picture, enable the optional
+[TFT color test](experiments/tft-color-test/README.md). It cycles solid red, green,
+blue, white and black once per second, using the existing TFT pins at 8 MHz
+without touch, Wi-Fi, audio or the radio UI:
+
+```sh
+python3 tools/build_firmware.py --tft-color-test
+~/.platformio/penv/bin/python tools/flash_built_firmware.py \
+  --artifacts-dir .pio/build/tft-color-test --port /dev/cu.usbmodem11201
+```
+
+The flag sets `RADIOHEAD_TFT_COLOR_TEST=ON` for CMake and compiles only the
+screen diagnostic entry points. It defaults to OFF; ordinary builds run the
+radio. Test builds use `.pio/idf-tft-color-test` and `.pio/build/tft-color-test`,
+preserving the normal radio artifacts. Use your radio's actual port. Uploading
+the test replaces the running application temporarily; the test guide includes
+the command to restore the radio firmware.
+The original standalone color test was uploaded successfully on 2026-10-11
+with verified flash hashes, then normal radio firmware was restored. The native
+flag-enabled diagnostic is build-verified; its screen output still needs visual
+confirmation. It contains no boot audio.
 
 ### Touch calibration and diagnostics
 
@@ -253,11 +302,12 @@ Normal firmware polls touch but leaves diagnostic output disabled.
 
 ### Low-sensitivity test
 
-Keep the working wiring above for the baseline. There is no established sensitivity
+Verify the new wiring above before sensitivity testing. There is no established sensitivity
 benefit from connecting display `SDO` or touch `T_IRQ`: the former supplies display
 readback, and the latter is unused by the current polling implementation. The touch
-driver already uses 250 kHz sampling, same-axis settling, and coordinate validation
-without a pressure threshold.
+driver currently uses the stock LovyanGFX XPT2046 reader at 1 MHz, including its
+pressure gate. The custom coordinate-only sampler remains in the source but is
+inactive. Separating the SPI buses does not establish a sensitivity improvement.
 
 1. Wake the screen and complete calibration if taps land in the wrong place.
 2. At the same button, compare 10 comfortable light finger-pad taps with 10 gentle
@@ -268,12 +318,13 @@ without a pressure threshold.
    check touch jumper contacts and shorten unnecessarily long SPI/ground wires.
    Change one thing at a time and repeat the same trial. Do not peel the bonded
    resistive touch layer or press harder to count a light tap as successful.
-4. For ADC and input-event evidence, follow
-   [the touch diagnostic capture procedure](docs/ui/touch-diagnosis.md). It compares
-   idle, fingernail, light-pad, and firm-pad captures using the existing
-   `TOUCH_DEBUG_ENABLED=1` reports (`TouchADC` and `Touch polls=`). These counters
-   describe coordinates and events, not measured physical pressure.
+4. For input-event evidence, see
+   [the touch diagnostic capture procedure](docs/ui/touch-diagnosis.md) and enable
+   `TOUCH_DEBUG_ENABLED=1` for `Touch polls=` reports. The procedure also covers
+   `TouchADC` reports from the custom sampler; those are unavailable with the
+   currently active stock reader. These counters describe coordinates and events,
+   not measured physical pressure.
 
-The owner has confirmed this wiring works. Comfortable finger-pad sensitivity
-remains unresolved; no new physical trial or electrical measurement is implied by
-this documentation update.
+The owner confirmed the previous shared-bus wiring worked. The separate-bus
+remap and comfortable finger-pad sensitivity still require physical trials;
+no new electrical measurement is implied by this documentation update.
