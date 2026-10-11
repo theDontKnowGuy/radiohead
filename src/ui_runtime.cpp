@@ -8,6 +8,7 @@
 #include "settings.h"
 #include "spotify_adapter.h"
 #include "ui_controller.h"
+#include "web_server.h"
 
 void serviceUiInput(const DeviceInput& input, unsigned long now) {
     // The first accepted contact owns the press. TouchPressLatch stays latched
@@ -168,11 +169,14 @@ void serviceUiCommands(unsigned long now) {
         case UiCommandKind::StartTouchCalibration:
             // Calibration is intentionally an explicit maintenance flow. It is
             // the one local operation that must temporarily take over the TFT.
+            if (webUpdateInProgress() || !firmwareUpdater.tryBeginLocalMaintenance()) break;
             startTouchCalibration();
+            firmwareUpdater.endLocalMaintenance();
             lastInteraction = millis();
             forceRedraw = true;
             break;
         case UiCommandKind::RestartDevice:
+            if (webUpdateInProgress()) break;
             ESP.restart();
             break;
         case UiCommandKind::FactoryResetDevice:

@@ -90,6 +90,14 @@ bool FirmwareUpdater::requestInstallNow() {
     return true;
 }
 
+bool FirmwareUpdater::tryBeginLocalMaintenance() {
+    return !busy.exchange(true);
+}
+
+void FirmwareUpdater::endLocalMaintenance() {
+    busy.store(false);
+}
+
 void FirmwareUpdater::taskEntry(void* context) {
     static_cast<FirmwareUpdater*>(context)->taskLoop();
 }
@@ -97,7 +105,7 @@ void FirmwareUpdater::taskEntry(void* context) {
 void FirmwareUpdater::taskLoop() {
     uint32_t waitMs = FIRST_CHECK_DELAY_MS;
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
+        const bool requested = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs)) != 0;
         waitMs = CHECK_INTERVAL_MS;
 
         if (installRequested.exchange(false) && releaseAvailable.load()) {
@@ -105,6 +113,12 @@ void FirmwareUpdater::taskLoop() {
             continue;
         }
         if (releaseAvailable.load()) continue;
+        // Explicit requests already own busy. Timed checks must acquire it
+        // too, so they cannot start an automatic install during calibration.
+        if (!requested && busy.exchange(true)) {
+            waitMs = 1000;
+            continue;
+        }
         checkForUpdate();
     }
 }

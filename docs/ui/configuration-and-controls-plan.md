@@ -72,8 +72,10 @@ consumes its first press. No action may leak into a newly opened page.
 
 Startup calibration update, 2026-10-07: load saved touch calibration when available,
 otherwise retain the panel defaults and continue startup without waiting for touch.
-Interactive calibration is available only in TFT Settings > Device. Holding the
-encoder at boot requests Wi-Fi setup, not calibration. During OTA, defer power
+Interactive calibration is available in TFT Settings > Device and, as requested
+on 2026-10-11, can also be started from web Device & maintenance. Finish by
+tapping the corner markers on the radio; the browser cannot supply those taps.
+Holding the encoder at boot requests Wi-Fi setup, not calibration. During OTA, defer power
 transitions until writing has finished safely and display the reason. Do not use
 encoder click to accept a destructive dialog.
 
@@ -137,7 +139,7 @@ if scan-tested, a QR code. Never include credentials in that code.
 | Station/show favorites | TFT; web equivalent where supported | Add/remove beside each entity. No manual reorder feature. |
 | Remove a saved station | TFT + Web | Confirm the exact station; distinguish deletion from removing a favorite. Do not silently play a replacement slot occupant. |
 | Add/edit recorded-show sources | Web, future capability | Still future work; existing show browsing/playback/favorites remain on TFT. |
-| Touch calibration | TFT Settings > Device | Explicit maintenance action only; never require calibration during startup. Load saved calibration or use panel defaults. |
+| Touch calibration | TFT Settings > Device; start from web Device & maintenance | Tap corner markers on the TFT. Explicit maintenance action only; never require calibration during startup. Load saved calibration or use panel defaults. |
 | About | TFT | Firmware version, device name and web address; detailed diagnostics go on the web. |
 | Rename device | Web, future capability | Text entry; not a prerequisite for the core settings work. |
 | Firmware update | Web action; TFT status | Upload through the browser; reflect actual update progress/result on the TFT. |

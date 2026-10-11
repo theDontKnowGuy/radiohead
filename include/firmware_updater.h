@@ -37,6 +37,10 @@ public:
     // request or the audio loop.
     bool requestCheckNow();
     bool requestInstallNow();
+    // Reserve the updater's busy gate for a local maintenance operation.
+    // A successful reservation must be released by endLocalMaintenance().
+    bool tryBeginLocalMaintenance();
+    void endLocalMaintenance();
     [[nodiscard]] Snapshot snapshot() const;
     [[nodiscard]] bool isBusy() const { return busy.load(); }
     [[nodiscard]] uint32_t statusRevision() const { return stateRevision.load(); }

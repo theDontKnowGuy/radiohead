@@ -4,11 +4,10 @@ void startWebServer();
 // Reopens HTTP and starts mDNS on a late join/reconnect, or reopens HTTP when
 // startup falls back to the setup AP.
 void serviceWebConnectivity();
-// Services browser-triggered restarts without blocking audio or HTTP servicing.
-// It is called once from the Arduino loop.
+// Services deferred browser maintenance once from the Arduino loop. Interactive
+// touch calibration temporarily takes over the TFT after acknowledging HTTP.
 void serviceWebNetworkRequests(unsigned long now);
 
-// True while an OTA image is being written.  Power/reset paths use this to
-// defer destructive transitions until the update has either completed or
-// failed.
+// True while firmware maintenance or a reserved web calibration is active.
+// Power/reset paths defer destructive transitions until maintenance finishes.
 bool webUpdateInProgress();

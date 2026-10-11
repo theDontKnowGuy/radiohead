@@ -14,8 +14,8 @@ void goToSleep();
 // Loads saved calibration during boot; otherwise retains the panel defaults.
 // Never starts interactive calibration or waits for a touchscreen.
 void initializeTouchCalibration();
-// Always starts the interactive calibration flow for the Settings action.
-void startTouchCalibration();
+// Starts interactive TFT calibration and reports whether it was saved.
+bool startTouchCalibration();
 void taskControl(void* parameter);
 int consumeEncoderDetents();
 

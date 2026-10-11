@@ -72,6 +72,9 @@ uint32_t networkConfigurationEpoch = 1;
 uint32_t weatherConfigurationEpoch = 1;
 uint32_t spotifyCredentialsEpoch = 1;
 constexpr unsigned long WEB_RESTART_DELAY_MS = 500;
+bool webTouchCalibrationPending = false;
+unsigned long webTouchCalibrationAt = 0;
+const char* webTouchCalibrationState = "idle";
 
 String htmlEscape(const String& value) {
     String escaped;
@@ -254,7 +257,9 @@ bool scheduleWebRestart(WebRestartAction action) {
 
 void sendMaintenanceBusy() {
     server.send(409, "application/json; charset=utf-8",
-                "{\"error\":\"Firmware maintenance is in progress. Wait for the radio to restart.\"}");
+                webTouchCalibrationPending
+                    ? "{\"error\":\"Touch calibration is in progress. Finish it on the radio.\"}"
+                    : "{\"error\":\"Firmware maintenance is in progress. Wait for the radio to restart.\"}");
 }
 
 String bootModeStateFieldsJson() {
@@ -288,8 +293,9 @@ String deviceStateJson() {
         ",\"artworkStorageUsed\":" + String(artwork.usedBytes) +
         ",\"artworkStorageTotal\":" + String(artwork.totalBytes) +
         ",\"touchCalibrationSaved\":" + String(calibrationSaved ? "true" : "false") +
+        ",\"touchCalibrationState\":\"" + webTouchCalibrationState + "\"" +
         ",\"serviceTiming\":\"Not measured\",\"logs\":\"Not available\""
-        ",\"updateInProgress\":" + String(webMaintenanceBusy() ? "true" : "false") + "}";
+        ",\"updateInProgress\":" + String(!webTouchCalibrationPending && webMaintenanceBusy() ? "true" : "false") + "}";
     return json;
 }
 
@@ -815,7 +821,7 @@ $('weather-show-key').onchange=keyControls;$('weather-clear-key').onchange=keyCo
         break;
     case WebSection::Appearance:
         html += "<div class='rh-pagehead'><div><h1>Appearance</h1><p>Keep the radio readable, day and night.</p></div></div>"
-            "<section class='rh-box'><h2>On your radio</h2><p class='rh-muted'>Automatic dimming, supported themes and touch calibration are set on the radio itself.</p></section>";
+            "<section class='rh-box'><h2>On your radio</h2><p class='rh-muted'>Automatic dimming and supported themes are set on the radio itself. Start touch calibration from Device &amp; maintenance or Settings &gt; Device on the radio.</p></section>";
         break;
     case WebSection::Spotify:
         html += "<div class='rh-pagehead'><div><h1 class='rh-sectiontitle'><svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='9'/><path d='M6.5 9a14 14 0 0 1 11 1M7.5 12.5a11 11 0 0 1 9 1M8.5 16a8 8 0 0 1 7 1'/></svg>Spotify</h1><p>Set up your radio, then choose the music in Spotify.</p></div></div>"
@@ -861,29 +867,33 @@ reload();})();</script>)JS";
             "<section class='rh-box' aria-labelledby='firmware-update'><h2 id='firmware-update'>Firmware update</h2><p class='rh-muted'>Choose a firmware .bin, review it, then start the update. Keep power connected until the update is complete.</p>"
             "<label class='rh-upload' for='firmware-file'><input id='firmware-file' type='file' accept='.bin,application/octet-stream'>Choose firmware .bin</label><p class='rh-note' id='firmware-review'>Choose a file to review its name and size.</p>"
             "<div class='rh-footer'><span class='rh-formstatus' id='firmware-status' role='status'>No update selected.</span><button class='rh-button rh-primary' id='firmware-start' data-maintenance-action type='button' disabled>Review update</button></div></section>"
+            "<section class='rh-box' aria-labelledby='touch-calibration'><h2 id='touch-calibration'>Touch calibration</h2><p class='rh-muted'>Start here, then tap each corner marker on the radio’s touchscreen. Playback and web controls may pause until you finish.</p><div class='rh-footer'><span class='rh-formstatus' id='device-calibration-status' role='status'>Ready to calibrate on the radio.</span><button class='rh-button rh-primary' id='device-calibration-start' data-maintenance-action type='button' disabled>Start touch calibration</button></div></section>"
             "<section class='rh-box'><h2>Restart</h2><p class='rh-muted'>Restarting stops playback. Your stations, Wi-Fi and settings are kept.</p><div class='rh-footer'><button class='rh-button' id='device-restart' data-maintenance-action type='button'>Restart radio</button></div></section>"
             "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration are kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
             R"HTML(<div class='rh-overlay' id='device-dialog' hidden><section class='rh-dialog' role='dialog' aria-modal='true' aria-labelledby='device-dialog-title'><h2 id='device-dialog-title'></h2><p id='device-dialog-copy'></p><label class='rh-field' id='device-reset-label' hidden><span>Type RESET to continue</span><input id='device-reset-confirm' autocomplete='off'></label><div class='rh-footer'><button class='rh-button' id='device-dialog-cancel' type='button'>Cancel</button><button class='rh-button rh-primary' id='device-dialog-confirm' type='button'></button></div></section></div><script>)HTML";
-        html += R"JS((()=>{const $=id=>document.getElementById(id);let state=null,file=null,dialogAction=null,lastFocus=null;
+        html += R"JS((()=>{const $=id=>document.getElementById(id);let state=null,file=null,dialogAction=null,lastFocus=null,calibrationPending=false,calibrationPoll=0;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const bytes=n=>n===0?'0 B':['B','KiB','MiB','GiB'].reduce((text,u,i)=>n>=1024&&i<3?(n/=1024,`${n.toFixed(n<10?1:0)} ${['B','KiB','MiB','GiB'][i+1]}`):text,`${n} B`);
 const row=(name,value,ltr=false)=>`<dt>${esc(name)}</dt><dd${ltr?' dir="ltr"':''}>${esc(value)}</dd>`;
 function setBusy(busy){document.querySelectorAll('[data-maintenance-action]').forEach(button=>button.disabled=busy);$('firmware-file').disabled=busy;}
-function render(data){state=data;$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware version',`${data.firmwareVersion} · ${data.firmwareReleased}`)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
-async function refresh(){try{render(await fetch('/api/device',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){$('firmware-status').textContent=error.message;}}
+function renderCalibration(data){const wasPending=calibrationPending;calibrationPending=data.touchCalibrationState==='pending';$('device-calibration-start').dataset.pending=String(calibrationPending);$('device-calibration-start').disabled=calibrationPending||data.updateInProgress;const status=$('device-calibration-status');if(calibrationPending){setBusy(true);$('release-auto').disabled=true;status.textContent='Tap each corner marker on the radio. Waiting for calibration to finish…';clearTimeout(calibrationPoll);calibrationPoll=setTimeout(refresh,2000);}else{clearTimeout(calibrationPoll);status.textContent=data.touchCalibrationState==='saved'?'Touch calibration saved.':data.touchCalibrationState==='failed'?'Calibration could not be saved. Try again on the radio.':data.updateInProgress?'Wait for firmware maintenance to finish.':'Ready to calibrate on the radio.';if(wasPending&&!data.updateInProgress){setBusy(false);updateFile();document.dispatchEvent(new Event('radiohead-maintenance-finished'));}}}
+function render(data){state=data;renderCalibration(data);$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware version',`${data.firmwareVersion} · ${data.firmwareReleased}`)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
+async function refresh(){try{render(await fetch('/api/device',{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){if(calibrationPending){$('device-calibration-status').textContent='Follow the corner markers on the radio. Waiting for the radio to respond…';calibrationPoll=setTimeout(refresh,2000);}else $('firmware-status').textContent=error.message;}}
 function closeDialog(){const dialog=$('device-dialog');dialog.hidden=true;$('device-reset-confirm').value='';$('device-reset-label').hidden=true;if(lastFocus)lastFocus.focus();}
 function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration remain. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':'The radio will validate and write the selected firmware, then restart. Keep power connected until it reconnects.';$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
 async function post(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
 function updateFile(){file=$('firmware-file').files[0]||null;if(!file){$('firmware-review').textContent='Choose a file to review its name and size.';$('firmware-start').disabled=true;return;}const enough=!state||!state.freeSketchBytes||file.size<=state.freeSketchBytes;$('firmware-review').textContent=`${file.name} · ${bytes(file.size)}. Compatibility is checked by the radio while writing.`;$('firmware-start').disabled=!enough;if(!enough)$('firmware-status').textContent='This file is larger than the currently reported free update space.';else $('firmware-status').textContent='Ready to review update.';}
 function upload(){if(!file)return;setBusy(true);$('firmware-status').textContent='Sending firmware to the radio…';const form=new FormData();form.set('firmware',file,file.name);const request=new XMLHttpRequest();request.open('POST','/api/device/ota');request.upload.onprogress=e=>{if(e.lengthComputable)$('firmware-status').textContent=`Sending firmware to the radio… ${Math.round(e.loaded*100/e.total)}%`;};request.onerror=()=>{$('firmware-status').textContent='The browser connection was lost. Reopen the radio after it restarts.';};request.onload=()=>{let data={};try{data=JSON.parse(request.responseText)}catch(_){data={error:'The radio returned an invalid response.'};}if(request.status>=200&&request.status<300){$('firmware-status').textContent='Firmware was written. The radio is restarting; reconnect, then confirm its firmware build.';}else{$('firmware-status').textContent=data.error||'Firmware update failed; the radio kept its current firmware.';setBusy(false);}};request.send(form);}
+$('device-calibration-start').onclick=async()=>{if(calibrationPending)return;calibrationPending=true;$('device-calibration-start').dataset.pending='true';setBusy(true);$('release-auto').disabled=true;$('device-calibration-status').textContent='Requesting touch calibration…';try{await post('/api/device/touch-calibration');$('device-calibration-status').textContent='Tap each corner marker on the radio. Waiting for calibration to finish…';calibrationPoll=setTimeout(refresh,2000);}catch(error){calibrationPending=false;$('device-calibration-start').dataset.pending='false';setBusy(false);updateFile();$('device-calibration-status').textContent=error.message;document.dispatchEvent(new Event('radiohead-maintenance-finished'));}};
 $('firmware-file').onchange=updateFile;$('firmware-start').onclick=()=>file&&openDialog('update');$('device-restart').onclick=()=>openDialog('restart');$('device-reset').onclick=()=>openDialog('reset');$('device-dialog-cancel').onclick=closeDialog;$('device-dialog').onclick=e=>{if(e.target===$('device-dialog'))closeDialog();};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('device-dialog').hidden){e.preventDefault();closeDialog();}});$('device-dialog-confirm').onclick=async()=>{try{if(dialogAction==='reset'){if($('device-reset-confirm').value!=='RESET'){$('device-reset-confirm').focus();return;}$('firmware-status').textContent='Factory reset accepted. The radio is restarting.';await post('/api/device/factory-reset',{confirm:'RESET'});}else if(dialogAction==='restart'){$('firmware-status').textContent='Restart accepted. Waiting for the radio to reconnect.';await post('/api/device/restart');}else upload();closeDialog();setBusy(true);}catch(error){$('firmware-status').textContent=error.message;setBusy(false);closeDialog();}};refresh();})();</script>)JS";
         html += R"JS(<script>(()=>{const $=id=>document.getElementById(id);let updatePolls=0,pollTimer=0;
 async function request(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
-function renderRemote(data){const busy=!!data.busy,waiting=!!data.awaitingConfirmation;$('release-auto').value=data.autoInstall?'1':'0';$('release-auto').disabled=busy;$('release-check').disabled=busy||waiting;$('release-install').hidden=!waiting;$('release-install').disabled=busy;$('release-status').textContent=data.message||(data.status==='idle'?'No release check has run yet.':'Update status unavailable.');if(data.notes&&waiting)$('release-status').textContent+=` ${data.notes}`;}
+function renderRemote(data){const busy=!!data.busy||$('device-calibration-start').dataset.pending==='true',waiting=!!data.awaitingConfirmation;$('release-auto').value=data.autoInstall?'1':'0';$('release-auto').disabled=busy;$('release-check').disabled=busy||waiting;$('release-install').hidden=!waiting;$('release-install').disabled=busy;$('release-status').textContent=data.message||(data.status==='idle'?'No release check has run yet.':'Update status unavailable.');if(data.notes&&waiting)$('release-status').textContent+=` ${data.notes}`;}
 function settled(data){return data.status==='up-to-date'||data.status==='failed'||data.status==='idle'||!!data.awaitingConfirmation;}
-async function pollUpdateStatus(){clearTimeout(pollTimer);try{const data=await fetch('/api/update/status',{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Release update status is unavailable.');return response.json();});renderRemote(data);updatePolls+=1;if(settled(data)||updatePolls>60){$('release-check').disabled=!!data.awaitingConfirmation;return;}pollTimer=setTimeout(pollUpdateStatus,1500);}catch(error){$('release-status').textContent=updatePolls?'Radio restarting; reload this page in a minute.':error.message;$('release-check').disabled=false;}}
-$('release-check').onclick=async()=>{try{$('release-check').disabled=true;$('release-install').hidden=true;$('release-status').textContent='Checking for updates…';updatePolls=0;await request('/api/update/check');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-check').disabled=false;}};
-$('release-install').onclick=async()=>{if(!confirm('Download, verify and install this release now? The radio will restart.'))return;try{$('release-install').disabled=true;$('release-check').disabled=true;$('release-status').textContent='Starting update…';updatePolls=0;await request('/api/update/install');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-install').disabled=false;$('release-check').disabled=false;}};
+async function pollUpdateStatus(){clearTimeout(pollTimer);try{const data=await fetch('/api/update/status',{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Release update status is unavailable.');return response.json();});renderRemote(data);updatePolls+=1;if(settled(data)||updatePolls>60){$('release-check').disabled=!!data.busy||!!data.awaitingConfirmation||$('device-calibration-start').dataset.pending==='true';return;}pollTimer=setTimeout(pollUpdateStatus,1500);}catch(error){$('release-status').textContent=updatePolls?'Radio restarting; reload this page in a minute.':error.message;$('release-check').disabled=$('device-calibration-start').dataset.pending==='true';}}
+$('release-check').onclick=async()=>{try{$('release-check').disabled=true;$('release-install').hidden=true;$('release-status').textContent='Checking for updates…';updatePolls=0;await request('/api/update/check');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-check').disabled=$('device-calibration-start').dataset.pending==='true';}};
+$('release-install').onclick=async()=>{if(!confirm('Download, verify and install this release now? The radio will restart.'))return;try{$('release-install').disabled=true;$('release-check').disabled=true;$('release-status').textContent='Starting update…';updatePolls=0;await request('/api/update/install');pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;$('release-install').disabled=$('device-calibration-start').dataset.pending==='true';$('release-check').disabled=$('device-calibration-start').dataset.pending==='true';}};
+document.addEventListener('radiohead-maintenance-finished',pollUpdateStatus);
 $('release-auto').onchange=async()=>{try{const data=await request('/api/update/auto',{enabled:$('release-auto').value});renderRemote(data);updatePolls=0;pollTimer=setTimeout(pollUpdateStatus,500);}catch(error){$('release-status').textContent=error.message;pollUpdateStatus();}};pollUpdateStatus();})();</script>)JS";
         break;
     }
@@ -1224,6 +1234,16 @@ String networkScanJson() {
 }  // namespace
 
 void serviceWebNetworkRequests(unsigned long now) {
+    if (webTouchCalibrationPending && static_cast<long>(now - webTouchCalibrationAt) >= 0) {
+        // The 202 response leaves before the existing interactive TFT flow
+        // temporarily takes over the loop. The updater reservation is held
+        // until calibration and its Preferences write have finished.
+        webTouchCalibrationState = startTouchCalibration() ? "saved" : "failed";
+        webTouchCalibrationPending = false;
+        firmwareUpdater.endLocalMaintenance();
+        lastInteraction = millis();
+        forceRedraw = true;
+    }
     if (!webRestartScheduled || static_cast<long>(now - webRestartAt) < 0) return;
     const WebRestartAction action = webRestartAction;
     webRestartScheduled = false;
@@ -1516,6 +1536,16 @@ void startWebServer() {
             return;
         }
         server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
+    });
+    server.on("/api/device/touch-calibration", HTTP_POST, [] {
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy();
+            return;
+        }
+        webTouchCalibrationPending = true;
+        webTouchCalibrationState = "pending";
+        webTouchCalibrationAt = millis() + WEB_RESTART_DELAY_MS;
+        server.send(202, "application/json; charset=utf-8", "{\"accepted\":true}");
     });
     server.on("/api/device/factory-reset", HTTP_POST, [] {
         if (server.arg("confirm") != "RESET") {

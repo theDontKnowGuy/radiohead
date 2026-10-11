@@ -54,9 +54,10 @@ configuration backup/restore, or color editing. Do not add placeholders or
 “Coming soon” rows for them. Standby/power-off and device renaming remain outside
 this implementation; their scope is TBD/future in the controlling plan.
 
-Automatic dimming, supported prepared theme selection, and touch calibration stay
-on the TFT. The web may explain where to find calibration, but cannot calibrate
-the screen by clicking in the browser. Weather units/visibility and custom tone
+Automatic dimming and supported prepared theme selection stay on the TFT.
+Touch calibration can also be started from web Device & maintenance (user update,
+2026-10-11), but its corner markers must be tapped on the radio's TFT.
+Weather units/visibility and custom tone
 must stay consistent with their TFT equivalents.
 
 ### Differences between the mockup and production
@@ -327,8 +328,12 @@ Heading **Device & maintenance**; subtitle **Updates and the details behind the
 music.** About panel: real device name, firmware/build, hardware and web address.
 No rename field. Technical details are secondary, under **Open diagnostics**:
 network/stream errors, memory/storage, service timing, touch diagnostics and logs.
-Show **Not measured** when absent. Never return credentials or claim calibration
-can be performed here. Avoid speculative advanced controls without a real need.
+Show **Not measured** when absent. Never return credentials. Add **Touch calibration**
+with **Start touch calibration**: acknowledge the request before opening the TFT
+corner markers, explain that playback/web controls may pause, and report the actual
+save result after the radio responds. Block conflicting firmware/restart actions.
+The browser starts calibration; all measurements are performed on the TFT.
+Avoid speculative advanced controls without a real need.
 
 **F6 — Firmware update**: **Choose firmware .bin → Review update → Update
 firmware**. Review filename, size and any verified compatibility info. Validate

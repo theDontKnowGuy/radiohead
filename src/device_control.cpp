@@ -69,7 +69,7 @@ void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
 
 void goToSleep() {
     if (webUpdateInProgress()) {
-        Serial.println("Power transition deferred while firmware update is writing");
+        Serial.println("Power transition deferred during device maintenance");
         return;
     }
     // GPIO38 is not RTC-capable on ESP32-S3: encoder wake requires light
@@ -113,7 +113,7 @@ void goToSleep() {
 
 bool factoryReset() {
     if (webUpdateInProgress()) {
-        Serial.println("Factory reset deferred while firmware update is writing");
+        Serial.println("Factory reset deferred during device maintenance");
         return false;
     }
     tft.fillScreen(TFT_RED);
@@ -149,8 +149,11 @@ void initializeTouchCalibration() {
     }
 }
 
-void startTouchCalibration() {
+bool startTouchCalibration() {
     TouchCalibration calibration = {};
+    lastInteraction = millis();
+    setBrightness(255);
+    isDimmed = false;
     tft.fillScreen(TFT_BLACK);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -186,6 +189,7 @@ void startTouchCalibration() {
         135,
         &fonts::FreeSans9pt7b);
     delay(1500);
+    return saved;
 }
 
 int consumeEncoderDetents() {
