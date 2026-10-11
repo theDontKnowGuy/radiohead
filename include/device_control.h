@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "touch_gesture.h"
+#include "settings.h"
 
 #ifndef TOUCH_DEBUG_ENABLED
 #define TOUCH_DEBUG_ENABLED 0
@@ -16,6 +17,26 @@ void goToSleep();
 void initializeTouchCalibration();
 // Starts interactive TFT calibration and reports whether it was saved.
 bool startTouchCalibration();
+// Loop-owned diagnostics. Debug is transient and never changes acquisition or
+// input routing; the display draws the latest detected contact independently.
+struct TouchDiagnostics {
+    TouchCalibration activeCalibration = {};
+    const char* calibrationSource = "not initialized";
+    bool debugEnabled = false;
+    bool contact = false;
+    // Retained last accepted contact, including off-panel mappings. A rejected
+    // sample changes contact only; it must not destroy diagnostic evidence.
+    bool onPanel = false;
+    int32_t rawX = 0, rawY = 0;
+    int32_t screenX = 0, screenY = 0;
+    uint32_t polls = 0;
+    uint32_t contactSamples = 0;
+    uint32_t lastContactAt = 0;
+};
+const TouchDiagnostics& touchDiagnostics();
+void setTouchDebugEnabled(bool enabled);
+constexpr uint32_t TOUCH_DEBUG_MARKER_HOLD_MS = 750;
+bool touchDebugMarkerVisible(unsigned long now);
 void taskControl(void* parameter);
 int consumeEncoderDetents();
 

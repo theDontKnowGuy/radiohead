@@ -19,6 +19,7 @@ constexpr unsigned long kButtonHoldMs = 3000;
 constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+TouchDiagnostics touchState;
 
 // Sleep wake is level-triggered. Consume both the initiating hold and the
 // waking press, including bounce, so neither leaks into the next boot.
@@ -141,8 +142,14 @@ void initializeTouchCalibration() {
     TouchCalibration calibration = {};
     if (loadTouchCalibration(calibration)) {
         tft.setTouchCalibrate(calibration.data());
+        touchState.activeCalibration = calibration;
+        touchState.calibrationSource = "saved at boot";
         Serial.println("Loaded saved touch calibration");
     } else {
+        const auto config = tft.touch()->config();
+        touchState.activeCalibration = {config.x_min, config.y_min, config.x_min,
+            config.y_max, config.x_max, config.y_min, config.x_max, config.y_max};
+        touchState.calibrationSource = "panel defaults";
         // Keep the panel's configured coordinate bounds until the user
         // explicitly calibrates in Settings. Boot must also work without a TFT.
         Serial.println("Using default touch mapping; calibrate in Settings if needed");
@@ -164,6 +171,10 @@ bool startTouchCalibration() {
     tft.fillScreen(TFT_BLACK);
 
     tft.calibrateTouch(calibration.data(), TFT_WHITE, TFT_BLACK, 16);
+    touchState.activeCalibration = calibration;
+    touchState.calibrationSource = "measured this session";
+    touchState.contact = false;
+    touchState.onPanel = false;
 
     Serial.println("Touch calibration coordinates:");
     for (size_t i = 0; i < calibration.size(); i += 2) {
@@ -190,6 +201,21 @@ bool startTouchCalibration() {
         &fonts::FreeSans9pt7b);
     delay(1500);
     return saved;
+}
+
+const TouchDiagnostics& touchDiagnostics() {
+    return touchState;
+}
+
+void setTouchDebugEnabled(bool enabled) {
+    touchState.debugEnabled = enabled;
+    touchState.contact = false;
+}
+
+bool touchDebugMarkerVisible(unsigned long now) {
+    return touchState.debugEnabled && touchState.contactSamples != 0 &&
+        (touchState.contact ||
+         static_cast<uint32_t>(now) - touchState.lastContactAt < TOUCH_DEBUG_MARKER_HOLD_MS);
 }
 
 int consumeEncoderDetents() {
@@ -244,13 +270,22 @@ TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
     const unsigned long readStarted = TOUCH_DEBUG_ENABLED ? micros() : 0;
     lgfx::touch_point_t point = {};
     const bool rawContact = tft.getTouchRaw(&point);
+    if (touchState.polls != UINT32_MAX) ++touchState.polls;
+    touchState.contact = rawContact;
     bool touched = rawContact;
     if (touched) {
+        touchState.rawX = point.x;
+        touchState.rawY = point.y;
+        if (touchState.contactSamples != UINT32_MAX) ++touchState.contactSamples;
+        touchState.lastContactAt = static_cast<uint32_t>(now);
         tft.convertRawXY(&point);
         // A spurious off-panel sample is a dropout, not a permanent veto of
         // the whole press. The latch bridges brief missing samples.
         touched = point.x >= 0 && point.x < tft.width() &&
                   point.y >= 0 && point.y < tft.height();
+        touchState.onPanel = touched;
+        touchState.screenX = point.x;
+        touchState.screenY = point.y;
     }
     const TouchEvent event = pressLatch.sample(touched, static_cast<int16_t>(point.x),
                                                static_cast<int16_t>(point.y), now, x, y);

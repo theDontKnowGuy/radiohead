@@ -40,6 +40,9 @@ void showNetworkQrScreen();
 // intentionally status-only: image validation and flash writes remain in the
 // Update library and web_server ownership.
 void setFirmwareUpdateProgress(bool active, uint8_t percent);
+// Loop-owned sampling of the background updater. Shows progress on every page
+// and keeps the backlight awake through installation and a brief failure notice.
+void serviceFirmwareUpdateDisplay(unsigned long now);
 
 // Restore the backlight after sleep and initialize the landscape TFT.
 void initializeDisplay();

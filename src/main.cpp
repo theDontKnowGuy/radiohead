@@ -101,15 +101,7 @@ void loop() {
     updateWeatherData();
 
     const unsigned long now = millis();
-    // The update worker publishes only discrete state changes. Sampling its
-    // revision avoids locking its String state in the hot audio path while
-    // still repainting the TFT when a manual release becomes available.
-    static uint32_t lastFirmwareUpdateRevision = 0;
-    const uint32_t firmwareUpdateRevision = firmwareUpdater.statusRevision();
-    if (firmwareUpdateRevision != lastFirmwareUpdateRevision) {
-        lastFirmwareUpdateRevision = firmwareUpdateRevision;
-        forceRedraw = true;
-    }
+    serviceFirmwareUpdateDisplay(now);
     const DeviceInput input = pollDeviceInput(now);
     struct tm timeInfo = {};
     const time_t wallClock = time(nullptr);

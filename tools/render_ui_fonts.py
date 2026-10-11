@@ -48,9 +48,20 @@ exe = out / 'home'
 subprocess.run(['clang++', '-Wl,-dead_strip', *objects, '-o', str(exe)], check=True)
 network_boot_only = '--network-boot-only' in sys.argv[1:]
 wifi_only = '--wifi-only' in sys.argv[1:]
-mode_args = ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
+firmware_only = '--firmware-only' in sys.argv[1:]
+mode_args = ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
 subprocess.run([str(exe), str(out)] + mode_args,
                check=True, env={**os.environ, 'TZ': 'UTC'})
+if firmware_only:
+    try:
+        from PIL import Image
+    except ImportError:
+        print(f'PPM firmware update evidence: {out} (install Pillow for PNG copies)')
+    else:
+        for path in out.glob('firmware-*.ppm'):
+            Image.open(path).save(path.with_suffix('.png'))
+        print(f'PNG firmware update evidence: {out}')
+    sys.exit(0)
 if wifi_only:
     from PIL import Image
     for pattern in ('home-wifi-level-*.ppm', 'wifi-level-*.ppm',

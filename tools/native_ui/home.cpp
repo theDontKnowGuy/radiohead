@@ -215,14 +215,34 @@ void save(const char* path) {
     }
     fclose(file);
 }
+void renderFirmwareUpdateFixtures(const std::string& dir) {
+    for (uint8_t percent : {0, 50, 100}) {
+        drawFirmwareUpdateOverlay(percent, true, false, false);
+        save((dir + "/firmware-download-" + std::to_string(percent) + ".ppm").c_str());
+    }
+    drawFirmwareUpdateOverlay(100, true, true, false);
+    save((dir + "/firmware-installed.ppm").c_str());
+    drawFirmwareUpdateOverlay(50, true, false, true);
+    save((dir + "/firmware-failed.ppm").c_str());
+    antialias = false;
+    drawFirmwareUpdateOverlay(50, true, false, false);
+    save((dir + "/firmware-download-fallback.ppm").c_str());
+    antialias = true;
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2 || (argc == 3 && (std::string(argv[2]) == "--network-boot-only" ||
-                                     std::string(argv[2]) == "--wifi-only")));
+                                     std::string(argv[2]) == "--wifi-only" ||
+                                     std::string(argv[2]) == "--firmware-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--firmware-only") {
+        renderFirmwareUpdateFixtures(argv[1]);
+        return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--wifi-only") {
         const std::string dir = argv[1];
         for (uint8_t level = 0; level <= 4; ++level) {
@@ -840,6 +860,7 @@ int main(int argc, char** argv) {
     save((dir + "/settings-device-smooth.ppm").c_str());
     renderFirmwareSettings(firmwareHitState, "15:01", true);
     save((dir + "/settings-firmware-smooth.ppm").c_str());
+    renderFirmwareUpdateFixtures(dir);
     renderSettingsWebHandoff(settingsHandoffHitState, "15:01", true);
     save((dir + "/settings-network-smooth.ppm").c_str());
     isAP = true;

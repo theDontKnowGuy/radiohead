@@ -287,6 +287,7 @@ void FirmwareUpdater::installPendingRelease() {
             break;
         }
         written += read;
+        setDownloadProgress(written, release.size);
         lastProgressAt = millis();
     }
     http.end();
@@ -315,10 +316,28 @@ void FirmwareUpdater::setStatus(Status status, const String& message) {
     if (stateMutex != nullptr && xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
         currentStatus = status;
         statusMessage = message;
+        if (status == Status::Checking) installationAttempted = false;
+        if (status == Status::Downloading) {
+            downloadPercent = 0;
+            installationAttempted = true;
+        }
         xSemaphoreGive(stateMutex);
     }
     stateRevision.fetch_add(1);
     if (status == Status::Failed) Serial.printf("[update] %s\n", message.c_str());
+}
+
+void FirmwareUpdater::setDownloadProgress(size_t written, size_t total) {
+    if (total == 0) return;
+    const uint8_t percent = static_cast<uint8_t>(
+        std::min<uint64_t>(100, static_cast<uint64_t>(written) * 100 / total));
+    bool changed = false;
+    if (stateMutex != nullptr && xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        changed = downloadPercent != percent;
+        downloadPercent = percent;
+        xSemaphoreGive(stateMutex);
+    }
+    if (changed) stateRevision.fetch_add(1);
 }
 
 FirmwareUpdater::Snapshot FirmwareUpdater::snapshot() const {
@@ -328,6 +347,8 @@ FirmwareUpdater::Snapshot FirmwareUpdater::snapshot() const {
         result.message = statusMessage;
         result.availableVersion = pendingRelease.version;
         result.notes = pendingRelease.notes;
+        result.downloadPercent = downloadPercent;
+        result.installationAttempted = installationAttempted;
         xSemaphoreGive(stateMutex);
     }
     result.autoInstall = autoInstall.load();

@@ -28,6 +28,8 @@ public:
         bool awaitingConfirmation = false;
         bool autoInstall = true;
         bool busy = false;
+        uint8_t downloadPercent = 0;
+        bool installationAttempted = false;
     };
 
     void begin(bool autoInstall);
@@ -71,12 +73,15 @@ private:
     Release pendingRelease;
     Status currentStatus = Status::Idle;
     String statusMessage;
+    uint8_t downloadPercent = 0;
+    bool installationAttempted = false;
 
     static void taskEntry(void* context);
     void taskLoop();
     void checkForUpdate();
     void installPendingRelease();
     void setStatus(Status status, const String& message);
+    void setDownloadProgress(size_t written, size_t total);
     [[nodiscard]] Release pendingReleaseCopy() const;
     [[nodiscard]] static Version parseVersion(const String& text);
     [[nodiscard]] static bool isNewer(const Version& candidate, const Version& current);

@@ -1,4 +1,5 @@
 #include "display.h"
+#include "device_control.h"
 #include "settings.h"
 #include <esp_heap_caps.h>
 #include <esp_attr.h>
@@ -72,6 +73,16 @@ constexpr BaseType_t NETWORK_WORKER_CORE = ARDUINO_RUNNING_CORE;
 constexpr UBaseType_t NETWORK_WORKER_PRIORITY = 1;
 bool firmwareUpdateOverlayActive = false;
 uint8_t firmwareUpdatePercent = 0;
+FirmwareUpdater::Status releaseUpdateDisplayStatus = FirmwareUpdater::Status::Idle;
+uint8_t releaseUpdatePercent = 0;
+unsigned long releaseUpdateFailedAt = 0;
+constexpr unsigned long kUpdateFailureNoticeMs = 8000;
+
+bool releaseUpdateOverlayActive() {
+    return releaseUpdateDisplayStatus == FirmwareUpdater::Status::Downloading ||
+        releaseUpdateDisplayStatus == FirmwareUpdater::Status::Installed ||
+        releaseUpdateDisplayStatus == FirmwareUpdater::Status::Failed;
+}
 
 String urlEncode(const String& value) {
     static constexpr char HEX_DIGITS[] = "0123456789ABCDEF";
@@ -1438,6 +1449,35 @@ void drawVolumeOverlay() {
     drawSlider(138);
 }
 
+void drawFirmwareUpdateOverlay(uint8_t percent, bool downloading, bool installed, bool failed) {
+    drawSettingsBackground();
+    canvas().fillRoundRect(24, 40, 272, 184, 12, kNavy);
+    canvas().drawRoundRect(24, 40, 272, 184, 12, failed ? kAmber : kBlue);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString(failed ? "Update failed" : "Firmware update", 160, 70,
+                        uiFont(&fonts::FreeSansBold12pt7b));
+    canvas().setTextColor(kTextMuted);
+    const char* status = failed ? "Current firmware kept" :
+        installed ? "Installed; restarting..." :
+        downloading ? (percent == 100 ? "Verifying update..." : "Downloading firmware...") :
+        "Receiving firmware...";
+    canvas().drawString(status, 160, 104, uiFont(&fonts::FreeSans9pt7b));
+    if (failed) {
+        canvas().drawString("See Firmware updates in Settings", 160, 150, uiFont(&fonts::Font0));
+        canvas().drawString("Returning to your screen...", 160, 194, uiFont(&fonts::Font0));
+    } else {
+        canvas().drawRoundRect(40, 136, 240, 16, 8, kTextMuted);
+        const int width = static_cast<int>(236UL * percent / 100UL);
+        if (width > 0) canvas().fillRoundRect(42, 138, width, 12, 6, kBlue);
+        char label[8];
+        snprintf(label, sizeof(label), "%u%%", percent);
+        canvas().setTextColor(kWhite);
+        canvas().drawString(label, 160, 174, uiFont(&fonts::Font0));
+        canvas().drawString("Keep power connected", 160, 204, uiFont(&fonts::Font0));
+    }
+}
+
 const char* playbackLabel(PlaybackState state) {
     switch (state) {
     case PlaybackState::Connecting: return "CONNECTING";
@@ -2541,20 +2581,11 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
     // user is browsing a list or a podcast screen. The OTA overlay below stays
     // on top while firmware is being written.
     if (state.volumeOverlay) drawVolumeOverlay();
-    if (firmwareUpdateOverlayActive) {
-        canvas().fillScreen(kNavy);
-        canvas().setTextDatum(MC_DATUM);
-        canvas().setTextColor(kWhite);
-        canvas().drawString("Firmware update", 160, 82, uiFont(&fonts::FreeSansBold12pt7b));
-        canvas().setTextColor(kTextMuted);
-        canvas().drawString("Keep power connected", 160, 112, uiFont(&fonts::FreeSans9pt7b));
-        canvas().drawRoundRect(40, 142, 240, 16, 8, kTextMuted);
-        const int width = static_cast<int>(236UL * firmwareUpdatePercent / 100UL);
-        if (width > 0) canvas().fillRoundRect(42, 144, width, 12, 6, kBlue);
-        char percent[8];
-        snprintf(percent, sizeof(percent), "%u%%", firmwareUpdatePercent);
-        canvas().setTextColor(kWhite);
-        canvas().drawString(percent, 160, 181, uiFont(&fonts::Font0));
+    if (firmwareUpdateOverlayActive || releaseUpdateOverlayActive()) {
+        const bool remote = !firmwareUpdateOverlayActive;
+        drawFirmwareUpdateOverlay(remote ? releaseUpdatePercent : firmwareUpdatePercent,
+            remote, remote && releaseUpdateDisplayStatus == FirmwareUpdater::Status::Installed,
+            remote && releaseUpdateDisplayStatus == FirmwareUpdater::Status::Failed);
     }
     presentCanvas(0, 240);
 }
@@ -2575,6 +2606,45 @@ void setFirmwareUpdateProgress(bool active, uint8_t percent) {
     forceRedraw = true;
 }
 
+void serviceFirmwareUpdateDisplay(unsigned long now) {
+    static uint32_t lastRevision = 0;
+    static unsigned long lastSampleAt = 0;
+    static FirmwareUpdater::Status lastStatus = FirmwareUpdater::Status::Idle;
+    const uint32_t revision = firmwareUpdater.statusRevision();
+    // Lock/copy worker state only when it changes, at most four times a second.
+    // The worker never touches the TFT or loop-owned display state.
+    if (revision != lastRevision && now - lastSampleAt >= 250) {
+        const auto update = firmwareUpdater.snapshot();
+        lastRevision = revision;
+        lastSampleAt = now;
+        if (update.status == FirmwareUpdater::Status::Failed) {
+            // A connection/write failure can occur before the first display
+            // sample. Keep that attempt visible too, but show its notice once.
+            if (update.installationAttempted && lastStatus != FirmwareUpdater::Status::Failed) {
+                releaseUpdateDisplayStatus = FirmwareUpdater::Status::Failed;
+                releaseUpdateFailedAt = now;
+            }
+        } else {
+            releaseUpdateDisplayStatus = update.status;
+        }
+        lastStatus = update.status;
+        releaseUpdatePercent = update.downloadPercent;
+        forceRedraw = true;
+    }
+    if (releaseUpdateDisplayStatus == FirmwareUpdater::Status::Failed &&
+        now - releaseUpdateFailedAt >= kUpdateFailureNoticeMs) {
+        releaseUpdateDisplayStatus = FirmwareUpdater::Status::Idle;
+        forceRedraw = true;
+    }
+    if (firmwareUpdateOverlayActive || releaseUpdateOverlayActive()) {
+        lastInteraction = now;
+        if (isDimmed) {
+            setBrightness(255);
+            isDimmed = false;
+        }
+    }
+}
+
 void initializeDisplay() {
     rtc_gpio_hold_dis(static_cast<gpio_num_t>(TFT_BLK));
     rtc_gpio_deinit(static_cast<gpio_num_t>(TFT_BLK));
@@ -2590,6 +2660,23 @@ void initializeDisplay() {
 }
 
 void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool timeValid) {
+    static bool dotVisible = false;
+    static int16_t dotX = 0, dotY = 0;
+    constexpr int16_t dotRadius = 12;
+    const auto& touch = touchDiagnostics();
+    const bool showDot = touchDebugMarkerVisible(now);
+    // Off-panel mappings still indicate raw contact at the nearest edge. Web
+    // diagnostics retain the unclamped coordinates and explicitly label it.
+    const int16_t nextX = std::max<int32_t>(dotRadius,
+        std::min<int32_t>(tft.width() - 1 - dotRadius, touch.screenX));
+    const int16_t nextY = std::max<int32_t>(dotRadius,
+        std::min<int32_t>(tft.height() - 1 - dotRadius, touch.screenY));
+    const bool dotChanged = dotVisible != showDot ||
+        (showDot && (nextX != dotX || nextY != dotY));
+    // In the allocation-failure fallback there is no retained canvas to restore
+    // pixels from; repaint only when an old marker needs removing.
+    if (!uiFrameReady && dotVisible && dotChanged) forceRedraw = true;
+    bool repainted = false;
     static char lastRenderedTime[10] = "";
     static bool lastRenderedTimeValid = false;
     static unsigned long lastPodcastProgressRenderAt = 0;
@@ -2606,9 +2693,11 @@ void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool time
     const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
     const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
         !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
-    const bool homeStationTitleDue = state.page == UiPage::Home && homeStationTitleRefreshDue(now);
+    const bool homeStationTitleDue = !firmwareUpdateOverlayActive && !releaseUpdateOverlayActive() &&
+        state.page == UiPage::Home && homeStationTitleRefreshDue(now);
     if (state.dirty || forceRedraw || podcastProgressDue || wifiSignalChanged) {
         renderRadioUi(state, currentTime, timeValid);
+        repainted = true;
         forceRedraw = false;
         uiControllerMarkRendered();
         if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
@@ -2619,11 +2708,29 @@ void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool time
         // Each screen owns its complete header. Rebuild it on a minute change
         // instead of overlaying the retired legacy status strip on top.
         renderRadioUi(state, currentTime, timeValid);
+        repainted = true;
         if (state.page == UiPage::PodcastPlayer) lastPodcastProgressRenderAt = now;
         strncpy(lastRenderedTime, currentTime, sizeof(lastRenderedTime));
         lastRenderedTime[sizeof(lastRenderedTime) - 1] = '\0';
         lastRenderedTimeValid = timeValid;
     } else if (homeStationTitleDue) {
         renderHomeStationTitleTick();
+        repainted = true;
     }
+    if (dotVisible && dotChanged && uiFrameReady) {
+        // Keep the canvas free of debug paint. Restore just the old 25x25 patch,
+        // with typed swap565 pixels, rather than redrawing a frame per ADC poll.
+        const auto* pixels = static_cast<const lgfx::swap565_t*>(uiFrame.getBuffer());
+        for (int16_t y = dotY - dotRadius; y <= dotY + dotRadius; ++y) {
+            tft.pushImage(dotX - dotRadius, y, dotRadius * 2 + 1, 1,
+                pixels + y * 320 + dotX - dotRadius);
+        }
+    }
+    if (showDot && (dotChanged || repainted)) {
+        tft.fillCircle(nextX, nextY, dotRadius, TFT_WHITE);
+        tft.fillCircle(nextX, nextY, dotRadius - 2, TFT_RED);
+    }
+    dotVisible = showDot;
+    dotX = nextX;
+    dotY = nextY;
 }
