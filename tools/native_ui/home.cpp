@@ -592,14 +592,14 @@ int main(int argc, char** argv) {
     UiRenderState playerHitState;
     playerHitState.page = UiPage::Listening;
     assert(uiHitTest(playerHitState, 22, 22) == UiTarget::PlayerBack);
-    assert(uiHitTest(playerHitState, 71, 47) == UiTarget::PlayerBack);
+    assert(uiHitTest(playerHitState, 209, 43) == UiTarget::PlayerBack);
     assert(uiHitTest(playerHitState, 76, 164) == UiTarget::PlayerPrevious);
     assert(uiHitTest(playerHitState, 160, 164) == UiTarget::PlayerStopOrPlay);
     assert(uiHitTest(playerHitState, 244, 164) == UiTarget::PlayerNext);
     assert(uiHitTest(playerHitState, 156, 218) == UiTarget::ListeningVolume);
     UiRenderState stationHitState;
     stationHitState.page = UiPage::Stations;
-    assert(uiHitTest(stationHitState, 71, 47) == UiTarget::ListBack);
+    assert(uiHitTest(stationHitState, 209, 43) == UiTarget::ListBack);
     assert(uiHitTest(stationHitState, 150, 68) == UiTarget::ListRow0);
     assert(uiHitTest(stationHitState, 232, 68) == UiTarget::ListRowFavorite0);
     assert(uiHitTest(stationHitState, 150, 212) == UiTarget::ListRow3);
@@ -609,13 +609,13 @@ int main(int argc, char** argv) {
     assert(uiHitTest(stationHitState, 160, 214) == UiTarget::ListRow3);
     UiRenderState stationOptionsHitState;
     stationOptionsHitState.page = UiPage::StationOptions;
-    assert(uiHitTest(stationOptionsHitState, 71, 47) == UiTarget::OptionsBack);
+    assert(uiHitTest(stationOptionsHitState, 209, 43) == UiTarget::OptionsBack);
     UiRenderState stationInfoHitState;
     stationInfoHitState.page = UiPage::StationInfo;
-    assert(uiHitTest(stationInfoHitState, 71, 47) == UiTarget::InfoBack);
+    assert(uiHitTest(stationInfoHitState, 209, 43) == UiTarget::InfoBack);
     UiRenderState favoritesHitState;
     favoritesHitState.page = UiPage::Favorites;
-    assert(uiHitTest(favoritesHitState, 71, 47) == UiTarget::FavoritesBack);
+    assert(uiHitTest(favoritesHitState, 209, 43) == UiTarget::FavoritesBack);
     assert(uiHitTest(favoritesHitState, 82, 65) == UiTarget::FavoritesStationsTab);
     assert(uiHitTest(favoritesHitState, 238, 65) == UiTarget::FavoritesShowsTab);
     assert(uiHitTest(favoritesHitState, 150, 108) == UiTarget::FavoritesRow0);
@@ -627,13 +627,13 @@ int main(int argc, char** argv) {
     UiRenderState showsHitState;
     showsHitState.page = UiPage::RecordedShows;
     assert(uiHitTest(showsHitState, 22, 22) == UiTarget::ShowsBack);
-    assert(uiHitTest(showsHitState, 71, 47) == UiTarget::ShowsBack);
+    assert(uiHitTest(showsHitState, 209, 43) == UiTarget::ShowsBack);
     assert(uiHitTest(showsHitState, 150, 68) == UiTarget::ShowRow0);
     assert(uiHitTest(showsHitState, 232, 68) == UiTarget::ShowRowFavorite0);
     UiRenderState episodesHitState;
     episodesHitState.page = UiPage::ShowEpisodes;
     episodesHitState.episodeShow = 0;
-    assert(uiHitTest(episodesHitState, 71, 47) == UiTarget::EpisodesBack);
+    assert(uiHitTest(episodesHitState, 209, 43) == UiTarget::EpisodesBack);
     assert(uiHitTest(episodesHitState, 150, 68) == UiTarget::EpisodeRow0);
     for (const auto& page : {stationHitState, showsHitState, episodesHitState}) {
         assert(uiHitTest(page, kListPagerLeft + 25, kStationListTop) == UiTarget::ListPrevious);
@@ -647,7 +647,7 @@ int main(int argc, char** argv) {
     }
     UiRenderState podcastHitState;
     podcastHitState.page = UiPage::PodcastPlayer;
-    assert(uiHitTest(podcastHitState, 71, 47) == UiTarget::PodcastBack);
+    assert(uiHitTest(podcastHitState, 209, 43) == UiTarget::PodcastBack);
     assert(uiHitTest(podcastHitState, 150, 128) == UiTarget::PodcastProgress);
     assert(uiHitTest(podcastHitState, 294, 137) == UiTarget::PodcastProgress);
     assert(uiHitTest(podcastHitState, 310, 70) == UiTarget::None);
@@ -656,7 +656,7 @@ int main(int argc, char** argv) {
     assert(uiHitTest(podcastHitState, 238, 194) == UiTarget::PodcastSeekForward);
     UiRenderState settingsHitState;
     settingsHitState.page = UiPage::Settings;
-    assert(uiHitTest(settingsHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(settingsHitState, 209, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(settingsHitState, 160, 72) == UiTarget::SettingsRow0);
     assert(uiHitTest(settingsHitState, 160, 120) == UiTarget::SettingsRow1);
     assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsRow2);
@@ -664,7 +664,7 @@ int main(int argc, char** argv) {
     assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
-    assert(uiHitTest(toneHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(toneHitState, 209, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(toneHitState, 226, 72) == UiTarget::ToneBassDecrease);
     assert(uiHitTest(toneHitState, 282, 118) == UiTarget::ToneMidIncrease);
     assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
@@ -678,18 +678,18 @@ int main(int argc, char** argv) {
     assert(uiHitTest(toneHitState, 304, 162) == UiTarget::None);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
-    assert(uiHitTest(deviceHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(deviceHitState, 209, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(deviceHitState, 160, 68) == UiTarget::DeviceFirmware);
     assert(uiHitTest(deviceHitState, 160, 116) == UiTarget::DeviceCalibration);
     assert(uiHitTest(deviceHitState, 160, 203) == UiTarget::DeviceFactoryReset);
     UiRenderState firmwareHitState;
     firmwareHitState.page = UiPage::SettingsFirmware;
-    assert(uiHitTest(firmwareHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(firmwareHitState, 209, 22) == UiTarget::SettingsBack);
     assert(uiHitTest(firmwareHitState, 160, 68) == UiTarget::FirmwareCheckNow);
     assert(uiHitTest(firmwareHitState, 160, 124) == UiTarget::FirmwareToggleAutoInstall);
     UiRenderState settingsHandoffHitState;
     settingsHandoffHitState.page = UiPage::SettingsWebHandoff;
-    assert(uiHitTest(settingsHandoffHitState, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(settingsHandoffHitState, 209, 22) == UiTarget::SettingsBack);
     assert(frame.textWidth(ConfigQrCode::Url, display_fonts::homeTitle()) <= 137);
     assert(frame.textWidth("192.168.11.199", display_fonts::homeTitle()) <= 137);
     assert(homeCityLabel("Tel Aviv, ISRAEL") == "Tel Aviv");
@@ -720,7 +720,7 @@ int main(int argc, char** argv) {
     renderHome(spotify, "15:01", true);
     save((dir + "/spotify-home.ppm").c_str());
     spotify.page = UiPage::SpotifyPlayer;
-    assert(uiHitTest(spotify, 19, 22) == UiTarget::SpotifyBack);
+    assert(uiHitTest(spotify, 209, 22) == UiTarget::SpotifyBack);
     assert(uiHitTest(spotify, 81, 193) == UiTarget::SpotifyPrevious);
     assert(uiHitTest(spotify, 156, 191) == UiTarget::SpotifyPause);
     assert(uiHitTest(spotify, 239, 193) == UiTarget::SpotifyNext);
@@ -880,7 +880,7 @@ int main(int argc, char** argv) {
     save((dir + "/settings-audio-smooth.ppm").c_str());
     UiRenderState displaySettings;
     displaySettings.page = UiPage::SettingsDisplay;
-    assert(uiHitTest(displaySettings, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(displaySettings, 209, 22) == UiTarget::SettingsBack);
     displaySettings.dimSecondsDraft = 60;
     renderDisplaySettings(displaySettings, "15:01", true);
     save((dir + "/settings-display-smooth.ppm").c_str());
@@ -898,7 +898,7 @@ int main(int argc, char** argv) {
     UiRenderState restartConfirm;
     restartConfirm.page = UiPage::SettingsConfirm;
     restartConfirm.settingsConfirmAction = 1;
-    assert(uiHitTest(restartConfirm, 22, 22) == UiTarget::SettingsBack);
+    assert(uiHitTest(restartConfirm, 209, 22) == UiTarget::SettingsBack);
     renderSettingsConfirmation(restartConfirm, "15:01", true);
     save((dir + "/settings-restart-confirm-smooth.ppm").c_str());
     restartConfirm.settingsConfirmAction = 2;

@@ -1709,3 +1709,24 @@ the local Pillow-equipped Python); QR grids are host placeholders, not scan evid
 Device acceptance remains: restart in each mode, inspect Hebrew and original
 branding on Home/connected/setup screens, and verify audio continuity with USB
 serial closed. Existing P2/P3 hardware acceptance remains open.
+
+## 2026-10-12 — Back target includes the page title
+
+The shared header Back target now covers the chevron and entire title area:
+`[0, 210) × [0, 44)`. The right edge uses the same constant as title rendering,
+including right-aligned Hebrew titles. The target stops before the clock and at
+the first content row; existing return destinations and Home targets are unchanged.
+
+**Functional:** `pio run -e esp32s3`, `python3 tools/check_touch_input.py`, and
+`git diff --check` pass. Updated native header hit assertions pass through the
+Spotify page; the full renderer still stops at its previously documented
+`photoHintCard` assertion. Later Display/confirmation fixture assertions were
+updated but are not reached in that run. Firmware is 4,496,480 B with 2,057,120 B
+application-slot headroom (31%); DIRAM is 260,331 B used / 81,429 B remaining,
+and external static RAM is 40,224 B.
+
+**Visual:** no drawing geometry changed. The newly generated production Spotify
+fixture was inspected at 320 × 240; local evidence is
+`.pio/ui_native/header-back-area-review.png`. **Hardware:** not flashed or
+verified. Check arrow/title taps, first-row actions, and audio continuity on the
+device. Existing P2/P3 acceptance remains open.

@@ -432,12 +432,13 @@ constexpr int8_t kHomeTileIconTransparentTop[] = {0, 4, 4, 1};
 // The direct-TFT primitives are not the PNGs, so retain their equivalent
 // optical corrections when PSRAM is unavailable.
 constexpr int8_t kHomeTileIconFallbackYOffset[] = {-3, -4, 0, 1};
-// The visible chevron is small, but its target reaches into the title margin
-// and a little below the header so a normal finger press reliably returns.
-constexpr int16_t kHeaderBackHitWidth = 72;
-constexpr int16_t kHeaderBackHitHeight = 48;
+constexpr int16_t kPageHeaderTitleRight = 210;
+// The chevron and full title area return together. Stop before the clock and
+// at the content boundary so the first row keeps its own touch targets.
+constexpr int16_t kHeaderBackHitWidth = kPageHeaderTitleRight;
+constexpr int16_t kHeaderBackHitHeight = 44;
 constexpr int kStationSlotCount = 10;
-constexpr int16_t kStationListTop = 44;
+constexpr int16_t kStationListTop = kHeaderBackHitHeight;
 constexpr int16_t kStationListRowHeight = 48;
 constexpr int kStationRowsPerPage = UI_LIST_ROWS;
 constexpr int16_t kListCardWidth = 248;
@@ -1275,9 +1276,8 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
     const lgfx::IFont* headerFont = uiFont(&fonts::FreeSansBold12pt7b);
     if (back) drawPageBackChevron();
 
-    constexpr int16_t kTitleRight = 210;
     const int16_t titleLeft = back ? 40 : 14;
-    const int16_t titleWidth = kTitleRight - titleLeft;
+    const int16_t titleWidth = kPageHeaderTitleRight - titleLeft;
     canvas().setFont(headerFont);
     canvas().setTextSize(1);
     canvas().setTextColor(kWhite);
@@ -1287,7 +1287,7 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
         : ellipsize(titleLayout.visual, titleWidth);
     canvas().setTextDatum(titleLayout.rightToLeft ? MR_DATUM : ML_DATUM);
     canvas().drawString(renderedTitle.c_str(),
-                        titleLayout.rightToLeft ? kTitleRight : titleLeft,
+                        titleLayout.rightToLeft ? kPageHeaderTitleRight : titleLeft,
                         kPageHeaderCenterY, headerFont);
 
     // The accepted reference treatment gives the clock the title's weight and

@@ -3,7 +3,7 @@
 // The release script reads these values before it builds and publishes a
 // release. Keep this as the single source of truth for both the compiled image
 // and GitHub's manifest.
-#define FIRMWARE_VERSION "0.2.0"
+#define FIRMWARE_VERSION "0.2.1"
 #define FIRMWARE_RELEASED "2026-10-11"
 #define FIRMWARE_NOTES "Increase encoder sleep hold to 3 seconds. Enable encoder and K0 wake using light sleep, then restore the radio through normal startup. Physical sleep/wake validation is pending."
 
