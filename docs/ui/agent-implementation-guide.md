@@ -585,7 +585,7 @@ sleep/reset gestures must be tested after input routing changes.
 
 Quiet/dimmed clock view is awake, not deep sleep. Deep sleep stops audio and turns
 off the TFT; current wake sources are K0 and alarm timer. The existing power flow
-has a five-second blocking screen before sleeping; do not copy that delay into
+has a five-second blocking screen before *.h; do not copy that delay into
 ordinary pages. Any replacement is a separate nonblocking power-transition change.
 
 ## 9. Exceptional states are first-class screens

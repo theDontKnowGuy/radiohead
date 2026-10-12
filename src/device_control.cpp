@@ -93,7 +93,7 @@ void goToSleep() {
 #endif
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE);
-    tft.drawCenterString("Sleeping", 160, 100, &fonts::FreeSansBold12pt7b);
+    tft.drawCenterString("Me sleeping", 160, 100, &fonts::FreeSansBold12pt7b);
 
     waitForPowerButtonsRelease();
     WiFi.disconnect(true);

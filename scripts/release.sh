@@ -34,7 +34,7 @@ read_define() {
 }
 
 command -v gh >/dev/null 2>&1 || die "gh CLI not found"
-command -v "$PYTHON" >/dev/null 2>&1 || die "python3 not found (set PYTHON=... if needed)"
+command -v "$PYTHON" >/dev/null 2>&1 || die "Python interpreter not found: $PYTHON (set PYTHON=... if needed)"
 
 VERSION="$(read_define FIRMWARE_VERSION)"
 RELEASED="$(read_define FIRMWARE_RELEASED)"
@@ -58,9 +58,11 @@ mkdir -p "$STAGING"
 for env in $RELEASE_ENVS; do
     [ "$env" = esp32s3 ] || die "unsupported native build environment: $env"
     echo "==> Building $env"
-    "$PYTHON" "$ROOT/tools/build_firmware.py" --build-dir "$STAGING/idf-build"
-    image="$ROOT/.pio/build/$env/firmware.bin"
-    [ -f "$image" ] || die "no firmware image for $env"
+    output="$STAGING/artifacts/$env"
+    "$PYTHON" "$ROOT/tools/build_firmware.py" \
+        --build-dir "$STAGING/idf-build" --output-dir "$output"
+    image="$output/firmware.bin"
+    [ -f "$image" ] || die "no firmware image for $env at $image"
     cp "$image" "$STAGING/radiohead-$env-$VERSION.bin"
 done
 
@@ -69,7 +71,7 @@ MANIFEST="$STAGING/manifest.json"
     echo "{"
     echo "  \"version\": \"$VERSION\","
     printf '  "notes": '
-    python3 -c 'import json,sys; print(json.dumps(sys.argv[1]) + ",")' "$NOTES"
+    "$PYTHON" -c 'import json,sys; print(json.dumps(sys.argv[1]) + ",")' "$NOTES"
     echo "  \"released\": \"$RELEASED\","
     echo "  \"builds\": {"
     first=1
@@ -87,7 +89,7 @@ MANIFEST="$STAGING/manifest.json"
     echo "  }"
     echo "}"
 } > "$MANIFEST"
-python3 -m json.tool "$MANIFEST" >/dev/null || die "generated manifest is invalid"
+"$PYTHON" -m json.tool "$MANIFEST" >/dev/null || die "generated manifest is invalid"
 
 git -C "$ROOT" tag -a "$TAG" -m "$NOTES"
 git -C "$ROOT" push origin "$TAG"
