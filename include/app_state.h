@@ -80,16 +80,25 @@ public:
     uint_fast8_t getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) override;
 };
 
+// Stock acquisition with loop-owned diagnostics; no sensitivity tuning.
+class DiagnosticTouchXPT2046 final : public lgfx::Touch_XPT2046 {
+public:
+    bool init() override;
+    bool recover();
+    uint_fast8_t getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) override;
+};
+
 class LGFX_Config : public lgfx::LGFX_Device {
 public:
     LGFX_Config();
+    bool recoverTouch() { return touch_.recover(); }
 
 private:
     lgfx::Panel_ILI9341 panel_;
     lgfx::Bus_SPI bus_;
-    // Use the stock reader, including its pressure gate.
+    // Preserve the stock reader's pressure gate and report its actual frames.
     // The custom sampler above is retained for comparison but is inactive.
-    lgfx::Touch_XPT2046 touch_;
+    DiagnosticTouchXPT2046 touch_;
 };
 
 extern const char* ntpServer;

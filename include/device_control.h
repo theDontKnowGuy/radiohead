@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "touch_gesture.h"
 #include "settings.h"
+#include "stock_touch_sampling.h"
 
 #ifndef TOUCH_DEBUG_ENABLED
 #define TOUCH_DEBUG_ENABLED 0
@@ -19,6 +20,20 @@ void initializeTouchCalibration();
 bool startTouchCalibration();
 // Loop-owned diagnostics. Debug is transient and never changes acquisition or
 // input routing; the display draws the latest detected contact independently.
+struct TouchAxisDiagnostics {
+    stock_touch_sampling::Axis last;
+    uint32_t railFrames = 0;
+    uint32_t sparseFrames = 0;
+    uint32_t unstableFrames = 0;
+};
+struct TouchAdcDiagnostics {
+    TouchAxisDiagnostics x, y;
+    uint32_t frames = 0;
+    uint32_t acceptedFrames = 0;
+    uint32_t pressureRejectedFrames = 0;
+    uint16_t pressure = 0;
+    uint8_t pressureValid = 0;
+};
 struct TouchDiagnostics {
     TouchCalibration activeCalibration = {};
     const char* calibrationSource = "not initialized";
@@ -32,8 +47,22 @@ struct TouchDiagnostics {
     uint32_t polls = 0;
     uint32_t contactSamples = 0;
     uint32_t lastContactAt = 0;
+    TouchAdcDiagnostics adc;
+    uint32_t lastPollGapMs = 0, maxPollGapMs = 0;
+    uint32_t lastReadUs = 0, maxReadUs = 0;
+    uint32_t presses = 0, releases = 0, offPanelSamples = 0;
+    uint32_t recoveryAttempts = 0, recoverySuccesses = 0;
+    uint32_t lastRecoveryAt = 0, lastRecoveryUs = 0;
+    bool lastRecoverySucceeded = false;
+    TouchAdcDiagnostics beforeRecoveryAdc;
 };
 const TouchDiagnostics& touchDiagnostics();
+// Called by the instrumented stock reader, including calibration reads. Never
+// samples again, allocates, writes Serial or changes contact acceptance.
+void recordTouchFrame(const stock_touch_sampling::Frame& frame);
+// Loop-only manual recovery. Calibration and counters survive; held touch is
+// consumed until stable release. Bus init success is not a sensor health test.
+bool recoverTouch();
 void setTouchDebugEnabled(bool enabled);
 constexpr uint32_t TOUCH_DEBUG_MARKER_HOLD_MS = 750;
 bool touchDebugMarkerVisible(unsigned long now);

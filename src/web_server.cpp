@@ -271,6 +271,26 @@ String touchCalibrationJson(const TouchCalibration& calibration) {
     return json + "]";
 }
 
+String touchAxisJson(const TouchAxisDiagnostics& axis) {
+    return "{\"minimum\":" + String(axis.last.minimum) +
+        ",\"maximum\":" + String(axis.last.maximum) +
+        ",\"median\":" + String(axis.last.median) +
+        ",\"valid\":" + String(axis.last.valid) +
+        ",\"cluster\":" + String(axis.last.cluster) +
+        ",\"railFrames\":" + String(axis.railFrames) +
+        ",\"sparseFrames\":" + String(axis.sparseFrames) +
+        ",\"unstableFrames\":" + String(axis.unstableFrames) + "}";
+}
+
+String touchAdcJson(const TouchAdcDiagnostics& adc) {
+    return "{\"frames\":" + String(adc.frames) +
+        ",\"acceptedFrames\":" + String(adc.acceptedFrames) +
+        ",\"pressureRejectedFrames\":" + String(adc.pressureRejectedFrames) +
+        ",\"pressure\":" + String(adc.pressure) +
+        ",\"pressureValid\":" + String(adc.pressureValid) +
+        ",\"x\":" + touchAxisJson(adc.x) + ",\"y\":" + touchAxisJson(adc.y) + "}";
+}
+
 String touchDebugStateFieldsJson() {
     const auto& touch = touchDiagnostics();
     return "\"touchDebugEnabled\":" + String(touch.debugEnabled ? "true" : "false") +
@@ -282,7 +302,22 @@ String touchDebugStateFieldsJson() {
         ",\"touchLastContactAgeMs\":" + (touch.contactSamples
             ? String(static_cast<uint32_t>(millis()) - touch.lastContactAt) : String("null")) +
         ",\"touchRaw\":[" + String(touch.rawX) + "," + String(touch.rawY) + "]" +
-        ",\"touchScreen\":[" + String(touch.screenX) + "," + String(touch.screenY) + "]";
+        ",\"touchScreen\":[" + String(touch.screenX) + "," + String(touch.screenY) + "]" +
+        ",\"touchAdc\":" + touchAdcJson(touch.adc) +
+        ",\"touchTiming\":{\"lastGapMs\":" + String(touch.lastPollGapMs) +
+        ",\"maxGapMs\":" + String(touch.maxPollGapMs) +
+        ",\"lastReadUs\":" + String(touch.lastReadUs) +
+        ",\"maxReadUs\":" + String(touch.maxReadUs) +
+        ",\"presses\":" + String(touch.presses) +
+        ",\"releases\":" + String(touch.releases) +
+        ",\"offPanelSamples\":" + String(touch.offPanelSamples) + "}" +
+        ",\"touchRecovery\":{\"attempts\":" + String(touch.recoveryAttempts) +
+        ",\"successes\":" + String(touch.recoverySuccesses) +
+        ",\"lastAgeMs\":" + (touch.recoveryAttempts
+            ? String(static_cast<uint32_t>(millis()) - touch.lastRecoveryAt) : String("null")) +
+        ",\"lastSucceeded\":" + String(touch.lastRecoverySucceeded ? "true" : "false") +
+        ",\"lastDurationUs\":" + String(touch.lastRecoveryUs) +
+        ",\"beforeAdc\":" + (touch.recoveryAttempts ? touchAdcJson(touch.beforeRecoveryAdc) : String("null")) + "}";
 }
 
 String deviceStateJson() {
@@ -828,7 +863,7 @@ reload();})();</script>)JS";
     case WebSection::Device:
         html += "<div class='rh-pagehead'><div><h1>Device &amp; maintenance</h1><p>Device information and safe maintenance.</p></div></div>"
             "<section class='rh-box'><h2>Radio</h2><dl class='rh-data' id='device-about'><dt>Status</dt><dd>Loading…</dd></dl></section>"
-            "<section class='rh-box'><details id='device-diagnostics-panel'><summary>Open diagnostics</summary><p class='rh-muted'>Only measured device state is shown. Credentials are never included.</p><dl class='rh-data' id='device-diagnostics'></dl><h3>Touch debug</h3><p class='rh-muted'>Show a large red marker on the radio at each detected position. It stays visible for 0.75 seconds after the last detected sample. An off-screen position is shown at the nearest edge. Normal touch actions stay active. Debug turns off after restart.</p><p class='rh-note' id='device-touch-contact'>Reading touch state…</p><div class='rh-footer'><span class='rh-formstatus' id='device-touch-debug-status' role='status'></span><button class='rh-button' id='device-touch-debug' type='button' aria-pressed='false' data-maintenance-action disabled>Enable touch debug</button></div></details></section>"
+            "<section class='rh-box'><details id='device-diagnostics-panel'><summary>Open diagnostics</summary><p class='rh-muted'>Only measured device state is shown. Credentials are never included.</p><dl class='rh-data' id='device-diagnostics'></dl><h3>Touch debug</h3><p class='rh-muted'>Show a large red marker on the radio at each detected position. It stays visible for 0.75 seconds after the last detected sample. An off-screen position is shown at the nearest edge. Normal touch actions stay active. Debug turns off after restart.</p><p class='rh-note' id='device-touch-contact'>Reading touch state…</p><div class='rh-footer'><span class='rh-formstatus' id='device-touch-debug-status' role='status'></span><button class='rh-button' id='device-touch-debug' type='button' aria-pressed='false' data-maintenance-action disabled>Enable touch debug</button></div><h3>Touch acquisition</h3><p class='rh-muted'>Counters include rejected samples and calibration reads, since boot. Idle rejection is normal. X/Y instability cannot identify a faulty wire.</p><p class='rh-note' id='device-touch-adc'>Reading acquisition state…</p><p class='rh-note' id='device-touch-x'></p><p class='rh-note' id='device-touch-y'></p><p class='rh-note' id='device-touch-timing'></p><h3>Recover touch</h3><p class='rh-muted'>Reinitialize touch without restarting the radio. Lift your finger afterward before tapping again. Calibration is kept. Successful initialization does not prove touch accuracy.</p><p class='rh-note' id='device-touch-recovery'>No recovery attempted.</p><div class='rh-footer'><span class='rh-formstatus' id='device-touch-recover-status' role='status'></span><button class='rh-button' id='device-touch-recover' type='button' data-maintenance-action disabled>Recover touch</button></div></details></section>"
             "<section class='rh-box' aria-labelledby='release-update'><h2 id='release-update'>Release updates</h2><p class='rh-muted'>The radio checks the official GitHub release channel hourly. Firmware and its manifest are fetched only over GitHub TLS and the image digest is verified before restart.</p><label class='rh-field'><span>When a new release is found</span><select id='release-auto'><option value='1'>Install automatically</option><option value='0'>Manual — choose Install update here</option></select></label><div class='rh-footer'><span class='rh-formstatus' id='release-status' role='status'>Checking update status…</span><button class='rh-button' id='release-check' data-maintenance-action type='button'>Check now</button><button class='rh-button rh-primary' id='release-install' data-maintenance-action type='button' hidden>Install update</button></div></section>"
             "<section class='rh-box' aria-labelledby='firmware-update'><h2 id='firmware-update'>Firmware update</h2><p class='rh-muted'>Choose a firmware .bin, review it, then start the update. Keep power connected until the update is complete.</p>"
             "<label class='rh-upload' for='firmware-file'><input id='firmware-file' type='file' accept='.bin,application/octet-stream'>Choose firmware .bin</label><p class='rh-note' id='firmware-review'>Choose a file to review its name and size.</p>"
@@ -854,12 +889,25 @@ function upload(){if(!file)return;setBusy(true);$('firmware-status').textContent
 $('device-calibration-start').onclick=async()=>{if(calibrationPending)return;calibrationPending=true;$('device-calibration-start').dataset.pending='true';setBusy(true);$('release-auto').disabled=true;$('device-calibration-status').textContent='Requesting touch calibration…';try{await post('/api/device/touch-calibration');$('device-calibration-status').textContent='Tap each corner marker on the radio. Waiting for calibration to finish…';calibrationPoll=setTimeout(refresh,2000);}catch(error){calibrationPending=false;$('device-calibration-start').dataset.pending='false';setBusy(false);updateFile();$('device-calibration-status').textContent=error.message;document.dispatchEvent(new Event('radiohead-maintenance-finished'));}};
 $('firmware-file').onchange=updateFile;$('firmware-start').onclick=()=>file&&openDialog('update');$('device-restart').onclick=()=>openDialog('restart');$('device-reset').onclick=()=>openDialog('reset');$('device-dialog-cancel').onclick=closeDialog;$('device-dialog').onclick=e=>{if(e.target===$('device-dialog'))closeDialog();};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('device-dialog').hidden){e.preventDefault();closeDialog();}});$('device-dialog-confirm').onclick=async()=>{try{if(dialogAction==='reset'){if($('device-reset-confirm').value!=='RESET'){$('device-reset-confirm').focus();return;}$('firmware-status').textContent='Factory reset accepted. The radio is restarting.';await post('/api/device/factory-reset',{confirm:'RESET'});}else if(dialogAction==='restart'){$('firmware-status').textContent='Restart accepted. Waiting for the radio to reconnect.';await post('/api/device/restart');}else upload();closeDialog();setBusy(true);}catch(error){$('firmware-status').textContent=error.message;setBusy(false);closeDialog();}};refresh();})();</script>)JS";
         html += R"JS(<script>(()=>{
-const $=id=>document.getElementById(id),panel=$('device-diagnostics-panel'),button=$('device-touch-debug');
+const $=id=>document.getElementById(id),panel=$('device-diagnostics-panel'),button=$('device-touch-debug'),recover=$('device-touch-recover');
 let enabled=false,pending=false,timer=0,revision=0;
-function render(data){enabled=!!data.touchDebugEnabled;button.setAttribute('aria-pressed',String(enabled));button.textContent=enabled?'Disable touch debug':'Enable touch debug';button.disabled=pending||!data.touchDebugAvailable;const raw=data.touchRaw||[],screen=data.touchScreen||[],samples=data.touchContactSamples||0,polls=data.touchPolls||0,position=`raw (${raw.join(', ')}) · screen (${screen.join(', ')})${data.touchOnPanel?'':' · outside screen'}`,counts=`Detected samples: ${samples} / ${polls}`;$('device-touch-contact').textContent=data.touchContact?`Contact detected · ${position} · ${counts}`:samples?`No contact now · last detected ${data.touchLastContactAgeMs} ms ago · ${position} · ${counts}`:`No contact detected · ${counts}`;}
-function schedule(){clearTimeout(timer);if(panel.open&&!document.hidden)timer=setTimeout(refresh,500);}
-async function refresh(){const requested=revision;try{const response=await fetch('/api/device/touch-debug',{cache:'no-store',signal:AbortSignal.timeout(3000)});if(!response.ok)throw Error('Touch diagnostics are unavailable.');const data=await response.json();if(requested===revision&&!pending){render(data);$('device-touch-debug-status').textContent=data.touchDebugAvailable?'':'Wait for device maintenance to finish.';}}catch(error){if(requested===revision){button.disabled=true;$('device-touch-debug-status').textContent=error.message;}}finally{schedule();}}
-button.onclick=async()=>{if(pending)return;pending=true;++revision;clearTimeout(timer);button.disabled=true;$('device-touch-debug-status').textContent='Updating touch debug…';try{const response=await fetch('/api/device/touch-debug',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({enabled:enabled?'0':'1'}),signal:AbortSignal.timeout(5000)});const data=await response.json();if(!response.ok)throw Error(data.error||'Could not change touch debug.');pending=false;render(data);$('device-touch-debug-status').textContent=enabled?'Touch debug enabled.':'Touch debug disabled.';}catch(error){$('device-touch-debug-status').textContent=error.message;}finally{pending=false;schedule();}};
+function disable(){button.disabled=true;recover.disabled=true;}
+function axisText(name,axis,frames){if(!frames||!axis)return `${name}: no ADC frames measured`;return `${name}: last range ${axis.minimum}–${axis.maximum} · median ${axis.median} · valid ${axis.valid}/7 · group within 150 counts ${axis.cluster}/7 · rail frames ${axis.railFrames} · sparse frames ${axis.sparseFrames} · unstable frames ${axis.unstableFrames}`;}
+function render(data){
+ enabled=!!data.touchDebugEnabled;button.setAttribute('aria-pressed',String(enabled));button.textContent=enabled?'Disable touch debug':'Enable touch debug';button.disabled=recover.disabled=pending||!data.touchDebugAvailable;
+ const raw=data.touchRaw||[],screen=data.touchScreen||[],samples=data.touchContactSamples||0,polls=data.touchPolls||0,position=`raw (${raw.join(', ')}) · screen (${screen.join(', ')})${data.touchOnPanel?'':' · outside screen'}`,counts=`Detected samples: ${samples} / ${polls}`;
+ $('device-touch-contact').textContent=data.touchContact?`Contact detected · ${position} · ${counts}`:samples?`No contact now · last detected ${data.touchLastContactAgeMs} ms ago · ${position} · ${counts}`:`No contact detected · ${counts}`;
+ const adc=data.touchAdc||{},timing=data.touchTiming||{},recovery=data.touchRecovery||{};
+ $('device-touch-adc').textContent=`ADC frames: ${adc.frames||0} · accepted: ${adc.acceptedFrames||0} · rejected by pressure with valid X/Y: ${adc.pressureRejectedFrames||0} · last pressure score: ${adc.pressure??'unavailable'} (${adc.pressureValid||0}/7 positive)`;
+ $('device-touch-x').textContent=axisText('X',adc.x,adc.frames);$('device-touch-y').textContent=axisText('Y',adc.y,adc.frames);
+ $('device-touch-timing').textContent=`Poll gap: ${timing.lastGapMs??'unavailable'} ms · maximum ${timing.maxGapMs??'unavailable'} ms · read: ${timing.lastReadUs??'unavailable'} µs · maximum ${timing.maxReadUs??'unavailable'} µs · presses ${timing.presses||0} · releases ${timing.releases||0} · off-screen samples ${timing.offPanelSamples||0}`;
+ const before=recovery.beforeAdc;
+ $('device-touch-recovery').textContent=recovery.attempts?`Recovery attempts: ${recovery.attempts} · initialized: ${recovery.successes} · last ${recovery.lastSucceeded?'initialized':'failed'}, ${recovery.lastAgeMs} ms ago (${recovery.lastDurationUs} µs). Before last recovery: ${before?.frames||0} ADC frames, ${before?.acceptedFrames||0} accepted, ${before?.pressureRejectedFrames||0} pressure rejections; unstable X/Y ${before?.x?.unstableFrames||0}/${before?.y?.unstableFrames||0}.`:'No recovery attempted.';
+}
+function schedule(){clearTimeout(timer);if(panel.open&&!document.hidden&&!pending)timer=setTimeout(refresh,500);}
+async function refresh(){const requested=revision;try{const response=await fetch('/api/device/touch-debug',{cache:'no-store',signal:AbortSignal.timeout(3000)});if(!response.ok)throw Error('Touch diagnostics are unavailable.');const data=await response.json();if(requested===revision&&!pending){render(data);$('device-touch-debug-status').textContent=data.touchDebugAvailable?'':'Wait for device maintenance to finish.';}}catch(error){if(requested===revision){disable();$('device-touch-debug-status').textContent=error.message;}}finally{schedule();}}
+button.onclick=async()=>{if(pending)return;pending=true;++revision;clearTimeout(timer);disable();$('device-touch-debug-status').textContent='Updating touch debug…';try{const response=await fetch('/api/device/touch-debug',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({enabled:enabled?'0':'1'}),signal:AbortSignal.timeout(5000)});const data=await response.json();if(!response.ok)throw Error(data.error||'Could not change touch debug.');pending=false;render(data);$('device-touch-debug-status').textContent=enabled?'Touch debug enabled.':'Touch debug disabled.';}catch(error){$('device-touch-debug-status').textContent=error.message;}finally{pending=false;schedule();}};
+recover.onclick=async()=>{if(pending)return;pending=true;++revision;clearTimeout(timer);disable();$('device-touch-recover-status').textContent='Reinitializing touch…';try{const response=await fetch('/api/device/touch-recover',{method:'POST',signal:AbortSignal.timeout(5000)});const data=await response.json();pending=false;if(data.touchRecovery)render(data);if(!response.ok)throw Error(data.error||'Could not recover touch.');$('device-touch-recover-status').textContent='Touch bus reinitialized. Lift your finger, then try a tap.';}catch(error){$('device-touch-recover-status').textContent=error.message;}finally{pending=false;schedule();}};
 panel.addEventListener('toggle',()=>{if(panel.open)refresh();else clearTimeout(timer);});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&panel.open)refresh();else clearTimeout(timer);});
 })();</script>)JS";
         html += R"JS(<script>(()=>{const $=id=>document.getElementById(id);let updatePolls=0,pollTimer=0;
@@ -1451,6 +1499,17 @@ void startWebServer() {
     });
     server.on("/api/device/touch-debug", HTTP_GET, [] {
         server.send(200, "application/json; charset=utf-8", "{" + touchDebugStateFieldsJson() + "}");
+    });
+    server.on("/api/device/touch-recover", HTTP_POST, [] {
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy();
+            return;
+        }
+        const bool recovered = recoverTouch();
+        firmwareUpdater.endLocalMaintenance();
+        server.send(recovered ? 200 : 500, "application/json; charset=utf-8",
+            "{" + touchDebugStateFieldsJson() + (recovered ? String("}") :
+                String(",\"error\":\"Touch bus initialization failed. Try recovery again.\"}")));
     });
     server.on("/api/device/touch-debug", HTTP_POST, [] {
         const String enabled = server.arg("enabled");

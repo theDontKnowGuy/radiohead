@@ -1,5 +1,59 @@
 # Web configuration implementation progress
 
+### 2026-10-12 — W8 intermittent touch diagnostics/recovery (flashed; fault recovery unverified)
+
+- User-authorized scope: expose production X/Y ADC quality, pressure rejection
+  and polling/read timing in Device diagnostics; add manual touch-bus recovery;
+  build, verify and flash the connected radio. Picture, encoder and web continue
+  working during the reported failure; physical touch accuracy remains failed.
+- Code inspection correction: the active member is stock `Touch_XPT2046`, with
+  pressure gating at 1 MHz. `LightTouchXPT2046` is inactive. Instrument the active
+  stock protocol/median/acceptance rules; preserve pins, frequency, calibration,
+  normal input and TFT rendering. Recovery is manual, excludes maintenance,
+  consumes held contact until release and preserves pre-recovery ADC evidence.
+- Acceptance: compare instrumented decoding with pinned stock reader on
+  representative/adversarial frames; exercise recovery/re-arm and web conflict,
+  failure and polling behavior; build/check artifacts, inspect web at desktop and
+  320 px, flash the identified ESP32-S3 and check live web state if reachable.
+  Upload or bus-init success does not prove recovery of the intermittent fault.
+- Delivered: stock-reader frame summaries in the existing touch-debug GET API
+  and Device panel, poll/read timing, press/release/off-panel counts, and
+  `POST /api/device/touch-recover` with maintenance exclusion and init-result
+  reporting. Recreates SPI3 only; calibration/mapping and cumulative counters
+  survive. The pre-recovery ADC snapshot is retained. Held raw contact is
+  suppressed through stable release, including off-panel samples. No periodic
+  reset, sensitivity/frequency/pin change, extra ADC read or Serial logging.
+  The 57-byte stock transfer uses a padded 60-byte backing buffer because the
+  ESP32 SPI helper reads whole words; the stock byte sequence remains identical.
+- Functional: `python3 tools/check_stock_touch_sampling.py` compares 20,042
+  representative/adversarial frames with the pinned stock implementation under
+  ASan/UBSan and verifies init/recovery failure guards. Stock commands, rejection,
+  coordinates and pressure match; one ADC read per acquisition. Updated
+  `tools/check_touch_diagnostics.py` and `tools/check_touch_diagnostics_web.cjs`
+  pass quality/saturation, snapshot preservation, held/off-panel re-arm,
+  rollover, duplicate clicks, failed recovery, maintenance/restart conflicts
+  and browser polling/error lifecycle. Existing touch-input, encoder-power,
+  firmware-artifact and whitespace checks pass.
+- Build: `pio run -e esp32s3` passes; `.pio/touch-recovery-build.log`. DIRAM
+  260,491 / 341,760 B (76.22%); padded image 4,507,152 B; application-slot headroom
+  2,046,448 B (31%). These are final shared-worktree totals; an isolated size
+  baseline was not built. Existing user `FirmwareVersion.h` date edit retained;
+  no credentials, vendored changes or generated artifacts are tracked.
+- Visual: production Device markup/scripts rendered with the supplied stylesheet
+  at desktop and 320 px, inspected without clipping/overflow or script errors:
+  `.pio/touch_diagnostics_native/web-desktop.png` and `web-mobile.png`. API data
+  are synthetic fixture inputs, not hardware evidence. TFT layout is unchanged;
+  existing native overlay restoration checks pass.
+- Hardware: flashed normal firmware to the currently enumerated Espressif USB
+  device `/dev/cu.usbmodem11201`; esptool verified written hashes and reset it
+  (`.pio/touch-recovery-flash.log`). Settings/NVS and artwork partitions were
+  not written. Live `radio.local` checks could not resolve that hostname from
+  this computer; boot/playback, physical touch accuracy and recovery during a
+  real failure remain **not verified**. USB serial remains closed. Follow
+  [the updated diagnostic protocol](../touch-diagnosis.md) for before/after
+  failure trials. Rollback is the scoped touch code/docs/tests diff; no
+  Preferences migration is required.
+
 ### 2026-10-11 — Web configuration simplification (ready for device testing)
 
 - User-authorized scope: remove the Appearance tab and M3U import functionality,

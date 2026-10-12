@@ -35,6 +35,7 @@ using swap565_t = uint16_t;
 struct touch_point_t { int32_t x = 0, y = 0; };
 }
 TouchDiagnostics touchState;
+TouchPressLatch pressLatch;
 unsigned long tick = 0;
 unsigned long millis() { return tick; }
 unsigned long micros() { return tick * 1000; }
@@ -49,6 +50,9 @@ struct Frame {
 struct Tft {
     std::array<uint16_t, 320 * 240> pixels;
     bool detected = false;
+    bool recoveryOk = true;
+    unsigned recoveries = 0;
+    bool recoverTouch() { ++recoveries; return recoveryOk; }
     int32_t rawX = 0, rawY = 0;
     struct Config { uint16_t x_min=300, y_min=400, x_max=3900, y_max=3900; };
     Config config() const { return {}; }
@@ -99,20 +103,34 @@ struct Server {
     String enabled;
     String response;
     int status=0;
-    void on(const char*,int method,std::function<void()> handler) { routes[method]=handler; }
+    std::function<void()> recoveryRoute;
+    void on(const char* path,int method,std::function<void()> handler) {
+        if(std::string(path)=="/api/device/touch-recover") recoveryRoute=handler;
+        else routes[method]=handler;
+    }
     String arg(const char*) { return enabled; }
     void send(int code,const char*,const String& body) { status=code; response=body; }
 } server;
 void sendMaintenanceBusy() { server.status=409; }
+struct { bool allow=true;unsigned locks=0,ends=0;
+    bool tryBeginLocalMaintenance() { ++locks;return allow; }
+    void endLocalMaintenance() { ++ends; }
+} firmwareUpdater;
 '''
 fixture += '\n'.join(function(control, signature) for signature in (
-    'void initializeTouchCalibration()', 'const TouchDiagnostics& touchDiagnostics()',
+    'void incrementTouchCounter(', 'void recordTouchAxis(', 'void recordTouchFrame(',
+    'bool recoverTouch()', 'void initializeTouchCalibration()', 'const TouchDiagnostics& touchDiagnostics()',
     'void setTouchDebugEnabled(', 'bool touchDebugMarkerVisible(', 'TouchEvent pollTouchEvent('))
 fixture += function(display, 'void serviceDisplayRefresh(')
 fixture += function(web, 'String touchCalibrationJson(')
+fixture += function(web, 'String touchAxisJson(')
+fixture += function(web, 'String touchAdcJson(')
 fixture += function(web, 'String touchDebugStateFieldsJson(')
 routes = re.findall(r'    server\.on\("/api/device/touch-debug", HTTP_(?:GET|POST), \[\] \{.*?\n    \}\);', web, re.S)
 assert len(routes) == 2
+recovery_routes = re.findall(r'    server\.on\("/api/device/touch-recover", HTTP_POST, \[\] \{.*?\n    \}\);', web, re.S)
+assert len(recovery_routes) == 1
+routes += recovery_routes
 fixture += '\nvoid registerRoutes() {\n' + '\n'.join(routes) + '\n}\n'
 fixture += r'''
 int main() {
@@ -182,7 +200,50 @@ int main() {
     assert(touchDebugMarkerVisible(0));
     assert(touchDebugMarkerVisible(648));
     assert(!touchDebugMarkerVisible(649)); // 750-ms expiry across millis rollover
-    puts("Touch calibration snapshots, route validation, contact mapping and dot restoration passed.");
+    // Frame quality observes rejection without generating another touch read.
+    stock_touch_sampling::Frame frame;
+    frame.x={100,2500,2000,7,2};frame.y={1200,1300,1250,2,2};
+    recordTouchFrame(frame);
+    assert(touchState.adc.frames==1 && touchState.adc.acceptedFrames==0);
+    assert(touchState.adc.x.unstableFrames==1 && touchState.adc.y.sparseFrames==1);
+    frame.y.valid=7;frame.y.cluster=7;frame.pressureValid=2;
+    recordTouchFrame(frame);assert(touchState.adc.pressureRejectedFrames==1);
+    frame.accepted=true;frame.pressureValid=7;frame.pressure=50;
+    recordTouchFrame(frame);assert(touchState.adc.acceptedFrames==1);
+    const auto calibration=touchState.activeCalibration;
+    tick=1000;assert(recoverTouch());assert(reads==6 && tft.recoveries==1);
+    assert(touchState.recoveryAttempts==1 && touchState.recoverySuccesses==1);
+    assert(touchState.beforeRecoveryAdc.frames==3 && touchState.adc.frames==3);
+    assert(touchState.activeCalibration==calibration);
+    tft.detected=true;tft.rawX=260;tft.rawY=220;tick=1008;
+    assert(pollTouchEvent(x,y,tick)==TouchEvent::None); // Held press cannot re-fire.
+    tft.rawX=50;tick=1100;assert(pollTouchEvent(x,y,tick)==TouchEvent::None);
+    tft.detected=false;tick=1179;assert(pollTouchEvent(x,y,tick)==TouchEvent::None);
+    tick=1187;assert(pollTouchEvent(x,y,tick)==TouchEvent::Release);
+    tft.detected=true;tft.rawX=260;tick=1195;
+    assert(pollTouchEvent(x,y,tick)==TouchEvent::Begin);
+    assert(touchState.presses==2 && touchState.maxPollGapMs>=100);
+    tft.recoveryOk=false;tick=1200;assert(!recoverTouch());
+    assert(touchState.recoveryAttempts==2 && touchState.recoverySuccesses==1);
+    assert(touchState.beforeRecoveryAdc.frames==3 && !touchState.lastRecoverySucceeded);
+    touchState.adc.frames=UINT32_MAX;recordTouchFrame(frame);
+    assert(touchState.adc.frames==UINT32_MAX); // counters saturate
+    const auto attempts=touchState.recoveryAttempts;
+    maintenance=true;server.recoveryRoute();assert(server.status==409);
+    maintenance=false;webRestartScheduled=true;server.recoveryRoute();assert(server.status==409);
+    webRestartScheduled=false;firmwareUpdater.allow=false;server.recoveryRoute();
+    assert(server.status==409 && touchState.recoveryAttempts==attempts && firmwareUpdater.ends==0);
+    firmwareUpdater.allow=true;tft.recoveryOk=true;server.recoveryRoute();
+    assert(server.status==200 && touchState.recoveryAttempts==attempts+1 && firmwareUpdater.ends==1);
+    assert(server.response.find("\"beforeAdc\":{")!=std::string::npos);
+    tft.recoveryOk=false;server.recoveryRoute();assert(server.status==500 && firmwareUpdater.ends==2);
+    assert(server.response.find("Touch bus initialization failed")!=std::string::npos);
+    TouchPressLatch wrapLatch;wrapLatch.cancelUntilRelease(UINT32_MAX-20);
+    assert(wrapLatch.sample(true,1,1,UINT32_MAX-10,x,y)==TouchEvent::None);
+    assert(wrapLatch.sample(false,0,0,68,x,y)==TouchEvent::None);
+    assert(wrapLatch.sample(false,0,0,69,x,y)==TouchEvent::Release);
+    assert(wrapLatch.sample(true,1,1,70,x,y)==TouchEvent::Begin);
+    puts("Touch snapshots, ADC quality, recovery/re-arm, route validation and dot restoration passed.");
 }
 '''
 source = out / 'diagnostics.cpp'

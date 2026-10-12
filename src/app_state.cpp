@@ -2,6 +2,8 @@
 
 #include "device_control.h"
 #include "xpt2046_sampling.h"
+#include "stock_touch_sampling.h"
+#include <driver/spi_master.h>
 
 namespace {
 #if TOUCH_DEBUG_ENABLED
@@ -68,6 +70,45 @@ uint_fast8_t LightTouchXPT2046::getTouchRaw(lgfx::touch_point_t* point, uint_fas
     point->y = y;
     point->size = 1;
     return 1;
+}
+
+bool DiagnosticTouchXPT2046::init() {
+    const bool initialized = lgfx::Touch_XPT2046::init();
+    size_t capacity = 0;
+    // The library's init helper can log allocation errors and still return
+    // success. Check that the dedicated SPI bus actually exists before polling.
+    _inited = initialized && spi_bus_get_max_transaction_len(
+        static_cast<spi_host_device_t>(_cfg.spi_host), &capacity) == ESP_OK &&
+        capacity >= stock_touch_sampling::kFrameBytes;
+    return _inited;
+}
+
+bool DiagnosticTouchXPT2046::recover() {
+    _inited = false;
+    lgfx::gpio_hi(_cfg.pin_cs);
+    // SPI3 belongs exclusively to touch, and all access is on the Arduino
+    // loop. Recreate that bus without resetting the TFT or its affine mapping.
+    lgfx::spi::release(_cfg.spi_host);
+    return init();
+}
+
+uint_fast8_t DiagnosticTouchXPT2046::getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) {
+    if (!point || !count || !_inited) return 0;
+    point->size = 0;
+    uint8_t data[stock_touch_sampling::kBufferBytes];
+    stock_touch_sampling::prepare(data);
+    lgfx::spi::beginTransaction(_cfg.spi_host, _cfg.freq, 0);
+    lgfx::gpio_lo(_cfg.pin_cs);
+    lgfx::spi::readBytes(_cfg.spi_host, data, stock_touch_sampling::kFrameBytes);
+    lgfx::gpio_hi(_cfg.pin_cs);
+    lgfx::spi::endTransaction(_cfg.spi_host);
+    const auto frame = stock_touch_sampling::decode(data);
+    recordTouchFrame(frame);
+    if (frame.x.valid < 3 || frame.y.valid < 3 || frame.pressureValid < 3) return 0;
+    point->x = frame.x.median;
+    point->y = frame.y.median;
+    point->size = frame.pressure;
+    return frame.accepted ? 1 : 0;
 }
 
 const char* ntpServer = "pool.ntp.org";

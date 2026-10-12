@@ -20,6 +20,18 @@ constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 TouchDiagnostics touchState;
+TouchPressLatch pressLatch;
+
+void incrementTouchCounter(uint32_t& counter) {
+    if (counter != UINT32_MAX) ++counter;
+}
+
+void recordTouchAxis(TouchAxisDiagnostics& axis, const stock_touch_sampling::Axis& sample) {
+    axis.last = sample;
+    if (!sample.valid) incrementTouchCounter(axis.railFrames);
+    else if (sample.valid < 3) incrementTouchCounter(axis.sparseFrames);
+    else if (sample.cluster < 3) incrementTouchCounter(axis.unstableFrames);
+}
 
 // Sleep wake is level-triggered. Consume both the initiating hold and the
 // waking press, including bounce, so neither leaks into the next boot.
@@ -207,6 +219,32 @@ const TouchDiagnostics& touchDiagnostics() {
     return touchState;
 }
 
+void recordTouchFrame(const stock_touch_sampling::Frame& frame) {
+    auto& adc = touchState.adc;
+    incrementTouchCounter(adc.frames);
+    if (frame.accepted) incrementTouchCounter(adc.acceptedFrames);
+    if (frame.x.valid >= 3 && frame.y.valid >= 3 && !frame.accepted) {
+        incrementTouchCounter(adc.pressureRejectedFrames);
+    }
+    recordTouchAxis(adc.x, frame.x);
+    recordTouchAxis(adc.y, frame.y);
+    adc.pressure = frame.pressure;
+    adc.pressureValid = frame.pressureValid;
+}
+
+bool recoverTouch() {
+    touchState.beforeRecoveryAdc = touchState.adc;
+    incrementTouchCounter(touchState.recoveryAttempts);
+    touchState.lastRecoveryAt = static_cast<uint32_t>(millis());
+    pressLatch.cancelUntilRelease(touchState.lastRecoveryAt);
+    touchState.contact = false;
+    const uint32_t startedUs = micros();
+    touchState.lastRecoverySucceeded = tft.recoverTouch();
+    touchState.lastRecoveryUs = static_cast<uint32_t>(micros()) - startedUs;
+    if (touchState.lastRecoverySucceeded) incrementTouchCounter(touchState.recoverySuccesses);
+    return touchState.lastRecoverySucceeded;
+}
+
 void setTouchDebugEnabled(bool enabled) {
     touchState.debugEnabled = enabled;
     touchState.contact = false;
@@ -261,15 +299,18 @@ ButtonEvent pollEncoderButton(unsigned long now) {
 }
 
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
-    static TouchPressLatch pressLatch;
     static unsigned long lastPoll = 0;
     if (now - lastPoll < kTouchPollMs) return TouchEvent::None;
     const unsigned long gap = lastPoll == 0 ? 0 : now - lastPoll;
     lastPoll = now;
 
-    const unsigned long readStarted = TOUCH_DEBUG_ENABLED ? micros() : 0;
+    const uint32_t readStarted = micros();
     lgfx::touch_point_t point = {};
     const bool rawContact = tft.getTouchRaw(&point);
+    touchState.lastReadUs = static_cast<uint32_t>(micros()) - readStarted;
+    touchState.maxReadUs = std::max(touchState.maxReadUs, touchState.lastReadUs);
+    touchState.lastPollGapMs = gap;
+    touchState.maxPollGapMs = std::max(touchState.maxPollGapMs, touchState.lastPollGapMs);
     if (touchState.polls != UINT32_MAX) ++touchState.polls;
     touchState.contact = rawContact;
     bool touched = rawContact;
@@ -284,11 +325,15 @@ TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
         touched = point.x >= 0 && point.x < tft.width() &&
                   point.y >= 0 && point.y < tft.height();
         touchState.onPanel = touched;
+        if (!touched) incrementTouchCounter(touchState.offPanelSamples);
         touchState.screenX = point.x;
         touchState.screenY = point.y;
     }
-    const TouchEvent event = pressLatch.sample(touched, static_cast<int16_t>(point.x),
+    const bool latchDown = touched || (pressLatch.awaitingRelease() && rawContact);
+    const TouchEvent event = pressLatch.sample(latchDown, static_cast<int16_t>(point.x),
                                                static_cast<int16_t>(point.y), now, x, y);
+    if (event == TouchEvent::Begin) incrementTouchCounter(touchState.presses);
+    if (event == TouchEvent::Release) incrementTouchCounter(touchState.releases);
     if (TOUCH_DEBUG_ENABLED) recordTouchPoll(rawContact, touched, event, now, gap, micros() - readStarted);
     return event;
 }
