@@ -17,6 +17,7 @@ namespace BootScreen {
 namespace {
 
 constexpr int16_t kBarX = 80;
+constexpr int16_t kBarY = 189;
 constexpr int16_t kBarWidth = 160;
 constexpr int16_t kBarHeight = 8;
 constexpr int16_t kBarRadius = kBarHeight / 2;
@@ -30,9 +31,9 @@ struct BootStyle {
     unsigned long progressMs;
 };
 
-// Keep style values independent so the second mode can evolve separately.
-const BootStyle kOriginalStyle = {boot_logo_png, boot_logo_png_len, 168, 0x1BB8EE, 0x0C3764, ProgressMs};
-const BootStyle kNewArtworkStyle = {boot_screen_new_png, boot_screen_new_png_len, 210, 0xFFFFFF, 0x0C3764, ProgressMs * 3 / 2};
+// Both modes share the bar position; colors and timing remain independent.
+const BootStyle kOriginalStyle = {boot_logo_png, boot_logo_png_len, kBarY, 0x1BB8EE, 0x0C3764, ProgressMs};
+const BootStyle kNewArtworkStyle = {boot_screen_new_png, boot_screen_new_png_len, kBarY, 0xFFFFFF, 0x0C3764, ProgressMs * 3 / 2};
 
 const BootStyle& activeStyle() {
     return bootMode == BootMode::Original ? kOriginalStyle : kNewArtworkStyle;

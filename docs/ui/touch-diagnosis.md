@@ -49,7 +49,7 @@ the observed symptom to touch acquisition/input; it does not identify a wire,
 prove an electrical cause or establish a software fix.
 
 The active reader is now an instrumented version of the pinned **stock**
-LovyanGFX XPT2046 reader: SPI3, **1 MHz**, seven Y/Z1/X/Z2 conversion sequences,
+LovyanGFX XPT2046 reader: shared SPI2, **1 MHz**, seven Y/Z1/X/Z2 conversion sequences,
 the same ADC bounds/medians and pressure gate. The older `LightTouchXPT2046`
 pressure-bypass reader remains in source but is inactive. Host comparison of
 20,042 frames confirms identical wire commands, acceptance, coordinates and
@@ -86,8 +86,10 @@ The existing `GET /api/device/touch-debug` also exposes:
   reads and rejected idle readings. Idle rejection/instability alone is not a
   fault; compare labeled contact trials and counter differences.
 
-`POST /api/device/touch-recover` recreates the dedicated touch SPI3 bus, retains
-the panel's current calibration/mapping and clears press ownership by consuming
+`POST /api/device/touch-recover` reinitializes touch on the shared SPI2 bus without
+freeing the TFT's bus or DMA resources. It waits for display transfers and suspends
+any active display transaction during initialization, retains the panel's current
+calibration/mapping and clears press ownership by consuming
 contact until an 80 ms release. Off-panel accepted raw contact also remains
 consumed. The endpoint excludes calibration, OTA/release maintenance and pending
 restart, returning 409 for those conflicts and 500 on detected bus-init failure.

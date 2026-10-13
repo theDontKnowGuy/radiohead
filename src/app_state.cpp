@@ -76,7 +76,7 @@ bool DiagnosticTouchXPT2046::init() {
     const bool initialized = lgfx::Touch_XPT2046::init();
     size_t capacity = 0;
     // The library's init helper can log allocation errors and still return
-    // success. Check that the dedicated SPI bus actually exists before polling.
+    // success. Check that the SPI bus actually exists before polling.
     _inited = initialized && spi_bus_get_max_transaction_len(
         static_cast<spi_host_device_t>(_cfg.spi_host), &capacity) == ESP_OK &&
         capacity >= stock_touch_sampling::kFrameBytes;
@@ -86,10 +86,21 @@ bool DiagnosticTouchXPT2046::init() {
 bool DiagnosticTouchXPT2046::recover() {
     _inited = false;
     lgfx::gpio_hi(_cfg.pin_cs);
-    // SPI3 belongs exclusively to touch, and all access is on the Arduino
-    // loop. Recreate that bus without resetting the TFT or its affine mapping.
-    lgfx::spi::release(_cfg.spi_host);
+    // Never free a shared display bus: its DMA state belongs to the TFT.
+    // Reinitialize the touch controller while retaining calibration/mapping.
+    if (!_cfg.bus_shared) lgfx::spi::release(_cfg.spi_host);
     return init();
+}
+
+bool LGFX_Config::recoverTouch() {
+    // Recovery runs on the Arduino loop. Finish display transfers and release
+    // any active display transaction before touch init changes SPI registers.
+    waitDMA();
+    const bool resumeDisplay = getStartCount() != 0;
+    if (resumeDisplay) endTransaction();
+    const bool recovered = touch_.recover();
+    if (resumeDisplay) beginTransaction();
+    return recovered;
 }
 
 uint_fast8_t DiagnosticTouchXPT2046::getTouchRaw(lgfx::touch_point_t* point, uint_fast8_t count) {
@@ -159,11 +170,11 @@ LGFX_Config::LGFX_Config() {
     panelConfig.pin_rst = TFT_RST;
     panelConfig.panel_width = 240;
     panelConfig.panel_height = 320;
-    panelConfig.bus_shared = false;
+    panelConfig.bus_shared = true;
     panel_.config(panelConfig);
 
     auto touchConfig = touch_.config();
-    touchConfig.spi_host = SPI3_HOST;
+    touchConfig.spi_host = SPI2_HOST;
     touchConfig.pin_sclk = TOUCH_SCLK;
     touchConfig.pin_mosi = TOUCH_MOSI;
     touchConfig.pin_miso = TOUCH_MISO;
@@ -175,7 +186,7 @@ LGFX_Config::LGFX_Config() {
     touchConfig.x_max = 3900;
     touchConfig.y_min = 400;
     touchConfig.y_max = 3900;
-    touchConfig.bus_shared = false;
+    touchConfig.bus_shared = true;
     touchConfig.offset_rotation = 0;
     touch_.config(touchConfig);
     panel_.setTouch(&touch_);

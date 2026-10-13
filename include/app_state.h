@@ -22,13 +22,14 @@ constexpr int PIN_SW = 38;
 constexpr int TFT_BLK = 3;
 constexpr int TFT_SCLK = 12;
 constexpr int TFT_MOSI = 11;
-constexpr int TFT_MISO = 13;
+// Shared SPI2 input comes from touch T_DO; display SDO stays disconnected.
+constexpr int TFT_MISO = 5;
 constexpr int TFT_DC = 9;
 constexpr int TFT_CS = 8;
 constexpr int TFT_RST = 10;
-constexpr int TOUCH_SCLK = 4;
-constexpr int TOUCH_MOSI = 7;
-constexpr int TOUCH_MISO = 5;
+constexpr int TOUCH_SCLK = TFT_SCLK;
+constexpr int TOUCH_MOSI = TFT_MOSI;
+constexpr int TOUCH_MISO = TFT_MISO;
 constexpr int TOUCH_CS = 14;
 
 constexpr int STATION_COUNT = 10;
@@ -91,7 +92,7 @@ public:
 class LGFX_Config : public lgfx::LGFX_Device {
 public:
     LGFX_Config();
-    bool recoverTouch() { return touch_.recover(); }
+    bool recoverTouch();
 
 private:
     lgfx::Panel_ILI9341 panel_;

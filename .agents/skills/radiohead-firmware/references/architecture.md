@@ -58,7 +58,7 @@ The current mapping is declared in `include/app_state.h`:
 
 - I2S: BCK 15, DIN 16, LRC 17
 - Encoder: A 39, B 40, switch 38; separate K0 power/wake button 6
-- Touch: SPI3, SCLK 4, MOSI 7, MISO 5, CS 14 (separate from TFT SPI2)
+- Touch: shared TFT SPI2, SCLK 12, MOSI 11, MISO 5, CS 14; TFT SDO disconnected
 - TFT backlight: 1
 - TFT SPI/panel wiring is configured by `LGFX_Config` in `src/app_state.cpp`
 

@@ -1,49 +1,47 @@
-# Separate TFT and touch SPI wiring
+# Shared TFT and touch SPI wiring
 
-The firmware uses SPI2 for the ILI9341 TFT and SPI3 for the XPT2046 touch
-controller. Pin constants live in `include/app_state.h`; bus configuration lives
-in `src/app_state.cpp`.
+As of 2026-10-13, the firmware uses SPI2 for both the ILI9341 TFT and XPT2046
+touch controller, at the user's request to restore the clock and MOSI joins.
+Pin constants live in `include/app_state.h`; bus configuration lives in
+`src/app_state.cpp`.
 
-| Connection | Previous GPIO | New GPIO |
+| Connection | Previous separate-bus GPIO | Current shared-bus GPIO |
 | --- | --- | --- |
-| TFT SCK | 12 | 12 |
-| TFT SDI / MOSI | 11 | 11 |
+| TFT SCK | 12 | 12, joined to T_CLK |
+| TFT SDI / MOSI | 11 | 11, joined to T_DIN |
 | TFT SDO / MISO | Not connected | Not connected |
-| Touch T_CLK | 12 | 4 |
-| Touch T_DIN | 11 | 7 |
-| Touch T_DO | 13 | 5 |
+| Touch T_CLK | 4 | 12 |
+| Touch T_DIN | 7 | 11 |
+| Touch T_DO | 5 | 5 |
 | Touch T_CS | 14 | 14 |
-| Encoder A | 4 | 39 |
-| Encoder B | 5 | 40 |
-| Encoder switch / SW | 7 | 38 |
+| Encoder A | 39 | 39 |
+| Encoder B | 40 | 40 |
+| Encoder switch / SW | 38 | 38 |
 | Separate K0 power/wake button | 6 | 6 |
 
-Power down before rewiring. Disconnect the TFT/touch clock and MOSI joins
-and move touch T_DO from GPIO13 to GPIO5. TFT SDO stays unconnected; GPIO13
-remains configured as TFT MISO but has no wire. If your wiring also joins TFT
-SDO to touch T_DO, disconnect that join. Retain the existing power, ground,
-TFT CS/DC/reset/backlight and touch CS connections. Touch IRQ remains unused.
-The touch SPI clock remains 1 MHz; saved calibration is retained.
+Power down before rewiring. Move T_CLK from GPIO4 to GPIO12 alongside TFT SCK,
+and T_DIN from GPIO7 to GPIO11 alongside TFT SDI. Keep touch T_DO on GPIO5;
+the TFT bus now also configures GPIO5 as MISO so both devices use the same bus
+pin mapping. TFT SDO stays unconnected. GPIO4, GPIO7 and GPIO13 are unused.
+Retain power, ground, TFT CS/DC/reset/backlight and touch CS connections.
+Display CS (GPIO8) and touch CS (GPIO14) must stay separate. Touch IRQ is unused.
 
-GPIO35-37 are unavailable on the configured N16R8 board because they serve
-octal PSRAM. GPIO39/40 are usable as encoder inputs, but cannot also be used
-for external pin-based JTAG. USB debugging uses different pins. Some DevKitC
-revisions connect their RGB LED input to GPIO38; the firmware reserves that
-GPIO as an encoder button input and must not drive the LED.
+Both LovyanGFX configurations enable bus sharing so display transactions yield
+for touch reads. Touch acquisition remains at 1 MHz and saved calibration is
+retained. Touch recovery reinitializes touch without freeing the shared display
+bus or its DMA resources, preserving TFT calibration/mapping and runtime state.
 
-K0 remains on GPIO6 because the existing ext0 deep-sleep wake path requires
-an RTC GPIO (GPIO0-21 on ESP32-S3). The encoder switch is a separate input;
-moving it to GPIO38 does not make it a deep-sleep wake source.
+GPIO35-37 remain reserved for octal PSRAM on the N16R8 board. Encoder GPIO39/40
+cannot also be used for external pin-based JTAG. GPIO38 is reserved for the
+encoder switch; do not drive the onboard RGB LED that some DevKitC revisions
+connect there. The current light-sleep path wakes from the encoder switch or K0.
 
-References: [DevKitC-1 board pin restrictions](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html),
-[ESP32-S3 wake sources](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/api-reference/system/sleep_modes.html#external-wakeup-ext0).
-
-Verification: `pio run -e esp32s3` and `git diff --check` passed. The image is
-4,496,080 bytes with 31% of the smallest app partition free; static DIRAM use
-is 260,391 bytes (76.19%). The normal radio image was restored on 2026-10-11;
-esptool verified written hashes and reset the board. Functional hardware
-verification remains pending.
-
-Hardware acceptance remains pending: check startup, touch coordinates across
-the screen, encoder direction/volume, short click, long press, boot-held Wi-Fi
-setup and K0 sleep/wake with the new wiring and audio playing.
+Verification: `pio run -e esp32s3`, `python3 tools/check_touch_diagnostics.py`
+and `git diff --check` passed. The firmware binary is 4,508,768 bytes, with
+2,044,832 bytes (31%) free in the smallest app partition. Static DIRAM usage
+is 260,491 bytes (76.22%), leaving 81,269 bytes. The host diagnostics check covers
+recovery bookkeeping, release consumption and endpoint validation, not physical
+shared-bus operation. This change has not been flashed. Hardware acceptance remains pending: check startup,
+touch coordinates across the screen, touch recovery, encoder volume/mute,
+boot-held Wi-Fi setup and encoder/K0 sleep/wake with audio playing and the USB
+serial monitor closed.

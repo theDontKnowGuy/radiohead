@@ -5,8 +5,17 @@ Both screens are embedded in the same firmware image; the former
 
 | Stored ID | C++ value | Artwork | Progress bar Y |
 | --- | --- | --- | --- |
-| 0 | `BootMode::Original` | `docs/boot.png` | 168 |
-| 1 | `BootMode::NewArtwork` | `docs/ui/boot screen/bootscreen.png` | 210 |
+| 0 | `BootMode::Original` | `docs/boot.png` | 189 |
+| 1 | `BootMode::NewArtwork` | `docs/ui/boot screen/bootscreen.png` | 189 |
+
+On 2026-10-13, mode 1's source artwork was replaced with the owner's second
+supplied variant. Both modes now use the same progress-bar Y coordinate, 189,
+halfway between the previous 168 and 210 positions.
+The original artwork is preserved at
+`docs/ui/boot screen/bootscreen-before-2026-10-13.png`; the first trial is at
+`docs/ui/boot screen/bootscreen-trial-1-2026-10-13.png`. To restore either image,
+copy it over `bootscreen.png`, rebuild, and flash the resulting firmware.
+Mode selection, progress timing and boot audio are unchanged.
 
 Mode 0 is the default for missing, unreadable or unsupported stored values.
 The selection is one unsigned byte at `radio/bootMode` in Preferences. Existing
@@ -57,7 +66,8 @@ header, 409 during maintenance or a scheduled restart, and 500 on storage failur
 There is no web/TFT selector yet.
 
 The two `BootStyle` definitions in `src/boot_screen.cpp` independently own their
-artwork, bar position, fill and trough colors, and progress duration. Mode 0 keeps
+artwork, fill and trough colors, and progress duration; both use the shared
+`kBarY` position. Mode 0 keeps
 its cyan fill and 4.5-second animation; mode 1 uses a white fill and a 6.75-second
 animation (50% longer). Mode 1 waits for that animation before closing even if
 the audio ends early or fails to open. Both retain the blue trough, boot sound,
@@ -86,4 +96,5 @@ boot audio or display latency.
 Physical acceptance still requires saving each mode, restarting, checking the
 artwork/bar/audio, exercising a normal settings save and firmware update, and
 confirming factory-reset behavior. Host checks/builds do not establish device
-acceptance. No device flash is part of this change.
+acceptance. The 2026-10-13 artwork revisions were flashed over USB with verified
+flash hashes; physical appearance and playback still require owner verification.

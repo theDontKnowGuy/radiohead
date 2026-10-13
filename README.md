@@ -58,7 +58,7 @@ limitation:** deep-sleep wake still uses GPIO 6, so the encoder on GPIO 38 canno
 wake the radio from deep sleep. GPIO 38 is not an RTC GPIO and cannot replace
 GPIO 6 in the existing ext0 wake path. If retaining a separate K0 button, keep
 it on GPIO 6; its sleep/factory-reset handler remains active. Do not bridge
-GPIO 6 and 38. GPIO 7 now carries touch data and must not connect to a button.
+GPIO 6 and 38. GPIO 7 is unused in the current shared TFT/touch wiring.
 See [ESP32-S3 wake-pin requirements](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/api-reference/system/sleep_modes.html#external-wakeup-ext0).
 
 The future [battery power plan](docs/hardware/battery-power-architecture-plan.md)
@@ -182,8 +182,15 @@ controller**, displayed in **320 × 240 landscape** orientation. The connections
 match the pin constants in [include/app_state.h](include/app_state.h) and the
 LovyanGFX configuration in [src/app_state.cpp](src/app_state.cpp). Numbers refer to
 ESP32-S3 **GPIO numbers**, not physical header positions. The table records the
-new separate-bus wiring in the actual TFT header order; hardware verification
-of this remap remains pending.
+shared-bus wiring in the actual TFT header order; hardware verification
+of this change remains pending.
+
+The **two joined pairs** are:
+
+| Pins joined on the TFT module | ESP32-S3 connection |
+| --- | --- |
+| `SCK` + `T_CLK` | GPIO **12** |
+| `SDI(MOSI)` + `T_DIN` | GPIO **11** |
 
 Disconnect power before wiring. This device's TFT `VCC` is connected to **5 V DC**;
 its signal connections use **3.3 V logic**. Display, touch controller, ESP32-S3, and
@@ -208,21 +215,21 @@ left-to-right order; match labels rather than counting from a viewing direction.
 | 3 | `CS` | GPIO 8 | Display chip select (`TFT_CS`) |
 | 4 | `RESET` | GPIO 10 | Display reset (`TFT_RST`) |
 | 5 | `DC` | GPIO 9 | Data/command select (`TFT_DC`) |
-| 6 | `SDI(MOSI)` | GPIO 11 | SPI data from ESP32-S3 (`TFT_MOSI`) |
-| 7 | `SCK` | GPIO 12 | SPI clock (`TFT_SCLK`) |
+| 6 | `SDI(MOSI)` | GPIO 11, joined to `T_DIN` | Shared SPI2 data from ESP32-S3 (`TFT_MOSI`) |
+| 7 | `SCK` | GPIO 12, joined to `T_CLK` | Shared SPI2 clock (`TFT_SCLK`) |
 | 8 | `LED` | GPIO 3 | Backlight PWM (`TFT_BLK`); owner's working connection |
 | 9 | `SDO(MISO)` | **Not connected** | Display readback; not needed by the current application |
-| 10 | `T_CLK` | GPIO 4 | Separate SPI3 touch clock (`TOUCH_SCLK`) |
+| 10 | `T_CLK` | GPIO 12, joined to `SCK` | Shared SPI2 touch clock (`TOUCH_SCLK`) |
 | 11 | `T_CS` | GPIO 14 | Separate touch chip select (`TOUCH_CS`) |
-| 12 | `T_DIN` | GPIO 7 | Separate SPI3 touch data in (`TOUCH_MOSI`) |
+| 12 | `T_DIN` | GPIO 11, joined to `SDI(MOSI)` | Shared SPI2 touch data in (`TOUCH_MOSI`) |
 | 13 | `T_DO` | GPIO 5 | Touch data out to ESP32-S3 (`TOUCH_MISO`) |
 | 14 | `T_IRQ` | **Not connected** | Touch interrupt; firmware uses polling |
 
-GPIO 13 remains assigned to `TFT_MISO` in firmware but is unconnected in this
-wiring. Touch `T_DO` moves from GPIO 13 to GPIO 5. Display `SDO(MISO)` remains
-disconnected. Current display rendering
-does not read pixels or registers back from the physical TFT; pixel reads in the
-renderer use its in-memory canvas. Keep `T_DO` connected for touch to work.
+The shared bus uses GPIO 5 for MISO, connected only to touch `T_DO`.
+GPIO 13 is unused. Display `SDO(MISO)` remains disconnected. Current display
+rendering does not read pixels or registers back from the physical TFT; pixel
+reads in the renderer use its in-memory canvas. Keep `T_DO` connected for touch
+to work.
 
 The firmware drives GPIO 3 with active-high, 5 kHz PWM for brightness, automatic
 dimming, and backlight shutdown during sleep. Connect it directly only if the module
@@ -234,30 +241,30 @@ control input on its
 [ILI9341 breakout](https://learn.adafruit.com/adafruit-2-4-color-tft-touchscreen-breakout/pinouts).
 Tying the backlight permanently to the supply bypasses firmware dimming and shutdown.
 
-The TFT uses SPI2; touch uses SPI3 at 1 MHz. They have separate clock, outgoing
-data and chip-select connections. Power down, disconnect the existing SCK/T_CLK
-and SDI/T_DIN joins, and move touch T_DO from GPIO 13 to GPIO 5:
+The TFT and touch share SPI2 clock/data lines; touch runs at 1 MHz with its own
+chip select. With power disconnected, join SCK/T_CLK to GPIO 12 and
+SDI/T_DIN to GPIO 11. Keep touch T_DO on GPIO 5:
 
 ```text
-ESP32-S3 GPIO 12 ───── TFT SCK        (SPI2)
-ESP32-S3 GPIO 11 ───── TFT SDI (MOSI) (SPI2)
+ESP32-S3 GPIO 12 ──┬── TFT SCK
+                  └── Touch T_CLK
+ESP32-S3 GPIO 11 ──┬── TFT SDI (MOSI)
+                  └── Touch T_DIN
 ESP32-S3 GPIO  8 ───── TFT CS
 ESP32-S3 GPIO  9 ───── TFT DC
 ESP32-S3 GPIO 10 ───── TFT RESET
 ESP32-S3 GPIO  3 ───── TFT LED / backlight control
-ESP32-S3 GPIO  4 ───── Touch T_CLK    (SPI3)
-ESP32-S3 GPIO  7 ───── Touch T_DIN    (SPI3)
-ESP32-S3 GPIO  5 ───── Touch T_DO     (SPI3)
+ESP32-S3 GPIO  5 ───── Touch T_DO
 ESP32-S3 GPIO 14 ───── Touch T_CS
 TFT SDO (MISO)  ────── Not connected
 Touch T_IRQ     ────── Not connected
 ```
 
-Move the encoder off GPIO 4/5/7 before connecting touch there. The complete
-old-to-new mapping is in [the separate touch SPI wiring guide](docs/hardware/touch-spi-wiring.md).
-`pio run -e esp32s3` and `git diff --check` passed for this remap. The normal radio
-image was restored on 2026-10-11 with verified flash hashes. Touch, encoder,
-boot-held Wi-Fi setup and K0 sleep/wake checks remain pending.
+Encoder A/B/switch remain on GPIO 39/40/38. GPIO 4 and 7 are now unused.
+See [the TFT/touch wiring guide](docs/hardware/touch-spi-wiring.md).
+The shared-bus firmware passed `pio run -e esp32s3`,
+`python3 tools/check_touch_diagnostics.py` and `git diff --check` on 2026-10-13.
+The shared-bus change has not been flashed or verified on hardware.
 
 Keep `CS` and `T_CS` separate. Pins on a module's optional microSD connector
 (`SD_CS`, `SD_SCK`, `SD_MOSI`, `SD_MISO`) are not used by this firmware and should
@@ -325,6 +332,7 @@ inactive. Separating the SPI buses does not establish a sensitivity improvement.
    currently active stock reader. These counters describe coordinates and events,
    not measured physical pressure.
 
-The owner confirmed the previous shared-bus wiring worked. The separate-bus
-remap and comfortable finger-pad sensitivity still require physical trials;
-no new electrical measurement is implied by this documentation update.
+The owner confirmed the previous shared-bus wiring worked. Firmware now restores
+the clock/data joins while keeping `T_DO` on GPIO 5. This shared-bus change and
+comfortable finger-pad sensitivity still require physical trials; no new
+electrical measurement is implied by this documentation update.
