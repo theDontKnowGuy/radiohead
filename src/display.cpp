@@ -869,6 +869,29 @@ void drawWiFiSignal(int16_t centerX, int16_t top) {
     else if (level == 1) canvas().drawPng(ui_home_wifi_dot, sizeof(ui_home_wifi_dot), centerX - 12, top - 6);
 }
 
+void drawSpeakerIcon(int16_t x, int16_t y, int16_t size, bool muted,
+                     uint16_t color = kWhite) {
+    // One scalable native glyph for the header, player and transient feedback.
+    // The separate cross stays readable even at the 20 px header size.
+    const auto px = [x, size](int value) { return x + value * size / 24; };
+    const auto py = [y, size](int value) { return y + value * size / 24; };
+    canvas().fillRoundRect(px(1), py(9), size * 6 / 24, size * 7 / 24,
+                           std::max<int16_t>(1, size / 24), color);
+    canvas().fillTriangle(px(5), py(9), px(12), py(4), px(12), py(20), color);
+    canvas().fillTriangle(px(5), py(9), px(12), py(20), px(5), py(16), color);
+    if (muted) {
+        const float radius = size >= 32 ? 1.8F : 0.9F;
+        canvas().drawWideLine(px(16), py(9), px(22), py(16), radius, color);
+        canvas().drawWideLine(px(16), py(16), px(22), py(9), radius, color);
+    } else {
+        const int16_t thickness = std::max<int16_t>(1, size / 16);
+        const int16_t inner = size * 6 / 24;
+        const int16_t outer = size * 10 / 24;
+        canvas().drawArc(px(12), py(12), inner, inner - thickness, 310, 50, color);
+        canvas().drawArc(px(12), py(12), outer, outer - thickness, 310, 50, color);
+    }
+}
+
 void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages use the compact
@@ -1275,11 +1298,16 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
                     bool back = true) {
     const lgfx::IFont* headerFont = uiFont(&fonts::FreeSansBold12pt7b);
     if (back) drawPageBackChevron();
-
-    const int16_t titleLeft = back ? 40 : 14;
-    const int16_t titleWidth = kPageHeaderTitleRight - titleLeft;
     canvas().setFont(headerFont);
     canvas().setTextSize(1);
+
+    const int16_t titleLeft = back ? 40 : 14;
+    const bool muted = isStationMuted();
+    const char* clock = timeValid ? currentTime : "--:--";
+    const int16_t clockRight = muted ? 250 : 270;
+    const int16_t titleRight = std::min<int16_t>(kPageHeaderTitleRight,
+        clockRight - canvas().textWidth(clock, headerFont) - 8);
+    const int16_t titleWidth = std::max<int16_t>(0, titleRight - titleLeft);
     canvas().setTextColor(kWhite);
     const UiTextLayout titleLayout = uiTextLayout(title);
     const String renderedTitle = titleLayout.rightToLeft
@@ -1287,17 +1315,18 @@ void drawPageHeader(const String& title, const char* currentTime, bool timeValid
         : ellipsize(titleLayout.visual, titleWidth);
     canvas().setTextDatum(titleLayout.rightToLeft ? MR_DATUM : ML_DATUM);
     canvas().drawString(renderedTitle.c_str(),
-                        titleLayout.rightToLeft ? kPageHeaderTitleRight : titleLeft,
+                        titleLayout.rightToLeft ? titleRight : titleLeft,
                         kPageHeaderCenterY, headerFont);
 
     // The accepted reference treatment gives the clock the title's weight and
     // height, and centers every visible element on the same optical line.
     canvas().setTextDatum(MR_DATUM);
     canvas().setTextColor(kClockText);
-    canvas().drawString(timeValid ? currentTime : "--:--", 270,
+    canvas().drawString(clock, clockRight,
                         kPageHeaderCenterY, headerFont);
 
-    drawWiFiSignal(294, kPageHeaderCenterY - 10);
+    drawWiFiSignal(298, kPageHeaderCenterY - 10);
+    if (muted) drawSpeakerIcon(260, kPageHeaderCenterY - 10, 20, true);
 }
 
 void drawNetworkBootScreen(bool connected, const String& ipAddress) {
@@ -1323,6 +1352,7 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     canvas().drawString(uiTextLayout(displayBrandName()).visual.c_str(),
                         36, 16, display_fonts::homeTitle());
     text("INTERNET RADIO", 37, 28, uiFont(&fonts::Font0), kBlueFocus, 130);
+    if (isStationMuted()) drawSpeakerIcon(286, 8, 24, true);
 
     // Hardware inspection showed the mathematically centered card crowding the
     // subtitle. Move it down nine pixels while retaining room below the panel.
@@ -1446,6 +1476,7 @@ void textRight(const String& value, int16_t right, int16_t y, const lgfx::IFont*
 }
 
 void drawSlider(int16_t y) {
+    drawSpeakerIcon(18, y - 7, 22, isStationMuted());
     canvas().fillRoundRect(48, y, 214, 8, 4, kSurfaceRaised);
     canvas().fillRoundRect(48, y, mainVal * 214 / 21, 8, 4, kBlue);
     canvas().fillCircle(48 + mainVal * 214 / 21, y + 4, 8, kWhite);
@@ -1453,10 +1484,43 @@ void drawSlider(int16_t y) {
 }
 
 void drawVolumeOverlay() {
-    canvas().fillRoundRect(48, 78, 224, 92, 12, kNavy);
-    canvas().drawRoundRect(48, 78, 224, 92, 12, kTextMuted);
-    text("Volume", 123, 100, uiFont(&fonts::FreeSans9pt7b), kWhite);
-    drawSlider(138);
+    // Keep the feedback centered independently of the player slider geometry.
+    // The readable canvas permits cheap dimming; no runtime blur or allocation.
+    if (uiFrameReady) canvas().fillRectAlpha(0, 0, 320, 240, 48, TFT_BLACK);
+    canvas().fillSmoothRoundRect(48, 49, 224, 150, 18, kNavy);
+    canvas().fillSmoothRoundRect(48, 45, 224, 150, 18, kSurfaceRaised);
+    canvas().fillSmoothRoundRect(49, 46, 222, 148, 17, kSurface);
+
+    canvas().fillSmoothCircle(160, 74, 22, kSurfaceRaised);
+    drawSpeakerIcon(144, 58, 32, isStationMuted());
+    canvas().setTextSize(1);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString(isStationMuted() ? "Volume (muted)" : "Volume", 160, 108,
+                        uiFont(&fonts::FreeSans9pt7b));
+
+    constexpr int16_t trackLeft = 80;
+    constexpr int16_t trackWidth = 160;
+    const int16_t filled = mainVal * trackWidth / 21;
+    canvas().fillSmoothRoundRect(trackLeft, 134, trackWidth, 6, 3, kSurfaceRaised);
+    if (filled > 0)
+        canvas().fillSmoothRoundRect(trackLeft, 134, filled, 6, 3, kBlue);
+    canvas().fillSmoothCircle(trackLeft + filled, 137, 7, kWhite);
+
+    char value[12];
+    snprintf(value, sizeof(value), "%d / 21", mainVal);
+    canvas().drawString(value, 160, 170, uiFont(&fonts::FreeSansBold12pt7b));
+}
+
+void drawMuteOverlay() {
+    canvas().fillRoundRect(64, 62, 192, 120, 14, kNavy);
+    canvas().drawRoundRect(64, 62, 192, 120, 14, kBlueFocus);
+    canvas().drawCircle(160, 108, 32, kBlue);
+    drawSpeakerIcon(138, 86, 44, isStationMuted());
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString(isStationMuted() ? "Muted" : "Sound on", 160, 157,
+                        uiFont(&fonts::FreeSansBold12pt7b));
 }
 
 void drawFirmwareUpdateOverlay(uint8_t percent, bool downloading, bool installed, bool failed) {
@@ -2218,6 +2282,15 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     // A user-selected 12-hour value remains supported because the atlas is
     // laid out from the actual digits, not a fixed 24-hour string width.
     drawHomeClockAtlas(timeValid ? currentTime : "--:--");
+    if (isStationMuted() && !state.muteOverlay && !state.volumeOverlay) {
+        // Below the large clock, clear of the station marquee and weather.
+        // The transient notice owns feedback until it expires.
+        canvas().fillRoundRect(230, 82, 82, 24, 7, kNavy);
+        drawSpeakerIcon(236, 84, 20, true);
+        canvas().setTextDatum(ML_DATUM);
+        canvas().setTextColor(kWhite);
+        canvas().drawString("Muted", 261, 94, uiFont(&fonts::Font0));
+    }
     // A strict 4-column grid: identical tiles, wider breathing gaps and one baseline.
     drawHomeTile(kHomeTileX[0], kHomeBlue, "Live Radio", nullptr, 0);
     drawHomeTile(kHomeTileX[1], kHomeGreen, "Recorded", "Shows", 1);
@@ -2590,7 +2663,8 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
     // Encoder feedback remains visible without changing focus, even when the
     // user is browsing a list or a podcast screen. The OTA overlay below stays
     // on top while firmware is being written.
-    if (state.volumeOverlay) drawVolumeOverlay();
+    if (state.muteOverlay) drawMuteOverlay();
+    else if (state.volumeOverlay) drawVolumeOverlay();
     if (firmwareUpdateOverlayActive || releaseUpdateOverlayActive()) {
         const bool remote = !firmwareUpdateOverlayActive;
         drawFirmwareUpdateOverlay(remote ? releaseUpdatePercent : firmwareUpdatePercent,
@@ -2703,7 +2777,8 @@ void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool time
     const PodcastPlaybackSnapshot podcastPlayback = podcastPlaybackSnapshot();
     const bool podcastProgressDue = state.page == UiPage::PodcastPlayer && podcastPlayback.active &&
         !podcastPlayback.paused && now - lastPodcastProgressRenderAt >= 1000;
-    const bool homeStationTitleDue = !firmwareUpdateOverlayActive && !releaseUpdateOverlayActive() &&
+    const bool homeStationTitleDue = !state.volumeOverlay &&
+        !firmwareUpdateOverlayActive && !releaseUpdateOverlayActive() &&
         state.page == UiPage::Home && homeStationTitleRefreshDue(now);
     if (state.dirty || forceRedraw || podcastProgressDue || wifiSignalChanged) {
         renderRadioUi(state, currentTime, timeValid);

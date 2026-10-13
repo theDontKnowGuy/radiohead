@@ -1,5 +1,72 @@
 # Touch UI implementation status
 
+## 2026-10-13 — Centered volume feedback panel
+
+Display-only package: replace the off-center volume label and reused full-width
+player slider with a centered 224 × 150 floating panel. Rounded navy surfaces,
+a subtle border/shadow, a speaker badge, centered label/value and an inset blue
+slider follow concept panel 11. The readable canvas dims the background without
+runtime blur; the direct-TFT fallback retains opaque surfaces. Muted volume
+adjustment keeps its crossed speaker and explicit muted label. The 0…21 mapping,
+mute semantics and existing 1.5-second duration are unchanged.
+Pause Home marquee patch redraws while the volume panel is visible so they
+cannot restore an undimmed strip over the dimmed backdrop.
+
+**Visual: pass for focused native fixtures.** Inspected production 320 × 240
+renders for zero, mid/max volume, muted adjustment, Settings and the low-memory
+drawing path. Evidence: `.pio/ui_native/volume-home-{0,12,21}.png`,
+`volume-muted.png`, `volume-settings.png` and `volume-fallback.png`.
+
+**Functional: pass for build and render checks.**
+`.pio/typography-venv/bin/python tools/render_ui_fonts.py --volume-only`,
+`pio run -e esp32s3` and `git diff --check` pass. Integrated image:
+4,514,272 bytes; app slot free: 2,039,328 bytes. DIRAM remains 260,523 bytes
+(76.23%), 81,237 bytes free. No new allocation, assets or vendor changes.
+
+**Hardware: not verified; not flashed.** Check TFT legibility, dismissal,
+background restoration and playback continuity with the serial monitor closed.
+
+## 2026-10-13 — Header mute/Wi-Fi spacing
+
+Move the shared page-header Wi-Fi icon 4 px right, adding 4 px of separation
+from the mute icon while retaining its vertical alignment and on-screen margin.
+**Visual/functional: pass for focused native render and build.** Inspected
+`.pio/ui_native/mute-settings.png` and `mute-settings-12h.png` at 320 × 240;
+`.pio/typography-venv/bin/python tools/render_ui_fonts.py --mute-only`,
+`pio run -e esp32s3` and `git diff --check` pass. Image remains 4,513,568 bytes,
+with 2,040,032 bytes free; DIRAM remains 260,523 bytes (76.23%).
+**Hardware: not verified; not flashed.**
+
+## 2026-10-13 — Mute and unmute feedback
+
+Bounded display/controller package: replace click-triggered volume feedback with
+a 2.5-second crossed-speaker **Muted** or speaker-and-waves **Sound on** notice.
+Observe actual mute state so encoder, touch and web requests share feedback.
+Home retains a labeled mute badge below the clock; shared headers reserve space
+beside the clock/Wi-Fi, including 12-hour time. The live-player slider also shows
+the speaker state. Encoder rotation replaces the notice with volume feedback.
+Audio output, volume mapping, routes and persistence are unchanged.
+
+**Visual: pass for focused native fixtures.** Inspected production 320 × 240
+Home, shared Settings headers (24/12-hour), live player, mute/unmute overlays
+and the low-memory drawing path. The first Home badge placement overlapped the
+clock; the corrected badge sits below it and is hidden behind transient feedback.
+Evidence: `.pio/ui_native/mute-{home,overlay,unmute-overlay,settings,settings-12h,player,fallback}.png`.
+
+**Functional: pass for build and focused host checks.**
+`python3 tools/check_touch_input.py` covers feedback expiry at 2.5 seconds,
+actual-state detection, web changes, navigation, volume replacement, rapid
+toggles and unsigned-clock rollover. Production render fixtures pass through
+`.pio/typography-venv/bin/python tools/render_ui_fonts.py --mute-only`.
+`pio run -e esp32s3` and `git diff --check` pass. Integrated image:
+4,513,568 bytes; app slot free: 2,040,032 bytes. DIRAM: 260,523 bytes
+(76.23%), 81,237 bytes remaining, unchanged from the prior baseline.
+
+**Hardware: not verified; not flashed.** Confirm icon legibility and feedback
+duration on Home, browsing/settings and active radio/podcast/Spotify playback,
+with the USB serial monitor closed. Native evidence does not establish physical
+display appearance or audio continuity.
+
 ## 2026-10-09 — Wi-Fi header optical alignment
 
 The reduced Wi-Fi variants retain transparent space where their outer arcs were

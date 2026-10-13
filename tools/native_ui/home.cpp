@@ -118,7 +118,8 @@ public:
 FirmwareUpdater firmwareUpdater;
 int mainVal = 12;
 String songTitle = "פרק 15 - 15 בספטמבר 2025";
-bool isStationMuted() { return false; }
+bool fixtureMuted = false;
+bool isStationMuted() { return fixtureMuted; }
 bool stationFavorites[] = {true, false, false};
 bool isStationFavorite(int slot) { return slot >= 0 && slot < 3 && stationFavorites[slot]; }
 int playableStationCount() { return 3; }
@@ -237,12 +238,72 @@ int main(int argc, char** argv) {
     assert(argc == 2 || (argc == 3 && (std::string(argv[2]) == "--network-boot-only" ||
                                      std::string(argv[2]) == "--wifi-only" ||
                                      std::string(argv[2]) == "--firmware-only" ||
-                                     std::string(argv[2]) == "--branding-only")));
+                                     std::string(argv[2]) == "--branding-only" ||
+                                     std::string(argv[2]) == "--mute-only" ||
+                                     std::string(argv[2]) == "--volume-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--volume-only") {
+        const std::string dir = argv[1];
+        UiRenderState feedback;
+        feedback.volumeOverlay = true;
+        for (int volume : {0, 12, 21}) {
+            mainVal = volume;
+            renderHome(feedback, "15:01", true);
+            drawVolumeOverlay();
+            save((dir + "/volume-home-" + std::to_string(volume) + ".ppm").c_str());
+        }
+        mainVal = 12;
+        fixtureMuted = true;
+        renderHome(feedback, "15:01", true);
+        drawVolumeOverlay();
+        save((dir + "/volume-muted.ppm").c_str());
+        fixtureMuted = false;
+        renderSettings({}, "15:01", true);
+        drawVolumeOverlay();
+        save((dir + "/volume-settings.ppm").c_str());
+        antialias = false;
+        renderHome(feedback, "15:01", true);
+        drawVolumeOverlay();
+        save((dir + "/volume-fallback.ppm").c_str());
+        puts("Native volume panel fixtures rendered through production layout.");
+        return 0;
+    }
+    if (argc == 3 && std::string(argv[2]) == "--mute-only") {
+        const std::string dir = argv[1];
+        fixtureMuted = true;
+        renderHome({}, "15:01", true);
+        save((dir + "/mute-home.ppm").c_str());
+        UiRenderState feedback;
+        feedback.muteOverlay = true;
+        renderHome(feedback, "15:01", true);
+        drawMuteOverlay();
+        save((dir + "/mute-overlay.ppm").c_str());
+        fixtureMuted = false;
+        renderHome({}, "15:01", true);
+        save((dir + "/mute-home-restored.ppm").c_str());
+        renderHome(feedback, "15:01", true);
+        drawMuteOverlay();
+        save((dir + "/mute-unmute-overlay.ppm").c_str());
+        fixtureMuted = true;
+        UiRenderState settings;
+        settings.page = UiPage::Settings;
+        renderSettings(settings, "15:01", true);
+        save((dir + "/mute-settings.ppm").c_str());
+        renderSettings(settings, "3:01 PM", true);
+        save((dir + "/mute-settings-12h.ppm").c_str());
+        renderListening({}, "15:01", true);
+        save((dir + "/mute-player.ppm").c_str());
+        antialias = false;
+        renderSettings(settings, "15:01", true);
+        drawMuteOverlay();
+        save((dir + "/mute-fallback.ppm").c_str());
+        puts("Native mute feedback fixtures rendered through production layout.");
+        return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--branding-only") {
         const std::string dir = argv[1];
         // A saved next-startup choice must not change this startup's labels.

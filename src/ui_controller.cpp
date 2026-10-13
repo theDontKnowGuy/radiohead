@@ -11,6 +11,7 @@ namespace {
 constexpr int kRowsPerPage = UI_LIST_ROWS;
 constexpr int kFavoriteRowsPerPage = 3;
 constexpr unsigned long kVolumeOverlayMs = 1500;
+constexpr unsigned long kMuteOverlayMs = 2500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
 constexpr int kSettingsItemCount = 5;
@@ -22,6 +23,8 @@ bool hasPendingCommand = false;
 bool pendingCommandWaitsForRender = false;
 int pendingVolumeDelta = 0;
 unsigned long volumeOverlayUntil = 0;
+bool lastMuted = false;
+unsigned long muteOverlayStartedAt = 0;
 UiCommand pendingToneCommand;
 bool hasPendingToneCommand = false;
 int committedBass = 0, committedMid = 0, committedTreble = 0;
@@ -635,6 +638,8 @@ void uiControllerBegin() {
     pendingCommandWaitsForRender = false;
     pendingVolumeDelta = 0;
     volumeOverlayUntil = 0;
+    lastMuted = isStationMuted();
+    state.muteOverlay = false;
     hasPendingToneCommand = false;
     repeatTarget = UiTarget::None;
 }
@@ -646,17 +651,18 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
     // The encoder is deliberately device-wide. Touch owns navigation,
     // selection and confirmation, so a turn cannot change the page or focus.
     queue(UiCommandKind::ChangeVolume, detents);
+    state.muteOverlay = false;
     volumeOverlayUntil = now + kVolumeOverlayMs;
     markDirty();
 }
 
 void uiControllerPush(unsigned long now, bool displayWasDimmed) {
+    (void)now;
     (void)displayWasDimmed;
 
     // A press is mute only; it cannot activate the focused item or accept a
     // dialog after navigation has changed the current page.
     queue(UiCommandKind::ToggleMute);
-    volumeOverlayUntil = now + kVolumeOverlayMs;
     markDirty();
 }
 
@@ -770,6 +776,20 @@ void uiControllerReportPodcastStartFailure() {
 
 void uiControllerTick(unsigned long now) {
     syncCommittedTone();
+    // Observe the actual output state after commands/web requests. This gives
+    // every mute source the same feedback without guessing a queued result.
+    const bool muted = isStationMuted();
+    if (muted != lastMuted) {
+        lastMuted = muted;
+        state.muteOverlay = true;
+        muteOverlayStartedAt = now;
+        volumeOverlayUntil = 0;
+        markDirty();
+    }
+    if (state.muteOverlay && now - muteOverlayStartedAt >= kMuteOverlayMs) {
+        state.muteOverlay = false;
+        markDirty();
+    }
     const MediaSource source = mediaSnapshot().source;
     if (source == MediaSource::Spotify && lastMediaSource != MediaSource::Spotify) {
         // An incoming Connect session takes the foreground once. Back remains

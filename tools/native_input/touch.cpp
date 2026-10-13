@@ -27,6 +27,8 @@ uint16_t normalizeAutoDimSeconds(uint16_t seconds) {
 int podcastEpisodeCount = 8;
 bool ready = true;
 bool favoriteEnabled = false;
+bool fixtureMuted = false;
+bool isStationMuted() { return fixtureMuted; }
 int playableStationCount() { return 10; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 10 ? i : -1; }
 int selectedPlayableStationIndex() { return 0; }
@@ -96,7 +98,57 @@ void checkRawSampling() {
     assert(!readAxis(data, y) && !readAxis(data + kAxisBytes, x));
 }
 
+void checkMuteFeedback() {
+    fixtureMuted = false;
+    uiControllerBegin();
+    uiControllerTurn(1, 100, false);
+    assert(uiControllerRenderState().volumeOverlay);
+    UiCommand command;
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume);
+    uiControllerPush(200, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
+    // Feedback starts only when the actual mute state changes.
+    fixtureMuted = true;
+    uiControllerTick(200);
+    assert(uiControllerRenderState().muteOverlay && !uiControllerRenderState().volumeOverlay);
+    uiControllerMarkRendered();
+    uiControllerTick(2699);
+    assert(uiControllerRenderState().muteOverlay && !uiControllerRenderState().dirty);
+    uiControllerTick(2700);
+    assert(!uiControllerRenderState().muteOverlay && uiControllerRenderState().dirty);
+    // Web changes have no encoder command but receive the same feedback.
+    fixtureMuted = false;
+    uiControllerTick(3000);
+    assert(uiControllerRenderState().muteOverlay && !uiControllerRenderState().volumeOverlay);
+    // Navigation does not lose the notice or issue playback commands.
+    uiControllerTap(UiTarget::HomeSettings, 0, 3001, false);
+    assert(uiControllerRenderState().page == UiPage::Settings);
+    assert(uiControllerRenderState().muteOverlay && !uiControllerTakeCommand(command));
+    // A turn replaces the mute notice immediately with actual volume feedback.
+    uiControllerTurn(-1, 3002, false);
+    assert(!uiControllerRenderState().muteOverlay && uiControllerRenderState().volumeOverlay);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume);
+    // The transient timer survives unsigned clock rollover and rapid toggles.
+    fixtureMuted = true;
+    uiControllerTick(ULONG_MAX - 1000);
+    uiControllerTick(1498);
+    assert(uiControllerRenderState().muteOverlay);
+    uiControllerTick(1499);
+    assert(!uiControllerRenderState().muteOverlay);
+    fixtureMuted = false;
+    uiControllerTick(2000);
+    fixtureMuted = true;
+    uiControllerTick(2100);
+    uiControllerTick(4500);
+    assert(uiControllerRenderState().muteOverlay);
+    uiControllerTick(4600);
+    assert(!uiControllerRenderState().muteOverlay);
+    fixtureMuted = false;
+    uiControllerBegin();
+}
+
 int main() {
+    checkMuteFeedback();
     checkRawSampling();
     int16_t x = 0, y = 0;
     TouchPressLatch press;

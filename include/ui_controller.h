@@ -195,6 +195,7 @@ struct UiRenderState {
     bool standbyConfirm = false;
     bool confirmAcceptFocused = false;
     bool volumeOverlay = false;
+    bool muteOverlay = false;
     uint8_t homeFocus = 0;
     PlaybackState playback = PlaybackState::Stopped;
     const MediaSnapshot* media = nullptr;
