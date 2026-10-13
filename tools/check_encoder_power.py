@@ -25,7 +25,7 @@ fixture = r'''
 #include <climits>
 #include <cstdint>
 #include <cstdio>
-constexpr int PIN_SW = 38, PIN_K0 = 6, LOW = 0, HIGH = 1;
+constexpr int PIN_SW = 13, PIN_K0 = 6, LOW = 0, HIGH = 1;
 enum class ButtonEvent : uint8_t { None, Push, Hold };
 bool encoderDown = false;
 bool releaseScenario = false;

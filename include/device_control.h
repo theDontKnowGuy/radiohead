@@ -69,6 +69,20 @@ bool touchDebugMarkerVisible(unsigned long now);
 void taskControl(void* parameter);
 int consumeEncoderDetents();
 
+// Snapshot only: observe the existing rotation task without resetting input.
+struct EncoderDiagnostics {
+    bool taskCreated = false;
+    uint32_t samples = 0;
+    uint32_t aEdges = 0;
+    uint32_t bEdges = 0;
+    uint32_t positiveTicks = 0;
+    uint32_t negativeTicks = 0;
+    uint32_t invalidTransitions = 0;
+    uint8_t sampledAB = 0;
+    bool rawA = false, rawB = false, rawSwitch = false;
+};
+EncoderDiagnostics encoderDiagnostics();
+
 enum class ButtonEvent : uint8_t {
     None,
     Push,

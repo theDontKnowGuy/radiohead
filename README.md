@@ -30,39 +30,44 @@ before wiring. These are ESP32-S3 GPIO numbers, not physical header positions.
 | --- | --- |
 | `+` / `VCC` | **3.3 V**, not 5 V |
 | `GND` | Common GND |
-| `CLK` / `A` | GPIO 39 (`PIN_A`) |
-| `DT` / `B` | GPIO 40 (`PIN_B`) |
-| `SW` | GPIO 38 (`PIN_SW`) |
+| `CLK` / `A` | GPIO 4 (`PIN_A`) |
+| `DT` / `B` | GPIO 7 (`PIN_B`) |
+| `SW` | GPIO 13 (`PIN_SW`) |
 
 Encoder modules may pull their signal pins up to VCC. Use 3.3 V so these signals
 stay within the ESP32-S3's input limits; its GPIOs are not 5 V tolerant. See the
 [Espressif datasheet](https://documentation.espressif.com/esp32_s3_datasheet_en.pdf).
 A bare mechanical encoder needs no VCC connection: connect its rotary common and
-one switch contact to GND, A/B to GPIO 39/40, and the other switch contact to GPIO 38.
+one switch contact to GND, A/B to GPIO 4/7, and the other switch contact to GPIO 13.
 The firmware enables internal pull-ups.
 
 GPIO 35–37 are reserved for octal PSRAM on the configured N16R8 target.
-GPIO 39/40 cannot simultaneously serve external pin-based JTAG; USB debugging
-uses different pins. Some DevKitC revisions connect their RGB LED input to
-GPIO 38, so leave that LED unused by firmware when using this encoder wiring.
+The encoder avoids external JTAG GPIO 39/40 and possible RGB LED GPIO 38.
+The owner's board is labelled YD-ESP32-23 2022-V1.3; the
+[published YD design](https://github.com/vcc-gnd/YD-ESP32-S3#readme)
+uses GPIO 48 for its RGB LED. Board metadata remains the N16R8 build target.
 See [Espressif's board pin restrictions](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html).
 
 - Turn to change volume; short-click to mute/unmute.
 - Hold the switch while powering on or resetting to request Wi-Fi setup/recovery.
   Boot checks for a pressed switch, without a timed hold threshold. Release after
   setup mode starts. This does not start touch calibration.
-- During normal operation, a hold of approximately 700 ms requests sleep.
+- During normal operation, a hold of 3 seconds requests light sleep; another
+  encoder press wakes the radio.
 
-Leave GPIO 6 (`PIN_K0`) disconnected for this one-button wiring. **Current firmware
-limitation:** deep-sleep wake still uses GPIO 6, so the encoder on GPIO 38 cannot
-wake the radio from deep sleep. GPIO 38 is not an RTC GPIO and cannot replace
-GPIO 6 in the existing ext0 wake path. If retaining a separate K0 button, keep
-it on GPIO 6; its sleep/factory-reset handler remains active. Do not bridge
-GPIO 6 and 38. GPIO 7 is unused in the current shared TFT/touch wiring.
-See [ESP32-S3 wake-pin requirements](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/api-reference/system/sleep_modes.html#external-wakeup-ext0).
+Leave GPIO 6 (`PIN_K0`) disconnected for this one-button wiring. If retaining
+a separate K0 button, keep it on GPIO 6; its sleep/factory-reset handler and
+light-sleep wake remain active. Do not bridge GPIO 6 and 13. Sleep consumes
+the initiating and waking button releases before restarting normal startup.
+
+Pin remap, 2026-10-13: with power disconnected, move encoder A from 39 to 4,
+B from 40 to 7, SW from 38 to 13, and TFT backlight control from 3 to 1.
+Touch T_CLK/T_DIN must already be on shared SPI GPIO 12/11, not the previous
+separate-bus GPIO 4/7. Rewire all four connections before using this image.
+Hardware acceptance of the remap remains pending.
 
 The future [battery power plan](docs/hardware/battery-power-architecture-plan.md)
-also uses this one switch and GPIO 38, through an adapted BSS138 interface to the
+also uses this one switch and GPIO 13, through an adapted BSS138 interface to the
 IP5310 KEY input. It replaces the relay proposal. That circuit requires different
 switch wiring and bench validation; its software shutdown sequence is not yet
 implemented.
@@ -217,7 +222,7 @@ left-to-right order; match labels rather than counting from a viewing direction.
 | 5 | `DC` | GPIO 9 | Data/command select (`TFT_DC`) |
 | 6 | `SDI(MOSI)` | GPIO 11, joined to `T_DIN` | Shared SPI2 data from ESP32-S3 (`TFT_MOSI`) |
 | 7 | `SCK` | GPIO 12, joined to `T_CLK` | Shared SPI2 clock (`TFT_SCLK`) |
-| 8 | `LED` | GPIO 3 | Backlight PWM (`TFT_BLK`); owner's working connection |
+| 8 | `LED` | GPIO 1 | Backlight PWM (`TFT_BLK`); remapped from GPIO 3 |
 | 9 | `SDO(MISO)` | **Not connected** | Display readback; not needed by the current application |
 | 10 | `T_CLK` | GPIO 12, joined to `SCK` | Shared SPI2 touch clock (`TOUCH_SCLK`) |
 | 11 | `T_CS` | GPIO 14 | Separate touch chip select (`TOUCH_CS`) |
@@ -226,16 +231,16 @@ left-to-right order; match labels rather than counting from a viewing direction.
 | 14 | `T_IRQ` | **Not connected** | Touch interrupt; firmware uses polling |
 
 The shared bus uses GPIO 5 for MISO, connected only to touch `T_DO`.
-GPIO 13 is unused. Display `SDO(MISO)` remains disconnected. Current display
-rendering does not read pixels or registers back from the physical TFT; pixel
+GPIO 13 is the encoder switch. Display `SDO(MISO)` remains disconnected.
+Current display rendering does not read pixels or registers back from the physical TFT; pixel
 reads in the renderer use its in-memory canvas. Keep `T_DO` connected for touch
 to work.
 
-The firmware drives GPIO 3 with active-high, 5 kHz PWM for brightness, automatic
+The firmware drives GPIO 1 with active-high, 5 kHz PWM for brightness, automatic
 dimming, and backlight shutdown during sleep. Connect it directly only if the module
 provides a 3.3 V compatible backlight control input. If `LED` is a backlight power
 terminal, use an appropriate current-limited LED driver with an active-high PWM
-input driven by GPIO 3; do not assume a GPIO can supply the backlight current.
+input driven by GPIO 1; do not assume a GPIO can supply the backlight current.
 Backlight pin circuitry varies by breakout; for example, Adafruit documents a PWM
 control input on its
 [ILI9341 breakout](https://learn.adafruit.com/adafruit-2-4-color-tft-touchscreen-breakout/pinouts).
@@ -253,14 +258,15 @@ ESP32-S3 GPIO 11 ──┬── TFT SDI (MOSI)
 ESP32-S3 GPIO  8 ───── TFT CS
 ESP32-S3 GPIO  9 ───── TFT DC
 ESP32-S3 GPIO 10 ───── TFT RESET
-ESP32-S3 GPIO  3 ───── TFT LED / backlight control
+ESP32-S3 GPIO  1 ───── TFT LED / backlight control
 ESP32-S3 GPIO  5 ───── Touch T_DO
 ESP32-S3 GPIO 14 ───── Touch T_CS
 TFT SDO (MISO)  ────── Not connected
 Touch T_IRQ     ────── Not connected
 ```
 
-Encoder A/B/switch remain on GPIO 39/40/38. GPIO 4 and 7 are now unused.
+Encoder A/B/switch use GPIO 4/7/13. GPIO 3/38/39/40 are no longer used by
+the radio's peripheral wiring.
 See [the TFT/touch wiring guide](docs/hardware/touch-spi-wiring.md).
 The shared-bus firmware passed `pio run -e esp32s3`,
 `python3 tools/check_touch_diagnostics.py` and `git diff --check` on 2026-10-13.

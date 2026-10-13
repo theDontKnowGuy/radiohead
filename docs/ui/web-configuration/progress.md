@@ -1,5 +1,28 @@
 # Web configuration implementation progress
 
+### 2026-10-13 — Encoder rotation diagnosis (ready for device testing)
+
+- User reports the GPIO13 switch works after flashing the encoder remap, but
+  rotation does not; GPIO4/7 wiring is confirmed by the user.
+- Scope: add a read-only `/api/device/encoder-debug` endpoint for task creation,
+  production samples, current pin levels, channel edges and decoded tick counts.
+  Preserve the decoder, pin mapping, UI, persistence and audio behavior.
+- Implemented: read-only GET with no-store caching and fixed-size JSON; no
+  Serial output, GPIO-mode changes, persisted values or decoder changes. Counter
+  snapshots share the existing encoder lock and do not consume queued detents.
+- Functional: `python3 tools/check_encoder_diagnostics.py` and
+  `python3 tools/check_encoder_power.py` pass. Production-seam checks cover both
+  rotation directions, stuck single-channel signals, invalid two-bit transitions,
+  task-creation failure/success, counter retention/saturation, pin assignments
+  and JSON serialization. `pio run -e esp32s3` and `git diff --check` pass.
+- Build: image 4,509,760 bytes (+992), with 2,043,840 bytes free in the app slot.
+- Device: existing image reached at the user-supplied IP; build/date/image size
+  match the remap, and resource diagnostics show the Ctrl task exists with 3,236
+  stack bytes free. User confirms GPIO13 button operation and GPIO4/7 wiring.
+  The new diagnostic image has not been installed; electrical A/B transitions,
+  physical rotation and the cause of failure remain unverified.
+- Visual: no browser/TFT UI change; this is a diagnostic API only.
+
 ### 2026-10-12 — W8 intermittent touch diagnostics/recovery (flashed; fault recovery unverified)
 
 - User-authorized scope: expose production X/Y ADC quality, pressure rejection

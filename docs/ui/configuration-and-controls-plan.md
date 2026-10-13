@@ -54,6 +54,13 @@ long press does not mute first. The encoder hold threshold is 3 seconds (updated
 2026-10-11 at the user's request; supersedes the initial 700 ms threshold).
 Preserve encoder direction, detents, bounds and shared-task synchronization.
 
+Encoder pin update, 2026-10-13: at the user's request move A/B/SW from
+GPIO39/40/38 to GPIO4/7/13, and backlight control from GPIO3 to GPIO1.
+Retain the light-sleep behavior below with GPIO13 as the encoder wake source;
+this remap does not add battery power-off or switch to deep sleep. The old
+touch GPIO4/7 wiring must be moved to shared SPI GPIO12/11 before use.
+Hardware acceptance remains pending.
+
 Encoder sleep/wake update, 2026-10-11: use light sleep so another encoder press
 can wake the radio on its existing GPIO38 wiring; K0 also remains a wake source.
 Consume a stable release before sleep and after wake, then restart through the
@@ -75,6 +82,20 @@ Implementation defaults: turning while muted adjusts the stored volume while
 remaining muted; unmute uses that value. A dimmed but awake screen wakes while
 applying the explicit encoder volume/mute action once. Touch dim-wake still
 consumes its first press. No action may leak into a newly opened page.
+
+Encoder/backlight diagnosis, 2026-10-13: the rotation task can update
+`lastInteraction` after the loop captures `now`. The old unsigned subtraction
+then wraps into a false idle timeout and commands backlight duty 20/255 while
+rotating. `updatePowerState` now snapshots the interaction timestamp before
+reading a fresh clock for the dimming calculation. This is an unintended
+backlight transition, separate from the intended volume feedback panel.
+`python3 tools/check_display_dimming.py` reproduced the old failure and passes
+with the fix, including concurrent activity, timeout/wake, 32-bit rollover and
+Never. Encoder power/diagnostic host checks, `pio run -e esp32s3` and
+`git diff --check` pass. Image: 4,509,760 bytes, 2,043,840 bytes free in the app
+slot; DIRAM: 260,523 bytes (76.23%), 81,237 bytes remaining. Not flashed or
+verified on hardware; this finding does not establish the cause of other
+reported instability or exclude a separate power problem.
 
 Startup calibration update, 2026-10-07: load saved touch calibration when available,
 otherwise retain the panel defaults and continue startup without waiting for touch.

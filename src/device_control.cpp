@@ -19,6 +19,8 @@ constexpr unsigned long kButtonHoldMs = 3000;
 constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+// All shared encoder diagnostics use encoderMux, like encoderPos.
+EncoderDiagnostics encoderState;
 TouchDiagnostics touchState;
 TouchPressLatch pressLatch;
 
@@ -85,8 +87,7 @@ void goToSleep() {
         Serial.println("Power transition deferred during device maintenance");
         return;
     }
-    // GPIO38 is not RTC-capable on ESP32-S3: encoder wake requires light
-    // sleep. Keep the separate K0 wake button without changing the wiring.
+    // Preserve light sleep and both button wake sources after the pin remap.
     pinMode(PIN_SW, INPUT_PULLUP);
     pinMode(PIN_K0, INPUT_PULLUP);
     if (gpio_wakeup_enable(static_cast<gpio_num_t>(PIN_SW), GPIO_INTR_LOW_LEVEL) != ESP_OK ||
@@ -270,6 +271,17 @@ int consumeEncoderDetents() {
     return detents;
 }
 
+EncoderDiagnostics encoderDiagnostics() {
+    portENTER_CRITICAL(&encoderMux);
+    EncoderDiagnostics snapshot = encoderState;
+    portEXIT_CRITICAL(&encoderMux);
+    // Current electrical levels are distinct from the task's last sample.
+    snapshot.rawA = digitalRead(PIN_A) == HIGH;
+    snapshot.rawB = digitalRead(PIN_B) == HIGH;
+    snapshot.rawSwitch = digitalRead(PIN_SW) == HIGH;
+    return snapshot;
+}
+
 ButtonEvent pollEncoderButton(unsigned long now) {
     static bool rawPressed = false;
     static bool stablePressed = false;
@@ -353,10 +365,23 @@ void taskControl(void* parameter) {
         oldAB <<= 2;
         oldAB |= (digitalRead(PIN_A) << 1) | digitalRead(PIN_B);
         const int8_t difference = transitions[oldAB & 0x0F];
+        const uint8_t ab = oldAB & 0x03;
+        portENTER_CRITICAL(&encoderMux);
+        if (encoderState.samples != 0) {
+            const uint8_t changed = encoderState.sampledAB ^ ab;
+            if (changed & 0x02) incrementTouchCounter(encoderState.aEdges);
+            if (changed & 0x01) incrementTouchCounter(encoderState.bEdges);
+            if (changed == 0x03) incrementTouchCounter(encoderState.invalidTransitions);
+        }
+        encoderState.sampledAB = ab;
+        incrementTouchCounter(encoderState.samples);
         if (difference != 0) {
-            portENTER_CRITICAL(&encoderMux);
             encoderPos += difference;
-            portEXIT_CRITICAL(&encoderMux);
+            if (difference > 0) incrementTouchCounter(encoderState.positiveTicks);
+            else incrementTouchCounter(encoderState.negativeTicks);
+        }
+        portEXIT_CRITICAL(&encoderMux);
+        if (difference != 0) {
             lastInteraction = millis();
         }
         vTaskDelay(1);
@@ -372,9 +397,14 @@ void updatePowerState(unsigned long now) {
         volumeBarVisible = false;
     }
 
+    // The encoder task can advance lastInteraction beyond the loop's cached
+    // now. Snapshot activity first, then read the clock, so unsigned elapsed
+    // time cannot wrap into a false idle timeout while the encoder is turning.
+    const uint32_t interactionAt = lastInteraction;
+    const uint32_t idleMs = static_cast<uint32_t>(millis()) - interactionAt;
     const bool dimTimeoutExpired =
         autoDimSeconds != AUTO_DIM_NEVER_SECONDS &&
-        now - lastInteraction > static_cast<unsigned long>(autoDimSeconds) * 1000UL;
+        idleMs > static_cast<unsigned long>(autoDimSeconds) * 1000UL;
     if (dimTimeoutExpired) {
         if (!isDimmed) {
             setBrightness(20);
@@ -412,5 +442,9 @@ DeviceInput pollDeviceInput(unsigned long now) {
 }
 
 void startDeviceControl() {
-    xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0);
+    const bool created =
+        xTaskCreatePinnedToCore(taskControl, "Ctrl", 4096, nullptr, 1, nullptr, 0) == pdPASS;
+    portENTER_CRITICAL(&encoderMux);
+    encoderState.taskCreated = created;
+    portEXIT_CRITICAL(&encoderMux);
 }

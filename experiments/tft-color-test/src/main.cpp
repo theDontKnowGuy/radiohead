@@ -7,7 +7,7 @@
 #include <driver/rtc_io.h>
 
 namespace {
-constexpr int kBacklight = 3;
+constexpr int kBacklight = 1;
 constexpr int kTouchCs = 14;
 
 class TestDisplay final : public lgfx::LGFX_Device {

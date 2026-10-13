@@ -1371,6 +1371,25 @@ void startWebServer() {
         server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json; charset=utf-8", deviceStateJson());
     });
+    server.on("/api/device/encoder-debug", HTTP_GET, [] {
+        const EncoderDiagnostics encoder = encoderDiagnostics();
+        char json[512];
+        snprintf(json, sizeof(json),
+            "{\"pinA\":%d,\"pinB\":%d,\"pinSwitch\":%d,\"taskCreated\":%s,"
+            "\"samples\":%lu,\"rawA\":%d,\"rawB\":%d,\"rawSwitch\":%d,"
+            "\"sampledAB\":%u,\"aEdges\":%lu,\"bEdges\":%lu,"
+            "\"positiveTicks\":%lu,\"negativeTicks\":%lu,\"invalidTransitions\":%lu}",
+            PIN_A, PIN_B, PIN_SW, encoder.taskCreated ? "true" : "false",
+            static_cast<unsigned long>(encoder.samples), encoder.rawA, encoder.rawB,
+            encoder.rawSwitch, static_cast<unsigned>(encoder.sampledAB),
+            static_cast<unsigned long>(encoder.aEdges),
+            static_cast<unsigned long>(encoder.bEdges),
+            static_cast<unsigned long>(encoder.positiveTicks),
+            static_cast<unsigned long>(encoder.negativeTicks),
+            static_cast<unsigned long>(encoder.invalidTransitions));
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json; charset=utf-8", json);
+    });
     server.on("/api/device/boot-mode", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json; charset=utf-8", "{" + bootModeStateFieldsJson() + "}");

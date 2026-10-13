@@ -12,14 +12,16 @@
 constexpr int I2S_BCK = 15;
 constexpr int I2S_DIN = 16;
 constexpr int I2S_LRC = 17;
-// GPIO35-37 are reserved for octal PSRAM on the N16R8 target.
-constexpr int PIN_A = 39;
-constexpr int PIN_B = 40;
+// Keep the encoder off JTAG GPIO39/40 and the possible RGB LED pin GPIO38.
+// GPIO35-37 remain reserved for octal PSRAM on the N16R8 target.
+constexpr int PIN_A = 4;
+constexpr int PIN_B = 7;
 // Separate power/wake button; retained alongside encoder light-sleep wake.
 constexpr int PIN_K0 = 6;
-// Encoder switch/light-sleep wake; do not drive the board RGB LED on GPIO38.
-constexpr int PIN_SW = 38;
-constexpr int TFT_BLK = 3;
+// Encoder switch/light-sleep wake; preserve the existing sleep behavior.
+constexpr int PIN_SW = 13;
+// Backlight PWM uses a non-strapping RTC GPIO for the sleep hold.
+constexpr int TFT_BLK = 1;
 constexpr int TFT_SCLK = 12;
 constexpr int TFT_MOSI = 11;
 // Shared SPI2 input comes from touch T_DO; display SDO stays disconnected.

@@ -12,7 +12,7 @@ settings are unused. The test does not read or write Preferences or LittleFS.
 | CS | 8 |
 | DC | 9 |
 | RESET | 10 |
-| LED / backlight control | 3 |
+| LED / backlight control | 1 |
 | SDO / MISO | Unconnected |
 
 Keep the existing TFT supply and common ground. Touch CS on GPIO14 is held
