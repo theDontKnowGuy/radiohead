@@ -13,11 +13,21 @@ digital side:
 
 | ESP32-S3 | First amplifier | Second amplifier | Purpose |
 | --- | --- | --- | --- |
-| GPIO 15 | BCLK | BCLK | I2S bit clock |
-| GPIO 17 | LRC/WS | LRC/WS | Left/right word select |
-| GPIO 16 | DIN | DIN | Interleaved left and right audio data |
+| GPIO 39 | BCLK | BCLK | I2S bit clock |
+| GPIO 41 | LRC/WS | LRC/WS | Left/right word select |
+| GPIO 40 | DIN | DIN | Interleaved left and right audio data |
 | GND | GND | GND | Common logic and power ground |
 | Amplifier supply | VIN | VIN | Same regulated supply, sized for both amplifiers |
+
+GPIO39–41 are assigned to I2S and cannot simultaneously serve external JTAG.
+USB remains on GPIO19/20. This mapping replaces GPIO15/17/16 as of 2026-10-16;
+move both amplifiers' signal connections with power disconnected before using
+the updated firmware. Playback on the new pins still needs device verification.
+
+Both playback paths now use `include/app_audio_pins.h`. The Spotify sink had
+retained hard-coded GPIO15/17/16 after the local-radio remap; this was corrected
+during the [audio-static investigation](audio-static-diagnosis.md). The corrected
+image has built successfully but has not been installed or hardware-verified.
 
 The MAX98357A does not need MCLK. Keep the three I2S branches short and route a
 ground alongside them. Powering two amplifiers can roughly double peak supply

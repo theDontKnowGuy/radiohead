@@ -84,9 +84,9 @@ With power disconnected, wire the two MAX98357A boards as follows:
 | --- | --- | --- |
 | Regulated 5 V supply | `VIN` | `VIN` |
 | Common GND with ESP32-S3 | `GND` | `GND` |
-| GPIO 15 (`I2S_BCK`) | `BCLK` | `BCLK` |
-| GPIO 17 (`I2S_LRC`) | `LRC` / `WS` | `LRC` / `WS` |
-| GPIO 16 (`I2S_DIN`, ESP32 data output) | `DIN` | `DIN` |
+| GPIO 39 (`I2S_BCK`) | `BCLK` | `BCLK` |
+| GPIO 41 (`I2S_LRC`) | `LRC` / `WS` | `LRC` / `WS` |
+| GPIO 40 (`I2S_DIN`, ESP32 data output) | `DIN` | `DIN` |
 | Gain selection | Leave `GAIN` unconnected | Leave `GAIN` unconnected |
 | Speaker terminals | Left speaker to this board's `SPK+` / `SPK-` | Right speaker to this board's `SPK+` / `SPK-` |
 

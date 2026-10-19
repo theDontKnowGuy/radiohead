@@ -50,6 +50,12 @@ weather, OTA flow, and sleep behavior as parts of one product.
 
 ## Embedded constraints
 
+- Available bench instrument: the user owns an **Instrustar ISDS210A USB
+  oscilloscope** and needs step-by-step measurement guidance. The display is a
+  **2.8-inch ILI9341 TFT**. For the movement-triggered white-screen failure,
+  audio continues and the web UI remains responsive (user confirmed 2026-10-16).
+  Read [the diagnostic record](docs/hardware/tft-white-screen-diagnosis.md)
+  before continuing this investigation; do not ask the user to reconfirm these facts.
 - Do not block or perform slow network work in the hot audio servicing path.
 - Do not write to USB `Serial` from the Spotify PCM/I2S output task. On this
   ESP32-S3, a connected USB host with no serial reader can make Arduino's

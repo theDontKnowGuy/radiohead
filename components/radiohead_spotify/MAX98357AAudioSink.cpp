@@ -1,4 +1,5 @@
 #include "MAX98357AAudioSink.h"
+#include "app_audio_pins.h"
 
 #include <algorithm>
 #include <cstring>
@@ -8,9 +9,6 @@
 #include "freertos/FreeRTOS.h"
 
 namespace {
-constexpr gpio_num_t kBck = GPIO_NUM_15;
-constexpr gpio_num_t kWs = GPIO_NUM_17;
-constexpr gpio_num_t kDout = GPIO_NUM_16;
 constexpr char kTag[] = "max98357a";
 }
 
@@ -28,9 +26,9 @@ MAX98357AAudioSink::MAX98357AAudioSink() {
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = kBck,
-            .ws = kWs,
-            .dout = kDout,
+            .bclk = static_cast<gpio_num_t>(I2S_BCK),
+            .ws = static_cast<gpio_num_t>(I2S_LRC),
+            .dout = static_cast<gpio_num_t>(I2S_DIN),
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {},
         },

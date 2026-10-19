@@ -158,6 +158,8 @@ const uint8_t volCurve[22] = {
 LGFX_Config::LGFX_Config() {
     auto busConfig = bus_.config();
     busConfig.spi_host = SPI2_HOST;
+    // Temporary white-screen diagnostic: lower TFT writes from the 16 MHz default.
+    busConfig.freq_write = 4000000;
     busConfig.pin_sclk = TFT_SCLK;
     busConfig.pin_mosi = TFT_MOSI;
     busConfig.pin_miso = TFT_MISO;

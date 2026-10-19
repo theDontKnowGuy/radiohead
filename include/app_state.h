@@ -7,12 +7,10 @@
 #include <vector>
 
 #include "Audio.h"
+#include "app_audio_pins.h"
 #include "boot_mode.h"
 
-constexpr int I2S_BCK = 15;
-constexpr int I2S_DIN = 16;
-constexpr int I2S_LRC = 17;
-// Keep the encoder off JTAG GPIO39/40 and the possible RGB LED pin GPIO38.
+// Keep the encoder off the I2S outputs and the possible RGB LED pin GPIO38.
 // GPIO35-37 remain reserved for octal PSRAM on the N16R8 target.
 constexpr int PIN_A = 4;
 constexpr int PIN_B = 7;
