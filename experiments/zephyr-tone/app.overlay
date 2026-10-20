@@ -1,0 +1,49 @@
+#include <zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h>
+
+/ {
+    chosen {
+        /delete-property/ zephyr,console;
+        /delete-property/ zephyr,shell-uart;
+        /delete-property/ zephyr,bt-hci;
+    };
+    aliases {
+        /delete-property/ sw0;
+        /delete-property/ uart-0;
+        /delete-property/ i2c-0;
+        /delete-property/ watchdog0;
+    };
+    /delete-node/ buttons;
+};
+
+&pinctrl {
+    tone_i2s: tone_i2s {
+        group1 {
+            pinmux = <I2S0_O_BCK_GPIO39>, <I2S0_O_WS_GPIO41>, <I2S0_O_SD_GPIO40>;
+            output-enable;
+        };
+    };
+};
+
+&i2s0 {
+    status = "okay";
+    pinctrl-0 = <&tone_i2s>;
+    pinctrl-names = "default";
+    /* TX only. No input, no MCLK pin and no amplifier SD pin. */
+    dmas = <&dma 3>; /* ESP32 GDMA pair 1, TX (odd channel ID) */
+    dma-names = "tx";
+};
+&i2s1 { status = "disabled"; };
+&dma { status = "okay"; };
+&uart0 { status = "disabled"; };
+&usb_serial { status = "disabled"; };
+&spi2 { status = "disabled"; };
+&spi3 { status = "disabled"; };
+&i2c0 { status = "disabled"; };
+&i2c1 { status = "disabled"; };
+&touch { status = "disabled"; };
+&twai { status = "disabled"; };
+&wdt0 { status = "disabled"; };
+&wifi { status = "disabled"; };
+&esp32_bt_hci { status = "disabled"; };
+&psram0 { status = "disabled"; };
+&flash0 { reg = <0x0 DT_SIZE_M(16)>; };

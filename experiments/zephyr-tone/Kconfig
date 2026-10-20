@@ -1,0 +1,7 @@
+mainmenu "Independent Zephyr tone test"
+
+config TONE_LEFT
+    bool "Drive left slot instead of right (other slot is zero)"
+    default n
+
+source "Kconfig.zephyr"
