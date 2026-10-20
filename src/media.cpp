@@ -1060,6 +1060,9 @@ void mediaPrepareBootOutput() {
 }
 
 void mediaConfigureOutput() {
+    // Match the full curve before restoring volume; the library defaults to 21
+    // steps, which otherwise clamps every UI index from 13 upward to full scale.
+    audio.setVolumeSteps(volCurve[21]);
     if (kBootQuietOutputExperiment) audio.setVolume(0);
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
     if (!kBootQuietOutputExperiment) {

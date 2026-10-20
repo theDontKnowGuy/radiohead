@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16.0)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 option(RADIOHEAD_TFT_COLOR_TEST "Build only the TFT color diagnostic" OFF)
+option(RADIOHEAD_STORAGE_QUIET_TEST "Disable persistent storage after boot reads" OFF)
+if(RADIOHEAD_STORAGE_QUIET_TEST)
+    add_compile_definitions(RADIOHEAD_STORAGE_QUIET_TEST=1)
+endif()
 # ESP-IDF discovers component requirements in a child CMake script.
 set(ENV{RADIOHEAD_TFT_COLOR_TEST} "${RADIOHEAD_TFT_COLOR_TEST}")
 if(NOT DEFINED ENV{RADIOHEAD_ARDUINO_DIR})

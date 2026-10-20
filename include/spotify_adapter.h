@@ -23,6 +23,8 @@ bool spotifyAdapterControl(SpotifyControl control);
 #include <string>
 #include <Arduino.h>
 void spotifyAdapterBegin();
+// Diagnostic only: cache the persisted pairing before runtime storage is locked.
+void spotifyAdapterPrepareStorage();
 String spotifyAdapterInfoJson();
 String spotifyAdapterDiagnosticsJson();
 bool spotifyAdapterPairingSubmit(const std::map<std::string, std::string>& fields);

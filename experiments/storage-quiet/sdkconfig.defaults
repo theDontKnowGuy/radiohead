@@ -1,0 +1,3 @@
+# No hidden Wi-Fi credential or PHY calibration access to NVS during playback.
+CONFIG_ESP_WIFI_NVS_ENABLED=n
+CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n

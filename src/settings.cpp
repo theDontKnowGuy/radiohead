@@ -59,6 +59,7 @@ int credentialIndexForSsid(const SavedWiFiCredential* credentials, int count,
 
 bool persistSavedWiFiCredentials(const SavedWiFiCredential* credentials, int count,
                                  int activeIndex) {
+    if (kStorageQuietTest) return false;
     if (count < 0 || count > WIFI_SAVED_NETWORK_LIMIT ||
         (count > 0 && (activeIndex < 0 || activeIndex >= count)) ||
         (count == 0 && activeIndex != -1)) {
@@ -445,7 +446,8 @@ int savedWiFiAlternativeNetworkAt(int alternativeIndex) {
 
 bool activateSavedWiFiNetwork(int index) {
     if (index < 0 || index >= savedWiFiCredentialCount) return false;
-    if (!persistSavedWiFiCredentials(savedWiFiCredentials, savedWiFiCredentialCount, index)) {
+    if (!kStorageQuietTest &&
+        !persistSavedWiFiCredentials(savedWiFiCredentials, savedWiFiCredentialCount, index)) {
         return false;
     }
     st_ssid = savedWiFiCredentials[index].ssid;
@@ -468,6 +470,7 @@ bool forgetActiveWiFiNetwork() {
 }
 
 bool clearAllSavedWiFiCredentials() {
+    if (kStorageQuietTest) return false;
     bool wifiCleared = false;
     if (pref.begin("wifi", false)) {
         wifiCleared = pref.clear();
@@ -484,6 +487,7 @@ bool clearAllSavedWiFiCredentials() {
 }
 
 bool saveWeatherTimeSettings() {
+    if (kStorageQuietTest) return false;
     if (owmCity.isEmpty() || owmCity.length() > 80 || owmKey.length() > 128 ||
         !isSupportedTimeZone(timeZoneId) || !pref.begin("radio", false)) {
         return false;
@@ -504,6 +508,7 @@ bool saveWeatherTimeSettings() {
 }
 
 bool saveFirmwareAutoUpdate(bool enabled) {
+    if (kStorageQuietTest) return false;
     if (!pref.begin("radio", false)) return false;
     const bool saved = pref.putBool("autoUpdate", enabled) == sizeof(bool);
     pref.end();
@@ -516,6 +521,7 @@ String spotifyStationName() {
 }
 
 bool saveSpotifyStationName(const String& name) {
+    if (kStorageQuietTest) return false;
     if (name.isEmpty() || name.length() > 64 || !pref.begin("radio", false)) return false;
     const bool saved = pref.putString("spotifyName", name) == name.length();
     pref.end();
@@ -524,6 +530,7 @@ bool saveSpotifyStationName(const String& name) {
 }
 
 bool saveFavorites() {
+    if (kStorageQuietTest) return false;
     if (!pref.begin("favorites", false)) {
         return false;
     }
@@ -585,6 +592,7 @@ bool togglePodcastShowFavorite(int showIndex) {
 }
 
 bool stationArtworkBegin() {
+    if (kStorageQuietTest) return false;
     if (artworkFilesystemReady) return true;
     if (artworkFilesystemMountAttempted) return false;
     artworkFilesystemMountAttempted = true;
@@ -776,6 +784,14 @@ bool loadStationArtwork(int stationIndex, int size, uint16_t* pixels, size_t pix
 }
 
 bool loadTouchCalibration(TouchCalibration& calibration) {
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    static TouchCalibration bootCalibration = {};
+    static bool bootCalibrationValid = false;
+    if (!storageReadsAllowed()) {
+        if (bootCalibrationValid) calibration = bootCalibration;
+        return bootCalibrationValid;
+    }
+#endif
     if (!pref.begin("touch", true)) {
         return false;
     }
@@ -788,10 +804,16 @@ bool loadTouchCalibration(TouchCalibration& calibration) {
         : 0;
     pref.end();
 
-    return bytesRead == sizeof(calibration) && isValidTouchCalibration(calibration);
+    const bool valid = bytesRead == sizeof(calibration) && isValidTouchCalibration(calibration);
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    bootCalibrationValid = valid;
+    if (valid) bootCalibration = calibration;
+#endif
+    return valid;
 }
 
 bool saveTouchCalibration(const TouchCalibration& calibration) {
+    if (kStorageQuietTest) return false;
     if (!isValidTouchCalibration(calibration) || !pref.begin("touch", false)) {
         return false;
     }
@@ -807,6 +829,7 @@ bool saveTouchCalibration(const TouchCalibration& calibration) {
 
 void saveSettings() {
     settingsSavePending = false;
+    if (kStorageQuietTest) return;
     pref.begin("radio", false);
     pref.putInt("idx", currentStationIdx);
     pref.putInt("vol", mainVal);
@@ -831,17 +854,20 @@ void saveSettings() {
 }
 
 void queueSettingsSave() {
+    if (kStorageQuietTest) return;
     settingsSaveQueuedAt = millis();
     settingsSavePending = true;
 }
 
 void serviceSettingsSave(unsigned long now) {
+    if (kStorageQuietTest) return;
     if (settingsSavePending && now - settingsSaveQueuedAt >= SETTINGS_SAVE_DEBOUNCE_MS) {
         saveSettings();
     }
 }
 
 void loadSettings() {
+    if (!storageReadsAllowed()) return;
     loadBootModeSettings();
     pref.begin("radio", true);
     const bool hasStoredWeatherLocation = pref.isKey("owmCity");

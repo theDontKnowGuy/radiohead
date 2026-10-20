@@ -14,3 +14,13 @@ subprocess.run([
     str(root / 'src/settings_spotify.cpp'), '-o', str(exe),
 ], check=True)
 subprocess.run([str(exe)], check=True)
+quiet = out / 'storage-quiet'
+subprocess.run([
+    'clang++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+    '-fsanitize=address,undefined', '-DRADIOHEAD_STORAGE_QUIET_TEST=1',
+    f'-I{root / "tools/native_spotify"}', f'-I{root / "include"}',
+    str(root / 'tools/native_spotify/storage_quiet.cpp'),
+    str(root / 'src/settings_spotify.cpp'), '-o', str(quiet),
+], check=True)
+for fixture in ('present', 'absent'):
+    subprocess.run([str(quiet), fixture], check=True)

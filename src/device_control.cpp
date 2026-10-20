@@ -126,6 +126,7 @@ void goToSleep() {
 }
 
 bool factoryReset() {
+    if (kStorageQuietTest) return false;
     if (webUpdateInProgress()) {
         Serial.println("Factory reset deferred during device maintenance");
         return false;

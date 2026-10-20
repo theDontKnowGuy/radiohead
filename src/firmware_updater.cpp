@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <Update.h>
+#include "storage_diagnostic.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <algorithm>
@@ -48,6 +49,7 @@ bool isApprovedGitHubUrl(const String& url) {
 FirmwareUpdater firmwareUpdater;
 
 void FirmwareUpdater::begin(bool shouldAutoInstall) {
+    if (kStorageQuietTest) return;
     if (taskHandle != nullptr) return;
     autoInstall.store(shouldAutoInstall);
     stateMutex = xSemaphoreCreateMutex();
@@ -225,6 +227,7 @@ void FirmwareUpdater::checkForUpdate() {
 }
 
 void FirmwareUpdater::installPendingRelease() {
+    if (kStorageQuietTest) return;
     const Release release = pendingReleaseCopy();
     if (release.url.isEmpty() || release.size == 0) return;
     busy.store(true);

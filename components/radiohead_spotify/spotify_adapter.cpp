@@ -63,6 +63,9 @@ std::atomic<int> pendingControl{-1};
 StaticTask_t outputTcb, connectTcb;
 StackType_t outputStack[8 * 1024 / sizeof(StackType_t)];
 StackType_t connectStack[16 * 1024 / sizeof(StackType_t)];
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+std::string bootLoginBlob;
+#endif
 
 class RedactedLogger final : public bell::AbstractLogger {
 public:
@@ -136,6 +139,14 @@ void post(SpotifySignalType type, uint16_t volume = 0, bool isPaused = false,
 }
 
 bool readNvs(const char* key, std::string& value, size_t limit) {
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    if (!storageReadsAllowed()) {
+        if (strcmp(key, "login_blob") != 0 || bootLoginBlob.empty() ||
+            bootLoginBlob.size() > limit) return false;
+        value = bootLoginBlob;
+        return true;
+    }
+#endif
     nvs_handle_t h;
     if (nvs_open("spotify", NVS_READONLY, &h) != ESP_OK) return false;
     size_t bytes = 0;
@@ -154,6 +165,8 @@ bool readNvs(const char* key, std::string& value, size_t limit) {
 }
 
 bool writeNvs(const char* key, const std::string& value) {
+    // Pairing is already in pairingBlob; permit this session without persisting.
+    if (kStorageQuietTest) return true;
     nvs_handle_t h;
     if (nvs_open("spotify", NVS_READWRITE, &h) != ESP_OK) return false;
     esp_err_t err = nvs_set_str(h, key, value.c_str());
@@ -440,6 +453,12 @@ void connectTask(void*) {
     vTaskDelete(nullptr);
 }
 } // namespace
+
+void spotifyAdapterPrepareStorage() {
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    readNvs("login_blob", bootLoginBlob, 1024);
+#endif
+}
 
 void spotifyAdapterBegin() {
     if (WiFi.status() != WL_CONNECTED) return;

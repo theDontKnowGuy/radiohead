@@ -1,5 +1,26 @@
 # Web configuration implementation progress
 
+### 2026-10-20 — Storage-quiet audio diagnostic (built; device test pending)
+
+- User requests no storage activity after boot reads to isolate crackles/sandy
+  sound. Separate opt-in image; normal UI and persistence remain the baseline.
+- Scope in web code: reject OTA in the diagnostic, identify volatile controls,
+  and avoid claiming volume/tone changes were saved. No visual redesign.
+- Implemented diagnostic banner, session-only volume/tone feedback and
+  `storageQuietTest` player-state field; diagnostic OTA completion returns 503.
+  Existing normal controls and routes retain their behavior.
+- Diagnostic build and `pio run -e esp32s3` pass, along with credential/cache,
+  boot-mode, Spotify-web and artifact checks and `git diff --check`.
+- Device/browser/TFT acceptance remains pending; no flash was performed.
+  See [installation and validation](../../../experiments/storage-quiet/README.md).
+- User subsequently reports the volume-change static is gone. This verifies
+  that listening observation, not the specific storage mechanism or remaining
+  sandy music. No agent flash or direct UI/hardware verification occurred.
+- Correction: later read-only `/api/player` check on the radio returns
+  `storageQuietTest: false`. Current firmware is not running the diagnostic.
+  The earlier disappeared-crackle report cannot be attributed to storage
+  suppression without confirming installation/mode. No flash performed.
+
 ### 2026-10-13 — Encoder rotation diagnosis (ready for device testing)
 
 - User reports the GPIO13 switch works after flashing the encoder remap, but

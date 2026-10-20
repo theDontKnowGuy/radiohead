@@ -12,6 +12,10 @@ struct SpotifyAppCredentials {
     char clientId[SPOTIFY_APP_CREDENTIAL_MAX_BYTES + 1];
     char clientSecret[SPOTIFY_APP_CREDENTIAL_MAX_BYTES + 1];
 };
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+SpotifyAppCredentials bootCredentials = {};
+bool bootCredentialsValid = false;
+#endif
 
 bool validStoredCredential(const char* value) {
     const size_t length = strnlen(value, SPOTIFY_APP_CREDENTIAL_MAX_BYTES + 1);
@@ -32,6 +36,14 @@ bool isValidSpotifyAppCredential(const String& value) {
 bool loadSpotifyAppCredentials(String& clientId, String& clientSecret) {
     clientId = "";
     clientSecret = "";
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    if (!storageReadsAllowed()) {
+        if (!bootCredentialsValid) return false;
+        clientId = bootCredentials.clientId;
+        clientSecret = bootCredentials.clientSecret;
+        return true;
+    }
+#endif
     Preferences credentials;
     if (!credentials.begin("spotify", true)) return false;
     SpotifyAppCredentials stored = {};
@@ -50,6 +62,10 @@ bool loadSpotifyAppCredentials(String& clientId, String& clientSecret) {
             validStoredCredential(stored.clientId) && validStoredCredential(stored.clientSecret);
     }
     credentials.end();
+#if defined(RADIOHEAD_STORAGE_QUIET_TEST)
+    bootCredentialsValid = loaded;
+    if (loaded) bootCredentials = stored;
+#endif
     if (!loaded) return false;
     clientId = stored.clientId;
     clientSecret = stored.clientSecret;
@@ -63,6 +79,7 @@ bool spotifyAppCredentialsConfigured() {
 }
 
 bool saveSpotifyAppCredentials(const String& clientId, const String& clientSecret) {
+    if (kStorageQuietTest) return false;
     if (!isValidSpotifyAppCredential(clientId) || !isValidSpotifyAppCredential(clientSecret)) return false;
     SpotifyAppCredentials stored = {};
     memcpy(stored.version, "RHS1", sizeof(stored.version));

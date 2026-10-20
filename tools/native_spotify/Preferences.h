@@ -12,16 +12,18 @@ inline bool failOpen = false;
 inline bool failWrite = false;
 inline bool failRead = false;
 inline int writes = 0;
+inline int opens = 0;
 inline void reset() {
     blobs.clear(); strings.clear();
     failOpen = failWrite = failRead = false;
-    writes = 0;
+    writes = opens = 0;
 }
 }
 
 class Preferences {
 public:
     bool begin(const char* name, bool = false) {
+        ++fakeNvs::opens;
         return std::string(name) == "spotify" && !fakeNvs::failOpen;
     }
     void end() {}

@@ -9,6 +9,7 @@ constexpr const char* kBootModeKey = "bootMode";
 }
 
 void loadBootModeSettings() {
+    if (!storageReadsAllowed()) return;
     BootMode loaded = DEFAULT_BOOT_MODE;
     Preferences storage;
     if (storage.begin("radio", true)) {
@@ -21,6 +22,7 @@ void loadBootModeSettings() {
 }
 
 bool saveBootMode(BootMode mode) {
+    if (kStorageQuietTest) return false;
     if (!isSupportedBootMode(mode)) return false;
     Preferences storage;
     if (!storage.begin("radio", false)) return false;

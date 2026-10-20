@@ -655,6 +655,7 @@ String playerStateJson() {
     String json;
     json.reserve(650);
     json = "{\"revision\":" + String(playerRevision()) +
+        ",\"storageQuietTest\":" + String(kStorageQuietTest ? "true" : "false") +
         ",\"volume\":" + String(mainVal) +
         ",\"muted\":" + String(radioMuted ? "true" : "false") +
         ",\"bass\":" + String(gB) +
@@ -940,7 +941,9 @@ void handleConfigShell(WebSection section) {
     appendNavigation(html, section);
     html += "<div class='rh-device'><span class='rh-online' aria-hidden='true'></span>" +
         htmlEscape(connectionState()) + "<strong>radiohead</strong><span dir='ltr'>" + htmlEscape(addressLabel) +
-        "</span></div></aside><main class='rh-main'><section class='rh-hero' aria-label='Current playback'>"
+        "</span></div></aside><main class='rh-main'>" +
+        String(kStorageQuietTest ? "<p role='status'>Audio test: settings are temporary; storage and updates are disabled.</p>" : "") +
+        "<section class='rh-hero' aria-label='Current playback'>"
         "<div class='rh-spotify-art' id='player-art' aria-hidden='true'" +
         String(media.source == MediaSource::Spotify ? "" : " hidden") +
         "><i></i><i></i><i></i><i></i><i></i><i></i></div><div class='rh-player-copy'>"
@@ -977,7 +980,7 @@ void handleConfigShell(WebSection section) {
         "document.getElementById('player-name').textContent=spotify?(state.title||'Spotify'):(state.name||'Nothing playing');"
         "document.getElementById('player-detail').textContent=spotify?[state.artist,state.album].filter(Boolean).join(' · '):(state.source==='radio'?state.title||'':'');"
         "tones.forEach((tone,index)=>{if(document.activeElement!==tone&&!toneTimer)tone.value=[state.bass,state.mid,state.treble][index];if(!toneTimer)toneValues[index].textContent=[state.bass,state.mid,state.treble][index]})};"
-        "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show('Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
+        "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show(state.storageQuietTest?'Applied for this session only.':'Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
         "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{volumeTimer=0;request('/api/player/volume',new URLSearchParams({volume:volume.value}))},140)});"
         "mute.addEventListener('click',()=>request('/api/player/mute',new URLSearchParams()));"
         "tones.forEach((tone,index)=>tone.addEventListener('input',()=>{toneValues[index].textContent=tone.value;clearTimeout(toneTimer);toneTimer=setTimeout(()=>{toneTimer=0;request('/api/player/tone',new URLSearchParams({bass:bass.value,mid:mid.value,treble:treble.value}))},180)}));"
@@ -988,6 +991,7 @@ void handleConfigShell(WebSection section) {
 void handleRoot() { handleConfigShell(WebSection::Stations); }
 
 void handleUpdateUpload() {
+    if (kStorageQuietTest) return;
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
         otaUploadSucceeded = false;
@@ -1555,6 +1559,11 @@ void startWebServer() {
         server.send(202, "application/json; charset=utf-8", "{\"restarting\":true}");
     });
     server.on("/api/device/ota", HTTP_POST, [] {
+        if (kStorageQuietTest) {
+            server.send(503, "application/json; charset=utf-8",
+                "{\"error\":\"Storage test: OTA disabled. Restore firmware over USB.\"}");
+            return;
+        }
         if (!otaUploadSucceeded || Update.hasError()) {
             otaUploadSucceeded = false;
             setFirmwareUpdateProgress(false, 0);

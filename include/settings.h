@@ -7,6 +7,7 @@
 #include <ctime>
 
 #include "boot_mode.h"
+#include "storage_diagnostic.h"
 
 using TouchCalibration = std::array<uint16_t, 8>;
 

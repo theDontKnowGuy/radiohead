@@ -12,12 +12,14 @@
 #include "media.h"
 #include "wifi_network.h"
 #include "settings.h"
+#include "spotify_adapter.h"
 #include "ui_controller.h"
 #include "ui_runtime.h"
 #include "validation_diagnostics.h"
 #include "web_server.h"
 
 void setup() {
+    if (kStorageQuietTest) WiFi.persistent(false);
     mediaPrepareBootOutput();
     Serial.begin(115200);
     validationBegin();
@@ -32,6 +34,14 @@ void setup() {
     }
     initializeTouchCalibration();
     loadSettings();
+    if (kStorageQuietTest) {
+        String clientId, clientSecret;
+        loadSpotifyAppCredentials(clientId, clientSecret);
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+        spotifyAdapterPrepareStorage();
+#endif
+        finishStorageBootReads();
+    }
     // Initialize artwork storage once, including the user-authorized recovery
     // of the currently corrupt LittleFS partition, before web rendering can
     // ask for station thumbnails.

@@ -1,0 +1,17 @@
+set(audio_evidence_requires "")
+if("$ENV{RADIOHEAD_AUDIO_UART_EVIDENCE}" STREQUAL "1")
+    list(APPEND audio_evidence_requires esp_driver_uart)
+endif()
+idf_component_register(SRCS "main.cpp"
+    INCLUDE_DIRS "." "../../../include" "$ENV{RADIOHEAD_AUDIO_ASSETS}"
+    REQUIRES esp_psram esp_driver_i2s esp_driver_gpio esp_driver_usb_serial_jtag esp_timer ${audio_evidence_requires})
+target_add_binary_data(${COMPONENT_LIB} "$ENV{RADIOHEAD_AUDIO_ASSETS}/music.pcm" BINARY RENAME_TO music_pcm)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    AUDIO_ONLY_UART_EVIDENCE=$ENV{RADIOHEAD_AUDIO_UART_EVIDENCE}
+    AUDIO_ONLY_EVIDENCE=$ENV{RADIOHEAD_AUDIO_EVIDENCE}
+    AUDIO_ONLY_RADIO_INDEX=$ENV{RADIOHEAD_AUDIO_RADIO_INDEX}
+    AUDIO_ONLY_MUSIC_CHANNELS=$ENV{RADIOHEAD_AUDIO_MUSIC_CHANNELS}
+    AUDIO_ONLY_MUSIC_FORMATS=$ENV{RADIOHEAD_AUDIO_MUSIC_FORMATS}
+    AUDIO_ONLY_HANDSFREE=$ENV{RADIOHEAD_AUDIO_HANDSFREE}
+    AUDIO_ONLY_FIXED_CASE=$ENV{RADIOHEAD_AUDIO_FIXED_CASE}
+    AUDIO_ONLY_TRIM=$ENV{RADIOHEAD_AUDIO_TRIM})
