@@ -106,10 +106,12 @@ extern const char* ntpServer;
 extern RadioStation stations[STATION_COUNT];
 extern const PodcastShow podcastShows[PODCAST_SHOW_COUNT];
 extern PodcastEpisode podcastEpisodes[MAX_EPISODES];
-extern const uint8_t volCurve[22];
 
 extern LGFX_Config tft;
 extern Audio audio;
+extern bool audioNotchEnabled;
+extern int audioNotchHz;
+extern int audioNotchEndHz; // 0: original single-frequency notch; otherwise upper edge.
 extern WebServer server;
 extern Preferences pref;
 

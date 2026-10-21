@@ -1,0 +1,275 @@
+-- west build: making build dir /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right pristine
+-- west build: generating a build system
+Loading Zephyr default modules (Zephyr base).
+-- Application: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone
+-- CMake version: 3.31.6
+-- Found Python3: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/venv/bin/python3.11 (found suitable version "3.11.7", minimum required is "3.10") found components: Interpreter
+-- Cache files will be written to: /Users/avner/Library/Caches/zephyr
+-- Zephyr version: 4.2.1 (/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr)
+-- Found west (found suitable version "1.4.0", minimum required is "0.14.0")
+-- Board: esp32s3_devkitc, qualifiers: esp32s3/procpu
+-- Found host-tools: zephyr 0.17.4 (/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/zephyr-sdk-0.17.4)
+-- Found toolchain: zephyr 0.17.4 (/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/zephyr-sdk-0.17.4)
+-- Found Dtc: /opt/homebrew/bin/dtc (found suitable version "1.8.1", minimum required is "1.4.6")
+-- Found BOARD.dts: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc_procpu.dts
+-- Found devicetree overlay: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/app.overlay
+-- Generated zephyr.dts: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/zephyr.dts
+-- Generated pickled edt: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/edt.pickle
+-- Generated devicetree_generated.h: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/include/generated/zephyr/devicetree_generated.h
+Parsing /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/Kconfig
+Loaded configuration '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc_procpu_defconfig'
+Merged configuration '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/prj.conf'
+Merged configuration '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/misc/generated/extra_kconfig_options.conf'
+Configuration saved to '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/.config'
+Kconfig header saved to '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/include/generated/zephyr/autoconf.h'
+-- Found GnuLd: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/zephyr-sdk-0.17.4/xtensa-espressif_esp32s3_zephyr-elf/xtensa-espressif_esp32s3_zephyr-elf/bin/ld.bfd (found version "2.38")
+-- The C compiler identification is GNU 12.2.0
+-- The CXX compiler identification is GNU 12.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/zephyr-sdk-0.17.4/xtensa-espressif_esp32s3_zephyr-elf/bin/xtensa-espressif_esp32s3_zephyr-elf-gcc
+-- Espressif HAL path: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif
+-- Use the esptool.py: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/tools/esptool_py/esptool.py
+-- Image partition address: 0x0
+-- Found gen_kobject_list: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/scripts/build/gen_kobject_list.py
+-- Configuring done (3.6s)
+-- Generating done (0.2s)
+-- Build files have been written to: /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right
+-- west build: building application
+[1/221] Preparing syscall dependency handling
+
+[2/221] Generating ../../../../include/generated/zephyr/core-isa-dM.h
+[3/221] Generating ../../../../include/generated/xtensa_handlers_tmp.c
+[4/221] Generating include/generated/zephyr/version.h
+-- Zephyr version: 4.2.1 (/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr), build: v4.2.1
+[5/221] Generating ../../../../include/generated/xtensa_handlers.h
+[6/221] Generating ../../../../include/generated/xtensa_vectors.ld
+[7/221] Generating ../../../../include/generated/zephyr/zsr.h
+[8/221] Generating misc/generated/syscalls_subdirs.trigger
+[9/221] Generating misc/generated/syscalls.json, misc/generated/struct_tags.json
+[10/221] Generating include/generated/device-api-sections.ld, include/generated/device-api-sections.cmake
+[11/221] Generating include/generated/zephyr/syscall_dispatch.c, include/generated/zephyr/syscall_exports_llext.c, syscall_weakdefs_llext.c, include/generated/zephyr/syscall_list.h
+[12/221] Generating include/generated/zephyr/driver-validation.h
+[13/221] Generating include/generated/zephyr/kobj-types-enum.h, include/generated/zephyr/otype-to-str.h, include/generated/zephyr/otype-to-size.h
+[14/221] Building C object zephyr/CMakeFiles/offsets.dir/arch/xtensa/core/offsets/offsets.c.obj
+[15/221] Generating include/generated/zephyr/offsets.h
+[16/221] Building C object zephyr/CMakeFiles/zephyr.dir/misc/generated/configs.c.obj
+[17/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/dec.c.obj
+[18/221] Building C object CMakeFiles/app.dir/src/sequence.c.obj
+[19/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/hex.c.obj
+[20/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/ring_buffer.c.obj
+[21/221] Building C object zephyr/arch/common/CMakeFiles/isr_tables.dir/isr_tables.c.obj
+[22/221] Building C object CMakeFiles/app.dir/src/main.c.obj
+[23/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/timeutil.c.obj
+[24/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/thread_entry.c.obj
+[25/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/sem.c.obj
+[26/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/printk.c.obj
+[27/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/heap/heap.c.obj
+[28/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/clock.c.obj
+[29/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/cbprintf_packaged.c.obj
+[30/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/rb.c.obj
+[31/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/os/cbprintf_complete.c.obj
+[32/221] Building C object zephyr/CMakeFiles/zephyr.dir/lib/utils/bitarray.c.obj
+[33/221] Building C object zephyr/CMakeFiles/zephyr.dir/subsys/tracing/tracing_none.c.obj
+[34/221] Building C object zephyr/CMakeFiles/zephyr.dir/soc/espressif/esp32s3/soc_cache.c.obj
+[35/221] Building C object zephyr/CMakeFiles/zephyr.dir/soc/espressif/esp32s3/soc.c.obj
+[36/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/efuse/esp32s3/esp_efuse_table.c.obj
+[37/221] Building C object zephyr/CMakeFiles/zephyr.dir/soc/espressif/esp32s3/esp32s3-mp.c.obj
+[38/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/spi_flash_encrypt_hal_iram.c.obj
+[39/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/efuse/src/esp_efuse_utility.c.obj
+[40/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/efuse/src/efuse_controller/keys/with_key_purposes/esp_efuse_api_key.c.obj
+[41/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/efuse/esp32s3/esp_efuse_utility.c.obj
+[42/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/efuse/src/esp_efuse_api.c.obj
+[43/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/esp_gpio_reserve.c.obj
+[44/221] Building C object zephyr/CMakeFiles/zephyr.dir/soc/espressif/esp32s3/hw_init.c.obj
+[45/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_boya.c.obj
+[46/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_drivers.c.obj
+[47/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/spi_flash_hal_gpspi.c.obj
+[48/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/bootloader_support/src/flash_encrypt.c.obj
+[49/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/spi_flash_hal.c.obj
+[50/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_gd.c.obj
+[51/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/spi_flash_hal_iram.c.obj
+[52/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/esp32s3/spi_flash_oct_flash_init.c.obj
+[53/221] Building C object zephyr/CMakeFiles/zephyr.dir/soc/espressif/common/loader.c.obj
+[54/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_issi.c.obj
+[55/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/memspi_host_driver.c.obj
+[56/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_th.c.obj
+[57/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_generic.c.obj
+[58/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_os_func_noos.c.obj
+[59/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/flash_mmap.c.obj
+[60/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_mxic.c.obj
+[61/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/soc/lldesc.c.obj
+[62/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_winbond.c.obj
+[63/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/gdma_hal.c.obj
+[64/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_chip_mxic_opi.c.obj
+[65/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_hpm_enable.c.obj
+[66/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_wrap.c.obj
+[67/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/mpu_hal.c.obj
+[68/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/i2s_hal.c.obj
+[69/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/soc/esp32s3/gpio_periph.c.obj
+[70/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/bootloader_support/src/bootloader_clock_init.c.obj
+[71/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/soc/esp32s3/rtc_io_periph.c.obj
+[72/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/esp_flash_spi_init.c.obj
+[73/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/flash_ops.c.obj
+[74/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/common/console_init.c.obj
+[75/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/esp_flash_api.c.obj
+[76/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/mac_addr.c.obj
+[77/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/cpu.c.obj
+[78/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/clk_ctrl_os.c.obj
+[79/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/spi_flash/spi_flash_os_func_app.c.obj
+[80/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/bootloader_support/bootloader_flash/src/flash_qio_mode.c.obj
+[81/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/esp_clk.c.obj
+[82/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/bootloader_support/bootloader_flash/src/bootloader_flash_config_esp32s3.c.obj
+[83/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/regi2c_ctrl.c.obj
+[84/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/cpu_region_protect.c.obj
+[85/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/common/soc_init.c.obj
+[86/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/periph_ctrl.c.obj
+[87/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/mspi_timing_tuning.c.obj
+[88/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp_clk_tree_common.c.obj
+[89/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/hw_random.c.obj
+[90/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/rtc_module.c.obj
+[91/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/systimer.c.obj
+[92/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_crc.c.obj
+[93/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_sys.c.obj
+[94/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_mm/port/esp32s3/ext_mem_layout.c.obj
+[95/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/esp_cpu_intr.c.obj
+[96/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/esp_clk_tree.c.obj
+[97/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/rtc_time.c.obj
+[98/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_efuse.c.obj
+[99/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/rtc_sleep.c.obj
+[100/221] Building ASM object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_longjmp.S.obj
+[101/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_uart.c.obj
+[102/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_gpio.c.obj
+[103/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_spiflash.c.obj
+[104/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_systimer.c.obj
+[105/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/mspi_timing_config.c.obj
+[106/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/rtc_clk.c.obj
+[107/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/rtc_init.c.obj
+[108/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_cache_esp32s2_esp32s3.c.obj
+[109/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/rtc_clk_init.c.obj
+[110/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/port/esp32s3/sar_periph_ctrl.c.obj
+[111/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_rom/patches/esp_rom_wdt.c.obj
+[112/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_mm/esp_mmu_map.c.obj
+[113/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_system/port/soc/esp32s3/reset_reason.c.obj
+[114/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_timer/src/ets_timer_legacy.c.obj
+[115/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/efuse_hal.c.obj
+[116/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/cache_hal.c.obj
+[117/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/mmu_hal.c.obj
+[118/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/xt_wdt_hal.c.obj
+[119/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/systimer_hal.c.obj
+[120/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/wdt_hal_iram.c.obj
+[121/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/esp32s3/efuse_hal.c.obj
+[122/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/hal/esp32s3/clk_tree_hal.c.obj
+[123/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_timer/src/esp_timer_impl_common.c.obj
+[124/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_system/esp_err.c.obj
+[125/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/log/log.c.obj
+[126/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_hw_support/sleep_modes.c.obj
+[127/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_timer/src/esp_timer_impl_systimer.c.obj
+[128/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/esp32s3/src/soc_random.c.obj
+[129/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/esp32s3/src/soc_init.c.obj
+[130/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/esp32s3/src/stubs.c.obj
+[131/221] Generating linker_zephyr_pre0.cmd
+[132/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/log/log_noos.c.obj
+[133/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_system/port/soc/esp32s3/clk.c.obj
+[134/221] Linking C static library zephyr/arch/common/libisr_tables.a
+[135/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_system/port/soc/esp32s3/system_internal.c.obj
+[136/221] Building ASM object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/xtensa_asm2_util.S.obj
+[137/221] Building ASM object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/window_vectors.S.obj
+[138/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/port/heap/heap_caps_zephyr.c.obj
+[139/221] Building C object zephyr/arch/common/CMakeFiles/arch__common.dir/sw_isr_common.c.obj
+[140/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/components/esp_timer/src/esp_timer.c.obj
+[141/221] Building C object zephyr/arch/common/CMakeFiles/arch__common.dir/dynamic_isr.c.obj
+[142/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/port/bootloader/bootloader_flash.c.obj
+[143/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/cpu_idle.c.obj
+[144/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/port/host_flash/cache_utils.c.obj
+[145/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/fatal.c.obj
+[146/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/esp32s3/src/soc_flash_init.c.obj
+[147/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/thread.c.obj
+[148/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/common/esp_restart.c.obj
+[149/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/irq_manage.c.obj
+[150/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/prep_c.c.obj
+[151/221] Building C object zephyr/CMakeFiles/zephyr.dir/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/common/flash_init.c.obj
+[152/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/assert.c.obj
+[153/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/cbprintf.c.obj
+[154/221] Building C object zephyr/lib/libc/common/CMakeFiles/lib__libc__common.dir/source/time/time.c.obj
+[155/221] Building C object zephyr/arch/arch/xtensa/core/CMakeFiles/arch__xtensa__core.dir/vector_handlers.c.obj
+[156/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/exit.c.obj
+[157/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/chk_fail.c.obj
+[158/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/errno_wrap.c.obj
+[159/221] Building C object zephyr/lib/libc/common/CMakeFiles/lib__libc__common.dir/source/stdlib/abort.c.obj
+[160/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/locks.c.obj
+[161/221] Building C object zephyr/lib/libc/common/CMakeFiles/lib__libc__common.dir/source/stdlib/malloc.c.obj
+[162/221] Building C object zephyr/drivers/pinctrl/CMakeFiles/drivers__pinctrl.dir/common.c.obj
+[163/221] Building C object zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir/stdio.c.obj
+[164/221] Building C object zephyr/drivers/i2s/CMakeFiles/drivers__i2s.dir/i2s_common.c.obj
+[165/221] Building C object zephyr/drivers/timer/CMakeFiles/drivers__timer.dir/xtensa_sys_timer.c.obj
+[166/221] Building C object zephyr/drivers/timer/CMakeFiles/drivers__timer.dir/sys_clock_init.c.obj
+[167/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/banner.c.obj
+[168/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/main_weak.c.obj
+[169/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/device.c.obj
+[170/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/busy_wait.c.obj
+[171/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/errno.c.obj
+[172/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/version.c.obj
+[173/221] Building C object zephyr/drivers/clock_control/CMakeFiles/drivers__clock_control.dir/clock_control_esp32.c.obj
+[174/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/fatal.c.obj
+[175/221] Building C object zephyr/drivers/interrupt_controller/CMakeFiles/drivers__interrupt_controller.dir/intc_esp32.c.obj
+[176/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/kheap.c.obj
+[177/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/init.c.obj
+[178/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/mem_slab.c.obj
+[179/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/float.c.obj
+[180/221] Building C object zephyr/drivers/pinctrl/CMakeFiles/drivers__pinctrl.dir/pinctrl_esp32.c.obj
+[181/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/idle.c.obj
+[182/221] Building C object zephyr/drivers/i2s/CMakeFiles/drivers__i2s.dir/i2s_esp32.c.obj
+[183/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/mailbox.c.obj
+[184/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/mutex.c.obj
+[185/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/msg_q.c.obj
+[186/221] Building C object zephyr/drivers/gpio/CMakeFiles/drivers__gpio.dir/gpio_esp32.c.obj
+[187/221] Building C object zephyr/drivers/dma/CMakeFiles/drivers__dma.dir/dma_esp32_gdma.c.obj
+[188/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/sem.c.obj
+[189/221] Building C object zephyr/CMakeFiles/zephyr_pre0.dir/misc/empty_file.c.obj
+[190/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/system_work_q.c.obj
+[191/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/queue.c.obj
+[192/221] Linking C static library app/libapp.a
+[193/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/stack.c.obj
+[194/221] Linking C static library zephyr/arch/common/libarch__common.a
+[195/221] Linking C static library zephyr/lib/libc/common/liblib__libc__common.a
+[196/221] Linking C static library zephyr/drivers/interrupt_controller/libdrivers__interrupt_controller.a
+[197/221] Linking C static library zephyr/arch/arch/xtensa/core/libarch__xtensa__core.a
+[198/221] Linking C static library zephyr/drivers/clock_control/libdrivers__clock_control.a
+[199/221] Linking C static library zephyr/lib/libc/picolibc/liblib__libc__picolibc.a
+[200/221] Linking C static library zephyr/drivers/gpio/libdrivers__gpio.a
+[201/221] Linking C static library zephyr/drivers/dma/libdrivers__dma.a
+[202/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/dynamic_disabled.c.obj
+[203/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/condvar.c.obj
+[204/221] Linking C static library zephyr/drivers/i2s/libdrivers__i2s.a
+[205/221] Linking C static library zephyr/drivers/timer/libdrivers__timer.a
+[206/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/pipe.c.obj
+[207/221] Linking C static library zephyr/drivers/pinctrl/libdrivers__pinctrl.a
+[208/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/thread.c.obj
+[209/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/mempool.c.obj
+[210/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/timer.c.obj
+[211/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/timeout.c.obj
+[212/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/work.c.obj
+[213/221] Building C object zephyr/kernel/CMakeFiles/kernel.dir/sched.c.obj
+[214/221] Linking C static library zephyr/libzephyr.a
+[215/221] Linking C static library zephyr/kernel/libkernel.a
+[216/221] Linking C executable zephyr/zephyr_pre0.elf
+[217/221] Generating linker.cmd
+[218/221] Generating isr_tables.c, isr_tables_vt.ld, isr_tables_swi.ld
+[219/221] Building C object zephyr/CMakeFiles/zephyr_final.dir/misc/empty_file.c.obj
+[220/221] Building C object zephyr/CMakeFiles/zephyr_final.dir/isr_tables.c.obj
+[221/221] Linking C executable zephyr/zephyr.elf
+Memory region         Used Size  Region Size  %age Used
+           FLASH:      199048 B   16776960 B      1.19%
+     iram0_0_seg:       35596 B     343552 B     10.36%
+     dram0_0_seg:       73392 B     327168 B     22.43%
+     irom0_0_seg:       18698 B        32 MB      0.06%
+     drom0_0_seg:      133512 B        32 MB      0.40%
+    rtc_iram_seg:          0 GB         8 KB      0.00%
+    rtc_slow_seg:          0 GB         8 KB      0.00%
+        IDT_LIST:          0 GB         8 KB      0.00%
+Generating files from /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-right/zephyr/zephyr.elf for board: esp32s3_devkitc
+esptool.py v4.8.1
+Creating esp32s3 image...
+Image has only RAM segments visible. ROM segments are hidden and SHA256 digest is not appended.
+Merged 13 ELF sections
+Successfully created esp32s3 image.

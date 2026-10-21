@@ -151,9 +151,6 @@ const PodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
 };
 
 PodcastEpisode podcastEpisodes[MAX_EPISODES];
-const uint8_t volCurve[22] = {
-    0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 17, 20, 23, 26, 30, 34, 38, 42, 46, 50, 55,
-};
 
 LGFX_Config::LGFX_Config() {
     auto busConfig = bus_.config();
@@ -225,6 +222,9 @@ String podcastShowTft;
 int gB = 0;
 int gM = 0;
 int gT = 0;
+bool audioNotchEnabled = false;
+int audioNotchHz = 3000;
+int audioNotchEndHz = 0;
 uint16_t autoDimSeconds = 30;
 bool isDimmed = false;
 volatile bool forceRedraw = false;

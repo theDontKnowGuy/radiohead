@@ -10,6 +10,7 @@
 #include <esp_random.h>
 
 #include "app_state.h"
+#include "audio_notch.h"
 #include "device_control.h"
 #include "display.h"
 #include "FirmwareVersion.h"
@@ -166,6 +167,7 @@ void redirectTo(const String& location) {
 String pageStart(const String& title, const String& accent = "orange") {
     return "<html><head><meta charset='utf-8'>"
            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+           "<link rel='icon' type='image/png' href='/favicon.png'>"
            "<style>body{background:#121212;color:" + accent +
            ";font-family:sans-serif;text-align:center;padding:10px}"
            ".btn{background:#333;border:2px solid " + accent +
@@ -177,11 +179,12 @@ String pageStart(const String& title, const String& accent = "orange") {
            htmlEscape(title) + "</h1>";
 }
 
-enum class WebSection : uint8_t { Stations, Spotify, Network, Weather, Device };
+enum class WebSection : uint8_t { Stations, Audio, Spotify, Network, Weather, Device };
 
 const char* sectionPath(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "/";
+    case WebSection::Audio: return "/audio";
     case WebSection::Spotify: return "/spotify";
     case WebSection::Network: return "/network";
     case WebSection::Weather: return "/weather";
@@ -193,6 +196,7 @@ const char* sectionPath(WebSection section) {
 const char* sectionDesktopLabel(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "Stations";
+    case WebSection::Audio: return "Audio";
     case WebSection::Spotify: return "Spotify";
     case WebSection::Network: return "Network";
     case WebSection::Weather: return "Weather &amp; time";
@@ -204,6 +208,7 @@ const char* sectionDesktopLabel(WebSection section) {
 const char* sectionMobileLabel(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "Stations";
+    case WebSection::Audio: return "Audio";
     case WebSection::Spotify: return "Spotify";
     case WebSection::Network: return "Network";
     case WebSection::Weather: return "Weather &amp; time";
@@ -214,6 +219,7 @@ const char* sectionMobileLabel(WebSection section) {
 
 const char* sectionIcon(WebSection section) {
     switch (section) {
+    case WebSection::Audio: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M5 3v5m0 4v9M12 3v10m0 4v4M19 3v2m0 4v12M2 8h6m1 9h6m1-12h6'/></svg>";
     case WebSection::Stations: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='2'/><path d='M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2M8 8a5.7 5.7 0 0 0 0 8M16 8a5.7 5.7 0 0 1 0 8'/></svg>";
     case WebSection::Spotify: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='9'/><path d='M6.5 9a14 14 0 0 1 11 1M7.5 12.5a11 11 0 0 1 9 1M8.5 16a8 8 0 0 1 7 1'/></svg>";
     case WebSection::Network: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M5 12.5a11 11 0 0 1 14 0M8 16a6.5 6.5 0 0 1 8 0M11.3 19.4a1 1 0 1 1 1.4 0'/></svg>";
@@ -604,6 +610,18 @@ String playbackLabel() {
     return "Nothing playing";
 }
 
+uint32_t audioSettingsRevision() {
+    uint32_t hash = 2166136261UL;
+    const uint8_t values[] = {
+        static_cast<uint8_t>(gB + 15), static_cast<uint8_t>(gM + 15),
+        static_cast<uint8_t>(gT + 15), static_cast<uint8_t>(audioNotchEnabled),
+        static_cast<uint8_t>(audioNotchHz), static_cast<uint8_t>(audioNotchHz >> 8),
+        static_cast<uint8_t>(audioNotchEndHz), static_cast<uint8_t>(audioNotchEndHz >> 8),
+    };
+    for (const uint8_t value : values) hash = (hash ^ value) * 16777619UL;
+    return hash & 0x7fffffffUL;
+}
+
 uint32_t playerRevision() {
     // This is a deterministic optimistic-concurrency token for the small,
     // shared player state.  It changes for encoder/TFT as well as web edits,
@@ -615,6 +633,11 @@ uint32_t playerRevision() {
         static_cast<uint8_t>(gB + 15),
         static_cast<uint8_t>(gM + 15),
         static_cast<uint8_t>(gT + 15),
+        static_cast<uint8_t>(audioNotchEnabled),
+        static_cast<uint8_t>(audioNotchHz),
+        static_cast<uint8_t>(audioNotchHz >> 8),
+        static_cast<uint8_t>(audioNotchEndHz),
+        static_cast<uint8_t>(audioNotchEndHz >> 8),
     };
     for (const uint8_t value : values) {
         revision ^= value;
@@ -655,11 +678,15 @@ String playerStateJson() {
     String json;
     json.reserve(650);
     json = "{\"revision\":" + String(playerRevision()) +
+        ",\"audioRevision\":" + String(audioSettingsRevision()) +
         ",\"volume\":" + String(mainVal) +
         ",\"muted\":" + String(radioMuted ? "true" : "false") +
         ",\"bass\":" + String(gB) +
         ",\"mid\":" + String(gM) +
         ",\"treble\":" + String(gT) +
+        ",\"notchEnabled\":" + String(audioNotchEnabled ? "true" : "false") +
+        ",\"notchHz\":" + String(audioNotchHz) +
+        ",\"notchEndHz\":" + String(audioNotchEndHz) +
         ",\"state\":\"" + String(playbackStateName()) +
         "\",\"name\":\"" + jsonEscape(currentPlaybackName()) +
         "\",\"source\":\"" + source +
@@ -694,7 +721,7 @@ bool hasCurrentPlayerRevision() {
 
 void appendNavigation(String& html, WebSection selected) {
     constexpr WebSection sections[] = {
-        WebSection::Stations, WebSection::Spotify, WebSection::Network, WebSection::Weather,
+        WebSection::Stations, WebSection::Audio, WebSection::Spotify, WebSection::Network, WebSection::Weather,
         WebSection::Device,
     };
     html += "<nav class='rh-nav' aria-label='Settings sections'>";
@@ -720,6 +747,39 @@ void appendTimeZoneOptions(String& html) {
 
 void appendSectionContent(String& html, WebSection section) {
     switch (section) {
+    case WebSection::Audio:
+        html += "<div class='rh-pagehead'><div><h1>Audio</h1><p>Shape the sound on your radio.</p></div></div>"
+            "<form id='audio-form'><section class='rh-box'><h2>Custom tone</h2><p>Bass, Mid and Treble levels range from −15 to +15. Save to apply your changes.</p><div class='rh-eqgrid'>";
+        for (int band = 0; band < 3; ++band) {
+            const char* ids[] = {"bass", "mid", "treble"};
+            const char* labels[] = {"Bass", "Mid", "Treble"};
+            const int values[] = {gB, gM, gT};
+            html += "<label class='rh-field' for='tone-" + String(ids[band]) + "'><span>" + labels[band] +
+                " <output id='tone-" + ids[band] + "-value'>" + String(values[band]) +
+                "</output></span><input id='tone-" + ids[band] + "' type='range' min='-15' max='15' step='1' value='" + String(values[band]) + "'></label>";
+        }
+        html += "</div></section><section class='rh-box'><h2>Frequency filter</h2>"
+            "<p>Reduce one frequency or a range. For example, enter 3000 or 5000-5100.</p>"
+            "<label class='rh-inlinecheck'><input id='notch-enabled' type='checkbox'" + String(audioNotchEnabled ? " checked" : "") + ">Enable frequency filter</label>"
+            "<label class='rh-field' for='notch-frequency'><span>Frequency or range (Hz)</span><input id='notch-frequency' type='text' maxlength='25' required placeholder='5000-5100' value='" + String(audioNotchHz) +
+            (audioNotchEndHz ? "-" + String(audioNotchEndHz) : String("")) + "' aria-describedby='notch-help'></label>"
+            "<p class='rh-muted' id='notch-help'>100–10,000 Hz. Use one whole-number frequency or an increasing range, such as 5000-5100. A range reduces sound most near its middle and tapers at its edges. If either edge is above the stream’s range, the filter is bypassed. Applies to live radio, recorded shows and Spotify. Noise introduced by the amplifier or wiring may remain.</p>"
+            "</section><div class='rh-footer'><span class='rh-formstatus' id='audio-status' role='status'></span><button class='rh-button' id='audio-cancel' type='button'>Cancel / reload</button><button class='rh-button rh-primary' id='audio-save' type='submit' disabled>Save audio</button></div></form>";
+        html += R"JS(<script>(()=>{const $=id=>document.getElementById(id),bands=['bass','mid','treble'],inputs=bands.map(b=>$('tone-'+b));let saved=null,saving=false,loading=false,editGeneration=0;
+const status=message=>$('audio-status').textContent=message;
+function frequency(){const match=String($('notch-frequency').value).trim().match(/^([0-9]{3,5})(?:\s*-\s*([0-9]{3,5}))?$/);return match&&(!match[2]||Number(match[2])>Number(match[1]))?{notchHz:Number(match[1]),notchEndHz:match[2]?Number(match[2]):0}:{notchHz:NaN,notchEndHz:NaN};}
+const draft=()=>({bass:Number(inputs[0].value),mid:Number(inputs[1].value),treble:Number(inputs[2].value),notchEnabled:$('notch-enabled').checked,...frequency()});
+const dirty=()=>saved&&Object.entries(draft()).some(([key,value])=>value!==saved[key]);
+function render(data){saved={...data,notchEndHz:data.notchEndHz||0};inputs.forEach((input,i)=>{input.value=data[bands[i]];$('tone-'+bands[i]+'-value').textContent=input.value;});$('notch-enabled').checked=data.notchEnabled;$('notch-frequency').value=data.notchEndHz?data.notchHz+'-'+data.notchEndHz:data.notchHz;$('audio-save').disabled=false;if(!saving)[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=false);}
+async function load(force=false){if(saving||loading)return;loading=true;const generation=editGeneration;try{const response=await fetch('/api/player',{cache:'no-store'});if(!response.ok)throw Error('Could not read audio settings.');const data=await response.json();if(saving||generation!==editGeneration)return;if(force||!dirty()){render(data);if(force)status('Audio settings reloaded.');}else if(data.audioRevision!==saved.audioRevision)status('The radio changed elsewhere. Cancel / reload before saving.');}catch(error){status(error.message);}finally{loading=false;}}
+inputs.forEach((input,i)=>input.addEventListener('input',()=>{++editGeneration;$('tone-'+bands[i]+'-value').textContent=input.value;status('Unsaved changes');}));
+[$('notch-enabled'),$('notch-frequency')].forEach(input=>input.addEventListener('input',()=>{++editGeneration;status('Unsaved changes');}));
+$('audio-form').onsubmit=async event=>{event.preventDefault();if(saving||!saved)return;const values=draft();if(!Number.isInteger(values.notchHz)||values.notchHz<100||values.notchHz>10000||!Number.isInteger(values.notchEndHz)||values.notchEndHz<0||values.notchEndHz>10000||(values.notchEndHz!==0&&values.notchEndHz<=values.notchHz)||inputs.some(input=>!Number.isInteger(Number(input.value))||Number(input.value)<-15||Number(input.value)>15)){status('Use whole-number tone levels from −15 to +15 and a frequency or increasing range within 100–10,000 Hz.');return;}++editGeneration;saving=true;$('audio-save').disabled=true;$('audio-cancel').disabled=true;[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=true);status('Applying audio settings…');try{const body=new URLSearchParams({...values,notchEnabled:values.notchEnabled?'1':'0',revision:saved.audioRevision});const response=await fetch('/api/audio',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});const data=await response.json();if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Your draft is kept; cancel / reload before saving.':data.error||'Audio settings were not accepted.');render(data);status('Audio applied. Settings save after you stop adjusting.');}catch(error){status(error.message);}finally{saving=false;$('audio-save').disabled=false;$('audio-cancel').disabled=false;[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=false);}};
+$('audio-cancel').onclick=()=>{if(!saving)load(true);};
+window.addEventListener('beforeunload',event=>{if(saving||dirty()){event.preventDefault();event.returnValue='';}});
+document.addEventListener('click',event=>{if(event.target.closest('.rh-nav a')&&(saving||dirty())&&!confirm('Leave without saving audio changes?')){event.preventDefault();event.stopImmediatePropagation();}},true);
+[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=true);setInterval(()=>{if(!document.hidden)load();},3000);load();})();</script>)JS";
+        break;
     case WebSection::Stations: {
         const int savedCount = savedStationCount();
         html += "<div class='rh-pagehead'><div><h1>Stations</h1><p>A familiar collection. A new discovery.</p></div></div>"
@@ -933,7 +993,8 @@ void handleConfigShell(WebSection section) {
     html.reserve(section == WebSection::Stations ? 24500 : 9400);
     html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
-        "<link rel='stylesheet' href='/ui/radiohead.css?v=web-simplification'></head><body class='radiohead-page'><div id='rh-config'>"
+        "<link rel='icon' type='image/png' href='/favicon.png'>"
+        "<link rel='stylesheet' href='/ui/radiohead.css?v=audio-tab'></head><body class='radiohead-page'><div id='rh-config'>"
         "<header class='rh-top'><div class='rh-brand'><span class='rh-brand-mark' aria-hidden='true'>⌁</span>radiohead <span class='rh-muted'>/ settings</span></div>"
         "<div class='rh-topmeta'><span>" + htmlEscape(connectionState()) + "</span><span dir='ltr'>" +
         htmlEscape(addressLabel) + "</span></div></header><div class='rh-layout'><aside class='rh-sidebar'>";
@@ -959,28 +1020,20 @@ void handleConfigShell(WebSection section) {
         String(mainVal) + "' aria-describedby='player-status'><output id='volume-value' for='volume-input'>" +
         String(mainVal) + " / 21</output></div></section><p class='rh-sr-only' id='player-status' aria-live='polite'></p>";
     appendSectionContent(html, section);
-    html += "</main></div><section class='rh-eq'><details><summary>Sound · custom tone</summary><div class='rh-eqgrid'>"
-        "<label class='rh-field' for='tone-bass'><span>Bass <output id='tone-bass-value'>" + String(gB) +
-        "</output></span><input id='tone-bass' type='range' min='-15' max='15' value='" + String(gB) + "'></label>"
-        "<label class='rh-field' for='tone-mid'><span>Mid <output id='tone-mid-value'>" + String(gM) +
-        "</output></span><input id='tone-mid' type='range' min='-15' max='15' value='" + String(gM) + "'></label>"
-        "<label class='rh-field' for='tone-treble'><span>Treble <output id='tone-treble-value'>" + String(gT) +
-        "</output></span><input id='tone-treble' type='range' min='-15' max='15' value='" + String(gT) + "'></label>"
-        "</div></details></section></div><script>"
+    html += "</main></div></div><script>"
         "(()=>{const volume=document.getElementById('volume-input'),value=document.getElementById('volume-value'),mute=document.getElementById('mute-button'),"
-        "status=document.getElementById('player-status'),bass=document.getElementById('tone-bass'),mid=document.getElementById('tone-mid'),treble=document.getElementById('tone-treble');"
-        "const tones=[bass,mid,treble],toneValues=['tone-bass-value','tone-mid-value','tone-treble-value'].map(id=>document.getElementById(id));let revision=" + String(playerRevision()) + ",volumeTimer=0,toneTimer=0,writing=false,pendingRequest=null;"
+        "status=document.getElementById('player-status');"
+        "let revision=" + String(playerRevision()) + ",volumeTimer=0,writing=false,pendingRequest=null;"
         "const show=(message)=>{status.textContent=message};const reflect=(state)=>{revision=state.revision;if(document.activeElement!==volume&&!volumeTimer)volume.value=state.volume;if(!volumeTimer)value.textContent=state.volume+' / 21';"
         "mute.setAttribute('aria-pressed',state.muted);mute.setAttribute('aria-label',state.muted?'Unmute output':'Mute output');"
         "const spotify=state.source==='spotify',labels={connecting:'Connecting',playing:'Now playing',muted:'Muted',paused:'Paused',failed:'Unavailable',stopped:'Stopped'};"
         "const observed=state.muted&&state.playbackState==='playing'?'muted':state.playbackState;document.getElementById('player-art').hidden=!spotify;document.getElementById('player-label').textContent=(state.source==='none'?'Nothing playing':(labels[observed]||'Nothing playing')+' · '+(spotify?'Spotify':state.source==='podcast'?'Recorded Show':'Live Radio'));"
         "document.getElementById('player-name').textContent=spotify?(state.title||'Spotify'):(state.name||'Nothing playing');"
         "document.getElementById('player-detail').textContent=spotify?[state.artist,state.album].filter(Boolean).join(' · '):(state.source==='radio'?state.title||'':'');"
-        "tones.forEach((tone,index)=>{if(document.activeElement!==tone&&!toneTimer)tone.value=[state.bass,state.mid,state.treble][index];if(!toneTimer)toneValues[index].textContent=[state.bass,state.mid,state.treble][index]})};"
+        "};"
         "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show('Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
         "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{volumeTimer=0;request('/api/player/volume',new URLSearchParams({volume:volume.value}))},140)});"
         "mute.addEventListener('click',()=>request('/api/player/mute',new URLSearchParams()));"
-        "tones.forEach((tone,index)=>tone.addEventListener('input',()=>{toneValues[index].textContent=tone.value;clearTimeout(toneTimer);toneTimer=setTimeout(()=>{toneTimer=0;request('/api/player/tone',new URLSearchParams({bass:bass.value,mid:mid.value,treble:treble.value}))},180)}));"
         "setInterval(async()=>{if(document.hidden)return;try{const response=await fetch('/api/player',{cache:'no-store'});if(response.ok)reflect(await response.json())}catch(_){show('Radio connection lost.')}} ,3000)})();</script></body></html>";
     server.send(200, "text/html; charset=utf-8", html);
 }
@@ -1263,14 +1316,19 @@ void startWebServer() {
 #endif
     server.on("/", handleRoot);
     server.on("/stations", [] { handleConfigShell(WebSection::Stations); });
+    server.on("/audio", [] { handleConfigShell(WebSection::Audio); });
     server.on("/spotify", [] { handleConfigShell(WebSection::Spotify); });
     server.on("/network", [] { handleConfigShell(WebSection::Network); });
     server.on("/weather", [] { handleConfigShell(WebSection::Weather); });
     server.on("/appearance", [] { redirectTo("/stations"); });
     server.on("/device", [] { handleConfigShell(WebSection::Device); });
-    server.on("/audio", [] { redirectTo("/"); });
     server.on("/skin", [] { redirectTo("/stations"); });
     server.on("/update_ui", [] { redirectTo("/device"); });
+    server.on("/favicon.png", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "public, max-age=86400");
+        server.send_P(200, "image/png",
+            reinterpret_cast<const char*>(ui_web_favicon_png), ui_web_favicon_png_len);
+    });
     server.on("/ui/radiohead.css", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "public, max-age=86400");
         server.send_P(200, "text/css; charset=utf-8",
@@ -1648,7 +1706,38 @@ void startWebServer() {
         gB = bass;
         gM = mid;
         gT = treble;
-        audio.setTone(gB, gM, gT);
+        mediaSetTone(gB, gM, gT);
+        forceRedraw = true;
+        queueSettingsSave();
+        sendPlayerState();
+    });
+    server.on("/api/audio", HTTP_POST, [] {
+        int revision = 0;
+        if (!parseIntegerArg("revision", 0, 2147483647, revision)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid audio revision\"}");
+            return;
+        }
+        if (static_cast<uint32_t>(revision) != audioSettingsRevision()) {
+            sendPlayerState(409);
+            return;
+        }
+        int bass = 0, mid = 0, treble = 0, enabled = 0, frequency = 0, endHz = 0;
+        if (!parseIntegerArg("bass", -15, 15, bass) ||
+            !parseIntegerArg("mid", -15, 15, mid) ||
+            !parseIntegerArg("treble", -15, 15, treble) ||
+            !parseIntegerArg("notchEnabled", 0, 1, enabled) ||
+            !parseIntegerArg("notchHz", kNotchMinimumHz, kNotchMaximumHz, frequency) ||
+            (server.hasArg("notchEndHz") &&
+             !parseIntegerArg("notchEndHz", 0, kNotchMaximumHz, endHz)) ||
+            (endHz != 0 && endHz <= frequency)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid tone or filter frequency range\"}");
+            return;
+        }
+        gB = bass;
+        gM = mid;
+        gT = treble;
+        mediaSetTone(gB, gM, gT);
+        mediaSetNotchFilter(enabled != 0, frequency, endHz);
         forceRedraw = true;
         queueSettingsSave();
         sendPlayerState();
@@ -1783,7 +1872,7 @@ void startWebServer() {
         gB = bass;
         gM = mid;
         gT = treble;
-        audio.setTone(gB, gM, gT);
+        mediaSetTone(gB, gM, gT);
         saveSettings();
         redirectTo("/audio");
     });

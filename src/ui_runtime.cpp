@@ -128,7 +128,7 @@ void serviceUiCommands(unsigned long now) {
         case UiCommandKind::PreviewTone:
             // Preview affects the audio processor only. Unrelated saves (e.g.
             // encoder volume or sleep) continue to persist committed tone.
-            audio.setTone(constrain(command.value, -15, 15),
+            mediaSetTone(constrain(command.value, -15, 15),
                           constrain(command.secondary, -15, 15),
                           constrain(command.tertiary, -15, 15));
             break;
@@ -136,7 +136,7 @@ void serviceUiCommands(unsigned long now) {
             gB = constrain(command.value, -15, 15);
             gM = constrain(command.secondary, -15, 15);
             gT = constrain(command.tertiary, -15, 15);
-            audio.setTone(gB, gM, gT);
+            mediaSetTone(gB, gM, gT);
             saveSettings();
             forceRedraw = true;
             break;

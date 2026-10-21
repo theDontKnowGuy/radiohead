@@ -127,6 +127,7 @@ web_config_dir = project / "docs" / "ui" / "web-configuration"
 web_asset_sources = {
     "ui_web_configuration_css": web_config_dir / "radiohead.css",
     "ui_web_configuration_coast_jpg": web_config_dir / "assets" / "coast.jpg",
+    "ui_web_favicon_png": project / "docs/ui/assets/home/icon_radio.png",
 }
 web_asset_header = output / "ui_web_assets.h"
 web_asset_lines = ["#pragma once\n#include <stdint.h>\n"]

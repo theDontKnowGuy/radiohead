@@ -1,5 +1,141 @@
 # Web configuration implementation progress
 
+### 2026-10-21 — Frequency filter ranges (ready for device testing)
+
+- User scope: accept a range, e.g. `5000-5100`, as well as a single frequency.
+- Implemented: Audio's Frequency or range field accepts one integer or two
+  increasing integers separated by a hyphen (optional surrounding spaces).
+  Both endpoints must be within 100–10,000 Hz. Reversed/equal/empty/decimal/
+  malformed/out-of-bounds ranges are rejected before any settings change.
+- Persistence/API: retain `notchOn` / `notchHz`, add `notchEnd` (default 0 for
+  single-frequency behavior). JSON/form field `notchEndHz` is 0 or the upper
+  endpoint; legacy POSTs omitting it select the original single notch. Invalid
+  persisted endpoints fall back to single-frequency operation. Both revisions
+  include the upper endpoint; stale edits, cancel/reload and polling cover ranges.
+- DSP: preserve single-frequency Q=30 behavior exactly. Range mode uses a
+  bilinear-transform notch with separately prewarped -3 dB edges; strongest
+  attenuation is near the center, with normal transition/rolloff at either edge.
+  One 32-bit atomic packet carries both endpoints and enabled state; histories
+  remain per PCM task. If either edge reaches/exceeds Nyquist, bypass the whole
+  filter. No allocation, network work, logging or vendor changes were added.
+- Functional: `python3 tools/check_audio_filter.py` passes under ASan/UBSan/
+  float-cast-overflow: 5000–5100 Hz center suppression exceeds 65 dB at five
+  sample rates (16–96 kHz), edges measure -3 dB within 0.05 dB, nearby/passband
+  signals, invalid bounds, stereo, disabled bypass, rate/history changes and
+  1 Hz / wide-band impulse stability are covered. Production local PCM and
+  Spotify feed methods pass, including actual range rejection in Spotify.
+- `python3 tools/check_audio_routes.py` and `node tools/check_audio_web.cjs`
+  pass for legacy POSTs, endpoint publication, invalid/stale atomic rejection,
+  revision changes, range rendering/save/dirty/cancel/polling and reload.
+  `python3 tools/check_audio_tone.py --firmware`,
+  `python3 tools/check_firmware_artifacts.py` and `git diff --check` pass.
+- Visual: inspected production-markup fixture with supplied CSS/coastal assets
+  at 1280 px and an emulated 320 px viewport. No horizontal overflow or script
+  errors; range field contains `5000-5100` and Save is enabled. Screenshots:
+  `.pio/audio_native/audio-range-desktop.png` and `audio-range-mobile.png`.
+  Browser state is synthetic, not firmware-served device evidence.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-filter-range-build.log`.
+  Shared-worktree firmware 4,527,968 bytes (+2,160 versus the preceding tone
+  build), with 2,025,632 bytes free in the app slot. DIRAM 260,635 / 341,760
+  bytes (76.26%, +32 bytes), 81,125 bytes free.
+- Hardware: not flashed or listening-tested. Verify range save/reboot, single ↔
+  range changes, filter off/on at ordinary and high volume, radio/podcast and
+  sustained Spotify playback with USB serial monitor closed. Physical noise
+  attenuation remains unverified; a digital filter cannot remove noise added
+  later by the amplifier/wiring/power supply.
+
+### 2026-10-21 — Tone boost loudness correction (ready for device testing)
+
+- Report: raising treble reduces the audible overall level without changing Volume.
+- Confirmed in pinned source: local EQ applies a global pre-gain of minus the
+  largest positive band (up to 12 dB); Spotify mirrored that normalization.
+- Implemented: restore local normalization after the library's volume stage;
+  remove Spotify normalization. A common stereo limiter has instantaneous attack
+  and 100 ms release, reducing gain only for actual full-scale output peaks and
+  their release tail. Flat/cut-only settings bypass it. At high volume/boost,
+  limiting can still reduce overall level; this does not promise equal perceived
+  loudness or distortion-free playback for every EQ/source combination.
+- Tone application now goes through media for web/TFT save and preview. Local
+  coefficient changes and their compensation are applied on the PCM task at a
+  block boundary. Preview does not mutate saved values. Retained settings keys,
+  public -15..15 levels, routes, volume curve and existing notch work are preserved;
+  the pinned backend still clamps actual tone gain to -12..12 dB.
+- Static-link validation caught the archive's weak default PCM hooks being selected.
+  Startup references the application's filter initialization; the final link map
+  selects both application hooks. No vendored sources were changed.
+- Functional: `python3 tools/check_audio_tone.py --firmware` passes under ASan,
+  UBSan and float-cast-overflow checks. Tests exercise production local hooks and
+  Spotify feed/tone methods: modeled local headroom restoration at four rates,
+  boundary-coherent changes, clamp/bypass/mute/overload, linked stereo and limiter
+  release. The Spotify 40 Hz RMS ratio at maximum treble is 1.0005 versus flat;
+  its 14 kHz ratio is 3.1099 (quiet source, volume gain 64/255).
+- Regression: `python3 tools/check_audio_filter.py`,
+  `python3 tools/check_audio_routes.py`, `python3 tools/check_touch_input.py`,
+  `python3 tools/check_firmware_artifacts.py` and `git diff --check` pass.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-tone-build.log`.
+  Shared-worktree image 4,525,808 bytes, 2,027,792 bytes free in the app slot;
+  DIRAM 260,603 / 341,760 bytes (76.25%), 81,157 bytes free. Totals include
+  concurrent Audio/notch/favicon work and are not an isolated correction delta.
+- Visual/device: no layout change; not flashed or listened to on hardware.
+  Verify bass/mid/treble individually at ordinary and high volume, TFT preview /
+  cancel / save and web edits, radio/podcast/Spotify, mute and source handoff,
+  saved values after reboot and sustained Spotify with USB serial monitor closed.
+
+### 2026-10-21 — Radiohead favicon (ready for device testing)
+
+- Scope: reuse the existing device UI radio icon as the favicon on settings and
+  recorded-show pages. Serve it locally from flash with the existing asset pipeline.
+- Implemented: both HTML page builders link `/favicon.png`; the cacheable GET
+  serves the existing 38×38 `icon_radio.png` from flash (1,571 bytes). No new
+  artwork or external dependency is needed.
+- Functional: `pio run -e esp32s3` and `git diff --check` pass; generated favicon
+  bytes match the source PNG exactly. Log: `.pio/favicon-build.log`.
+- Shared-worktree build: DIRAM 260,523 / 341,760 bytes (76.23%); firmware
+  4,523,376 bytes, with 2,030,224 bytes free in the application slot. Concurrent
+  audio changes are included, so these totals are not a favicon-only delta.
+- Visual/device: not flashed; browser-tab appearance on the physical radio
+  remains unverified.
+
+### 2026-10-21 — Audio tab and adjustable notch filter (ready for device testing)
+
+- User scope: move Bass / Mid / Treble into a new Audio tab and support a
+  selectable frequency rejection filter, initially 3,000 Hz for the reported noise.
+- Preserve tone keys/ranges, navy/coastal assets, volume work already in the
+  worktree and the retired-feature removals. Filter defaults off; retain its
+  frequency and enabled state across reboot. Cover radio/podcasts and Spotify.
+- Implemented: `/audio` navigation, explicit Save audio / Cancel / reload,
+  committed-state polling and conflict handling. Tone keys/ranges and `/seteq`
+  plus `/api/player/tone` remain compatible. Volume edits do not invalidate an
+  Audio draft; delayed polling responses cannot overwrite newer edits/saves. New `notchOn` / `notchHz` keys retain the filter across restart.
+- DSP: RBJ stereo notch, Q=30 (roughly 100 Hz wide at 3 kHz), independent task
+  histories, one atomic configuration publication, no heap allocation or Serial
+  calls in PCM processing. Unsupported/Nyquist-exceeding frequencies bypass.
+  Local pre-EQ hook and Spotify 16-bit sink are both covered. An explicit link
+  reference retains the application hook object; the final ELF confirms strong
+  `audio_process_raw_samples` and `audio_process_i2s` symbols (`T`), rather than
+  the library's weak no-op defaults. No vendored files changed.
+- Functional: `python3 tools/check_audio_filter.py`,
+  `python3 tools/check_audio_routes.py`, `node tools/check_audio_web.cjs`, existing
+  Spotify/Device browser checks and `git diff --check` pass. Sanitized production
+  PCM checks cover bypass, stereo separation, clipping-safe full-scale conversion,
+  rate changes and tone rejection; synthetic 3 kHz suppression exceeds 89 dB at
+  tested 8–96 kHz rates. The shipped Spotify feed is tested at three volume gains
+  and with a 3 kHz input. These synthetic results do not measure physical noise.
+- Visual: production C++ shell/Audio markup and scripts rendered using supplied
+  assets at desktop and 320 px; screenshots inspected, without horizontal
+  overflow or script errors. Mobile tone sliders stack for usable adjustment.
+  Fixtures: `.pio/audio_native/audio-desktop.png` and `audio-mobile.png`;
+  generated by `tools/check_audio_routes.py` and the local browser fixture.
+- Build: `pio run -e esp32s3` passes; `.pio/audio-tab-final-build.log`. Shared
+  worktree totals (including concurrent volume/tone/favicon work): DIRAM
+  260,603 / 341,760 bytes (76.25%); padded firmware 4,525,808 bytes with
+  2,027,792 bytes free in the application slot. No isolated size delta claimed.
+- Hardware: not flashed or listening-tested. Verify save/reboot retention, TFT
+  tone synchronization, radio/recorded/Spotify playback with USB serial closed,
+  and filter on/off at 3,000 Hz during the noise measurement. DSP rejection does
+  not establish that the previously measured noise originates in PCM; noise
+  introduced in the amplifier, power or wiring may remain.
+
 ### 2026-10-13 — Encoder rotation diagnosis (ready for device testing)
 
 - User reports the GPIO13 switch works after flashing the encoder remap, but

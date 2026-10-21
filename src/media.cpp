@@ -11,15 +11,43 @@
 #include <new>
 
 #include "app_state.h"
+#include "audio_volume.h"
+#include "audio_notch.h"
+#include "audio_tone.h"
 #include "podcast_json_reader.h"
 #include "validation_diagnostics.h"
 #include "spotify_adapter.h"
+
+uint32_t mediaLocalSampleRate() { return audio.getSampleRate(); }
+
+void mediaApplyLocalTone(int bass, int mid, int treble) {
+    audio.setTone(bass, mid, treble);
+}
+
+void mediaSetTone(int bass, int mid, int treble) {
+    const uint32_t configuration = radioToneConfiguration(bass, mid, treble);
+    radioToneRequested.store(configuration, std::memory_order_relaxed);
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    spotifyAdapterSetTone(radioToneBand(configuration, 0),
+        radioToneBand(configuration, 1), radioToneBand(configuration, 2));
+#endif
+}
+
+void mediaSetNotchFilter(bool enabled, int frequencyHz, int endHz) {
+    audioNotchEnabled = enabled;
+    audioNotchHz = constrain(frequencyHz, kNotchMinimumHz, kNotchMaximumHz);
+    // Invalid/legacy persisted endpoints fall back to the original single notch.
+    audioNotchEndHz = endHz > audioNotchHz && endHz <= kNotchMaximumHz ? endHz : 0;
+    radioNotchConfiguration.store(radioNotchConfigurationValue(enabled, audioNotchHz,
+        audioNotchEndHz), std::memory_order_relaxed);
+}
 
 namespace {
 
 // Temporary startup-noise experiment. Set false to restore the old sequence
 // in both the PlatformIO baseline and the integrated Spotify image.
 constexpr bool kBootQuietOutputExperiment = true;
+constexpr uint8_t kBootVolumeIndex = 10;
 
 bool isHttpUrl(const String& url) {
     return url.length() <= 512 &&
@@ -86,7 +114,7 @@ void clearSpotifyMetadata() {
 }
 
 uint8_t spotifyOutputLevel() {
-    return radioMuted ? 0 : static_cast<uint8_t>(volCurve[mainVal] * 255U / 55U);
+    return radioMuted ? 0 : radioVolumeGain8(mainVal);
 }
 
 bool restoreLocalOutput(const char* reason) {
@@ -114,8 +142,8 @@ bool restoreLocalOutput(const char* reason) {
         return false;
     }
     outputOwner = OutputOwner::Local;
-    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
-    audio.setTone(gB, gM, gT);
+    audio.setVolume(radioMuted ? 0 : mainVal);
+    mediaSetTone(gB, gM, gT);
     Serial.printf("[s2] generation=%lu spotify-to-local reason=%s\n",
         static_cast<unsigned long>(sourceGeneration), reason);
     return true;
@@ -164,14 +192,6 @@ void activateSpotify(uint32_t commandSequence) {
 }
 
 void serviceSpotifySignals() {
-    static int lastBass = INT_MIN, lastMiddle = INT_MIN, lastTreble = INT_MIN;
-    if (outputOwner == OutputOwner::Spotify &&
-        (lastBass != gB || lastMiddle != gM || lastTreble != gT)) {
-        spotifyAdapterSetTone(gB, gM, gT);
-        lastBass = gB;
-        lastMiddle = gM;
-        lastTreble = gT;
-    }
     for (unsigned processed = 0; processed < 16; ++processed) {
         const SpotifySignal signal = spotifyAdapterTakeSignal();
         if (signal.type == SpotifySignalType::None) break;
@@ -243,8 +263,8 @@ void cancelStationRecovery() {
 }
 
 void applyLocalOutputSettings() {
-    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
-    audio.setTone(gB, gM, gT);
+    audio.setVolume(radioMuted ? 0 : mainVal);
+    mediaSetTone(gB, gM, gT);
 }
 
 void logStreamDiagnostic(const char* event) {
@@ -595,7 +615,7 @@ void setRadioVolumeIndex(int volumeIndex) {
         if (outputOwner == OutputOwner::Spotify) spotifyAdapterSetOutputVolume(spotifyOutputLevel());
         else
 #endif
-        audio.setVolume(volCurve[mainVal]);
+        audio.setVolume(mainVal);
     }
     lastVolChange = millis();
     forceRedraw = true;
@@ -607,7 +627,7 @@ void toggleRadioMute() {
     if (outputOwner == OutputOwner::Spotify) spotifyAdapterSetOutputVolume(spotifyOutputLevel());
     else
 #endif
-    audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+    audio.setVolume(radioMuted ? 0 : mainVal);
     forceRedraw = true;
 }
 
@@ -1060,24 +1080,28 @@ void mediaPrepareBootOutput() {
 }
 
 void mediaConfigureOutput() {
+    mediaInitializeAudioFilters();
+    // Pass the UI index directly: applying the old 0..55 table on top of
+    // the library's default 0..21 curve suppressed lows and clipped highs.
+    audio.setVolumeSteps(kRadioVolumeSteps);
+    audio.setVolumeCurve(radioVolumeDecibels);
     if (kBootQuietOutputExperiment) audio.setVolume(0);
     audio.setPinout(I2S_BCK, I2S_LRC, I2S_DIN);
     if (!kBootQuietOutputExperiment) {
-        audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
+        audio.setVolume(kBootVolumeIndex);
     }
-    audio.setTone(gB, gM, gT);
+    mediaSetTone(gB, gM, gT);
 }
 
 void mediaEnableBootOutput() {
-    if (kBootQuietOutputExperiment) {
-        audio.setVolume(radioMuted ? 0 : volCurve[mainVal]);
-    }
+    // Boot audio has its own fixed level; leave the saved playback index intact.
+    audio.setVolume(kBootVolumeIndex);
 }
 
 void mediaStartSavedPlayback() {
     mediaBegin();
-    audio.setVolume(volCurve[mainVal]);
-    audio.setTone(gB, gM, gT);
+    audio.setVolume(mainVal);
+    mediaSetTone(gB, gM, gT);
     if (playableStationCount() > 0 && selectedPlayableStationIndex() < 0) {
         currentStationIdx = playableStationSlotAt(0);
         tempStationIdx = currentStationIdx;

@@ -73,7 +73,8 @@ conflicts, and the physical board before modifying them.
 - The encoder FreeRTOS task updates `encoderPos`; the Arduino loop consumes it.
 - Station indexes must remain within `[0, STATION_COUNT)`.
 - Podcast show and episode indexes must be checked before access.
-- `mainVal` indexes `volCurve` and must remain within `[0, 21]`.
+- `mainVal` is the shared volume index and must remain within `[0, 21]`;
+  `include/audio_volume.h` defines the common radio/Spotify gain curve.
 - AP/setup mode must not attempt normal station playback.
 - Podcast playback suppresses live stream-title replacement; text preparation preserves
   readable Hebrew and mixed text in the native renderer.

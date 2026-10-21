@@ -49,31 +49,42 @@ MAX98357AAudioSink::~MAX98357AAudioSink() {
 }
 
 void MAX98357AAudioSink::feedPCMFrames(const uint8_t* source, size_t bytes) {
-    if (!tx_ || !source || bytes == 0 || bytes % sizeof(int16_t) != 0) return;
+    if (!tx_ || !source || bytes == 0 || bytes % (2 * sizeof(int16_t)) != 0) return;
+    notch_.configure(radioNotchConfiguration.load(std::memory_order_relaxed), 44100);
+    toneLimiter_.configure(44100);
     int16_t scaled[512];
     size_t consumed = 0;
     while (consumed < bytes) {
         const size_t count = std::min(sizeof(scaled), bytes - consumed) / sizeof(int16_t);
         const uint8_t gain = volume_.load(std::memory_order_relaxed);
-        for (size_t index = 0; index < count; ++index) {
-            int16_t sample;
-            memcpy(&sample, source + consumed + index * sizeof(sample), sizeof(sample));
-            const unsigned channel = index & 1U;
-            lastSample_[channel] = sample;
-            if (flatTone_) {
-                scaled[index] = static_cast<int16_t>(static_cast<int32_t>(sample) * gain / 255);
-                continue;
+        for (size_t frame = 0; frame < count; frame += 2) {
+            float shaped[2];
+            for (unsigned channel = 0; channel < 2; ++channel) {
+                const size_t index = frame + channel;
+                int16_t sample;
+                memcpy(&sample, source + consumed + index * sizeof(sample), sizeof(sample));
+                const float input = notch_.process(static_cast<float>(sample), channel);
+                lastSample_[channel] = static_cast<int16_t>(std::clamp(input, -32768.0f, 32767.0f));
+                if (flatTone_) {
+                    scaled[index] = notch_.active()
+                        ? static_cast<int16_t>(std::clamp(input * gain / 255.0f, -32768.0f, 32767.0f))
+                        : static_cast<int16_t>(static_cast<int32_t>(sample) * gain / 255);
+                    continue;
+                }
+                // One-pole 200 Hz / 4 kHz crossover at the fixed 44.1 kHz PCM rate.
+                lowState_[channel] += 0.0281f * (input - lowState_[channel]);
+                highState_[channel] += 0.435f * (input - highState_[channel]);
+                const float low = lowState_[channel];
+                const float middle = highState_[channel] - low;
+                const float high = input - highState_[channel];
+                shaped[channel] = (low * lowGain_ + middle * midGain_ + high * highGain_) *
+                    gain / (255.0f * 32768.0f);
             }
-            const float input = static_cast<float>(sample);
-            // One-pole 200 Hz / 4 kHz crossover at the fixed 44.1 kHz PCM rate.
-            lowState_[channel] += 0.0281f * (input - lowState_[channel]);
-            highState_[channel] += 0.435f * (input - highState_[channel]);
-            const float low = lowState_[channel];
-            const float middle = highState_[channel] - low;
-            const float high = input - highState_[channel];
-            const float shaped = (low * lowGain_ + middle * midGain_ + high * highGain_) *
-                headroom_ * gain / 255.0f;
-            scaled[index] = static_cast<int16_t>(std::clamp(shaped, -32768.0f, 32767.0f));
+            if (!flatTone_) {
+                if (boostedTone_) toneLimiter_.process(shaped[0], shaped[1]);
+                scaled[frame] = radioPcm16(shaped[0]);
+                scaled[frame + 1] = radioPcm16(shaped[1]);
+            }
         }
         const size_t chunkBytes = count * sizeof(int16_t);
         size_t sent = 0;
@@ -111,7 +122,8 @@ void MAX98357AAudioSink::setTone(int8_t bassDb, int8_t middleDb, int8_t trebleDb
     lowGain_ = powf(10.0f, std::clamp<int>(bassDb, -12, 12) / 20.0f);
     midGain_ = powf(10.0f, std::clamp<int>(middleDb, -12, 12) / 20.0f);
     highGain_ = powf(10.0f, std::clamp<int>(trebleDb, -12, 12) / 20.0f);
-    headroom_ = 1.0f / std::max({1.0f, lowGain_, midGain_, highGain_});
+    boostedTone_ = std::max({lowGain_, midGain_, highGain_}) > 1.0f;
+    if (!boostedTone_) toneLimiter_.reset();
 }
 
 bool MAX98357AAudioSink::setParams(uint32_t sampleRate, uint8_t channels, uint8_t bitDepth) {

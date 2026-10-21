@@ -1063,7 +1063,7 @@ body.radiohead-page #rh-config {
     padding:10px 12px;
   }
   #rh-config .rh-nav {
-    grid-template-columns:repeat(5,minmax(0,1fr));
+    grid-template-columns:repeat(6,minmax(0,1fr));
     gap:3px;
   }
   #rh-config .rh-nav :is(button,a) {
@@ -1148,6 +1148,7 @@ body.radiohead-page #rh-config {
     padding:15px 16px;
   }
   #rh-config .rh-eqgrid {
+    grid-template-columns:1fr;
     gap:16px;
   }
   #rh-config .rh-field input:not([type=range]),#rh-config .rh-field select,#rh-config .rh-field textarea {

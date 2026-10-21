@@ -1,0 +1,2 @@
+"hal_espressif":"/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif":"/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr"
+"xtensa":"/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/xtensa":"/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/xtensa"

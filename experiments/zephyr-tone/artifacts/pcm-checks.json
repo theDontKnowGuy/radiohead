@@ -1,0 +1,134 @@
+{
+  "rate_hz": 44100,
+  "format": "signed 16-bit little-endian interleaved [L,R]",
+  "duration_seconds": 47,
+  "fade_ms": 50,
+  "reference_origin": "first I2S frame, after boot/setup",
+  "checks": [
+    "tables reproduce",
+    "full 47-second C output equals independent sine/envelope calculation",
+    "both channels exported; unused slot exactly zero",
+    "all silence and fades match",
+    "no clipping",
+    "all six peaks within 0.005 dB",
+    "6 dB step within 0.005 dB",
+    "250/1000 Hz coherent line and adjacent-bin checks",
+    "periodic body byte continuity",
+    "882/257/1024-frame output identical",
+    "post-sequence zeros"
+  ],
+  "stages": [
+    {
+      "start_s": 5,
+      "end_s": 10,
+      "frequencies_hz": [
+        250
+      ],
+      "target_peak_dbfs": -30,
+      "peak_counts": 1036,
+      "actual_peak_dbfs": -30.001803591010074,
+      "coherent_amplitudes_counts": {
+        "250": 1036.1527667358248
+      },
+      "largest_adjacent_bin_counts": {
+        "250": 2.2677513635326757e-11
+      }
+    },
+    {
+      "start_s": 12,
+      "end_s": 17,
+      "frequencies_hz": [
+        1000
+      ],
+      "target_peak_dbfs": -30,
+      "peak_counts": 1036,
+      "actual_peak_dbfs": -30.001803591010074,
+      "coherent_amplitudes_counts": {
+        "1000": 1036.1527667358
+      },
+      "largest_adjacent_bin_counts": {
+        "1000": 6.643205367331638e-11
+      }
+    },
+    {
+      "start_s": 19,
+      "end_s": 24,
+      "frequencies_hz": [
+        250,
+        1000
+      ],
+      "target_peak_dbfs": -30,
+      "peak_counts": 1036,
+      "actual_peak_dbfs": -30.001803591010074,
+      "coherent_amplitudes_counts": {
+        "250": 537.4308802067997,
+        "1000": 537.4018950704599
+      },
+      "largest_adjacent_bin_counts": {
+        "250": 1.2917436518630469e-11,
+        "1000": 3.413777734651563e-11
+      }
+    },
+    {
+      "start_s": 26,
+      "end_s": 31,
+      "frequencies_hz": [
+        250
+      ],
+      "target_peak_dbfs": -24,
+      "peak_counts": 2068,
+      "actual_peak_dbfs": -23.99798801075626,
+      "coherent_amplitudes_counts": {
+        "250": 2067.5619334779512
+      },
+      "largest_adjacent_bin_counts": {
+        "250": 4.6226409715380154e-11
+      }
+    },
+    {
+      "start_s": 33,
+      "end_s": 38,
+      "frequencies_hz": [
+        1000
+      ],
+      "target_peak_dbfs": -24,
+      "peak_counts": 2068,
+      "actual_peak_dbfs": -23.99798801075626,
+      "coherent_amplitudes_counts": {
+        "1000": 2067.5619334779553
+      },
+      "largest_adjacent_bin_counts": {
+        "1000": 1.2786433240730397e-10
+      }
+    },
+    {
+      "start_s": 40,
+      "end_s": 45,
+      "frequencies_hz": [
+        250,
+        1000
+      ],
+      "target_peak_dbfs": -24,
+      "peak_counts": 2068,
+      "actual_peak_dbfs": -23.99798801075626,
+      "coherent_amplitudes_counts": {
+        "250": 1072.2833288510365,
+        "1000": 1072.284758615047
+      },
+      "largest_adjacent_bin_counts": {
+        "250": 2.4204949137758053e-11,
+        "1000": 6.673930314758189e-11
+      }
+    }
+  ],
+  "reference-right.wav": {
+    "sha256": "0b1a6e79b15d40c471520f4f3f2938e1764ac6d22746e721791678902bafa2dc",
+    "pcm_sha256": "475ba2554aa3d603bf0cdae3855f17a7c187b2d65ace967feb544b82c12eb5c9",
+    "active_slot": "R"
+  },
+  "reference-left.wav": {
+    "sha256": "19455281159027fd1becdd3c92c01541c7139a4add0b3b60a3dcd425ce34ec76",
+    "pcm_sha256": "ae6f68eb7fce8a01522a48853c2afbb276590780ea1c78f9dae6027bbc0e3d71",
+    "active_slot": "L"
+  }
+}

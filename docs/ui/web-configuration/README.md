@@ -15,6 +15,18 @@ saved logos. Add 20 px of space between Add station and the saved-station list.
 This supersedes conflicting section counts, import flows and logo editor controls
 in the original handoff below; the frozen visual references remain historical.
 
+User scope update, 2026-10-21: add **Audio** at `/audio`, after Stations. Move
+the shared collapsed sound controls into this tab, preserving Bass / Mid /
+Treble's −15…15 levels. Audio also contains an optional frequency notch filter
+(100–10,000 Hz, initially 3,000 Hz, disabled by default). Accept a single
+frequency such as `3000` or an increasing range such as `5000-5100`; the range
+widening is strongest near its middle with gradual rolloff at its edges.
+Existing single-frequency settings remain compatible. Save applies tone and
+filter together, with Cancel / reload and stale-edit protection. The filter
+covers local radio/recorded playback and Spotify; it cannot establish or repair
+an analog noise source. This supersedes the shared footer and five-tab rules
+below; retain the navy/coastal assets and the previous feature removals.
+
 ## 1. Sources and precedence
 
 1. The user's explicit instructions and

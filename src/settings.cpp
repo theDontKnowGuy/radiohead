@@ -7,6 +7,7 @@
 
 #include "app_state.h"
 #include "display.h"
+#include "media.h"
 
 namespace {
 
@@ -813,6 +814,9 @@ void saveSettings() {
     pref.putInt("bass", gB);
     pref.putInt("mid", gM);
     pref.putInt("treb", gT);
+    pref.putBool("notchOn", audioNotchEnabled);
+    pref.putInt("notchHz", audioNotchHz);
+    pref.putInt("notchEnd", audioNotchEndHz);
     pref.putUShort("dimSec", autoDimSeconds);
     pref.putBool("autoUpdate", firmwareAutoUpdate);
     pref.putString("owmCity", owmCity);
@@ -851,6 +855,8 @@ void loadSettings() {
     gB = pref.getInt("bass", 0);
     gM = pref.getInt("mid", 0);
     gT = pref.getInt("treb", 0);
+    mediaSetNotchFilter(pref.getBool("notchOn", false), pref.getInt("notchHz", 3000),
+                        pref.getInt("notchEnd", 0));
     autoDimSeconds = normalizeAutoDimSeconds(pref.getUShort("dimSec", 30));
     st_ssid = pref.getString("ssid", "");
     st_pass = pref.getString("pass", "");

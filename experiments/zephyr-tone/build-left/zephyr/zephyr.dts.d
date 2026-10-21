@@ -1,0 +1,33 @@
+empty_file.o: \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/misc/empty_file.c \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc_procpu.dts \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/xtensa/espressif/esp32s3/esp32s3_wroom_n8.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/xtensa/espressif/esp32s3/esp32s3_common.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/common/mem.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/common/freq.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/xtensa/xtensa.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/common/skeleton.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/adc/adc.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/dt-util.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_macro.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_internal.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_loops.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_listify.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_internal_is_eq.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_internal_util_inc.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_internal_util_dec.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/sys/util_internal_util_x2.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/gpio/gpio.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/i2c/i2c.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/clock/esp32s3_clock.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/interrupt-controller/esp32s3-xtensa-intmux.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/input/input-event-codes.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/input/esp32-touch-sensor-input.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/vendor/espressif/partitions_0x0_amp.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/vendor/espressif/partitions_0x0_amp_4M.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc-pinctrl.dtsi \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/pinctrl/esp32s3-gpio-sigmap.h \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/app.overlay \
+ /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h

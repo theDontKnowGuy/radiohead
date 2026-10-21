@@ -1,0 +1,12 @@
+menu "hal_espressif (/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif)"
+osource "/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/modules/hal/espressif/zephyr/Kconfig"
+config ZEPHYR_HAL_ESPRESSIF_MODULE
+	bool
+	default y
+
+config ZEPHYR_HAL_ESPRESSIF_MODULE_BLOBS
+	bool
+endmenu
+config ZEPHYR_XTENSA_MODULE
+	bool
+	default y

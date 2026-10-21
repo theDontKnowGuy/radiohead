@@ -3,6 +3,8 @@
 #include <atomic>
 #include <cstdint>
 #include "AudioSink.h"
+#include "audio_notch.h"
+#include "audio_tone.h"
 #include "driver/i2s_std.h"
 
 class MAX98357AAudioSink final : public AudioSink {
@@ -23,8 +25,11 @@ private:
     std::atomic<uint32_t> partialWrites_{0};
     std::atomic<uint32_t> writeFailures_{0};
     std::atomic<uint32_t> pcmBytes_{0};
-    float lowGain_ = 1.0f, midGain_ = 1.0f, highGain_ = 1.0f, headroom_ = 1.0f;
+    float lowGain_ = 1.0f, midGain_ = 1.0f, highGain_ = 1.0f;
     float lowState_[2] = {}, highState_[2] = {};
     int16_t lastSample_[2] = {};
     bool flatTone_ = true;
+    bool boostedTone_ = false;
+    AudioToneLimiter toneLimiter_;
+    AudioNotch notch_;
 };

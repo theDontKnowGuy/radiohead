@@ -77,6 +77,10 @@ String mediaTestName();
 void stopStationPlayback();
 void setRadioVolumeIndex(int volumeIndex);
 void toggleRadioMute();
+// Apply/preview tone without changing committed settings. Published to PCM tasks.
+void mediaSetTone(int bass, int mid, int treble);
+// PCM-task bridge for the pinned local EQ; not a main-loop settings API.
+void mediaApplyLocalTone(int bass, int mid, int treble);
 bool isStationMuted();
 // v4 delivers VU data through the audio callback; this is the latest combined
 // channel level normalized to the 0..255 range used by the renderer.
@@ -93,7 +97,13 @@ int mediaPlayingStation();
 void mediaPrepareBootOutput();
 // Configure local I2S before boot audio, keeping experiment output at zero.
 void mediaConfigureOutput();
-// Restore normalized persisted volume once the boot sound has opened.
+// Main-loop settings publication; PCM tasks keep independent filter histories.
+void mediaSetNotchFilter(bool enabled, int frequencyHz, int endHz = 0);
+// Local output uses the source rate; called once per PCM block by its task.
+uint32_t mediaLocalSampleRate();
+// Link the application PCM hooks rather than the library's weak no-op defaults.
+void mediaInitializeAudioFilters();
+// Set boot volume to 10 once the sound has opened, preserving saved playback volume.
 void mediaEnableBootOutput();
 // Initialize media state after boot audio and start the saved station outside AP mode.
 void mediaStartSavedPlayback();

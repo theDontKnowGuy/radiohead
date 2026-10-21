@@ -1,0 +1,6 @@
+config ZEPHYR_HAL_ESPRESSIF_MODULE
+   bool
+   default y
+config ZEPHYR_XTENSA_MODULE
+   bool
+   default y

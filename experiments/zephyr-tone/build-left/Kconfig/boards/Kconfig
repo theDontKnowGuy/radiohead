@@ -1,0 +1,2 @@
+# Load Zephyr board Kconfig descriptions.
+osource "/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/Kconfig"

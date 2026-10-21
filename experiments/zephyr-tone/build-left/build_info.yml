@@ -1,0 +1,51 @@
+cmake:
+  application:
+    configuration-dir: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone'
+    source-dir: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone'
+  board:
+    name: 'esp32s3_devkitc'
+    path:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc'
+    qualifiers: 'esp32s3/procpu'
+    revision: ''
+  devicetree:
+    bindings-dirs:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/bindings'
+    files:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc_procpu.dts'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/app.overlay'
+    include-dirs:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/include/zephyr'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/common'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/vendor'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/rx'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/x86'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/xtensa'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/sparc'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/riscv'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/posix'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/arm64'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/arm'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts/arc'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/dts'
+    user-files:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/app.overlay'
+  kconfig:
+    files:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr/boards/espressif/esp32s3_devkitc/esp32s3_devkitc_procpu_defconfig'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/prj.conf'
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-left/zephyr/misc/generated/extra_kconfig_options.conf'
+    user-files:
+     - '/Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/prj.conf'
+  toolchain:
+    name: 'zephyr'
+    path: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/zephyr-sdk-0.17.4'
+  zephyr:
+    version: '4.2.1'
+    zephyr-base: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace/zephyr'
+version: '0.1.0'
+west:
+  command: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/venv/bin/west build -p always -b esp32s3_devkitc/esp32s3/procpu -d /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-left /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone -- -DCONFIG_TONE_LEFT=y'
+  topdir: '/Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace'
+  version: '1.4.0'

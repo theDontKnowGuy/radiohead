@@ -53,9 +53,9 @@ void setup() {
     if (!isAP) {
         const unsigned long configurationScreenStartedAt = millis();
         bool connectedShown = !networkJoinPending();
-        // The QR screen gets its normal ten seconds even while joining. Only
+        // The QR screen gets seven seconds even while joining. Only
         // entry into the radio waits for any remaining Wi-Fi join budget.
-        while (millis() - configurationScreenStartedAt < 10000 ||
+        while (millis() - configurationScreenStartedAt < 7000 ||
                (networkJoinPending() &&
                 millis() - networkJoinStartedAt < NETWORK_JOIN_TIMEOUT_MS)) {
             serviceWebConnectivity();

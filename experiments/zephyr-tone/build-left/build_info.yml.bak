@@ -1,0 +1,7 @@
+west:
+  command: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/venv/bin/west
+    build -p always -b esp32s3_devkitc/esp32s3/procpu -d /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone/build-left
+    /Users/avner/Documents/Projects/ESP32Projects/radiohead/experiments/zephyr-tone
+    -- -DCONFIG_TONE_LEFT=y
+  topdir: /Users/avner/Documents/Projects/ESP32Projects/radiohead/.pio/zephyr-tone-env/workspace
+  version: 1.4.0
