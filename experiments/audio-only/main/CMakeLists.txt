@@ -7,6 +7,7 @@ idf_component_register(SRCS "main.cpp"
     REQUIRES esp_psram esp_driver_i2s esp_driver_gpio esp_driver_usb_serial_jtag esp_timer ${audio_evidence_requires})
 target_add_binary_data(${COMPONENT_LIB} "$ENV{RADIOHEAD_AUDIO_ASSETS}/music.pcm" BINARY RENAME_TO music_pcm)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    AUDIO_ONLY_RECORDING_SEQUENCE=$ENV{RADIOHEAD_AUDIO_RECORDING_SEQUENCE}
     AUDIO_ONLY_UART_EVIDENCE=$ENV{RADIOHEAD_AUDIO_UART_EVIDENCE}
     AUDIO_ONLY_EVIDENCE=$ENV{RADIOHEAD_AUDIO_EVIDENCE}
     AUDIO_ONLY_RADIO_INDEX=$ENV{RADIOHEAD_AUDIO_RADIO_INDEX}

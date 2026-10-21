@@ -1,6 +1,9 @@
 #include "audio_suite.h"
 #include "audio_controls.h"
 #include "audio_write.h"
+#if AUDIO_ONLY_RECORDING_SEQUENCE
+#include "audio_sequence.h"
+#endif
 #include "app_audio_pins.h"
 #include <cinttypes>
 #include <cstdio>
@@ -133,6 +136,27 @@ bool zeros(const Case& c, int blocks) {
     return true;
 }
 void outputTask(void*) {
+#if AUDIO_ONLY_RECORDING_SEQUENCE
+    const Case format=kCases[0]; // unchanged Philips stereo 44.1 kHz / 16-bit
+    RecordingSequence sequence{musicStart,
+        (reinterpret_cast<uintptr_t>(musicEnd)-reinterpret_cast<uintptr_t>(musicStart))/4};
+    if (start(format)) {
+        // start() preloads 8 * 128 zero frames. They are part of the opening
+        // five seconds, rather than an unexported delay before the reference.
+        sequence.frame=kDmaBlocks*kBlock;
+        for (;;) {
+            for (size_t i=0;i<kBlock;++i) {
+                int16_t left,right;
+                sequence.next(left,right);
+                pack(left,right,i);
+            }
+            counts.generated+=kBlock;
+            if (!writeBlock(format)) break;
+        }
+    }
+    stop(); // any driver failure latches silent; never replay a partial sequence
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#else
     Synth synth;
     Case currentCase=kCases[0];
     Ramp envelope;
@@ -190,6 +214,7 @@ void outputTask(void*) {
         counts.holding=cueDone && !changing && !counts.fault;
         publish();
     }
+#endif
 }
 void outputPin(gpio_num_t pin, int level) {
     gpio_set_level(pin,level); gpio_set_direction(pin,GPIO_MODE_OUTPUT);
@@ -240,7 +265,7 @@ extern "C" void app_main() {
     rtc_gpio_hold_dis(GPIO_NUM_1); gpio_hold_dis(GPIO_NUM_1); rtc_gpio_deinit(GPIO_NUM_1);
     outputPin(GPIO_NUM_1,0); outputPin(GPIO_NUM_8,1); outputPin(GPIO_NUM_14,1);
     // No SPI, TFT reset, touch, LEDC, NVS, filesystem or radio initialization.
-#if !AUDIO_ONLY_HANDSFREE && !AUDIO_ONLY_MUSIC_FORMATS && !AUDIO_ONLY_MUSIC_CHANNELS && AUDIO_ONLY_FIXED_CASE == 0
+#if !AUDIO_ONLY_RECORDING_SEQUENCE && !AUDIO_ONLY_HANDSFREE && !AUDIO_ONLY_MUSIC_FORMATS && !AUDIO_ONLY_MUSIC_CHANNELS && AUDIO_ONLY_FIXED_CASE == 0
     gpio_config_t input{};
     input.pin_bit_mask=(1ULL<<4)|(1ULL<<7)|(1ULL<<13);
     input.mode=GPIO_MODE_INPUT; input.pull_up_en=GPIO_PULLUP_ENABLE;
@@ -268,18 +293,23 @@ extern "C" void app_main() {
     usb_serial_jtag_driver_config_t usb{512,128};
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
 #endif
+#if !AUDIO_ONLY_RECORDING_SEQUENCE
     vTaskDelay(pdMS_TO_TICKS(2000)); // quiet boot before the first low-level ID
+#endif
     const TaskHandle_t task=xTaskCreateStaticPinnedToCore(outputTask,"audio-only",sizeof(audioStack),nullptr,
         20,audioStack,&audioTaskState,1);
     configASSERT(task);
     if (!task) return;
+#if AUDIO_ONLY_RECORDING_SEQUENCE
+    return; // output task owns the entire run; no polling control task is needed
+#else
 #if AUDIO_ONLY_MUSIC_CHANNELS
     MusicChannels automatic{AUDIO_ONLY_RADIO_INDEX};
 #elif AUDIO_ONLY_MUSIC_FORMATS
     MusicFormats automatic{AUDIO_ONLY_RADIO_INDEX};
 #elif AUDIO_ONLY_HANDSFREE
     HandsFree automatic;
-#elif AUDIO_ONLY_FIXED_CASE == 0
+#elif !AUDIO_ONLY_RECORDING_SEQUENCE && AUDIO_ONLY_FIXED_CASE == 0
     Controls controls;
     controls.ab=(gpio_get_level(GPIO_NUM_4)<<1)|gpio_get_level(GPIO_NUM_7);
 #endif
@@ -291,7 +321,7 @@ extern "C" void app_main() {
         portENTER_CRITICAL(&sharedMux); const Counters current=published; portEXIT_CRITICAL(&sharedMux);
         const Request control=automatic.poll(esp_timer_get_time(),current.id,current.epoch,current.holding,current.fault);
         portENTER_CRITICAL(&sharedMux); requested=control; portEXIT_CRITICAL(&sharedMux);
-#elif AUDIO_ONLY_FIXED_CASE == 0
+#elif !AUDIO_ONLY_RECORDING_SEQUENCE && AUDIO_ONLY_FIXED_CASE == 0
         const uint8_t ab=(gpio_get_level(GPIO_NUM_4)<<1)|gpio_get_level(GPIO_NUM_7);
         const Request control=controls.poll(esp_timer_get_time(),!gpio_get_level(GPIO_NUM_13),ab);
         portENTER_CRITICAL(&sharedMux); requested=control; portEXIT_CRITICAL(&sharedMux);
@@ -301,4 +331,5 @@ extern "C" void app_main() {
 #endif
         vTaskDelay(pdMS_TO_TICKS(1));
     }
+#endif
 }

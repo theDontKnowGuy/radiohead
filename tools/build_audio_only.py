@@ -10,6 +10,7 @@ import sys
 from firmware_artifacts import (APP_SLOT_SIZE, EXPORT_FILES, FLASH_FILES, FLASH_SETTINGS,
                                 digest, validate_export, validate_layout)
 from prepare_audio_only import prepare
+from prepare_audio_sequence import prepare_sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,26 +20,34 @@ def main():
     evidence_mode.add_argument('--evidence-uart', action='store_true', help='Stopped-only UART0 status for the USB-UART connector (TX43/RX44, 115200 baud)')
     evidence_mode.add_argument('--evidence', action='store_true', help='Opt-in nonblocking USB status, only while output is stopped')
     mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--recording-sequence', action='store_true', help='One quiet single-channel tone/music recording sequence with matching WAV; no controls')
     mode.add_argument('--music-channels', action='store_true', help='Music left-only / right-only / both, then stopped; default radio volume 18/21')
     mode.add_argument('--music-formats', action='store_true', help='Music A/B/A: 16-bit / 32-bit / 16-bit slots, then stopped; no encoder input')
     mode.add_argument('--hands-free', action='store_true', help='Run only the quiet first-listening sequence, then stop; no encoder input')
     mode.add_argument('--case', type=int, choices=range(1,56), metavar='1..55', help='Hold one fixed case without encoder input')
     parser.add_argument('--trim-db', type=int, choices=range(-60,1), metavar='-60..0', help='Extra attenuation for --case (default -12 dB)')
     parser.add_argument('--radio-index', type=int, choices=range(0,22), metavar='0..21', help='Corrected radio volume index for music comparison profiles; replaces extra trim')
+    parser.add_argument('--recording-speaker', choices=('left','right'), help='Separate single-speaker recording image, 6 dB louder overall; requires --recording-sequence')
     args = parser.parse_args()
+    if args.recording_speaker and not args.recording_sequence:
+        parser.error('--recording-speaker requires --recording-sequence')
+    if args.recording_sequence and (args.evidence or args.evidence_uart):
+        parser.error('--recording-sequence does not enable serial evidence')
     if args.trim_db is not None and args.case is None:
         parser.error('--trim-db requires --case')
     if args.music_channels and args.radio_index is None: args.radio_index=18
     if args.radio_index is not None and not (args.music_formats or args.music_channels):
         parser.error('--radio-index requires --music-formats or --music-channels')
     trim=args.trim_db if args.trim_db is not None else -12
-    suffix='-music-channels' if args.music_channels else '-music-formats' if args.music_formats else '-handsfree' if args.hands_free else f'-case-{args.case}-trim-m{-trim}' if args.case else ''
+    suffix='-recording-sequence' if args.recording_sequence else '-music-channels' if args.music_channels else '-music-formats' if args.music_formats else '-handsfree' if args.hands_free else f'-case-{args.case}-trim-m{-trim}' if args.case else ''
+    if args.recording_speaker: suffix+=f'-{args.recording_speaker}-plus6db'
     if args.radio_index is not None: suffix+=f'-radio{args.radio_index}'
     if args.evidence_uart: suffix+='-evidence-uart'
     elif args.evidence: suffix+='-evidence'
     build = ROOT / ('.pio/idf-audio-only'+suffix)
     output = ROOT / ('.pio/build/audio-only'+suffix)
-    assets = ROOT / '.pio/audio-only-assets'
+    assets = ROOT / ('.pio/audio-sequence-assets' if args.recording_sequence else '.pio/audio-only-assets')
+    if args.recording_speaker: assets=ROOT/f'.pio/audio-sequence-{args.recording_speaker}-plus6db-assets'
     core = Path(os.environ.get('PLATFORMIO_CORE_DIR', Path.home()/'.platformio')).expanduser()
     idf = core/'packages/framework-espidf'
     arduino = core/'packages/framework-arduinoespressif32'
@@ -46,6 +55,7 @@ def main():
         if json.loads((path/'package.json').read_text())['version'] != version:
             raise RuntimeError(f'Expected pinned {version} in {path}; run pio pkg install -e esp32s3')
     prepare(assets)
+    sequence = prepare_sequence(assets, args.recording_speaker) if args.recording_sequence else None
     python_env = core/'penv/.espidf-5.5.5'
     python = python_env/'bin/python'
     env = os.environ.copy()
@@ -56,6 +66,7 @@ def main():
         RADIOHEAD_AUDIO_HANDSFREE=str(int(args.hands_free)),
         RADIOHEAD_AUDIO_MUSIC_FORMATS=str(int(args.music_formats)),
         RADIOHEAD_AUDIO_MUSIC_CHANNELS=str(int(args.music_channels)),
+        RADIOHEAD_AUDIO_RECORDING_SEQUENCE=str(int(args.recording_sequence)),
         RADIOHEAD_AUDIO_RADIO_INDEX=str(args.radio_index if args.radio_index is not None else -1),
         RADIOHEAD_AUDIO_FIXED_CASE=str(args.case or 0), RADIOHEAD_AUDIO_TRIM=str(trim))
     paths = []
@@ -91,12 +102,16 @@ def main():
     run(command)
     names = set(EXPORT_FILES.values()) | {'firmware.factory.bin','firmware.elf','partitions.bin'}
     manifest = dict(diagnostic={'suite':'audio-only', 'evidence':args.evidence or args.evidence_uart, 'case_count':55,
-                   'control':'music-channels' if args.music_channels else 'music-formats' if args.music_formats else 'handsfree' if args.hands_free else 'fixed' if args.case else 'encoder',
+                   'control':'recording-sequence' if args.recording_sequence else 'music-channels' if args.music_channels else 'music-formats' if args.music_formats else 'handsfree' if args.hands_free else 'fixed' if args.case else 'encoder',
                    'fixed_case':args.case, 'fixed_trim_db':trim if args.case else None},
                    flash_files=EXPORT_FILES, flash_settings=FLASH_SETTINGS,
                    sha256={name:digest(output/name) for name in sorted(names)})
     if args.radio_index is not None: manifest['diagnostic']['radio_index']=args.radio_index
     if args.evidence_uart: manifest['diagnostic']['evidence_transport']='uart0-gpio43-44'
+    if sequence:
+        manifest['diagnostic']['sequence']=sequence
+        for name in ('sequence-reference.wav', 'sequence-timestamps.csv', 'sequence.json', 'sequence_tones.h'):
+            shutil.copyfile(assets/name, output/name)
     (output/'artifacts.json').write_text(json.dumps(manifest, indent=2)+'\n')
     shutil.copyfile(assets/'fixture.json', output/'fixture.json')
     validate_export(output)

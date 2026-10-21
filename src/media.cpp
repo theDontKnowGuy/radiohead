@@ -1060,6 +1060,12 @@ void mediaPrepareBootOutput() {
 }
 
 void mediaConfigureOutput() {
+#if defined(RADIOHEAD_LARGE_DMA_TEST)
+    // 28 x 256 frames gives 162.5 ms at 44.1 kHz, close to the clean
+    // reference's 32 x 222 frames. Change only queue depth before I2S init;
+    // frame size, PCM buffers, gain, EQ and task scheduling stay the same.
+    audio.settings.DMA_DESC_NUM = 28;
+#endif
     // Match the full curve before restoring volume; the library defaults to 21
     // steps, which otherwise clamps every UI index from 13 upward to full scale.
     audio.setVolumeSteps(volCurve[21]);

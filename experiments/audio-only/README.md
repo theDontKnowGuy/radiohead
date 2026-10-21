@@ -1,5 +1,13 @@
 # Audio-only diagnostic — installation and listening run sheet
 
+For the new one-run 250 Hz / 1 kHz / two-tone / music phone-recording test,
+use [the recording sequence, exact levels, WAV and flash/restore commands](RECORDING-SEQUENCE.md).
+The [second recording analysis](../../docs/hardware/audio-sequence-recording-analysis.md)
+records all segments sandy and links separate left/right images at +6 dB.
+The [right-speaker follow-up](../../docs/hardware/audio-sequence-recording-analysis.md#third-recording-right-speaker)
+records shared sandy distortion on both speakers; right-only crackle/static is
+explicitly deferred at the user's request.
+
 Built for the existing ESP32-S3 N16R8 and two MAX98357A-labelled amplifiers.
 **First user listening: silence cases quiet, sine clear, music still sandy.
 Root cause remains unresolved. Nothing was flashed by the agent.**

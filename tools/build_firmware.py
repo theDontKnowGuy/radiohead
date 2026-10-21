@@ -30,21 +30,25 @@ def main():
                         help="Build only the TFT color diagnostic in separate default directories")
     modes.add_argument("--storage-quiet", action="store_true",
                        help="Build radio with boot-only storage reads and no persistent writes")
+    modes.add_argument("--large-dma", action="store_true",
+                       help="Test local I2S with 28 DMA descriptors instead of six")
     parser.add_argument("--build-dir")
     parser.add_argument("--output-dir")
     parser.add_argument("--prepared", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     build = resolve_path(args.build_dir or (
+        ".pio/idf-large-dma-test" if args.large_dma else
         ".pio/idf-storage-quiet" if args.storage_quiet else
         ".pio/idf-tft-color-test" if args.tft_color_test else
         os.environ.get("RADIOHEAD_SPOTIFY_BUILD", ".pio/idf-build")))
     output = resolve_path(args.output_dir or (
+        ".pio/build/large-dma-test" if args.large_dma else
         ".pio/build/storage-quiet" if args.storage_quiet else
         ".pio/build/tft-color-test" if args.tft_color_test else ".pio/build/esp32s3"))
-    if args.storage_quiet and (
+    if (args.storage_quiet or args.large_dma) and (
             build == resolve_path(".pio/idf-build") or
             output == resolve_path(".pio/build/esp32s3")):
-        parser.error("The storage diagnostic must use separate build/export directories")
+        parser.error("The diagnostic must use separate build/export directories")
     core = resolve_path(os.environ.get("PLATFORMIO_CORE_DIR", Path.home() / ".platformio"))
     pio = os.environ.get("PIO", shutil.which("pio") or str(core / "penv/bin/pio"))
     if not args.prepared:
@@ -105,6 +109,7 @@ def main():
          "-D", f"SDKCONFIG_DEFAULTS={defaults}",
          "-D", f"RADIOHEAD_TFT_COLOR_TEST={diagnostic}",
          "-D", f"RADIOHEAD_STORAGE_QUIET_TEST={'ON' if args.storage_quiet else 'OFF'}",
+         "-D", f"RADIOHEAD_LARGE_DMA_TEST={'ON' if args.large_dma else 'OFF'}",
          "build", "size"], env=child)
     if args.storage_quiet:
         config = (build / "sdkconfig").read_text()
@@ -132,10 +137,18 @@ def main():
                 "sha256": {name: digest(output / name) for name in sorted(names)}}
     if args.storage_quiet:
         manifest["diagnostic"] = "storage-quiet"
+    if args.large_dma:
+        manifest["diagnostic"] = "large-dma-test"
+        manifest["audio_library"] = "4.0.0"
+        manifest["local_i2s_dma"] = {
+            "descriptors": 28, "frames_per_descriptor": 256,
+            "channels": 2, "bits_per_sample": 32,
+        }
     (output / "artifacts.json").write_text(json.dumps(manifest, indent=2) + "\n")
     validate_export(output)
     size = (output / "firmware.bin").stat().st_size
-    label = ("Storage quiet test" if args.storage_quiet else
+    label = ("Large DMA test" if args.large_dma else
+             "Storage quiet test" if args.storage_quiet else
              "TFT color test" if args.tft_color_test else "Native Spotify")
     print(f"{label} image: {output / 'firmware.bin'} ({size:,} bytes; {APP_SLOT_SIZE - size:,} bytes free)")
 

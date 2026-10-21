@@ -184,6 +184,7 @@ String validationDiagnosticsJson() {
     char buffer[1100];
     const int length = snprintf(buffer, sizeof(buffer),
         "{\"uptimeMs\":%lu,\"resetReason\":%d,\"tasks\":%u,"
+        "\"localDmaDescriptors\":%u,\"localDmaFrames\":%u,"
         "\"internal\":[%u,%u,%u],\"dma\":[%u,%u,%u],\"psram\":[%u,%u,%u],"
         "\"allocationFailures\":%lu,\"lastFailedBytes\":%lu,\"lastFailedCaps\":%lu,"
         "\"stackBytes\":{\"loop\":%u,\"Ctrl\":%u,\"PeriodicTask\":%u,"
@@ -193,6 +194,8 @@ String validationDiagnosticsJson() {
         "\"loopGapMaxUs\":%lu,\"audioCallMaxUs\":%lu,\"webCallMaxUs\":%lu}",
         static_cast<unsigned long>(millis()), static_cast<int>(esp_reset_reason()),
         static_cast<unsigned>(uxTaskGetNumberOfTasks()),
+        static_cast<unsigned>(audio.settings.DMA_DESC_NUM),
+        static_cast<unsigned>(audio.settings.DMA_FRAME_NUM),
         static_cast<unsigned>(internal.free), static_cast<unsigned>(internal.minimum), static_cast<unsigned>(internal.largest),
         static_cast<unsigned>(dma.free), static_cast<unsigned>(dma.minimum), static_cast<unsigned>(dma.largest),
         static_cast<unsigned>(psram.free), static_cast<unsigned>(psram.minimum), static_cast<unsigned>(psram.largest),
