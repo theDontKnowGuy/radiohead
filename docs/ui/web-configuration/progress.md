@@ -1,5 +1,46 @@
 # Web configuration implementation progress
 
+### 2026-10-22 — Frequency filter broad-range test (ready for device testing)
+
+- User observed no audible change on live radio; entering `0-10000` returned to
+  the previous `4800-5300` setting. Browser/API rejected zero as a lower bound.
+  Follow-up: `100-9999` made playback quieter, confirming audible filtering;
+  remaining sound alone is not evidence that the PCM hook is bypassed. An
+  in-band range has gradual edges and leaves frequencies outside it audible.
+- Implemented: accept zero only as a range's lower bound; use a second-order
+  Butterworth high-pass for `0-end`, a low-pass when a range reaches Nyquist,
+  and exact digital silence when the zero-start range covers the whole signal.
+  Previously, any upper edge reaching Nyquist bypassed the entire range.
+  In-band range/single-frequency responses, keys, routes and tone/volume remain
+  compatible. No allocations, logging or vendor edits added to the audio path.
+  Coefficients follow [W3C HPF/LPF formulae](https://www.w3.org/TR/audio-eq-cookbook/).
+- Functional: added a regression that failed against the old zero-start bypass;
+  `python3 tools/check_audio_filter.py` now passes ASan/UBSan/float-cast-overflow.
+  `0-10000` suppresses synthetic 1 kHz by at least 39 dB at 22.05–96 kHz rates;
+  8/16/20 kHz streams output exact silence. Production local PCM and Spotify
+  feeds cover broad-range suppression and stereo; local PCM also covers a
+  Nyquist-crossing range and exact disabled bypass. Existing in-band response,
+  stability and single-frequency tests pass unchanged in their valid domains.
+- `python3 tools/check_audio_routes.py`, `node tools/check_audio_web.cjs`,
+  `python3 tools/check_audio_tone.py --firmware`,
+  `python3 tools/check_firmware_artifacts.py` and `git diff --check` pass.
+  API/browser checks cover saving, polling/reloading `0-10000`, rejecting zero
+  alone or invalid endpoints without partial mutation, revisions and legacy keys.
+  Final link map selects the application PCM hooks.
+- Visual: inspected production-markup fixtures at 1280 px and 320 px with the
+  supplied CSS/coastal asset; no horizontal overflow or script errors. Browser
+  save/reload retains `0-10000`. Evidence: `.pio/audio_native/audio-zero-desktop.png`
+  and `audio-zero-mobile.png`. Synthetic browser state, not device-served evidence.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-filter-zero-build.log`.
+  Shared-worktree image 4,529,008 bytes; 2,024,592 bytes free in the app slot.
+  DIRAM 260,635 / 341,760 bytes (76.26%); 81,125 bytes free. Concurrent user
+  volume/touch changes are present; these are whole-image totals.
+- Hardware: not flashed or listening-tested with this package. Verify zero-start
+  save/reboot retention, range off/on, low-rate radio and Spotify with USB serial
+  monitor closed. On normal 44.1/48 kHz streams, `0-10000` can still leave sound
+  above 10 kHz and transition-band content; it is not a mute control. Analog noise
+  attenuation and the cause of the original narrow-range perception remain unverified.
+
 ### 2026-10-21 — Frequency filter ranges (ready for device testing)
 
 - User scope: accept a range, e.g. `5000-5100`, as well as a single frequency.

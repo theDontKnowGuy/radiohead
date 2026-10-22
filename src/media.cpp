@@ -35,7 +35,8 @@ void mediaSetTone(int bass, int mid, int treble) {
 
 void mediaSetNotchFilter(bool enabled, int frequencyHz, int endHz) {
     audioNotchEnabled = enabled;
-    audioNotchHz = constrain(frequencyHz, kNotchMinimumHz, kNotchMaximumHz);
+    audioNotchHz = frequencyHz == 0 && radioNotchValidFrequency(frequencyHz, endHz)
+        ? 0 : constrain(frequencyHz, kNotchMinimumHz, kNotchMaximumHz);
     // Invalid/legacy persisted endpoints fall back to the original single notch.
     audioNotchEndHz = endHz > audioNotchHz && endHz <= kNotchMaximumHz ? endHz : 0;
     radioNotchConfiguration.store(radioNotchConfigurationValue(enabled, audioNotchHz,

@@ -57,11 +57,11 @@ int main(){
  }
  captured.clear();sink.feedPCMFrames(reinterpret_cast<const uint8_t*>(input.data()),6);assert(captured.empty());
  sink.volumeChanged(255);input.resize(1024);
- for(unsigned endHz:{0,5100}){
-  const unsigned startHz=endHz?5000:3000;
+ for(unsigned endHz:{0,5100,10000}){
+  const unsigned startHz=endHz==10000?0:endHz?5000:3000;
   radioNotchConfiguration.store(radioNotchConfigurationValue(true,startHz,endHz));
   const double pi=3.14159265358979323846;
-  const double frequency=endHz?44100/pi*std::atan(std::sqrt(std::tan(pi*5000/44100)*std::tan(pi*5100/44100))):3000;
+  const double frequency=endHz==10000?1000:endHz?44100/pi*std::atan(std::sqrt(std::tan(pi*5000/44100)*std::tan(pi*5100/44100))):3000;
   double energy=0;unsigned count=0;
   for(unsigned block=0;block<100;++block){
    for(unsigned i=0;i<input.size();i+=2){input[i]=int16_t(10000*std::sin(2*pi*frequency*(block*512+i/2)/44100));input[i+1]=0;}
@@ -69,9 +69,9 @@ int main(){
    assert(captured.size()==input.size());
    for(unsigned i=0;i<captured.size();i+=2){assert(captured[i+1]==0);if(block>50){energy+=double(captured[i])*captured[i];++count;}}
   }
-  assert(std::sqrt(energy/count)<5);
+  assert(std::sqrt(energy/count)<(endHz==10000?70:5));
  }
- puts("Production Spotify PCM feed: bit-exact disabled bypass at three gains, stereo, single-frequency and 5000-5100 Hz range rejection passed.");
+ puts("Production Spotify PCM feed: bit-exact disabled bypass at three gains, stereo, single-frequency, 5000-5100 Hz and 0-10000 Hz range rejection passed.");
 }
 '''
 (out/'spotify.cpp').write_text(fixture)

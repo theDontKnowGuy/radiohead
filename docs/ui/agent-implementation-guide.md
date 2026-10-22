@@ -8,6 +8,14 @@ detailed-color requirements below. Clock format/timezone setup is web-only.
 Do not implement P6 as written or restore page-dependent encoder navigation.
 The visual design and unrelated retained behavior below still apply.
 
+**Touch miss correction requested by the user, 2026-10-22:** if the first
+on-panel contact hits no target, re-evaluate later contact positions on the same
+page until a target is reached. Dispatch once, then consume the press until
+release, retaining the existing tone-button hold repetition. A page change or
+dim-wake consumption cancels eligibility; holding must not activate the new page.
+This amends the first-contact rule below without changing acquisition or redraw
+frequency.
+
 **Input direction updated by the user, 2026-09-20:** quick finger-pad button
 response takes priority over swipe scrolling. Buttons now activate on the first
 valid contact, once per press; release only re-arms input. Live Stations, Recorded

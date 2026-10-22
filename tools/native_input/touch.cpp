@@ -1,6 +1,8 @@
 #include "touch_gesture.h"
 #include "xpt2046_sampling.h"
 #include "ui_controller.h"
+#include "ui_runtime.h"
+#include "device_control.h"
 #include "settings.h"
 #include <cassert>
 #include <cstdio>
@@ -41,6 +43,95 @@ MediaSnapshot fixtureMedia;
 const MediaSnapshot& mediaSnapshot() { return fixtureMedia; }
 int mediaRequestedStation() { return -1; }
 int mediaPlayingStation() { return -1; }
+
+unsigned long lastInteraction = 0;
+int consumeEncoderDetents() { return 0; }
+// Isolate routing from rendering geometry: each sample supplies the hit-test
+// result for its coordinates. Navigation/commands use the real controller.
+UiTarget fixtureTouchTarget = UiTarget::None;
+UiTarget uiHitTest(const UiRenderState&, int16_t, int16_t) { return fixtureTouchTarget; }
+
+void checkTouchRouting() {
+    auto sample = [](TouchEvent event, UiTarget target, unsigned long now, bool dimmed = false) {
+        fixtureTouchTarget = target;
+        DeviceInput input;
+        input.touch = event;
+        input.touchX = 211;
+        input.touchY = 190;
+        input.displayWasDimmed = dimmed;
+        serviceUiInput(input, now);
+    };
+    UiCommand command;
+    uiControllerBegin();
+    sample(TouchEvent::Release, UiTarget::None, 0);
+    sample(TouchEvent::Begin, UiTarget::None, 8);
+    sample(TouchEvent::Contact, UiTarget::None, 16);
+    // A brief dropout doesn't lose eligibility; no new Begin is required.
+    sample(TouchEvent::None, UiTarget::None, 24);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    assert(!uiControllerTakeCommand(command));
+    sample(TouchEvent::Contact, UiTarget::HomeRecordedShows, 32);
+    assert(uiControllerRenderState().page == UiPage::RecordedShows);
+    sample(TouchEvent::Contact, UiTarget::ShowRow0, 40);
+    assert(!uiControllerTakeCommand(command));
+    assert(uiControllerRenderState().page == UiPage::RecordedShows);
+    sample(TouchEvent::Release, UiTarget::None, 120);
+    sample(TouchEvent::Begin, UiTarget::ShowRow0, 128);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::RequestPodcastEpisodes);
+    assert(!uiControllerTakeCommand(command));
+
+    // A non-navigating action also consumes the press, even after sliding away
+    // and back onto another target on the same page.
+    sample(TouchEvent::Release, UiTarget::None, 220);
+    uiControllerBegin();
+    uiControllerTap(UiTarget::HomeSettings, 0, 220, false);
+    uiControllerTap(UiTarget::SettingsRow2, 0, 220, false);
+    sample(TouchEvent::Begin, UiTarget::None, 228);
+    sample(TouchEvent::Contact, UiTarget::DimIncrease, 236);
+    assert(uiControllerRenderState().dimSecondsDraft == 60);
+    sample(TouchEvent::Contact, UiTarget::None, 244);
+    sample(TouchEvent::Contact, UiTarget::DimIncrease, 252);
+    sample(TouchEvent::Contact, UiTarget::DimDecrease, 260);
+    assert(uiControllerRenderState().dimSecondsDraft == 60);
+
+    // A page changed by another input/source invalidates an unclaimed press.
+    sample(TouchEvent::Release, UiTarget::None, 340);
+    uiControllerBegin();
+    sample(TouchEvent::Begin, UiTarget::None, 348);
+    uiControllerTap(UiTarget::HomeRecordedShows, 0, 352, false);
+    sample(TouchEvent::None, UiTarget::None, 356);
+    sample(TouchEvent::Contact, UiTarget::ShowRow0, 364);
+    assert(!uiControllerTakeCommand(command));
+    assert(uiControllerRenderState().page == UiPage::RecordedShows);
+    uiControllerTap(UiTarget::ShowsBack, 0, 372, false);
+    sample(TouchEvent::Contact, UiTarget::HomeSettings, 380);
+    assert(uiControllerRenderState().page == UiPage::Home);
+
+    // Missed dim-wake contacts remain consumed after the display wakes.
+    sample(TouchEvent::Release, UiTarget::None, 460);
+    sample(TouchEvent::Begin, UiTarget::None, 468, true);
+    sample(TouchEvent::Contact, UiTarget::HomeRecordedShows, 476);
+    assert(uiControllerRenderState().page == UiPage::Home);
+    sample(TouchEvent::Release, UiTarget::None, 556);
+    sample(TouchEvent::Begin, UiTarget::HomeSettings, 564);
+    assert(uiControllerRenderState().page == UiPage::Settings);
+
+    // Retrying a miss starts the tone hold timer at activation, not at Begin.
+    sample(TouchEvent::Release, UiTarget::None, 644);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 644, false);
+    sample(TouchEvent::Begin, UiTarget::None, 652);
+    sample(TouchEvent::Contact, UiTarget::ToneBassIncrease, 1000);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone && command.value == 1);
+    sample(TouchEvent::Contact, UiTarget::ToneBassIncrease, 1449);
+    assert(!uiControllerTakeCommand(command));
+    sample(TouchEvent::Contact, UiTarget::ToneBassIncrease, 1450);
+    assert(uiControllerTakeCommand(command) && command.value == 2);
+    sample(TouchEvent::Contact, UiTarget::ToneMidIncrease, 1458);
+    sample(TouchEvent::Contact, UiTarget::ToneBassIncrease, 2000);
+    assert(!uiControllerTakeCommand(command));
+    sample(TouchEvent::Release, UiTarget::None, 2080);
+    uiControllerBegin();
+}
 
 // Synthetic ADC results exercise production frame offsets, settling exclusion,
 // independent axes and no-contact rejection; they do not simulate panel physics.
@@ -148,6 +239,7 @@ void checkMuteFeedback() {
 }
 
 int main() {
+    checkTouchRouting();
     checkMuteFeedback();
     checkRawSampling();
     int16_t x = 0, y = 0;
@@ -472,5 +564,5 @@ int main() {
     fixtureMedia.source = MediaSource::None;
     uiControllerTick(6);
     assert(uiControllerRenderState().page == UiPage::Home);
-    puts("Raw sampling, press/re-arm, paging and Spotify source transitions passed");
+    puts("Raw sampling, missed-target routing, press/re-arm, paging and Spotify source transitions passed");
 }

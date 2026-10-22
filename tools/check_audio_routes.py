@@ -89,6 +89,17 @@ int main(int argc,char**argv){
   auto before=audioSettingsRevision();int saves=queued;applyAudio();
   assert(server.status==400 && audioSettingsRevision()==before && queued==saves);
  }
+ // Zero is accepted only for a range; publish and persist its exact bounds.
+ defaults();server.args["notchHz"]="0";server.args["notchEndHz"]="10000";applyAudio();
+ assert(server.status==200 && audioNotchHz==0 && audioNotchEndHz==10000);
+ assert(radioNotchConfiguration.load()==radioNotchConfigurationValue(true,0,10000));
+ for(auto end:{"0","99"}) {
+  defaults();server.args["notchHz"]="0";server.args["notchEndHz"]=end;
+  auto before=audioSettingsRevision();int saves=queued;applyAudio();
+  assert(server.status==400 && audioSettingsRevision()==before && queued==saves);
+ }
+ mediaSetNotchFilter(true,0,10000);assert(audioNotchHz==0&&audioNotchEndHz==10000);
+ mediaSetNotchFilter(true,0,0);assert(audioNotchHz==100&&audioNotchEndHz==0);
  // Persistence/default normalization keeps old single-frequency behavior.
  mediaSetNotchFilter(true,3000,0);assert(audioNotchEndHz==0);
  mediaSetNotchFilter(true,3000,2000);assert(audioNotchEndHz==0);
@@ -103,7 +114,7 @@ int main(int argc,char**argv){
  for(auto value:{"-16","16","1.5","x","999999999999999999999999999999"}){
   defaults();server.args["bass"]=value;applyAudio();assert(server.status==400&&gB==-15&&queued==1);
  }
- for(auto value:{"99","10001","3000Hz","3000.0","", "999999999999999999999999"}){
+ for(auto value:{"0","1","99","10001","3000Hz","3000.0","", "999999999999999999999999"}){
   defaults();server.args["notchHz"]=value;applyAudio();assert(server.status==400&&audioNotchHz==3000&&queued==1);
  }
  for(auto value:{"-1","2","true"}){

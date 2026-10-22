@@ -9,9 +9,9 @@ enum class TouchEvent : uint8_t {
     Release,
 };
 
-// Button-first input: activate on the first valid ADC contact, with no swipe
-// classification or release wait. Continued contacts let the controller opt
-// specific controls into repetition without emitting another Begin.
+// Button-first input: Begin reports the first valid ADC contact, with no swipe
+// classification or release wait. Continued contacts let UI routing retry a
+// missed target or repeat specific controls without emitting another Begin.
 // Debounce only re-arming, bridging weak-contact dropouts across page changes.
 class TouchPressLatch {
 public:

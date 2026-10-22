@@ -11,11 +11,20 @@
 #include "web_server.h"
 
 void serviceUiInput(const DeviceInput& input, unsigned long now) {
-    // The first accepted contact owns the press. TouchPressLatch stays latched
-    // across navigation until release, including consumed dim-wake presses.
+    // A miss stays eligible on this page until the first target is reached.
+    // Once dispatched, the press stays consumed across navigation until release.
+    static bool touchPending = false;
+    static UiPage touchStartPage = UiPage::Home;
     const UiPage touchPage = uiControllerRenderState().page;
 
-    if (input.touch == TouchEvent::Release || input.displayWasDimmed) {
+    if (input.touch == TouchEvent::Begin) {
+        touchPending = !input.displayWasDimmed;
+        touchStartPage = touchPage;
+        uiControllerTouchEnd();
+    }
+    if (input.touch == TouchEvent::Release || input.displayWasDimmed ||
+        touchPage != touchStartPage) {
+        touchPending = false;
         uiControllerTouchEnd();
     }
     const int detents = consumeEncoderDetents();
@@ -26,10 +35,19 @@ void serviceUiInput(const DeviceInput& input, unsigned long now) {
         uiControllerHold(now, input.displayWasDimmed);
     }
     const UiRenderState touchState = uiControllerRenderState();
-    if (input.touch == TouchEvent::Begin && touchState.page == touchPage && !input.displayWasDimmed) {
-        uiControllerTap(uiHitTest(touchState, input.touchX, input.touchY), input.touchX, now, false);
-    } else if (input.touch == TouchEvent::Contact && !input.displayWasDimmed) {
-        uiControllerTouchContact(uiHitTest(touchState, input.touchX, input.touchY), now);
+    if (touchState.page != touchStartPage) {
+        touchPending = false;
+        uiControllerTouchEnd();
+    }
+    if ((input.touch == TouchEvent::Begin || input.touch == TouchEvent::Contact) &&
+        !input.displayWasDimmed) {
+        const UiTarget target = uiHitTest(touchState, input.touchX, input.touchY);
+        if (touchPending && target != UiTarget::None) {
+            touchPending = false;
+            uiControllerTap(target, input.touchX, now, false);
+        } else if (input.touch == TouchEvent::Contact) {
+            uiControllerTouchContact(target, now);
+        }
     }
     if (input.button != ButtonEvent::None || input.touch != TouchEvent::None) {
         lastInteraction = now;

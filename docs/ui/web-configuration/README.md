@@ -18,9 +18,13 @@ in the original handoff below; the frozen visual references remain historical.
 User scope update, 2026-10-21: add **Audio** at `/audio`, after Stations. Move
 the shared collapsed sound controls into this tab, preserving Bass / Mid /
 Treble's −15…15 levels. Audio also contains an optional frequency notch filter
-(100–10,000 Hz, initially 3,000 Hz, disabled by default). Accept a single
-frequency such as `3000` or an increasing range such as `5000-5100`; the range
-widening is strongest near its middle with gradual rolloff at its edges.
+(single frequencies 100–10,000 Hz, initially 3,000 Hz, disabled by default).
+Accept a single frequency such as `3000` or an increasing range such as
+`5000-5100`; an in-band range is strongest near its middle with gradual rolloff
+at its edges. Ranges may start at zero, e.g. `0-10000` removes low frequencies
+while frequencies above 10 kHz can remain. A range reaching the stream’s upper
+frequency limit still filters the playable part, rather than bypassing it.
+A zero-start range covering the stream’s entire spectrum outputs digital silence.
 Existing single-frequency settings remain compatible. Save applies tone and
 filter together, with Cancel / reload and stale-edit protection. The filter
 covers local radio/recorded playback and Spotify; it cannot establish or repair

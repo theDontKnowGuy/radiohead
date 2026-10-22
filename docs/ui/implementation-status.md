@@ -1,5 +1,33 @@
 # Touch UI implementation status
 
+## 2026-10-22 — Retry a missed button during the same press
+
+**Functional: production input bridge/controller host checks and build pass.**
+If the initial on-panel contact hits no target, later accepted positions remain
+eligible on the starting page. The first target reached activates immediately
+and consumes the press until release. Holds cannot activate a second target,
+including after navigation; a page change while waiting for a target cancels
+eligibility. Dim-wake consumption and the existing tone-button repeat timing
+remain intact. Sampling, calibration, release debounce and redraw timing do not
+change. The red debug marker continues to show contact rather than activation.
+
+`python3 tools/check_touch_input.py` now compiles the production `serviceUiInput`
+function alongside the production controller. It checks initial misses, later
+activation after a brief dropout, consumed holds on the same and new pages,
+release/re-arm, external page changes, dim-wake, and delayed tone activation with
+hold repetition. Hit-test results are supplied by the fixture; this does not
+establish physical coordinate accuracy. The old bridge fails the new missed-hit
+regression; the updated bridge passes. `pio run -e esp32s3` and
+`git diff --check` pass. Image: 4,528,384 B, with 2,025,216 B (31%) app-slot
+headroom; DIRAM: 260,635 B used / 81,125 B remaining; external static RAM:
+40,224 B. These sizes include the existing local audio-volume change, which
+this package does not modify.
+
+**Visual:** drawing and hit geometry unchanged; no new render acceptance claimed.
+**Hardware:** not flashed or tested. Check a press starting beside a button then
+settling onto it, ordinary center taps, no second action while held across
+navigation, tone holds, and uninterrupted playback with USB serial closed.
+
 ## 2026-10-13 — Centered volume feedback panel
 
 Display-only package: replace the off-center volume label and reused full-width

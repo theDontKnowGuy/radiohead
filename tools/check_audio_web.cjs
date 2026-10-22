@@ -40,7 +40,10 @@ async function fixture({down=false}={}) {
  band.change({notchHz:5000,notchEndHz:5100,audioRevision:20});await band.poll();assert.equal(band.$('notch-frequency').value,'5000-5100');
  band.$('notch-frequency').value='5000-5300';band.$('notch-frequency').input();band.change({notchEndHz:5200,audioRevision:21});await band.poll();assert.equal(band.$('notch-frequency').value,'5000-5300');assert.match(band.$('audio-status').textContent,/elsewhere/);
  await band.$('audio-cancel').onclick();await flush();assert.equal(band.$('notch-frequency').value,'5000-5200');
- for (const invalid of ['', '99','10001','3.5','NaN','5100-5000','5000-5000','99-5100','5000-10001','5000-','-5100','5000-5100-5200','5e3-5100','5000Hz','5000/5100','5000-000','5000-00000']) {f.$('notch-frequency').value=invalid;await f.submit();assert.equal(f.posts.length,1);}
+ const zero=await fixture();zero.$('notch-frequency').value='0-10000';zero.$('notch-enabled').checked=true;
+ await zero.submit();assert.equal(zero.posts[0].notchHz,'0');assert.equal(zero.posts[0].notchEndHz,'10000');
+ assert.equal(zero.$('notch-frequency').value,'0-10000');await zero.poll();assert.equal(zero.$('notch-frequency').value,'0-10000');
+ for (const invalid of ['', '0', '0-0', '0-99', '1-10000', '99','10001','3.5','NaN','5100-5000','5000-5000','99-5100','5000-10001','5000-','-5100','5000-5100-5200','5e3-5100','5000Hz','5000/5100','5000-000','5000-00000']) {f.$('notch-frequency').value=invalid;await f.submit();assert.equal(f.posts.length,1);}
  f.$('notch-frequency').value='100';f.reject(500);await f.submit();assert.match(f.$('audio-status').textContent,/rejected/);assert.equal(f.$('notch-frequency').value,'100');
  f.reject(409);await f.submit();assert.match(f.$('audio-status').textContent,/draft is kept/);assert.equal(f.$('notch-frequency').value,'100');
  let prevented=false;f.events.click({target:{closest:()=>({})},preventDefault(){prevented=true;},stopImmediatePropagation(){}});assert(prevented);
