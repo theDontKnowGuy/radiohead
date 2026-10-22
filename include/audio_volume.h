@@ -4,12 +4,12 @@
 #include <stdint.h>
 
 // One gain scale for both backends: 0 is silent and 21 is unity gain.
-// A gentle 1.5-power curve gives quiet listening more room on the dial.
+// A squared curve gives quiet listening more room on the dial.
 constexpr uint8_t kRadioVolumeSteps = 21;
 inline float radioVolumeGain(float normalized) {
     if (normalized <= 0.0f) return 0.0f;
     if (normalized >= 1.0f) return 1.0f;
-    return normalized * sqrtf(normalized);
+    return normalized * normalized;
 }
 
 inline float radioVolumeDecibels(float normalized) {

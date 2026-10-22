@@ -1,5 +1,55 @@
 # Web configuration implementation progress
 
+### 2026-10-22 — Compiled firmware upload (ready for review)
+
+- Owner: `/root`; W8 follow-up in `src/web_server.cpp`,
+  `tools/check_firmware_upload.py` and `tools/check_firmware_upload_web.cjs`.
+  The user's existing `include/audio_volume.h` change was preserved.
+- Device & maintenance now puts **Upload compiled firmware** before release
+  updates, identifies the application `firmware.bin`, reviews filename/size,
+  checks the ESP32-S3/application header in the browser and repeats that check
+  before beginning a flash write. Existing CSS/coastal assets remain unchanged.
+- `POST /api/device/ota?size=<file bytes>` takes exactly one multipart file in
+  `firmware`. The size query is now required and bounded by the update slot;
+  open older pages must reload before uploading. Wrong field/extension/header,
+  wrong chip, bootloader/merged image, multiple files and byte-count mismatch
+  are rejected. Only the first 36 bytes are buffered for header inspection.
+  `Update.end()` validates the complete image before activation and the `202`.
+- The upload reserves the same atomic maintenance gate as release installs and
+  calibration, retains it through successful reboot, and releases it on failure,
+  abort or a malformed request returning without its completion callback.
+  Failure cleanup never aborts or unlocks another updater's operation.
+- TFT progress uses exact selected-image bytes, stays below 100% until final
+  validation, and renders during synchronous multipart callbacks. Previously,
+  WebServer's cumulative `totalSize` was treated as the final image length;
+  the outer loop could not render until the upload returned. Verified against
+  pinned [Arduino WebServer parsing](https://github.com/espressif/arduino-esp32/blob/3.3.11/libraries/WebServer/src/Parsing.cpp)
+  and [Update implementation](https://github.com/espressif/arduino-esp32/blob/3.3.11/libraries/Update/src/Updater.cpp).
+- Browser transfer progress is separate from image-validation acknowledgement.
+  HTTP rejection keeps the file for retry; lost responses/timeouts trigger
+  bounded reconnect checks. Success requires a restart detected by uptime and
+  rereads the running version/build. An uncertain result asks the user to check
+  the expected build. Conflicting local/release controls stay disabled.
+- Functional: `python3 tools/check_firmware_upload.py` passes compiled production
+  callbacks under ASan/UBSan: split headers, exact writes/progress, invalid size,
+  chip/image/field/extension, truncation/oversize, multiple files, lock rejection,
+  write/finalization failure, abort/retry and malformed-request cleanup.
+  `node tools/check_firmware_upload_web.cjs` passes production-script checks for
+  selection, stale file reads, bounds/header errors, review/cancel, multipart
+  submission, control exclusion, rejection/retry, lost responses and restart.
+  `python3 tools/check_firmware_update_display.py`,
+  `node tools/check_touch_diagnostics_web.cjs`,
+  `python3 tools/check_firmware_artifacts.py` and `git diff --check` also pass.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-ota-build.log`. Shared-worktree
+  firmware 4,535,040 bytes, with 2,018,560 bytes free in the application slot.
+  DIRAM 260,667 / 341,760 bytes (76.27%); 81,093 bytes free.
+- Visual: not verified; no browser was available. Script fixtures use synthetic
+  responses and do not establish browser layout or firmware-served acceptance.
+  Hardware: not flashed. Next: inspect desktop/phone upload/review UI; install a
+  known image, observe TFT progress and reconnect, verify settings retention,
+  then check interrupted/invalid uploads and maintenance/power conflicts.
+  Audio continuity during synchronous uploads remains unverified.
+
 ### 2026-10-22 — Frequency filter broad-range test (ready for device testing)
 
 - User observed no audible change on live radio; entering `0-10000` returned to
@@ -749,7 +799,7 @@ revision requirements, and any disconnect/restart consequence.
 | Connect/retry/forget Wi-Fi | `POST /api/network/connect`, `/retry`, `/forget` | `connect`: revision, exact SSID ≤32, password ≤63, and explicit `keep`/`replace`/`clear` semantics. | 400 invalid, 409 stale/busy, 202 means credentials were saved and a reboot was scheduled, not that connection succeeded. Next boot attempts the active saved network and falls back to setup AP after timeout; there is no in-place or previous-network recovery. Forget removes the active credential, acknowledges a scheduled reboot, then boots with another saved network or setup AP. | Source review + compile; device not verified. |
 | Read/save weather & time | `GET /api/weather`; `POST /api/weather/save` | Save requires revision, location ≤80, C/F, visibility, supported timezone, 12/24-hour choice, and explicit key `keep`/`replace`/`clear`. An exact supported `city,country` location replaces the submitted zone with its location zone. | JSON never returns API key. Successful persistence requests a bounded refresh but does not claim weather success; result exposes refreshing/available/freshness and clock-sync state. | Source review + compile; device not verified. |
 | Read device / diagnostics | `GET /api/device` | No arguments. | JSON reports real connection/address, build timestamp, ESP model, uptime, heap/PSRAM, sketch/update space, artwork storage and calibration presence. Service timing is explicitly `Not measured`; logs are `Not available`; no credentials are returned. | Source review + compile; device not verified. |
-| Firmware update | `POST /api/device/ota` | Multipart field `firmware`; browser locally reviews its filename/size and the Update library validates while writing. | `202` only after `Update.end(true)` succeeds and a deferred restart is scheduled. Failed/invalid writes return 500 and retain the active firmware. TFT receives write-byte progress; conflicting web and power actions are rejected/deferred while writing. | Source review + compile; device not verified. |
+| Firmware update | `POST /api/device/ota?size=<file bytes>` | Exactly one multipart field `firmware`; required exact size bounded by the update slot. Browser and device check ESP32-S3 application header before writing. | `202` only after exact byte count and `Update.end()` validation; restart follows. Invalid input returns 400, maintenance conflict 409, write/validation failure 500. Failed writes keep the active image; TFT renders byte progress during upload; maintenance stays exclusive through reboot. | Production-callback and browser-script host checks + compile; visual/device not verified. |
 | Restart / factory reset | `POST /api/device/restart`; `POST /api/device/factory-reset` | Reset requires form field `confirm=RESET`; both actions require no update/restart in progress. | `202` schedules the action after its acknowledgement can leave the radio. Reset follows the recorded scope above; touch calibration remains. | Source review + compile; device not verified. |
 
 ## Handoff verification
