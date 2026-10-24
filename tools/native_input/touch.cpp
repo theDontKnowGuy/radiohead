@@ -35,6 +35,7 @@ int playableStationCount() { return 10; }
 int playableStationSlotAt(int i) { return i >= 0 && i < 10 ? i : -1; }
 int selectedPlayableStationIndex() { return 0; }
 bool isStationFavorite(int slot) { return favoriteEnabled && slot == 0; }
+bool isSavedPodcastShow(int slot) { return slot >= 0 && slot < 10; }
 bool isPodcastShowFavorite(int i) { return i % 2 == 0; }
 bool podcastEpisodesReadyFor(int show) { return ready && show == 0; }
 PodcastPlaybackSnapshot podcastPlaybackSnapshot() { return {}; }

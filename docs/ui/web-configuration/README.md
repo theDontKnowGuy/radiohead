@@ -1,5 +1,11 @@
 # Radiohead web configuration: implementation handoff
 
+
+User scope update, 2026-10-24: settings file backup/restore is explicitly
+requested as an API-only feature. This supersedes the prior backup/restore
+exclusion; no browser controls are required. See
+[the API contract](../../settings-backup.md).
+
 Date: 2026-09-21. Scope: the ESP32-hosted web configuration interface.
 
 Implement the navy/coastal web mockup from the current design task. This handoff
@@ -30,6 +36,15 @@ filter together, with Cancel / reload and stale-edit protection. The filter
 covers local radio/recorded playback and Spotify; it cannot establish or repair
 an analog noise source. This supersedes the shared footer and five-tab rules
 below; retain the navy/coastal assets and the previous feature removals.
+
+User scope update, 2026-10-22: add **Programs** at `/programs`, after Stations.
+The saved ten-slot recorded-show catalog is now editable: preserve the existing
+Omny defaults/favorites, add public RSS 2.0 feeds, filter saved programs, search
+Apple Podcasts, preview episodes without starting playback, save and remove with
+confirmation. `/episodes` retains browsing in the shared shell. This supersedes
+the future-only recorded-show configuration restriction below. See
+[the catalog handoff](../../programs-catalog.md) for persistence, bounds and
+verification. Hardware acceptance remains separate.
 
 ## 1. Sources and precedence
 
@@ -73,7 +88,7 @@ At 420px and below, it wraps to two rows of three so labels and touch targets fi
 
 Do not add alarms, EQ presets, sleep timers, brightness adjustment, idle-clock
 mode, visualizer controls, language selection, station/favorite reordering,
-configuration backup/restore, or color editing. Do not add placeholders or
+configuration backup/restore controls, or color editing. Do not add placeholders or
 “Coming soon” rows for them. Standby/power-off and device renaming remain outside
 this implementation; their scope is TBD/future in the controlling plan.
 

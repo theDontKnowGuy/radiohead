@@ -9,6 +9,7 @@
 #include "Audio.h"
 #include "app_audio_pins.h"
 #include "boot_mode.h"
+#include "podcast_catalog.h"
 
 // Keep the encoder off the I2S outputs and the possible RGB LED pin GPIO38.
 // GPIO35-37 remain reserved for octal PSRAM on the N16R8 target.
@@ -33,8 +34,6 @@ constexpr int TOUCH_MISO = TFT_MISO;
 constexpr int TOUCH_CS = 14;
 
 constexpr int STATION_COUNT = 10;
-constexpr int PODCAST_SHOW_COUNT = 10;
-constexpr int MAX_EPISODES = 8;
 
 // Network identity is intentionally fixed: the QR badges are generated from
 // these values and the mDNS responder must use the same hostname.
@@ -51,17 +50,6 @@ enum class SetupAccessReason : uint8_t {
 struct RadioStation {
     String name;
     String url;
-};
-
-struct PodcastShow {
-    // This is a stable catalog identity, not a current list position. It is
-    // deliberately separate from the display name used by the UI.
-    const char* favoriteId;
-    uint8_t favoriteSlot;
-    const char* webName;
-    const char* tftName;
-    const char* program;
-    const char* playlist;
 };
 
 struct PodcastEpisode {
@@ -104,7 +92,7 @@ private:
 
 extern const char* ntpServer;
 extern RadioStation stations[STATION_COUNT];
-extern const PodcastShow podcastShows[PODCAST_SHOW_COUNT];
+extern PodcastShow podcastShows[PODCAST_SHOW_COUNT];
 extern PodcastEpisode podcastEpisodes[MAX_EPISODES];
 
 extern LGFX_Config tft;

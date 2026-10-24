@@ -571,16 +571,15 @@ bool clearStationFavorite(int stationIndex) {
 }
 
 bool isPodcastShowFavorite(int showIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    if (!isSavedPodcastShow(showIndex)) return false;
     const uint8_t slot = podcastShows[showIndex].favoriteSlot;
     return slot < PODCAST_SHOW_COUNT && (podcastShowFavoriteMask & (1U << slot)) != 0;
 }
 
 bool togglePodcastShowFavorite(int showIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    if (!isSavedPodcastShow(showIndex)) return false;
     const uint8_t slot = podcastShows[showIndex].favoriteSlot;
-    if (slot >= PODCAST_SHOW_COUNT || podcastShows[showIndex].favoriteId == nullptr ||
-        podcastShows[showIndex].favoriteId[0] == '\0') return false;
+    if (slot >= PODCAST_SHOW_COUNT) return false;
     podcastShowFavoriteMask ^= static_cast<uint16_t>(1U << slot);
     return true;
 }
@@ -935,4 +934,5 @@ void loadSettings() {
         }
         pref.end();
     }
+    loadPodcastCatalog();
 }

@@ -1,5 +1,50 @@
 # Touch UI implementation status
 
+## 2026-10-22 — Spotify metadata vertical alignment
+
+**Visual: native fixtures pass; physical TFT pending.** In response to the
+paused-player photo, moved the status label up 4 px inside its badge and the
+title/artist/album origins up 6/11/10 px respectively to account for glyph
+bearings. The album now clears the card border, with separate metadata rows.
+Card, artwork, header and transport geometry remain unchanged. Inspected the
+production renders `.pio/ui_native/spotify-paused-hebrew.png` (the photo's title
+and artist) and `spotify-playing.png` at 320 × 240. Existing long mixed-script,
+empty metadata, connecting and failed fixtures also rendered successfully.
+
+**Functional: full native render checks and firmware build pass.** Corrected
+the obsolete fixture expectation that active transport has a hint-card surface;
+that surface is checked in the connecting state where it is actually drawn.
+`python3 tools/render_ui_fonts.py`, `pio run -e esp32s3` and
+`git diff --check` pass. Firmware is 4,676,896 B with 1,876,704 B app-slot
+headroom; DIRAM uses 261,803 B with 79,957 B remaining, external static RAM
+40,224 B. No isolated pre-change size baseline was captured.
+
+**Hardware: not flashed or verified.** Check metadata spacing and playback on
+the TFT with USB serial closed. P2/P3 hardware acceptance remains open.
+
+## 2026-10-22 — Saved-program catalog integration
+
+**Functional: host catalog/API/request-coordinator and controller checks pass.**
+Recorded Shows skips deleted slots, keeps favorites tied to saved identities,
+resets affected viewports after web edits and supplies an honest empty state.
+The player owns its metadata copy, so a catalog edit/removal does not rename or
+stop the episode. The web owns typing/search; no TFT editor or new navigation
+model is introduced. See [the catalog handoff](../programs-catalog.md).
+
+**Visual: focused native fixtures inspected.** Reference: concept panels 5–7;
+production renderer evidence is `.pio/ui_native/programs-default.png`,
+`programs-edited.png` (gaps and a long mixed Hebrew/Latin name) and
+`programs-empty.png`, generated with
+`python3 tools/render_ui_fonts.py --programs-only`. Existing sunset/blue composition,
+artwork fallback, row geometry and paging are preserved. Empty-state web handoff
+is intentional. This is incremental evidence, not closure of older P2/P3 items.
+The broader full renderer suite still fails a Home dim-hint
+pixel assertion; the focused program fixtures pass.
+
+**Hardware: not verified or flashed.** Verify fresh/legacy/reboot catalogs,
+TFT/web favorites, slot removal/reuse, playback while editing/previewing, Hebrew
+legibility and audio service/heap/task-stack headroom on the actual panel/device.
+
 ## 2026-10-22 — Retry a missed button during the same press
 
 **Functional: production input bridge/controller host checks and build pass.**

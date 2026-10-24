@@ -161,10 +161,9 @@ void openStationInfo() {
 }
 
 int podcastShowCount(bool favoritesOnly) {
-    if (!favoritesOnly) return PODCAST_SHOW_COUNT;
     int count = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
-        if (isPodcastShowFavorite(index)) ++count;
+        if (isSavedPodcastShow(index) && (!favoritesOnly || isPodcastShowFavorite(index))) ++count;
     }
     return count;
 }
@@ -172,6 +171,7 @@ int podcastShowCount(bool favoritesOnly) {
 int podcastShowAt(int visibleIndex, bool favoritesOnly) {
     if (visibleIndex < 0) return -1;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
+        if (!isSavedPodcastShow(index)) continue;
         if (favoritesOnly && !isPodcastShowFavorite(index)) continue;
         if (visibleIndex-- == 0) return index;
     }
@@ -187,7 +187,7 @@ void openRecordedShows(bool favoritesOnly = false) {
 }
 
 void openEpisodes(int showIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return;
+    if (!isSavedPodcastShow(showIndex)) return;
     state.page = UiPage::ShowEpisodes;
     state.episodeShow = showIndex;
     state.episodeFocus = 0;
@@ -771,6 +771,13 @@ void uiControllerReportWifiActionFailure() {
 void uiControllerReportPodcastStartFailure() {
     if (state.page != UiPage::PodcastPlayer) return;
     state.page = UiPage::ShowEpisodes;
+    markDirty();
+}
+
+void uiControllerProgramsChanged(int slot) {
+    state.showOffset = state.showFocus = 0;
+    if (state.page == UiPage::Favorites && state.favoriteShowsTab) state.favoriteOffset = 0;
+    if (slot >= 0 && state.page == UiPage::ShowEpisodes && state.episodeShow == slot) openRecordedShows();
     markDirty();
 }
 

@@ -20,8 +20,10 @@
 #include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
+#include "settings_backup.h"
 #include "spotify_adapter.h"
 #include "ui_web_assets.h"
+#include "ui_controller.h"
 #include "validation_diagnostics.h"
 #include "wifi_network.h"
 
@@ -44,6 +46,11 @@ uint8_t otaUploadHeader[OTA_HEADER_BYTES];
 size_t otaUploadHeaderBytes = 0;
 bool artworkUploadAccepted = false;
 bool artworkUploadSucceeded = false;
+SettingsBackup::Buffer settingsUpload;
+bool settingsUploadReceived = false;
+bool settingsUploadComplete = false;
+bool settingsUploadReserved = false;
+int settingsUploadStatus = 400;
 bool webStationConnected = false;
 bool webSetupAccessPoint = false;
 bool webMdnsStarted = false;
@@ -175,26 +182,12 @@ void redirectTo(const String& location) {
     redirectTo(location.c_str());
 }
 
-String pageStart(const String& title, const String& accent = "orange") {
-    return "<html><head><meta charset='utf-8'>"
-           "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-           "<link rel='icon' type='image/png' href='/favicon.png'>"
-           "<style>body{background:#121212;color:" + accent +
-           ";font-family:sans-serif;text-align:center;padding:10px}"
-           ".btn{background:#333;border:2px solid " + accent +
-           ";color:#fff;padding:10px;margin:5px;display:inline-block;text-decoration:none;border-radius:8px}"
-           ".card{background:#222;padding:15px;margin:10px auto;max-width:420px;border-radius:12px;border:1px solid " +
-           accent + "}input,select{background:#222;color:#fff;padding:7px;border:1px solid #555}"
-           "table{width:100%;max-width:600px;margin:auto;border-collapse:collapse}"
-           "td{padding:8px;border-bottom:1px solid #444}</style></head><body><h1>" +
-           htmlEscape(title) + "</h1>";
-}
-
-enum class WebSection : uint8_t { Stations, Audio, Spotify, Network, Weather, Device };
+enum class WebSection : uint8_t { Stations, Programs, Audio, Spotify, Network, Weather, Device };
 
 const char* sectionPath(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "/";
+    case WebSection::Programs: return "/programs";
     case WebSection::Audio: return "/audio";
     case WebSection::Spotify: return "/spotify";
     case WebSection::Network: return "/network";
@@ -207,6 +200,7 @@ const char* sectionPath(WebSection section) {
 const char* sectionDesktopLabel(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "Stations";
+    case WebSection::Programs: return "Programs";
     case WebSection::Audio: return "Audio";
     case WebSection::Spotify: return "Spotify";
     case WebSection::Network: return "Network";
@@ -219,6 +213,7 @@ const char* sectionDesktopLabel(WebSection section) {
 const char* sectionMobileLabel(WebSection section) {
     switch (section) {
     case WebSection::Stations: return "Stations";
+    case WebSection::Programs: return "Programs";
     case WebSection::Audio: return "Audio";
     case WebSection::Spotify: return "Spotify";
     case WebSection::Network: return "Network";
@@ -230,6 +225,7 @@ const char* sectionMobileLabel(WebSection section) {
 
 const char* sectionIcon(WebSection section) {
     switch (section) {
+    case WebSection::Programs: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5h16M4 12h10M4 19h10m4-6 4 3-4 3Z'/></svg>";
     case WebSection::Audio: return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M5 3v5m0 4v9M12 3v10m0 4v4M19 3v2m0 4v12M2 8h6m1 9h6m1-12h6'/></svg>";
     case WebSection::Stations: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='2'/><path d='M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2M8 8a5.7 5.7 0 0 0 0 8M16 8a5.7 5.7 0 0 1 0 8'/></svg>";
     case WebSection::Spotify: return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='9'/><path d='M6.5 9a14 14 0 0 1 11 1M7.5 12.5a11 11 0 0 1 9 1M8.5 16a8 8 0 0 1 7 1'/></svg>";
@@ -732,11 +728,12 @@ bool hasCurrentPlayerRevision() {
 
 void appendNavigation(String& html, WebSection selected) {
     constexpr WebSection sections[] = {
-        WebSection::Stations, WebSection::Audio, WebSection::Spotify, WebSection::Network, WebSection::Weather,
+        WebSection::Stations, WebSection::Programs, WebSection::Audio, WebSection::Spotify, WebSection::Network, WebSection::Weather,
         WebSection::Device,
     };
     html += "<nav class='rh-nav' aria-label='Settings sections'>";
     for (const WebSection section : sections) {
+        if (isAP && section != WebSection::Network) continue;
         html += "<a href='" + String(sectionPath(section)) + "' class='rh-navlink'";
         if (section == selected) html += " aria-current='page'";
         html += ">" + String(sectionIcon(section)) + "<span class='rh-desktoplabel'>" +
@@ -756,8 +753,66 @@ void appendTimeZoneOptions(String& html) {
     }
 }
 
+void appendProgramContent(String& html) {
+    html += R"HTML(<div class='rh-pagehead'><div><h1>Programs</h1><p>Your saved shows, ready on the radio.</p></div></div>
+<div class='rh-row rh-stationtoolbar'><button class='rh-button rh-primary' type='button' id='program-add' disabled>Add program</button></div>
+<section class='rh-box'><label class='rh-field'><span>Search saved programs</span><input id='program-filter' type='search' maxlength='160' dir='auto' placeholder='Name or source'></label></section>
+<section class='rh-list' aria-labelledby='program-heading'><div class='rh-listhead'><h2 id='program-heading'>Saved on your radio</h2><span id='program-count'></span></div><div id='program-list'><p class='rh-empty'>Loading programs…</p></div></section>
+<p class='rh-importline' id='program-feedback' aria-live='polite'>Favorites appear on your radio, too.</p>
+<section class='rh-box' id='program-editor' hidden><button class='rh-back' type='button' id='program-cancel'>← Back to programs</button><h2 id='program-editor-title'>Add program</h2>
+<form id='program-directory'><label class='rh-field'><span>Find a podcast</span><input id='program-query' maxlength='160' dir='auto' placeholder='Program name or author'></label><div class='rh-footer'><span class='rh-formstatus' id='program-directory-status' aria-live='polite'>Search Apple Podcasts, or enter an RSS feed below.</span><button class='rh-button' id='program-search' type='submit'>Search directory</button></div><div id='program-results'></div></form>
+<form id='program-form'><label class='rh-field'><span>Program name</span><input id='program-name' maxlength='160' dir='auto' required></label>
+<label class='rh-field'><span>Source</span><select id='program-kind'><option value='rss'>Podcast RSS feed</option><option value='omny'>Omny program / playlist</option></select></label>
+<div id='program-rss-fields'><label class='rh-field'><span>RSS feed URL</span><input id='program-feed' type='url' maxlength='512' dir='ltr' inputmode='url'><small>Use a public RSS 2.0 feed, rather than a program's website or a Spotify page.</small></label></div>
+<div class='rh-grid2' id='program-omny-fields' hidden><label class='rh-field'><span>Omny program</span><input id='program-omny' maxlength='80' dir='ltr' placeholder='ilanadayan'></label><label class='rh-field'><span>Omny playlist</span><input id='program-playlist' maxlength='80' dir='ltr' placeholder='podcast'></label></div>
+<label class='rh-inlinecheck'><input type='checkbox' id='program-favorite'>Add to favorites</label><p class='rh-note'>Browsing, previewing and saving keep your current audio playing. Up to eight episodes are read in feed order.</p>
+<div class='rh-footer'><span class='rh-formstatus' id='program-status' aria-live='polite'>Not previewed</span><button class='rh-button' type='button' id='program-preview'>Preview episodes</button><button class='rh-button rh-danger' type='button' id='program-remove' hidden>Remove program</button><button class='rh-button rh-primary' type='submit' id='program-save'>Save program</button></div><ol id='program-preview-results' dir='auto'></ol></form></section>
+<div class='rh-overlay' id='program-dialog' hidden><section class='rh-dialog' role='dialog' aria-modal='true' aria-labelledby='program-dialog-title'><h2 id='program-dialog-title'>Remove program?</h2><p id='program-dialog-message'></p><div class='rh-footer'><button class='rh-button' type='button' id='program-dialog-cancel'>Cancel</button><button class='rh-button rh-danger' type='button' id='program-dialog-confirm'>Remove program</button></div></section></div>)HTML";
+    html += R"JS(<script>(()=>{
+const $=id=>document.getElementById(id),esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normalize=value=>value.normalize('NFKC').toLocaleLowerCase().trim(),bytes=value=>new TextEncoder().encode(value).length;
+let state=null,slot=null,editRevision=0,baseline='',writing=false,previewGeneration=0,previewTimer=0,searchGeneration=0,searchController=null,searchStarted=0;
+const fields=['program-name','program-kind','program-feed','program-omny','program-playlist','program-favorite'];
+const draft=()=>({name:$('program-name').value.trim(),kind:$('program-kind').value,feedUrl:$('program-feed').value.trim(),program:$('program-omny').value.trim(),playlist:$('program-playlist').value.trim(),favorite:$('program-favorite').checked?'1':'0'});
+const dirty=()=>!$('program-editor').hidden&&JSON.stringify(draft())!==baseline;
+function status(message){$('program-status').textContent=message;}
+function busy(value){writing=value;['program-add','program-save','program-remove','program-preview','program-cancel','program-search',...fields].forEach(id=>$(id).disabled=value||!state);$('program-add').disabled=value||!state||state.programs.length>=state.capacity;}
+async function request(url,body){const response=await fetch(url,{...(body?{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}:{}),cache:'no-store'});let data;try{data=await response.json();}catch(_){throw Error('The radio returned an unreadable response. Your draft is kept.');}if(!response.ok)throw Error(response.status===409?'Programs changed elsewhere. Your draft is kept; cancel / reload before saving.':data.error||'The radio did not accept that request.');return data;}
+function renderList(){if(!state)return;const term=normalize($('program-filter').value),shown=state.programs.filter(p=>normalize([p.name,p.feedUrl,p.program,p.playlist].join(' ')).includes(term));$('program-count').textContent=state.programs.length+' / '+state.capacity+' programs';$('program-add').disabled=writing||state.programs.length>=state.capacity;
+$('program-list').innerHTML=shown.length?shown.map(p=>`<div class="rh-station"><div class="rh-art" aria-hidden="true">${esc(Array.from(p.name)[0]||'♪')}</div><div><div class="rh-stationname"><bdi>${esc(p.name)}</bdi></div><p class="rh-stationdesc" dir="ltr">${esc(p.kind==='rss'?p.feedUrl:'Omny · '+p.program+' / '+p.playlist)}</p><a class="rh-back" href="/episodes?show=${p.slot}&amp;id=${encodeURIComponent(p.id)}">Browse episodes</a></div><div class="rh-actions"><button class="rh-iconbutton" type="button" data-program-favorite="${p.slot}" aria-pressed="${p.favorite}" aria-label="Toggle favorite for ${esc(p.name)}">★</button><button class="rh-iconbutton" type="button" data-program-edit="${p.slot}" aria-label="Edit ${esc(p.name)}">✎</button></div></div>`).join(''):`<p class="rh-empty">${state.programs.length?'No saved programs match your search.':'No saved programs. Add your first program above.'}</p>`;
+$('program-list').querySelectorAll('[data-program-edit]').forEach(button=>button.onclick=()=>openEditor(Number(button.dataset.programEdit)));$('program-list').querySelectorAll('[data-program-favorite]').forEach(button=>button.onclick=()=>favorite(Number(button.dataset.programFavorite)));}
+async function load(){state=await request('/api/programs');renderList();busy(false);}
+function cancelPreview(){++previewGeneration;clearTimeout(previewTimer);$('program-preview-results').innerHTML='';}
+function cancelSearch(){++searchGeneration;if(searchController)searchController.abort();searchController=null;$('program-search').disabled=writing;}
+function kind(){const rss=$('program-kind').value==='rss';$('program-rss-fields').hidden=!rss;$('program-omny-fields').hidden=rss;}
+function openEditor(nextSlot){if(writing||!state)return;if(dirty()&&!confirm('Discard your unsaved program changes?'))return;cancelPreview();cancelSearch();slot=nextSlot;editRevision=state.revision;const p=slot===null?null:state.programs.find(p=>p.slot===slot);if(slot!==null&&!p)return;
+$('program-editor-title').textContent=p?'Edit program':'Add program';$('program-name').value=p?p.name:'';$('program-kind').value=p?p.kind:'rss';$('program-feed').value=p?p.feedUrl:'';$('program-omny').value=p?p.program:'';$('program-playlist').value=p?p.playlist:'';$('program-favorite').checked=!!(p&&p.favorite);$('program-remove').hidden=!p;$('program-results').innerHTML='';$('program-query').value='';$('program-directory-status').textContent='Search Apple Podcasts, or enter an RSS feed below.';kind();baseline=JSON.stringify(draft());status('Not previewed');$('program-editor').hidden=false;$('program-editor').scrollIntoView({behavior:'smooth'});$('program-name').focus();}
+async function closeEditor(){if(writing||dirty()&&!confirm('Discard your unsaved program changes?'))return;cancelPreview();cancelSearch();$('program-editor').hidden=true;try{await load();}catch(error){$('program-feedback').textContent=error.message;}}
+function validated(){const data=draft();if(!data.name||bytes(data.name)>160)throw Error('Enter a program name of up to 160 UTF-8 bytes.');if(data.kind==='rss'){if(!/^https?:\/\/[^\s/@?#:]+(?::\d+)?(?:[/?][^\s@#]*)?$/.test(data.feedUrl)||bytes(data.feedUrl)>512)throw Error('Enter a direct HTTP(S) RSS feed URL of up to 512 bytes.');data.program='';data.playlist='';}else{if(!/^[A-Za-z0-9_-]{1,80}$/.test(data.program)||!/^[A-Za-z0-9_-]{1,80}$/.test(data.playlist))throw Error('Enter the Omny program and playlist slugs (letters, numbers, - or _).');data.feedUrl='';}return data;}
+async function save(event){event.preventDefault();if(writing||!state)return;let data;try{data=validated();}catch(error){status(error.message);return;}cancelPreview();cancelSearch();busy(true);status('Saving…');try{state=await request('/api/programs/save',{...data,slot:slot===null?'':slot,revision:editRevision});baseline=JSON.stringify(draft());$('program-editor').hidden=true;renderList();$('program-feedback').textContent='Program saved on your radio.';}catch(error){status(error.message);}finally{busy(false);}}
+async function favorite(target){if(writing||!state)return;if(dirty()){$('program-feedback').textContent='Save or cancel your program draft before changing favorites.';return;}busy(true);try{state=await request('/api/programs/favorite',{slot:target,revision:state.revision});renderList();if(!$('program-editor').hidden){editRevision=state.revision;const p=state.programs.find(p=>p.slot===slot);if(p){$('program-favorite').checked=p.favorite;baseline=JSON.stringify(draft());}}$('program-feedback').textContent='Favorite saved.';}catch(error){$('program-feedback').textContent=error.message;}finally{busy(false);}}
+async function search(event){event.preventDefault();if(writing)return;const query=$('program-query').value.trim();if(!query){$('program-directory-status').textContent='Enter a program name or author.';return;}if(Date.now()-searchStarted<4000){$('program-directory-status').textContent='Wait a few seconds before searching again.';return;}cancelSearch();const generation=searchGeneration,startingDraft=JSON.stringify(draft());searchStarted=Date.now();searchController=new AbortController();const controller=searchController,timer=setTimeout(()=>controller.abort(),8000);$('program-search').disabled=true;$('program-results').innerHTML='';$('program-directory-status').textContent='Searching Apple Podcasts…';try{const response=await fetch('https://itunes.apple.com/search?'+new URLSearchParams({term:query,media:'podcast',entity:'podcast',country:'IL',limit:'12'}),{signal:controller.signal});if(!response.ok)throw Error();const data=await response.json();if(generation!==searchGeneration)return;const results=Array.isArray(data.results)?data.results.filter(p=>typeof p.collectionName==='string'&&typeof p.feedUrl==='string'&&/^https?:\/\//.test(p.feedUrl)&&bytes(p.feedUrl)<=512&&bytes(p.collectionName)<=160).slice(0,8):[];
+$('program-directory-status').textContent=results.length?'Select a result to copy it into your draft.':'No matching podcasts found. Try another name or paste an RSS feed.';$('program-results').innerHTML=results.map((p,i)=>`<button class="rh-result" type="button" data-program-result="${i}"><span class="rh-art" aria-hidden="true">♪</span><span><bdi>${esc(p.collectionName)}</bdi><small><bdi>${esc(p.artistName||'')}</bdi></small></span></button>`).join('');$('program-results').querySelectorAll('[data-program-result]').forEach(button=>button.onclick=()=>{if(writing||generation!==searchGeneration)return;if(JSON.stringify(draft())!==startingDraft&&!confirm('Replace the name and source you have edited with this search result?'))return;const p=results[Number(button.dataset.programResult)];$('program-name').value=p.collectionName;$('program-kind').value='rss';$('program-feed').value=p.feedUrl;$('program-omny').value='';$('program-playlist').value='';$('program-favorite').checked=false;kind();cancelPreview();status('Suggestion copied. Preview episodes or save when ready.');$('program-results').innerHTML='';});
+}catch(_){if(generation===searchGeneration)$('program-directory-status').textContent='The directory is unavailable. Try again later, or paste an RSS feed manually.';}finally{clearTimeout(timer);if(generation===searchGeneration){searchController=null;$('program-search').disabled=writing;}}}
+async function preview(){if(writing)return;let data;try{data=validated();}catch(error){status(error.message);return;}cancelPreview();const generation=previewGeneration;status('Loading a preview on the radio…');try{const job=await request('/api/programs/preview',data);if(generation!==previewGeneration)return;const started=Date.now();async function poll(){if(generation!==previewGeneration)return;try{const result=await request('/api/programs/preview?token='+job.token);if(generation!==previewGeneration)return;if(result.state==='loading'){if(Date.now()-started>90000)throw Error('Preview timed out. Your current audio keeps playing.');previewTimer=setTimeout(poll,700);return;}if(result.state!=='ready')throw Error('No playable episodes could be read. Check the feed or source and try again.');$('program-preview-results').innerHTML=result.episodes.map(e=>`<li><bdi>${esc(e.title)}</bdi>${e.published?' · '+esc(e.published):''}</li>`).join('');status(result.episodes.length+' episodes read. Audio playback was not tested.');}catch(error){if(generation===previewGeneration)status(error.message);}}await poll();}catch(error){if(generation===previewGeneration)status(error.message);}}
+$('program-remove').onclick=()=>{if(writing)return;const p=state.programs.find(p=>p.slot===slot);if(!p)return;$('program-dialog-title').textContent='Remove '+p.name+'?';$('program-dialog-message').textContent='This removes the saved program and its favorite. The episode already playing will continue.';$('program-dialog').hidden=false;$('program-dialog-cancel').focus();};
+$('program-dialog-cancel').onclick=()=>{if(writing)return;$('program-dialog').hidden=true;$('program-remove').focus();};
+$('program-dialog').addEventListener('keydown',event=>{if(event.key==='Escape'){$('program-dialog-cancel').onclick();event.preventDefault();}if(event.key==='Tab'){event.preventDefault();(document.activeElement===$('program-dialog-cancel')?$('program-dialog-confirm'):$('program-dialog-cancel')).focus();}});
+$('program-dialog-confirm').onclick=async()=>{if(writing)return;cancelPreview();cancelSearch();busy(true);$('program-dialog-confirm').disabled=true;try{state=await request('/api/programs/remove',{slot,revision:editRevision});$('program-dialog').hidden=true;$('program-editor').hidden=true;baseline='';renderList();$('program-feedback').textContent='Program removed. Current playback continues.';}catch(error){$('program-dialog').hidden=true;status(error.message);}finally{busy(false);$('program-dialog-confirm').disabled=false;}};
+fields.forEach(id=>$(id).addEventListener('input',()=>{if(['program-kind','program-feed','program-omny','program-playlist'].includes(id))$('program-favorite').checked=false;cancelPreview();status('Unsaved changes');}));$('program-kind').onchange=kind;$('program-add').onclick=()=>openEditor(null);$('program-cancel').onclick=closeEditor;$('program-filter').oninput=renderList;$('program-directory').onsubmit=search;$('program-form').onsubmit=save;$('program-preview').onclick=preview;
+window.addEventListener('beforeunload',event=>{if(writing||dirty()){event.preventDefault();event.returnValue='';}});document.addEventListener('click',event=>{const link=event.target.closest('a');if(link&&(writing||dirty())&&(writing||!confirm('Leave without saving your program changes?'))){event.preventDefault();event.stopImmediatePropagation();}},true);
+load().catch(error=>{$('program-feedback').textContent=error.message;$('program-list').textContent='Could not load saved programs. Reload this page to retry.';});
+})();</script>)JS";
+}
+
+void appendProgramEpisodes(String& html);
+
 void appendSectionContent(String& html, WebSection section) {
     switch (section) {
+    case WebSection::Programs:
+        if (server.uri() == "/episodes") appendProgramEpisodes(html);
+        else appendProgramContent(html);
+        break;
     case WebSection::Audio:
         html += "<div class='rh-pagehead'><div><h1>Audio</h1><p>Shape the sound on your radio.</p></div></div>"
             "<form id='audio-form'><section class='rh-box'><h2>Custom tone</h2><p>Bass, Mid and Treble levels range from −15 to +15. Save to apply your changes.</p><div class='rh-eqgrid'>";
@@ -941,7 +996,7 @@ reload();})();</script>)JS";
             "<section class='rh-box' aria-labelledby='release-update'><h2 id='release-update'>Release updates</h2><p class='rh-muted'>The radio checks the official GitHub release channel hourly. Firmware and its manifest are fetched only over GitHub TLS and the image digest is verified before restart.</p><label class='rh-field'><span>When a new release is found</span><select id='release-auto'><option value='1'>Install automatically</option><option value='0'>Manual — choose Install update here</option></select></label><div class='rh-footer'><span class='rh-formstatus' id='release-status' role='status'>Checking update status…</span><button class='rh-button' id='release-check' data-maintenance-action type='button'>Check now</button><button class='rh-button rh-primary' id='release-install' data-maintenance-action type='button' hidden>Install update</button></div></section>"
             "<section class='rh-box' aria-labelledby='touch-calibration'><h2 id='touch-calibration'>Touch calibration</h2><p class='rh-muted'>Start here, then tap each corner marker on the radio’s touchscreen. Playback and web controls may pause until you finish.</p><div class='rh-footer'><span class='rh-formstatus' id='device-calibration-status' role='status'>Ready to calibrate on the radio.</span><button class='rh-button rh-primary' id='device-calibration-start' data-maintenance-action type='button' disabled>Start touch calibration</button></div></section>"
             "<section class='rh-box'><h2>Restart</h2><p class='rh-muted'>Restarting stops playback. Your stations, Wi-Fi and settings are kept.</p><div class='rh-footer'><button class='rh-button' id='device-restart' data-maintenance-action type='button'>Restart radio</button></div></section>"
-            "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration are kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
+            "<section class='rh-box'><h2>Factory reset</h2><p class='rh-note rh-warning'>This removes radio settings, Wi-Fi, stations, programs, favorites and station artwork. Spotify credentials, pairing and touch calibration are kept. A custom background is not stored by this firmware yet.</p><div class='rh-footer'><button class='rh-button rh-danger' id='device-reset' data-maintenance-action type='button'>Factory reset</button></div></section>"
             R"HTML(<div class='rh-overlay' id='device-dialog' hidden><section class='rh-dialog' role='dialog' aria-modal='true' aria-labelledby='device-dialog-title'><h2 id='device-dialog-title'></h2><p id='device-dialog-copy'></p><label class='rh-field' id='device-reset-label' hidden><span>Type RESET to continue</span><input id='device-reset-confirm' autocomplete='off'></label><div class='rh-footer'><button class='rh-button' id='device-dialog-cancel' type='button'>Cancel</button><button class='rh-button rh-primary' id='device-dialog-confirm' type='button'></button></div></section></div><script>)HTML";
         html += R"JS((()=>{const $=id=>document.getElementById(id);let state=null,file=null,dialogAction=null,lastFocus=null,calibrationPending=false,calibrationPoll=0,fileValid=false,fileCheck=0,maintenanceBusy=false,uploadPending=false,reconnecting=false,stateSampledAt=0;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -955,7 +1010,7 @@ function renderCalibration(data){const wasPending=calibrationPending;calibration
 function render(data){state=data;stateSampledAt=Date.now();renderCalibration(data);setBusy(!!data.updateInProgress||calibrationPending||uploadPending||reconnecting);$('device-about').innerHTML=row('Connection',data.connection)+row('Address',data.address,true)+row('Firmware version',`${data.firmwareVersion} · ${data.firmwareReleased}`)+row('Firmware build',data.firmwareBuild)+row('Hardware',data.hardware);$('device-diagnostics').innerHTML=row('Uptime',data.uptimeSeconds+' seconds')+row('Free heap',bytes(data.freeHeap))+row('Free PSRAM',bytes(data.freePsram))+row('Firmware image',bytes(data.sketchBytes))+row('Free update space',bytes(data.freeSketchBytes))+row('Artwork storage',data.artworkStorageAvailable?`${bytes(data.artworkStorageUsed)} of ${bytes(data.artworkStorageTotal)}`:'Unavailable')+row('Touch calibration',data.touchCalibrationSaved?'Saved':'Not measured')+pointRows('Saved touch points',data.touchCalibrationParameters)+pointRows('Active touch points',data.touchActiveCalibration)+row('Active calibration source',data.touchCalibrationSource)+row('Service timing',data.serviceTiming)+row('Logs',data.logs);if(data.updateInProgress){setBusy(true);$('firmware-status').textContent='Firmware maintenance is in progress. Keep power connected.';}}
 async function refresh(){try{render(await fetch('/api/device',{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(async r=>{if(!r.ok)throw Error('Device information is unavailable.');return r.json();}));}catch(error){if(calibrationPending){$('device-calibration-status').textContent='Follow the corner markers on the radio. Waiting for the radio to respond…';calibrationPoll=setTimeout(refresh,2000);}else $('firmware-status').textContent=error.message;}}
 function closeDialog(){const dialog=$('device-dialog');dialog.hidden=true;$('device-reset-confirm').value='';$('device-reset-label').hidden=true;if(lastFocus)lastFocus.focus();}
-function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, favorites and station artwork. Spotify credentials, pairing and touch calibration remain. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':`${file?.name} · ${bytes(file?.size||0)}. The radio will validate and write this application image, then restart. Keep power connected until it reconnects.`;$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
+function openDialog(kind){lastFocus=document.activeElement;const reset=kind==='reset',restart=kind==='restart';$('device-dialog-title').textContent=reset?'Factory reset radio?':restart?'Restart radio?':'Update firmware?';$('device-dialog-copy').textContent=reset?'This permanently removes radio settings, Wi-Fi, stations, programs, favorites and station artwork. Spotify credentials, pairing and touch calibration remain. Type RESET to confirm.':restart?'Playback will stop while the radio restarts. Your stations, Wi-Fi and settings will be kept.':`${file?.name} · ${bytes(file?.size||0)}. The radio will validate and write this application image, then restart. Keep power connected until it reconnects.`;$('device-reset-label').hidden=!reset;$('device-dialog-confirm').textContent=reset?'Factory reset':restart?'Restart':'Update firmware';$('device-dialog-confirm').className='rh-button '+(reset?'rh-danger':'rh-primary');dialogAction=kind;$('device-dialog').hidden=false;setTimeout(()=>{(reset?$('device-reset-confirm'):$('device-dialog-cancel')).focus();},0);}
 async function post(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});const data=await response.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!response.ok)throw Error(data.error||'Request failed.');return data;}
 async function updateFile(){
  const check=++fileCheck;file=$('firmware-file').files[0]||null;fileValid=false;fileControls();$('firmware-progress').hidden=true;
@@ -1033,17 +1088,21 @@ $('release-auto').onchange=async()=>{try{const data=await request('/api/update/a
 }
 
 void handleConfigShell(WebSection section) {
+    if (isAP && section != WebSection::Network) {
+        redirectTo(sectionPath(WebSection::Network));
+        return;
+    }
     String html;
     const MediaSnapshot& media = mediaSnapshot();
     const String address = localAddress();
     const String addressLabel = address.isEmpty() ? String("Address unavailable") : address;
     // The Station editor carries its browser-side discovery
     // code, so reserve once instead of repeatedly growing a transient String.
-    html.reserve(section == WebSection::Stations ? 24500 : 9400);
+    html.reserve(section == WebSection::Stations || section == WebSection::Programs ? 24500 : 9400);
     html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
         "<link rel='icon' type='image/png' href='/favicon.png'>"
-        "<link rel='stylesheet' href='/ui/radiohead.css?v=audio-tab'></head><body class='radiohead-page'><div id='rh-config'>"
+        "<link rel='stylesheet' href='/ui/radiohead.css?v=programs'></head><body class='radiohead-page'><div id='rh-config'>"
         "<header class='rh-top'><div class='rh-brand'><span class='rh-brand-mark' aria-hidden='true'>⌁</span>radiohead <span class='rh-muted'>/ settings</span></div>"
         "<div class='rh-topmeta'><span>" + htmlEscape(connectionState()) + "</span><span dir='ltr'>" +
         htmlEscape(addressLabel) + "</span></div></header><div class='rh-layout'><aside class='rh-sidebar'>";
@@ -1088,6 +1147,114 @@ void handleConfigShell(WebSection section) {
 }
 
 void handleRoot() { handleConfigShell(WebSection::Stations); }
+
+void clearSettingsUpload() {
+    settingsUpload.clear();
+    settingsUploadReceived = false;
+    settingsUploadComplete = false;
+    settingsUploadStatus = 400;
+    if (settingsUploadReserved) firmwareUpdater.endLocalMaintenance();
+    settingsUploadReserved = false;
+}
+
+bool settingsBackupHeaderPresent() {
+    return server.header("X-Radiohead-Backup") == "1";
+}
+
+void sendSettingsBackupError(int status, const char* message) {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(status, "application/json", "{\"error\":\"" + String(message) + "\"}");
+}
+
+void handleSettingsBackup() {
+    if (!settingsBackupHeaderPresent()) {
+        sendSettingsBackupError(403, "Set X-Radiohead-Backup: 1 to download settings including credentials.");
+        return;
+    }
+    if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+        sendMaintenanceBusy();
+        return;
+    }
+    SettingsBackup::Buffer snapshot;
+    const bool captured = SettingsBackup::capture(snapshot);
+    firmwareUpdater.endLocalMaintenance();
+    if (!captured) {
+        sendSettingsBackupError(500, "Could not read a complete settings backup.");
+        return;
+    }
+    server.sendHeader("Cache-Control", "no-store");
+    server.sendHeader("X-Content-Type-Options", "nosniff");
+    server.sendHeader("Content-Disposition", "attachment; filename=radiohead-settings.rhb");
+    server.setContentLength(snapshot.size);
+    server.send(200, "application/octet-stream", "");
+    server.sendContent(reinterpret_cast<const char*>(snapshot.data.get()), snapshot.size);
+}
+
+void handleSettingsRestoreUpload() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        if (settingsUploadReceived) {
+            settingsUploadStatus = 400;
+            settingsUploadComplete = false;
+            return;
+        }
+        settingsUploadReceived = true;
+        if (!settingsBackupHeaderPresent()) { settingsUploadStatus = 403; return; }
+        if (upload.name != "backup") return;
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            settingsUploadStatus = 409;
+            return;
+        }
+        settingsUploadReserved = true;
+        if (!settingsUpload.allocate()) { settingsUploadStatus = 503; return; }
+        settingsUploadStatus = 200;
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (settingsUploadStatus != 200 || settingsUploadComplete) return;
+        if (upload.currentSize > SettingsBackup::MaxBytes - settingsUpload.size) {
+            settingsUploadStatus = 413;
+            return;
+        }
+        memcpy(settingsUpload.data.get() + settingsUpload.size, upload.buf, upload.currentSize);
+        settingsUpload.size += upload.currentSize;
+        if (mediaLocalAudioAvailable()) audio.loop();
+    } else if (upload.status == UPLOAD_FILE_END) {
+        settingsUploadComplete = settingsUploadStatus == 200 && upload.totalSize == settingsUpload.size;
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        clearSettingsUpload();
+    }
+}
+
+void finishSettingsRestore() {
+    if (!settingsBackupHeaderPresent()) settingsUploadStatus = 403;
+    if (!settingsUploadReceived || !settingsUploadComplete || settingsUploadStatus != 200) {
+        const int status = settingsUploadStatus == 200 ? 400 : settingsUploadStatus;
+        clearSettingsUpload();
+        sendSettingsBackupError(status, "Upload exactly one backup file (maximum 32768 bytes), with X-Radiohead-Backup: 1; device must be idle.");
+        return;
+    }
+    const auto result = SettingsBackup::restore(settingsUpload.data.get(), settingsUpload.size);
+    settingsUpload.clear();
+    if (result == SettingsBackup::RestoreResult::Ok || result == SettingsBackup::RestoreResult::RollbackFailed) {
+        // Keep maintenance reserved and never return to the application loop:
+        // pending volume/UI/roaming saves still contain pre-restore state.
+        server.sendHeader("Cache-Control", "no-store");
+        server.sendHeader("Connection", "close");
+        if (result == SettingsBackup::RestoreResult::Ok)
+            server.send(202, "application/json", "{\"restored\":true,\"restarting\":true}");
+        else
+            server.send(500, "application/json", "{\"error\":\"Storage and rollback failed; settings may be incomplete.\",\"restarting\":true}");
+        delay(100); // Give the queued response time to leave before reboot.
+        ESP.restart();
+        return;
+    }
+    clearSettingsUpload();
+    if (result == SettingsBackup::RestoreResult::Invalid)
+        sendSettingsBackupError(400, "Invalid, corrupt or unsupported settings backup; nothing was written.");
+    else if (result == SettingsBackup::RestoreResult::SnapshotFailed)
+        sendSettingsBackupError(500, "Could not capture current settings for rollback; nothing was written.");
+    else
+        sendSettingsBackupError(500, "Restore failed; previous settings were restored.");
+}
 
 void failFirmwareUpload(int status, const char* message) {
     if (otaFlashStarted) Update.abort();
@@ -1218,50 +1385,173 @@ void finishFirmwareUpload() {
     server.send(202, "application/json; charset=utf-8", "{\"written\":true,\"restarting\":true}");
 }
 
-void handlePrograms() {
-    String html = pageStart("תוכניות גל״צ", "#00FFFF");
-    html += "<div dir='rtl'><a class='btn' href='/'>חזרה לרדיו</a>";
-    for (int i = 0; i < PODCAST_SHOW_COUNT; ++i) {
-        html += "<a class='btn' style='display:block;max-width:400px;margin:8px auto' href='/episodes?show=" +
-            String(i) + "'>" + podcastShows[i].webName + "</a>";
+String programsJson() {
+    String json;
+    json.reserve(9000);
+    json = "{\"revision\":" + String(podcastCatalogRevision()) + ",\"capacity\":" + String(PODCAST_SHOW_COUNT) + ",\"programs\":[";
+    bool first = true;
+    for (int slot = 0; slot < PODCAST_SHOW_COUNT; ++slot) {
+        if (!isSavedPodcastShow(slot)) continue;
+        if (!first) json += ',';
+        first = false;
+        const auto& show = podcastShows[slot];
+        json += "{\"slot\":" + String(slot) + ",\"id\":\"" + jsonEscape(show.favoriteId) +
+            "\",\"name\":\"" + jsonEscape(show.webName) + "\",\"kind\":\"" + (show.feedUrl.isEmpty() ? "omny" : "rss") +
+            "\",\"program\":\"" + jsonEscape(show.program) + "\",\"playlist\":\"" + jsonEscape(show.playlist) +
+            "\",\"feedUrl\":\"" + jsonEscape(show.feedUrl) + "\",\"favorite\":" + (isPodcastShowFavorite(slot) ? "true" : "false") + "}";
     }
-    html += "</div></body></html>";
-    server.send(200, "text/html; charset=utf-8", html);
+    return json + "]}";
+}
+
+void sendPrograms() { server.send(200, "application/json; charset=utf-8", programsJson()); }
+void programError(int code, const char* error) {
+    server.send(code, "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(error) + "\"}");
+}
+
+bool currentProgramRevision() {
+    int revision = -1;
+    if (!parseIntegerArg("revision", 0, 2147483647, revision)) {
+        programError(400, "Invalid program revision."); return false;
+    }
+    if (static_cast<uint32_t>(revision) != podcastCatalogRevision()) {
+        programError(409, "Programs changed elsewhere. Reload before saving."); return false;
+    }
+    return true;
+}
+
+bool readProgramDraft(PodcastShow& draft) {
+    draft.webName = server.arg("name");
+    draft.webName.trim();
+    draft.tftName = draft.webName;
+    if (server.arg("kind") == "rss") {
+        draft.feedUrl = server.arg("feedUrl");
+        draft.feedUrl.trim();
+    } else if (server.arg("kind") == "omny") {
+        draft.program = server.arg("program"); draft.program.trim();
+        draft.playlist = server.arg("playlist"); draft.playlist.trim();
+    } else return false;
+    return validPodcastShow(draft);
+}
+
+void registerProgramApi() {
+    server.on("/api/programs", HTTP_GET, sendPrograms);
+    server.on("/api/programs/save", HTTP_POST, [] {
+        if (!currentProgramRevision()) return;
+        int slot = -1;
+        if (server.hasArg("slot") && !server.arg("slot").isEmpty()) {
+            if (!parseIntegerArg("slot", 0, PODCAST_SHOW_COUNT - 1, slot) || !isSavedPodcastShow(slot)) {
+                programError(400, "Invalid saved program slot."); return;
+            }
+        } else {
+            for (int i = 0; i < PODCAST_SHOW_COUNT; ++i) if (!isSavedPodcastShow(i)) { slot = i; break; }
+            if (slot < 0) { programError(409, "All ten program slots are full. Remove or edit an existing program."); return; }
+        }
+        PodcastShow draft;
+        if (!readProgramDraft(draft) || (server.arg("favorite") != "0" && server.arg("favorite") != "1")) {
+            programError(400, "Enter a valid name and RSS feed URL or Omny program/playlist."); return;
+        }
+        for (int i = 0; i < PODCAST_SHOW_COUNT; ++i) {
+            if (i != slot && isSavedPodcastShow(i) && podcastShows[i].feedUrl == draft.feedUrl &&
+                podcastShows[i].program == draft.program && podcastShows[i].playlist == draft.playlist) {
+                programError(400, "That source is already saved. Edit its existing program."); return;
+            }
+        }
+        if (isSavedPodcastShow(slot) && podcastShows[slot].webName == draft.webName)
+            draft.tftName = podcastShows[slot].tftName;
+        if (!savePodcastShow(slot, draft, server.arg("favorite") == "1")) {
+            programError(500, "Could not save programs. The previous catalog is kept."); return;
+        }
+        podcastCatalogChanged(slot);
+        uiControllerProgramsChanged(slot);
+        sendPrograms();
+    });
+    server.on("/api/programs/remove", HTTP_POST, [] {
+        if (!currentProgramRevision()) return;
+        int slot = -1;
+        if (!parseIntegerArg("slot", 0, PODCAST_SHOW_COUNT - 1, slot) || !isSavedPodcastShow(slot)) {
+            programError(400, "Invalid saved program."); return;
+        }
+        if (!removePodcastShow(slot)) { programError(500, "Could not save removal. The program is kept."); return; }
+        podcastCatalogChanged(slot);
+        uiControllerProgramsChanged(slot);
+        sendPrograms();
+    });
+    server.on("/api/programs/favorite", HTTP_POST, [] {
+        if (!currentProgramRevision()) return;
+        int slot = -1;
+        if (!parseIntegerArg("slot", 0, PODCAST_SHOW_COUNT - 1, slot) || !isSavedPodcastShow(slot)) {
+            programError(400, "Invalid saved program."); return;
+        }
+        const uint16_t previous = podcastShowFavoriteMask;
+        if (!togglePodcastShowFavorite(slot) || !savePodcastCatalog()) {
+            podcastShowFavoriteMask = previous;
+            programError(500, "Could not save favorite."); return;
+        }
+        uiControllerProgramsChanged(-1);
+        forceRedraw = true;
+        sendPrograms();
+    });
+    server.on("/api/programs/preview", HTTP_POST, [] {
+        PodcastShow draft;
+        if (!readProgramDraft(draft)) { programError(400, "Enter a valid program source before previewing."); return; }
+        const uint32_t token = requestPodcastPreview(draft);
+        if (!token) { programError(503, "Could not start the preview."); return; }
+        server.send(202, "application/json; charset=utf-8", "{\"token\":" + String(token) + "}");
+    });
+    server.on("/api/programs/preview", HTTP_GET, [] {
+        if (server.arg("token") != String(podcastRequestToken()) || podcastRequestedShow() != -2) {
+            programError(409, "Another episode request replaced this preview. Preview again."); return;
+        }
+        const char* state = podcastLoadState() == PodcastLoadState::Loading ? "loading" :
+            podcastEpisodesReadyFor(-2) ? "ready" : "failed";
+        String json = "{\"state\":\"" + String(state) + "\",\"episodes\":[";
+        if (podcastEpisodesReadyFor(-2)) {
+            for (int i = 0; i < podcastEpisodeCount; ++i) {
+                if (i) json += ',';
+                json += "{\"title\":\"" + jsonEscape(podcastEpisodes[i].title) + "\",\"published\":\"" +
+                    jsonEscape(podcastEpisodes[i].publishedUtc) + "\",\"duration\":" + String(podcastEpisodes[i].durationSeconds) + "}";
+            }
+        }
+        server.send(200, "application/json; charset=utf-8", json + "]}");
+    });
+}
+
+void handlePrograms() { handleConfigShell(WebSection::Programs); }
+
+void appendProgramEpisodes(String& html) {
+    int slot = -1;
+    if (!parseIntegerArg("show", 0, PODCAST_SHOW_COUNT - 1, slot) || !isSavedPodcastShow(slot)) return;
+    html += "<div class='rh-pagehead'><div><a class='rh-back' href='/programs'>← Back to programs</a><h1><bdi>" +
+        htmlEscape(podcastShows[slot].webName) + "</bdi></h1><p>Choose an episode to play on your radio.</p></div></div><section class='rh-list'>";
+    const String browse = "/episodes?show=" + String(slot) + "&amp;id=" + htmlEscape(podcastShows[slot].favoriteId);
+    if (podcastLoadState() == PodcastLoadState::Loading && podcastRequestedShow() == slot) {
+        html += "<p class='rh-empty'>Loading episodes…</p><meta http-equiv='refresh' content='2'>";
+    } else if (!podcastEpisodesReadyFor(slot)) {
+        html += "<p class='rh-empty'>Episodes unavailable. <a class='rh-back' href='" + browse + "&amp;retry=1'>Try again</a></p>";
+    } else {
+        for (int i = 0; i < podcastEpisodeCount; ++i) {
+            const PodcastEpisode& episode = podcastEpisodes[i];
+            html += "<div class='rh-station'><div class='rh-art' aria-hidden='true'>♪</div><div><div class='rh-stationname'><bdi>" +
+                htmlEscape(episode.title) + "</bdi></div><p class='rh-stationdesc'><bdi>" + htmlEscape(episode.publishedUtc) +
+                "</bdi></p></div><a class='rh-button' href='/playepisode?show=" + String(slot) + "&amp;ep=" + String(i) +
+                "&amp;token=" + String(podcastRequestToken()) + "&amp;id=" + htmlEscape(podcastShows[slot].favoriteId) + "'>Play</a></div>";
+        }
+    }
+    html += "</section>";
 }
 
 void handleEpisodes() {
-    int showIndex = 0;
-    if (!parseIntegerArg("show", 0, PODCAST_SHOW_COUNT - 1, showIndex)) {
-        sendBadRequest("Invalid show");
-        return;
+    if (isAP) { redirectTo("/network"); return; }
+    int slot = -1;
+    if (!parseIntegerArg("show", 0, PODCAST_SHOW_COUNT - 1, slot) || !isSavedPodcastShow(slot)) {
+        sendBadRequest("This program is no longer saved. Return to /programs."); return;
     }
-
-    String html = pageStart(podcastShows[showIndex].webName, "orange");
-    html += "<div dir='rtl'><a class='btn' href='/programs'>חזרה לתוכניות</a>";
-    const bool ready = podcastEpisodesReadyFor(showIndex);
-    if (!ready && (podcastRequestedShow() != showIndex ||
-                   server.hasArg("retry") || podcastLoadState() == PodcastLoadState::Idle)) {
-        requestPodcastEpisodes(showIndex);
+    if (server.hasArg("id") && server.arg("id") != podcastShows[slot].favoriteId) {
+        server.send(409, "text/plain; charset=utf-8", "This program changed. Reload /programs."); return;
     }
-    if (podcastLoadState() == PodcastLoadState::Loading && podcastRequestedShow() == showIndex) {
-        html += "<h3>טוען פרקים…</h3><meta http-equiv='refresh' content='2'>";
-    } else if (!podcastEpisodesReadyFor(showIndex)) {
-        html += "<h3>לא ניתן לטעון פרקים</h3><a class='btn' href='/episodes?show=" +
-            String(showIndex) + "&retry=1'>נסה שוב</a>";
-    } else {
-        for (int i = 0; i < podcastEpisodeCount; ++i) {
-            PodcastEpisode& episode = podcastEpisodes[i];
-            String date = episode.publishedUtc;
-            if (date.length() >= 10) {
-                date = date.substring(0, 10);
-            }
-            html += "<a class='btn' style='display:block;max-width:500px;margin:8px auto' href='/playepisode?show=" +
-                String(showIndex) + "&ep=" + String(i) + "'>" + htmlEscape(episode.title) +
-                "<br><small>" + htmlEscape(date) + "</small></a>";
-        }
-    }
-    html += "</div></body></html>";
-    server.send(200, "text/html; charset=utf-8", html);
+    if (!podcastEpisodesReadyFor(slot) && (podcastRequestedShow() != slot || server.hasArg("retry") ||
+        podcastLoadState() == PodcastLoadState::Idle)) requestPodcastEpisodes(slot);
+    handleConfigShell(WebSection::Programs);
 }
 
 void handleArtworkUpload() {
@@ -1361,6 +1651,8 @@ String networkScanJson() {
 }  // namespace
 
 void serviceWebNetworkRequests(unsigned long now) {
+    // Multipart parse failures may skip both completion and abort callbacks.
+    if (settingsUploadReceived || settingsUploadReserved) clearSettingsUpload();
     // WebServer parses multipart requests synchronously. If it returned without
     // the completion/abort callback (e.g. malformed trailing fields), discard
     // our uncommitted image and release only our maintenance reservation.
@@ -1401,8 +1693,10 @@ void startWebServer() {
     spotifyCredentialsEpoch = esp_random();
     // A custom header prevents cross-site HTML forms from replacing credentials.
     // The configuration endpoint does not grant cross-origin access.
-    const char* configurationHeaders[] = {"X-Radiohead-Config"};
-    server.collectHeaders(configurationHeaders, 1);
+    const char* configurationHeaders[] = {"X-Radiohead-Config", "X-Radiohead-Backup"};
+    server.collectHeaders(configurationHeaders, 2);
+    server.on("/api/settings/backup", HTTP_GET, handleSettingsBackup);
+    server.on("/api/settings/restore", HTTP_POST, finishSettingsRestore, handleSettingsRestoreUpload);
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     server.on("/api/spotify/resources", HTTP_GET, [] {
         server.send(200, "application/json", validationDiagnosticsJson());
@@ -1957,6 +2251,7 @@ void startWebServer() {
         forceRedraw = true;
         server.send(200, "application/json; charset=utf-8", "{\"ok\":true}");
     }, handleArtworkUpload);
+    registerProgramApi();
     server.on("/programs", handlePrograms);
     server.on("/episodes", handleEpisodes);
 
@@ -2164,6 +2459,11 @@ void startWebServer() {
         if (!parseIntegerArg("show", 0, PODCAST_SHOW_COUNT - 1, showIndex) ||
             !parseIntegerArg("ep", 0, MAX_EPISODES - 1, episodeIndex)) {
             sendBadRequest("Invalid episode");
+            return;
+        }
+        if (!isSavedPodcastShow(showIndex) || server.arg("id") != podcastShows[showIndex].favoriteId ||
+            server.arg("token") != String(podcastRequestToken())) {
+            server.send(409, "text/plain; charset=utf-8", "This episode selection expired. Reload /programs and choose the episode again.");
             return;
         }
         if (!podcastEpisodesReadyFor(showIndex)) {

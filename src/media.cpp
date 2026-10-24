@@ -9,12 +9,14 @@
 #include <driver/gpio.h>
 #include <esp_heap_caps.h>
 #include <new>
+#include <memory>
 
 #include "app_state.h"
 #include "audio_volume.h"
 #include "audio_notch.h"
 #include "audio_tone.h"
 #include "podcast_json_reader.h"
+#include "podcast_rss.h"
 #include "validation_diagnostics.h"
 #include "spotify_adapter.h"
 
@@ -81,6 +83,7 @@ unsigned long stationRecoveryDueAt = 0;
 PodcastLoadState podcastState = PodcastLoadState::Idle;
 int requestedPodcastShow = -1;
 uint32_t podcastRequestGeneration = 0;
+PodcastShow requestedPodcastSource;
 // Main-loop owned: stays busy until the published result has been consumed,
 // including when the worker has finished but mediaTick() has not run yet.
 bool podcastFetchBusy = false;
@@ -94,6 +97,7 @@ bool podcastFetchSucceeded = false;
 int activePodcastShow = -1;
 int activePodcastEpisode = -1;
 PodcastEpisode activePodcastEpisodeData;
+String activePodcastShowName;
 bool hasActivePodcastEpisode = false;
 bool podcastPaused = false;
 bool podcastControlError = false;
@@ -336,6 +340,7 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
 bool fetchPodcastEpisodes(
     int showIndex,
     uint32_t generation,
+    const PodcastShow& show,
     PodcastEpisode (&result)[MAX_EPISODES],
     int& resultCount) {
     resultCount = 0;
@@ -345,13 +350,12 @@ bool fetchPodcastEpisodes(
         static_cast<long>(WiFi.RSSI()), ESP.getFreeHeap(),
         static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT || WiFi.status() != WL_CONNECTED) {
+    if (!validPodcastShow(show) || WiFi.status() != WL_CONNECTED) {
         Serial.printf("[podcast] request=%lu rejected: invalid show or Wi-Fi disconnected\n",
             static_cast<unsigned long>(generation));
         return false;
     }
 
-    const PodcastShow& show = podcastShows[showIndex];
     const String url = "https://api.omny.fm/programs/" + String(show.program) +
         "/playlists/" + String(show.playlist) + "/clips?pageSize=" + String(MAX_EPISODES);
     WiFiClientSecure client;
@@ -436,28 +440,95 @@ bool fetchPodcastEpisodes(
 struct PodcastFetchRequest {
     int showIndex;
     uint32_t generation;
+    PodcastShow source;
 };
 
+bool fetchRssEpisodes(const PodcastShow& show, PodcastEpisode (&result)[MAX_EPISODES], int& count) {
+    count = 0;
+    if (WiFi.status() != WL_CONNECTED) return false;
+    // Fetch and parse entirely on this worker. HTTP/1.0 requests avoid chunked
+    // bodies; reject unexpected compression/framing rather than parsing bytes
+    // as XML. HTTPClient handles a bounded number of feed redirects.
+    WiFiClientSecure secure;
+    WiFiClient plain;
+    secure.setInsecure(); // Same TLS policy as existing Omny playback fetches.
+    secure.setHandshakeTimeout(10);
+    HTTPClient http;
+    http.useHTTP10(true);
+    http.setConnectTimeout(7000);
+    http.setTimeout(7000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setRedirectLimit(3);
+    const bool begun = show.feedUrl.startsWith("https://")
+        ? http.begin(secure, show.feedUrl) : http.begin(plain, show.feedUrl);
+    if (!begun) return false;
+    const char* headers[] = {"Transfer-Encoding", "Content-Encoding"};
+    http.collectHeaders(headers, 2);
+    http.addHeader("Accept", "application/rss+xml, application/xml, text/xml");
+    http.addHeader("Accept-Encoding", "identity");
+    if (http.GET() != HTTP_CODE_OK ||
+        (!http.header("Transfer-Encoding").isEmpty() && !http.header("Transfer-Encoding").equalsIgnoreCase("identity")) ||
+        (!http.header("Content-Encoding").isEmpty() && !http.header("Content-Encoding").equalsIgnoreCase("identity"))) {
+        http.end(); return false;
+    }
+    // Allocate the fixed eight-episode parser output on the heap, not task stack.
+    std::unique_ptr<PodcastRssEpisode[]> episodes(new (std::nothrow) PodcastRssEpisode[MAX_EPISODES]);
+    if (!episodes) { http.end(); return false; }
+    PodcastRssParser parser(episodes.get(), MAX_EPISODES);
+    auto* stream = http.getStreamPtr();
+    PodcastJsonReader<NetworkClient> reader(*stream, 7000, 20000);
+    const int expected = http.getSize();
+    bool valid = true;
+    // Small blocks keep Expat efficient while tolerating split TLS records.
+    char block[256];
+    size_t received = 0;
+    while (!parser.complete() && (expected < 0 || received < static_cast<size_t>(expected))) {
+        const size_t wanted = expected < 0 ? sizeof(block) : std::min(sizeof(block), static_cast<size_t>(expected) - received);
+        const size_t bytes = reader.readBytes(block, wanted);
+        received += bytes;
+        if (bytes && !parser.feed(block, bytes)) { valid = false; break; }
+        if (bytes < wanted) {
+            valid = std::strcmp(reader.stopReason(), "closed") == 0 && (expected < 0 || received == static_cast<size_t>(expected));
+            break;
+        }
+        delay(1);
+    }
+    valid = valid && parser.finish();
+    http.end();
+    if (!valid) return false;
+    for (size_t index = 0; index < parser.count(); ++index) {
+        const auto& entry = episodes[index];
+        result[count++] = {entry.id, entry.title, entry.published, entry.audioUrl, entry.durationSeconds};
+    }
+    return count > 0;
+}
+
 void podcastFetchWorker(void* parameter) {
-    const PodcastFetchRequest request = *static_cast<PodcastFetchRequest*>(parameter);
-    delete static_cast<PodcastFetchRequest*>(parameter);
+    // Own and destroy the copied source before vTaskDelete (which does not
+    // unwind C++ locals). The worker never reads the mutable saved catalog.
+    auto* requestPointer = static_cast<PodcastFetchRequest*>(parameter);
+    const int showIndex = requestPointer->showIndex;
+    const uint32_t generation = requestPointer->generation;
     int count = 0;
     const unsigned long startedAt = millis();
     bool succeeded = false;
     {
         PodcastEpisode result[MAX_EPISODES];
-        succeeded = fetchPodcastEpisodes(request.showIndex, request.generation, result, count);
+        succeeded = requestPointer->source.feedUrl.isEmpty()
+            ? fetchPodcastEpisodes(showIndex, generation, requestPointer->source, result, count)
+            : fetchRssEpisodes(requestPointer->source, result, count);
         // This worker is the only writer. Keep the result slot reserved until
         // mediaTick() consumes it, even after the worker exits.
         for (int index = 0; index < count; ++index) fetchedPodcastEpisodes[index] = result[index];
     }  // Destroy the temporary Strings: vTaskDelete() does not unwind C++ locals.
+    delete requestPointer;
     Serial.printf("[podcast] request=%lu show=%d complete=%s count=%d elapsed_ms=%lu heap=%u stack_free=%u\n",
-        static_cast<unsigned long>(request.generation), request.showIndex, succeeded ? "ready" : "failed",
+        static_cast<unsigned long>(generation), showIndex, succeeded ? "ready" : "failed",
         count, millis() - startedAt, ESP.getFreeHeap(), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
     // Publish completion only after the bounded values and metadata are written.
     fetchedPodcastEpisodeCount = count;
-    fetchedPodcastShow = request.showIndex;
-    fetchedPodcastGeneration = request.generation;
+    fetchedPodcastShow = showIndex;
+    fetchedPodcastGeneration = generation;
     podcastFetchSucceeded = succeeded;
     portENTER_CRITICAL(&podcastFetchMux);
     podcastFetchResultReady = true;
@@ -466,8 +537,8 @@ void podcastFetchWorker(void* parameter) {
 }
 
 void startPendingPodcastFetch() {
-    if (podcastFetchBusy || requestedPodcastShow < 0) return;
-    auto* request = new (std::nothrow) PodcastFetchRequest{requestedPodcastShow, podcastRequestGeneration};
+    if (podcastFetchBusy || requestedPodcastShow == -1) return;
+    auto* request = new (std::nothrow) PodcastFetchRequest{requestedPodcastShow, podcastRequestGeneration, requestedPodcastSource};
     podcastFetchBusy = true;
     if (request == nullptr || xTaskCreate(podcastFetchWorker, "podcast-fetch", 6144, request, 1, nullptr) != pdPASS) {
         delete request;
@@ -721,7 +792,7 @@ String parseM3U(const String& url) {
 }
 
 bool requestPodcastEpisodes(int showIndex) {
-    if (showIndex < 0 || showIndex >= PODCAST_SHOW_COUNT) return false;
+    if (!isSavedPodcastShow(showIndex)) return false;
     // Reopening the current show must not invalidate its cache or enqueue a
     // duplicate fetch while the user is returning from the player screen.
     if (podcastEpisodesReadyFor(showIndex) ||
@@ -730,12 +801,38 @@ bool requestPodcastEpisodes(int showIndex) {
     }
     ++podcastRequestGeneration;
     requestedPodcastShow = showIndex;
+    requestedPodcastSource = podcastShows[showIndex];
     podcastState = PodcastLoadState::Loading;
     Serial.printf("[podcast] request=%lu show=%d queued busy=%d\n",
         static_cast<unsigned long>(podcastRequestGeneration), showIndex, podcastFetchBusy);
     if (!podcastFetchBusy) startPendingPodcastFetch();
     forceRedraw = true;
     return true;
+}
+
+uint32_t requestPodcastPreview(const PodcastShow& draft) {
+    if (!validPodcastShow(draft)) return 0;
+    ++podcastRequestGeneration;
+    if (!podcastRequestGeneration) ++podcastRequestGeneration;
+    requestedPodcastShow = -2;
+    requestedPodcastSource = draft;
+    podcastState = PodcastLoadState::Loading;
+    if (!podcastFetchBusy) startPendingPodcastFetch();
+    forceRedraw = true;
+    return podcastRequestGeneration;
+}
+
+uint32_t podcastRequestToken() { return podcastRequestGeneration; }
+
+void podcastCatalogChanged(int slot) {
+    if (requestedPodcastShow == slot || loadedPodcastShow == slot) {
+        ++podcastRequestGeneration;
+        requestedPodcastShow = -1;
+        loadedPodcastShow = -1;
+        podcastEpisodeCount = 0;
+        podcastState = PodcastLoadState::Idle;
+    }
+    forceRedraw = true;
 }
 
 PodcastLoadState podcastLoadState() { return podcastState; }
@@ -745,7 +842,7 @@ bool podcastEpisodesReadyFor(int showIndex) {
 }
 
 bool playPodcastEpisode(int showIndex, int episodeIndex) {
-    if (!podcastEpisodesReadyFor(showIndex) || episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) {
+    if (!isSavedPodcastShow(showIndex) || !podcastEpisodesReadyFor(showIndex) || episodeIndex < 0 || episodeIndex >= podcastEpisodeCount) {
         Serial.printf("[podcast] start rejected show=%d episode=%d reason=selection\n", showIndex, episodeIndex);
         return false;
     }
@@ -773,6 +870,7 @@ bool playPodcastEpisode(int showIndex, int episodeIndex) {
     activePodcastShow = showIndex;
     activePodcastEpisode = episodeIndex;
     activePodcastEpisodeData = episode;
+    activePodcastShowName = show.webName;
     hasActivePodcastEpisode = true;
     podcastPaused = false;
     podcastControlError = false;
@@ -1003,7 +1101,7 @@ const MediaSnapshot& mediaSnapshot() {
             playbackState == PlaybackState::Failed ? MediaStatus::Failed :
             playbackState == PlaybackState::Stopped ? MediaStatus::Stopped :
             podcastPaused ? MediaStatus::Paused : MediaStatus::Playing;
-        nameText = podcastShows[activePodcastShow].webName;
+        nameText = activePodcastShowName.c_str();
         title = &activePodcastEpisodeData.title;
         canPause = playbackState == PlaybackState::Playing;
     } else if (stationTestPlayback || requestedStation >= 0 || playingStation >= 0) {

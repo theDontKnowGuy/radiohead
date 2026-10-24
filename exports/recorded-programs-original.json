@@ -1,0 +1,116 @@
+{
+  "format": "radiohead-programs-export",
+  "version": 1,
+  "source": {
+    "gitRevision": "88efd9372e6d361bdbaa2ab89b6f2eb9dfdbd3ae",
+    "file": "src/app_state.cpp",
+    "symbol": "podcastShows"
+  },
+  "notes": [
+    "Original hardcoded program catalog, exported without modifying firmware or device settings.",
+    "Favorite selections are stored on the radio and cannot be recovered from this source-code export.",
+    "This is a standalone data export; no import or overwrite is performed."
+  ],
+  "programs": [
+    {
+      "slot": 0,
+      "id": "arba/podcast",
+      "name": "ארבע אחרי הצהריים",
+      "tftName": "Arba Aharei Hatzohorayim",
+      "kind": "omny",
+      "program": "arba",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 1,
+      "id": "ilanadayan/podcast",
+      "name": "אילנה דיין",
+      "tftName": "Ilana Dayan",
+      "kind": "omny",
+      "program": "ilanadayan",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 2,
+      "id": "beseder/podcast",
+      "name": "יהיה בסדר",
+      "tftName": "Yihye Beseder",
+      "kind": "omny",
+      "program": "beseder",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 3,
+      "id": "hamesh/playlist-1",
+      "name": "חמש בערב",
+      "tftName": "Hamesh Baerev",
+      "kind": "omny",
+      "program": "hamesh",
+      "playlist": "playlist-1",
+      "feedUrl": ""
+    },
+    {
+      "slot": 4,
+      "id": "rinozror/podcast",
+      "name": "רינו צרור",
+      "tftName": "Rino Zror",
+      "kind": "omny",
+      "program": "rinozror",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 5,
+      "id": "goodmorningisrael/podcast",
+      "name": "בוקר טוב ישראל",
+      "tftName": "Boker Tov Israel",
+      "kind": "omny",
+      "program": "goodmorningisrael",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 6,
+      "id": "yoman/podcast",
+      "name": "יומן הצהריים",
+      "tftName": "Yoman Hatzohorayim",
+      "kind": "omny",
+      "program": "yoman",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 7,
+      "id": "galivri/podcast",
+      "name": "גל עברי ירוק",
+      "tftName": "Gal Ivri Yarok",
+      "kind": "omny",
+      "program": "galivri",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 8,
+      "id": "israelinight/podcast",
+      "name": "לילה ישראלי",
+      "tftName": "Laila Israeli",
+      "kind": "omny",
+      "program": "israelinight",
+      "playlist": "podcast",
+      "feedUrl": ""
+    },
+    {
+      "slot": 9,
+      "id": "giluydaat/podcast",
+      "name": "גילוי דעת",
+      "tftName": "Giluy Daat",
+      "kind": "omny",
+      "program": "giluydaat",
+      "playlist": "podcast",
+      "feedUrl": ""
+    }
+  ]
+}

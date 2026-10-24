@@ -1,5 +1,11 @@
 # Configuration and physical controls: implementation specification
 
+
+User scope update, 2026-10-24: settings file backup/restore is explicitly
+requested as an API-only feature. This supersedes the prior backup/restore
+exclusion; no browser controls are required. See
+[the API contract](../settings-backup.md).
+
 Date: 2026-09-21
 
 Status: implementation specification following the user's configuration review.
@@ -165,7 +171,7 @@ if scan-tested, a QR code. Never include credentials in that code.
 | Station artwork | Web preparation; TFT display | Search/logo suggestion, local upload and crop/fit belong in the browser. Saved artwork survives reboot and directory outages. |
 | Station/show favorites | TFT; web equivalent where supported | Add/remove beside each entity. No manual reorder feature. |
 | Remove a saved station | TFT + Web | Confirm the exact station; distinguish deletion from removing a favorite. Do not silently play a replacement slot occupant. |
-| Add/edit recorded-show sources | Web, future capability | Still future work; existing show browsing/playback/favorites remain on TFT. |
+| Add/edit recorded-show sources | Web | Programs at `/programs`: editable persistent ten-slot catalog, Omny and public RSS 2.0 sources, directory discovery and non-playing episode preview (2026-10-22 implementation; hardware acceptance pending). Browsing/playback/favorites remain on TFT. |
 | Touch calibration | TFT Settings > Device; start from web Device & maintenance | Tap corner markers on the TFT. Explicit maintenance action only; never require calibration during startup. Load saved calibration or use panel defaults. |
 | About | TFT | Firmware version, device name and web address; detailed diagnostics go on the web. |
 | Rename device | Web, future capability | Text entry; not a prerequisite for the core settings work. |
@@ -193,7 +199,7 @@ by retained behavior and do not modify the vendored audio library.
 | Visualizer on/off and mode | Remove spectrum/VU setting UI, `/togglespec`, `/setVisual`, mode/state and feature-only rendering. Keep unrelated playback progress and volume feedback. |
 | Interface language setting | Remove language-selection UI and unfinished locale-switching plans. Preserve existing readable Hebrew, Latin, mixed text and fonts. |
 | Reorder saved stations/favorites | Remove this configuration feature. Keep a stable deterministic display order and identity-safe slot editing/import. |
-| Backup / restore configuration | Remove from scope and UI; do not add export/import endpoints. Station M3U import and OTA remain. |
+| Backup / restore configuration UI | No UI required. API export/import explicitly reinstated on 2026-10-24; see [the contract](../settings-backup.md). |
 | Detailed color customization | Retire the color-editor form and `/setskin`/`/defaultskin` mutations. Remove obsolete skin preference behavior; keep renderer palette tokens needed by the supported visual design. Custom background upload remains. |
 
 ### Persistence and old routes

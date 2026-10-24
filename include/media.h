@@ -51,6 +51,7 @@ struct PodcastPlaybackSnapshot {
 };
 
 struct PodcastEpisode;
+struct PodcastShow;
 
 void mediaBegin();
 void mediaTick(unsigned long now);
@@ -59,6 +60,11 @@ String parseM3U(const String& url);
 // Starts a single bounded HTTPS job. Completion is published by mediaTick();
 // callers must not mutate the fetched collection or call Audio from a worker.
 bool requestPodcastEpisodes(int showIndex);
+// Preview uses the same single worker without starting audio. Its token prevents
+// another browser/TFT request from being mistaken for this draft's response.
+uint32_t requestPodcastPreview(const PodcastShow& draft);
+uint32_t podcastRequestToken();
+void podcastCatalogChanged(int slot);
 PodcastLoadState podcastLoadState();
 int podcastRequestedShow();
 bool podcastEpisodesReadyFor(int showIndex);

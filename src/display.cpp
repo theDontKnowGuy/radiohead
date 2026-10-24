@@ -1733,6 +1733,7 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
                    currentTime, timeValid);
     int drawn = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
+        if (!isSavedPodcastShow(index)) continue;
         if (state.showFavoritesOnly && !isPodcastShowFavorite(index)) continue;
         if (drawn < state.showOffset) { ++drawn; continue; }
         const int row = drawn - state.showOffset;
@@ -1745,21 +1746,21 @@ void renderRecordedShows(const UiRenderState& state, const char* currentTime, bo
         drawStar(kListOuterInset + 230, y + 24, isPodcastShowFavorite(index));
         ++drawn;
     }
-    if (state.showFavoritesOnly && drawn == 0) {
-        text("No favorite shows", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
-        text("Use a show's star to add one.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
+    if (drawn == 0) {
+        text(state.showFavoritesOnly ? "No favorite shows" : "No saved programs", 28, 108, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 260);
+        text(state.showFavoritesOnly ? "Use a show's star to add one." : "Add programs on the web.", 28, 140, uiFont(&fonts::Font0), kTextMuted, 260);
     }
     int count = 0;
     for (int index = 0; index < PODCAST_SHOW_COUNT; ++index) {
-        if (!state.showFavoritesOnly || isPodcastShowFavorite(index)) ++count;
+        if (isSavedPodcastShow(index) && (!state.showFavoritesOnly || isPodcastShowFavorite(index))) ++count;
     }
     drawListPager(state.showOffset, count, kStationRowsPerPage);
 }
 
 void renderShowEpisodes(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawBackground();
-    const bool validShow = state.episodeShow >= 0 && state.episodeShow < PODCAST_SHOW_COUNT;
-    drawPageHeader(validShow ? podcastShows[state.episodeShow].tftName : "Episodes",
+    const bool validShow = isSavedPodcastShow(state.episodeShow);
+    drawPageHeader(validShow ? podcastShows[state.episodeShow].tftName.c_str() : "Episodes",
                    currentTime, timeValid);
     if (!validShow) return;
     if (podcastRequestedShow() == state.episodeShow && podcastLoadState() == PodcastLoadState::Loading) {
@@ -1801,7 +1802,7 @@ void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bo
     drawPodcastArtwork(20, 47);
     textRight(episode->title, 305, 53, uiFont(&fonts::FreeSansBold12pt7b), kWhite, 155);
     String published = episode->publishedUtc;
-    if (published.length() > 10) published.remove(10);
+    if (published.length() > 10 && published[4] == '-' && published[7] == '-') published.remove(10);
     textRight(published.isEmpty() ? String("Date unavailable") : published, 305, 88,
               homeCaptionFont(), kTextMuted, 155);
     const uint32_t duration = playback.durationSeconds;
@@ -2156,7 +2157,7 @@ void renderSettingsConfirmation(const UiRenderState& state, const char* currentT
          factoryReset ? String("Factory reset radio?") : String("Restart radio?"), 48, 76,
          uiFont(&fonts::FreeSans9pt7b), kNavy, 226);
     text(forgetNetwork ? "Its saved password will be removed." :
-         factoryReset ? "This removes settings and stations." : "Playback will stop briefly.",
+         factoryReset ? "Settings, stations and programs reset." : "Playback will stop briefly.",
          48, 110, uiFont(&fonts::Font0), kSurfaceRaised, 226);
     text(forgetNetwork ? "Another saved network can reconnect." :
          factoryReset ? "Touch calibration is kept." : "Your settings are kept.",
@@ -2351,13 +2352,16 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
         media.status == MediaStatus::Connecting ? "CONNECTING" :
         media.status == MediaStatus::Failed ? "UNAVAILABLE" : "STOPPED";
     canvas().fillRoundRect(124, 64, 84, 18, 5, kBlueDark);
-    text(status, 132, 68, uiFont(&fonts::Font0), kWhite, 73);
+    // The fonts' visible glyphs sit below their top-left origins. Allow for
+    // that bearing so the badge is centered and all three metadata lines
+    // keep breathing room above the card's bottom border.
+    text(status, 132, 64, uiFont(&fonts::Font0), kWhite, 73);
     text(media.title.isEmpty() ? String("Spotify") : media.title,
-         124, 88, display_fonts::homeTitle(), kWhite, 172);
+         124, 82, display_fonts::homeTitle(), kWhite, 172);
     if (!media.artist.isEmpty())
-        text(media.artist, 124, 119, uiFont(&fonts::Font0), kWhite, 172);
+        text(media.artist, 124, 108, uiFont(&fonts::Font0), kWhite, 172);
     if (!media.album.isEmpty())
-        text(media.album, 124, 136, uiFont(&fonts::Font0), kTextMuted, 172);
+        text(media.album, 124, 126, uiFont(&fonts::Font0), kTextMuted, 172);
     if (media.status == MediaStatus::Playing || media.status == MediaStatus::Paused) {
         drawPlayerIcon(ui_player_previous_track, 52, 164);
         if (media.status == MediaStatus::Paused)

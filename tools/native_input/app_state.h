@@ -15,3 +15,5 @@ extern uint16_t autoDimSeconds;
 extern bool firmwareAutoUpdate;
 extern int podcastEpisodeCount;
 inline unsigned long millis() { return 0; }
+
+bool isSavedPodcastShow(int slot);

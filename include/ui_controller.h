@@ -235,6 +235,9 @@ void uiControllerReportDeviceActionFailure();
 void uiControllerReportWifiActionFailure();
 void uiControllerReportPodcastStartFailure();
 void uiControllerTick(unsigned long now);
+// External saved-program edits reset affected browsing viewports. Playback owns
+// its metadata copy and continues independently of catalog changes.
+void uiControllerProgramsChanged(int slot);
 bool uiControllerTakeCommand(UiCommand& command);
 UiRenderState uiControllerRenderState();
 void uiControllerMarkRendered();

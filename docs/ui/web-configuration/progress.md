@@ -1,5 +1,95 @@
 # Web configuration implementation progress
 
+### 2026-10-24 — Settings backup/restore API (ready for device testing)
+
+- User explicitly authorized file export and upload restore, API only. This
+  supersedes the earlier exclusion of configuration backup/restore.
+- Scope: all persisted entries in application NVS namespaces radio, wifi,
+  favorites, touch and spotify; includes credentials, pairing and saved programs.
+  Firmware, ESP-IDF system namespaces and LittleFS artwork are outside settings.
+- Implemented: bounded versioned binary snapshot, complete validation before writes,
+  rollback on reported storage failure, explicit request header, no caching,
+  maintenance exclusion and restart before stale runtime state can be saved.
+- Functional: `python3 tools/check_settings_backup.py` passes production storage
+  and HTTP handler tests under ASan/UBSan: types/namespaces, round trips, corruption,
+  bounds, injected write/commit failures and rollback, upload/header/maintenance
+  rejection, abort cleanup and immediate restart. Retained OTA checks
+  (`python3 tools/check_firmware_upload.py`) and `git diff --check` pass.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-settings-backup-build.log`.
+  Image 4,683,392 bytes (+6,496), 1,870,208 bytes free in the app slot. DIRAM
+  261,803 / 341,760 bytes (76.60%, unchanged), 79,957 bytes remaining.
+- No UI changes. Not flashed or verified on hardware; verify round trip/reboot,
+  restored Wi-Fi, Spotify, programs/favorites and calibration, disconnect recovery,
+  setup AP, real storage failures and audio/heap behavior with serial closed.
+  Multi-namespace restore is not power-loss atomic; retain the backup for recovery.
+- Endpoint examples, exact coverage, format, limits and evidence:
+  [settings backup API](../../settings-backup.md). Existing worktree edits kept.
+
+### 2026-10-22 — Editable recorded programs (ready for device testing)
+
+- Authorized scope: persistent ten-slot program catalog, existing Omny migration,
+  add/edit/remove/favorites, saved-list filtering, RSS 2.0 sources, directory
+  discovery and episode preview without interrupting audio. New Programs tab
+  reuses the navy/coastal shell; existing stations and user worktree edits remain.
+- Ownership: app_state models/defaults; settings_programs persistence and input
+  validation; media background fetching/cache identity; web_server forms/APIs;
+  controller/display saved-slot filtering. The original ten programs/favorites
+  migrate on first program write. One checked versioned NVS blob commits catalog,
+  stable IDs and show favorites; empty catalogs stay empty across reboot.
+- Browser edits use catalog revision checks and preserve drafts on rejection.
+  Replaced sources get new identities; removed slots cannot transfer favorites.
+  Playing episode/name data and worker source data are independent copies.
+  Generations discard stale fetches; preview tokens and browser Play links guard
+  against another request/slot reuse. Preview does not start audio.
+- RSS: pinned Espressif Expat 2.8.4, streaming XML with no document tree, bounded
+  memory/depth/bytes/deadlines, at most eight unique audio episodes. Other dependency
+  versions remain pinned. Apple directory search runs in the browser with manual
+  feed fallback. No credentials, service backend or AI dependency is introduced.
+- Functional: `python3 tools/check_programs.py` passes production catalog/API/request
+  coordinator checks under ASan/UBSan plus the production RSS adapter against host
+  Expat. Live Ilana Dayan, The Daily and BBC Global News feed snapshots each yielded
+  eight episodes. `node tools/check_programs_web.cjs` passes the production script's
+  editing/search/preview/conflict/failure/race checks with synthetic responses.
+  Retained touch/controller, Omny reader, Audio form and Device upload form checks
+  pass. `git diff --check` passes; no vendored audio or generated artifacts added.
+- Build: `pio run -e esp32s3` passes; `/tmp/radiohead-programs-build.log`.
+  Firmware 4,676,896 bytes; 1,876,704 bytes free in the app slot. DIRAM:
+  261,803 / 341,760 bytes (76.60%), 79,957 bytes remaining. Static DIRAM increased
+  1,136 bytes and image increased 141,792 bytes over the existing worktree baseline.
+- Visual: production Programs content/script with supplied CSS/coast and a synthetic
+  outer shell/read response was inspected in Dia at desktop and 320 px iframe
+  widths. This does not establish firmware-served UI behavior. Native program
+  fixtures from `python3 tools/render_ui_fonts.py --programs-only` pass and were
+  inspected for defaults, slot gaps/edited Hebrew and empty state; PNGs live at
+  `.pio/ui_native/programs-{default,edited,empty}.png`. The broader full renderer
+  suite stops on a Home dim-hint pixel assertion outside the Programs path; it is
+  not reported as passing, and Home rendering was not changed by this package.
+- Hardware: not flashed or verified. Test migration/reboot, TFT/web favorites,
+  Omny/RSS playback, browsing/preview/edit/removal during playback, failed networks,
+  stale browser selections, and concurrent Spotify/weather/OTA heap/task-stack
+  headroom, with the serial monitor closed. The current ten slots are initially
+  full; edit or remove an unwanted default before adding another show.
+- Detailed source limits, routes, migration and evidence:
+  [catalog handoff](../../programs-catalog.md). This does not close older UI
+  package/device acceptance items.
+
+### 2026-10-22 — Network-only setup menu (ready for device testing)
+
+- Scope: `src/web_server.cpp`; while the setup AP is active, show only Network
+  in the web navigation and redirect other settings pages to `/network`.
+  This covers missing credentials, failed joins and explicitly requested setup.
+- Reused the existing CSS/coastal assets and Network setup form. Full navigation
+  remains available in station mode.
+- Functional: a temporary compiled production navigation/handler-guard fixture
+  passes for every section in AP/station mode, including the active Network link,
+  redirects before page rendering, and restoration of all six normal menu links.
+  `pio run -e esp32s3` and `git diff --check` pass. Firmware: 4,535,104 bytes,
+  2,018,496 bytes free in the application slot; DIRAM: 260,667 / 341,760 bytes
+  (76.27%, unchanged from the preceding upload build).
+- Visual/hardware: not verified or flashed. Check desktop/phone setup navigation
+  with missing credentials and a failed saved-network join, complete Wi-Fi setup,
+  then confirm all menu sections return after the connected reboot.
+
 ### 2026-10-22 — Compiled firmware upload (ready for review)
 
 - Owner: `/root`; W8 follow-up in `src/web_server.cpp`,

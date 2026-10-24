@@ -154,7 +154,7 @@ bool configuredLocalTime(time_t utcTime, tm& localTime) {
 String podcastShowTft, owmCity = "Tel Aviv, IL";
 constexpr int PODCAST_SHOW_COUNT = 10;
 constexpr int MAX_EPISODES = 8;
-struct FixturePodcastShow { const char* webName; const char* tftName; };
+struct FixturePodcastShow { String webName; String tftName; };
 FixturePodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
     {"אילנה דיין", "Ilana Dayan"}, {"יהיה בסדר", "Yihye Beseder"},
     {"ארבע אחרי הצהריים", "Arba"}, {"חמש בערב", "Hamesh"},
@@ -168,6 +168,7 @@ PodcastEpisode podcastEpisodes[MAX_EPISODES] = {
     {"A very long mixed Hebrew/Latin episode title 101 FM", "2025-09-08", 1925},
 };
 int podcastEpisodeCount = 2;
+bool isSavedPodcastShow(int slot) { return slot >= 0 && slot < PODCAST_SHOW_COUNT && !podcastShows[slot].webName.isEmpty(); }
 bool isPodcastShowFavorite(int show) { return show == 0; }
 PodcastLoadState fixturePodcastLoad = PodcastLoadState::Ready;
 int podcastRequestedShow() { return 0; }
@@ -240,12 +241,30 @@ int main(int argc, char** argv) {
                                      std::string(argv[2]) == "--firmware-only" ||
                                      std::string(argv[2]) == "--branding-only" ||
                                      std::string(argv[2]) == "--mute-only" ||
-                                     std::string(argv[2]) == "--volume-only")));
+                                     std::string(argv[2]) == "--volume-only" ||
+                                     std::string(argv[2]) == "--programs-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--programs-only") {
+        const std::string dir = argv[1];
+        UiRenderState shows;
+        shows.page = UiPage::RecordedShows;
+        renderRecordedShows(shows, "15:01", true);
+        save((dir + "/programs-default.ppm").c_str());
+        podcastShows[1] = {};
+        podcastShows[3] = {};
+        podcastShows[2] = {"תוכנית חדשה / A long mixed program name", "תוכנית חדשה"};
+        renderRecordedShows(shows, "15:01", true);
+        save((dir + "/programs-edited.ppm").c_str());
+        for (auto& show : podcastShows) show = {};
+        renderRecordedShows(shows, "15:01", true);
+        save((dir + "/programs-empty.ppm").c_str());
+        puts("Native saved-program fixtures rendered through production layout: defaults, gaps/edited Hebrew and empty.");
+        return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--volume-only") {
         const std::string dir = argv[1];
         UiRenderState feedback;
@@ -793,17 +812,25 @@ int main(int argc, char** argv) {
     assert(frame.readPixel(160, 8) == photoHeader);
     assert(frame.readPixel(116, 110) != photoTrackCard);
     assert(frame.readPixel(116, 110) != kSurface);
-    assert(frame.readPixel(299, 190) != photoHintCard);
-    assert(frame.readPixel(299, 190) != kSurface);
+    // Active transport sits directly on the photo; the hint card is only
+    // present for inactive playback states.
+    assert(frame.readPixel(299, 190) == photoHintCard);
     save((dir + "/spotify-playing.ppm").c_str());
     spotifyMedia.status = MediaStatus::Paused;
     renderSpotifyPlayer(spotify, "15:01", true);
     save((dir + "/spotify-paused.ppm").c_str());
+    spotifyMedia.title = "אליעזר בן יהודה";
+    spotifyMedia.artist = "Matti Caspi";
+    spotifyMedia.album = "צד א צד ב";
+    renderSpotifyPlayer(spotify, "14:57", true);
+    save((dir + "/spotify-paused-hebrew.ppm").c_str());
     spotifyMedia.status = MediaStatus::Connecting;
     spotifyMedia.title = "";
     spotifyMedia.artist = "";
     spotifyMedia.album = "";
     renderSpotifyPlayer(spotify, "15:01", true);
+    assert(frame.readPixel(299, 190) != photoHintCard);
+    assert(frame.readPixel(299, 190) != kSurface);
     save((dir + "/spotify-connecting.ppm").c_str());
     spotifyMedia.status = MediaStatus::Failed;
     renderSpotifyPlayer(spotify, "15:01", true);

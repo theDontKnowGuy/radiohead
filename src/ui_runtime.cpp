@@ -136,7 +136,7 @@ void serviceUiCommands(unsigned long now) {
             if (!seekPodcastBySeconds(command.value)) Serial.println("Podcast seek unavailable");
             break;
         case UiCommandKind::TogglePodcastShowFavorite:
-            if (togglePodcastShowFavorite(command.value) && !saveFavorites()) {
+            if (togglePodcastShowFavorite(command.value) && !savePodcastCatalog()) {
                 // A failed save must not show a favorite that will disappear on reboot.
                 togglePodcastShowFavorite(command.value);
                 Serial.println("Unable to save show favorite");

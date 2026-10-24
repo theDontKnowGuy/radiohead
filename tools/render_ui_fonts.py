@@ -53,9 +53,16 @@ firmware_only = '--firmware-only' in sys.argv[1:]
 branding_only = '--branding-only' in sys.argv[1:]
 mute_only = '--mute-only' in sys.argv[1:]
 volume_only = '--volume-only' in sys.argv[1:]
-mode_args = ['--volume-only'] if volume_only else ['--mute-only'] if mute_only else ['--branding-only'] if branding_only else ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
+programs_only = '--programs-only' in sys.argv[1:]
+mode_args = ['--programs-only'] if programs_only else ['--volume-only'] if volume_only else ['--mute-only'] if mute_only else ['--branding-only'] if branding_only else ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
 subprocess.run([str(exe), str(out)] + mode_args,
                check=True, env={**os.environ, 'TZ': 'UTC'})
+if programs_only:
+    from PIL import Image
+    for path in out.glob('programs-*.ppm'):
+        Image.open(path).save(path.with_suffix('.png'))
+    print(f'PNG saved-program evidence: {out}')
+    sys.exit(0)
 if volume_only:
     try:
         from PIL import Image

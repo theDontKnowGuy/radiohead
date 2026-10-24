@@ -6,7 +6,7 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root / 'src/web_server.cpp').read_text()
 state = source[source.index('bool otaUploadStarted ='):source.index('bool artworkUploadAccepted =')]
-callbacks = source[source.index('void failFirmwareUpload('):source.index('void handlePrograms(')]
+callbacks = source[source.index('void failFirmwareUpload('):source.index('String programsJson()')]
 parser = source[source.index('bool parseIntegerArg('):source.index('void sendBadRequest(')]
 fixture = r'''
 #include <cassert>
@@ -73,6 +73,10 @@ unsigned paints=0;
 void setFirmwareUpdateProgress(bool a,uint8_t p){active=a;percent=p;}
 void serviceFirmwareUpdateDisplay(unsigned long){}
 void serviceDisplayRefresh(unsigned long,const char*,bool){++paints;}
+// Settings upload cleanup shares this service entry point; its production
+// behavior is exercised separately by check_settings_backup.py.
+bool settingsUploadReceived=false,settingsUploadReserved=false;
+void clearSettingsUpload(){assert(false);}
 '''
 fixture += state
 fixture += 'bool webMaintenanceBusy(){return otaUploadStarted||firmwareUpdater.busy;}\n'

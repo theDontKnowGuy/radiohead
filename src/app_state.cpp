@@ -137,7 +137,7 @@ RadioStation stations[STATION_COUNT] = {
     {"Empty Slot 10", ""},
 };
 
-const PodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
+PodcastShow podcastShows[PODCAST_SHOW_COUNT] = {
     {"arba/podcast", 0, "ארבע אחרי הצהריים", "Arba Aharei Hatzohorayim", "arba", "podcast"},
     {"ilanadayan/podcast", 1, "אילנה דיין", "Ilana Dayan", "ilanadayan", "podcast"},
     {"beseder/podcast", 2, "יהיה בסדר", "Yihye Beseder", "beseder", "podcast"},
