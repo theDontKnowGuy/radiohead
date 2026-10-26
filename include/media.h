@@ -98,9 +98,13 @@ PlaybackState mediaPlaybackState();
 int mediaRequestedStation();
 int mediaPlayingStation();
 
-// Startup-noise experiment: quiet the I2S pins before other setup work.
-// Call only before I2S owns the pins; this does not control amplifier SD_MODE.
+// Assert GPIO2 speaker mute and quiet I2S before other setup work.
+// Call only before I2S owns the pins. Speaker mute lasts at least four seconds.
 void mediaPrepareBootOutput();
+// Main-loop/boot-loop only. Boot audio supplies its decoder-ready state.
+void mediaUpdateSpeakerMute(bool bootPlaying = false);
+// Immediately silence the external output before stopping/handoff/sleep.
+void mediaSilenceSpeakers();
 // Configure local I2S before boot audio, keeping experiment output at zero.
 void mediaConfigureOutput();
 // Main-loop settings publication; PCM tasks keep independent filter histories.

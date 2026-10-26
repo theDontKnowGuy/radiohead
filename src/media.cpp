@@ -51,6 +51,9 @@ namespace {
 // in both the PlatformIO baseline and the integrated Spotify image.
 constexpr bool kBootQuietOutputExperiment = true;
 constexpr uint8_t kBootVolumeIndex = 10;
+constexpr uint32_t kSpeakerBootMuteMs = 4000;
+uint32_t speakerBootStartedAt = 0;
+bool speakerBootHoldComplete = false;
 
 bool isHttpUrl(const String& url) {
     return url.length() <= 512 &&
@@ -132,6 +135,7 @@ bool restoreLocalOutput(const char* reason) {
     spotifyAdapterDiscardPending();
     clearSpotifyMetadata();
     spotifyStatus = MediaStatus::Stopped;
+    mediaSilenceSpeakers();
     if (!spotifyAdapterReleaseOutput(1000)) {
         outputOwner = OutputOwner::Failed;
         spotifyStatus = MediaStatus::Failed;
@@ -156,6 +160,7 @@ bool restoreLocalOutput(const char* reason) {
 
 void activateSpotify(uint32_t commandSequence) {
     if (outputOwner == OutputOwner::Spotify) return;
+    mediaSilenceSpeakers();
     if (outputOwner == OutputOwner::Failed && !restoreLocalOutput("recover")) return;
     ++sourceGeneration;
     clearSpotifyMetadata();
@@ -605,6 +610,7 @@ void mediaTick(unsigned long now) {
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     serviceSpotifySignals();
 #endif
+    mediaUpdateSpeakerMute();
     bool hasResult = false;
     int resultShow = -1;
     int resultCount = 0;
@@ -676,10 +682,12 @@ void mediaTick(unsigned long now) {
     } else if (playbackState == PlaybackState::Failed && !stationRecoveryScheduled) {
         scheduleStationRecovery("connection failed");
     }
+    mediaUpdateSpeakerMute();
 }
 
 void setRadioVolumeIndex(int volumeIndex) {
     mainVal = constrain(volumeIndex, 0, 21);
+    if (mainVal == 0) mediaSilenceSpeakers();
     // Adjusting a muted radio changes the saved/restored level but does not
     // resume audio.  This keeps web and encoder behavior consistent.
     if (!radioMuted) {
@@ -690,16 +698,19 @@ void setRadioVolumeIndex(int volumeIndex) {
         audio.setVolume(mainVal);
     }
     lastVolChange = millis();
+    mediaUpdateSpeakerMute();
     forceRedraw = true;
 }
 
 void toggleRadioMute() {
     radioMuted = !radioMuted;
+    if (radioMuted) mediaSilenceSpeakers();
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (outputOwner == OutputOwner::Spotify) spotifyAdapterSetOutputVolume(spotifyOutputLevel());
     else
 #endif
     audio.setVolume(radioMuted ? 0 : mainVal);
+    mediaUpdateSpeakerMute();
     forceRedraw = true;
 }
 
@@ -863,6 +874,7 @@ bool playPodcastEpisode(int showIndex, int episodeIndex) {
 
     cancelStationRecovery();
     validationEvent("podcast_start");
+    mediaSilenceSpeakers();
     audio.stopSong();
     applyLocalOutputSettings();
     podcastMode = true;
@@ -907,6 +919,7 @@ bool togglePodcastPause() {
         return false;
     }
     podcastPaused = !podcastPaused;
+    mediaUpdateSpeakerMute();
     podcastControlError = false;
     forceRedraw = true;
     return true;
@@ -969,6 +982,7 @@ void playStation(int stationIndex) {
     if (outputOwner == OutputOwner::Spotify &&
         (isAP || stationIndex < 0 || stationIndex >= STATION_COUNT)) return;
 #endif
+    mediaSilenceSpeakers();
     validationEvent("radio_start");
     stationTestPlayback = false;
     stationTestName = "";
@@ -1023,6 +1037,7 @@ void playStation(int stationIndex) {
 
 bool startStationTest(const String& name, const String& url) {
     if (isAP || name.isEmpty() || !isHttpUrl(url)) return false;
+    mediaSilenceSpeakers();
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (!restoreLocalOutput("station-test")) return false;
 #endif
@@ -1051,6 +1066,7 @@ bool startStationTest(const String& name, const String& url) {
 }
 
 void stopStationPlayback() {
+    mediaSilenceSpeakers();
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (!restoreLocalOutput("stop")) return;
 #endif
@@ -1165,10 +1181,14 @@ void audio_showstreamtitle(const char* info) {
 }
 
 void mediaPrepareBootOutput() {
+    // Preload HIGH before enabling the driver; this runs first in setup().
+    gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), 1);
+    gpio_set_direction(static_cast<gpio_num_t>(SPEAKER_MUTE), GPIO_MODE_OUTPUT);
+    speakerBootStartedAt = millis();
+    speakerBootHoldComplete = false;
     if (!kBootQuietOutputExperiment) return;
 
-    // No SD_MODE control is wired. A stopped BCLK keeps the MAX98357A in
-    // standby once firmware runs; hold all I2S lines low until setPinout().
+    // Independently hold all I2S lines low until setPinout().
     // Set each output latch before enabling its driver to avoid a high pulse.
     for (const int pin : {I2S_BCK, I2S_LRC, I2S_DIN}) {
         const auto gpio = static_cast<gpio_num_t>(pin);
@@ -1176,6 +1196,29 @@ void mediaPrepareBootOutput() {
         gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
     }
     audio.setVolume(0);
+}
+
+void mediaSilenceSpeakers() {
+    gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), 1);
+}
+
+void mediaUpdateSpeakerMute(bool bootPlaying) {
+    // Latch completion so the millis rollover cannot repeat the boot hold.
+    if (!speakerBootHoldComplete &&
+        static_cast<uint32_t>(millis() - speakerBootStartedAt) >= kSpeakerBootMuteMs) {
+        speakerBootHoldComplete = true;
+    }
+    bool playing = bootPlaying ||
+        (playbackState == PlaybackState::Playing &&
+         !(podcastMode && podcastPaused) && audio.isRunning());
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    if (outputOwner != OutputOwner::Local) {
+        playing = outputOwner == OutputOwner::Spotify && spotifyStatus == MediaStatus::Playing;
+    }
+#endif
+    const bool enabled = speakerBootHoldComplete && !radioMuted &&
+        (bootPlaying || mainVal > 0) && playing;
+    gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), enabled ? 0 : 1);
 }
 
 void mediaConfigureOutput() {

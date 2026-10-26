@@ -170,6 +170,8 @@ void hold(unsigned long startedAt) {
             }
         }
         if (bootAudioStarted && audio.isRunning()) audio.loop();
+        mediaUpdateSpeakerMute(bootAudioStarted && bootDecoderReady &&
+                               !bootAudioEnded && audio.isRunning());
         if (bootAudioStarted) {
             maxAudioPosition = std::max(maxAudioPosition, audio.getAudioFilePosition());
             maxAudioSeconds = std::max(maxAudioSeconds, audio.getAudioCurrentTime());
@@ -191,6 +193,7 @@ void hold(unsigned long startedAt) {
         delay(2);
     }
 
+    mediaSilenceSpeakers();
     drawProgress(100);
     tft.waitDMA();
 

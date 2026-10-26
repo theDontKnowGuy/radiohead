@@ -1356,3 +1356,25 @@ body.radiohead-page #rh-config {
     scroll-behavior:auto!important;
   }
 }
+
+/* Saved-station playback is one keyboard-accessible target beside the actions. */
+#rh-config .rh-stationplay {
+  grid-column:span 2;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:inherit;
+  min-width:0;
+  padding:0;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  text-align:start;
+  cursor:pointer;
+}
+#rh-config .rh-stationplay .rh-stationdesc { display:block; }
+#rh-config .rh-stationplay:hover .rh-stationname { color:#8dc2ff; }
+#rh-config .rh-stationplay:focus-visible { outline:2px solid var(--rh-blue); outline-offset:5px; }
+#rh-config .rh-stationplay:disabled { cursor:wait; opacity:.65; }

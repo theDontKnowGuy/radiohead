@@ -1,5 +1,34 @@
 # Web configuration implementation progress
 
+### 2026-10-25 — Click saved stations to play (ready for device testing)
+
+- Saved station artwork/name/URL now form a native button, usable by pointer,
+  Enter or Space; favorite and edit remain separate. The existing navy/coastal
+  CSS gains hover/focus states, and the stylesheet URL changes to refresh caches.
+- `POST /api/stations/play` takes `slot` and catalog `revision`, validates bounds,
+  saved HTTP(S) URL and revision, and rejects setup/maintenance/restart conflicts.
+  Existing `playStation` behavior owns source handoff and playback;
+  successful selection queues the existing settings save. Response is `202`
+  with the station list; immediate start failure returns `502`, not success.
+- Browser suppresses duplicate playback requests and displays rejection/connection
+  errors. The shared player poll publishes its observed state, playing slot and
+  catalog revision to update Playing badges without rebuilding focused rows or
+  refreshing an editor's revision. Connecting/failed/other-source states clear them.
+- Functional: `node tools/check_stations_web.cjs`, retained Audio and Programs
+  browser checks, eleven embedded-script syntax checks (including shared player),
+  and `git diff --check` pass. A temporary production-handler fixture
+  (`/tmp/check-radiohead-station-route.py`) passes ASan/UBSan checks for malformed,
+  missing, stale and out-of-range inputs, empty slots, setup/maintenance/restart,
+  selection and immediate media failure. Browser responses/media are synthetic.
+- Build: `pio run -e esp32s3` passed; `/tmp/radiohead-station-play-build.log`.
+  Image 4,686,816 bytes (+3,424), with 1,866,784 bytes free in the app slot.
+  DIRAM 261,803 / 341,760 bytes (76.60%, unchanged), 79,957 bytes remaining.
+- Visual/device: not flashed or verified in a rendered browser/on hardware. Check
+  desktop/phone layout and keyboard focus, selecting saved stations during radio,
+  recorded-show and Spotify playback, unavailable streams, reboot persistence,
+  and browser/TFT/audio agreement with the serial monitor closed. Prior package
+  acceptance remains open. Existing README edits were preserved.
+
 ### 2026-10-24 — Settings backup/restore API (ready for device testing)
 
 - User explicitly authorized file export and upload restore, API only. This

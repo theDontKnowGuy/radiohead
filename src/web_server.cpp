@@ -555,7 +555,7 @@ bool hasCurrentStationRevision() {
     }
     if (static_cast<uint32_t>(revision) != stationCatalogRevision()) {
         server.send(409, "application/json; charset=utf-8",
-                    "{\"error\":\"Station list changed. Refresh the draft before saving.\",\"revision\":" +
+                    "{\"error\":\"Station list changed. Reload the list and try again.\",\"revision\":" +
                     String(stationCatalogRevision()) + "}");
         return false;
     }
@@ -685,6 +685,8 @@ String playerStateJson() {
     String json;
     json.reserve(650);
     json = "{\"revision\":" + String(playerRevision()) +
+        ",\"playingStation\":" + String(mediaPlayingStation()) +
+        ",\"stationRevision\":" + String(stationCatalogRevision()) +
         ",\"audioRevision\":" + String(audioSettingsRevision()) +
         ",\"volume\":" + String(mainVal) +
         ",\"muted\":" + String(radioMuted ? "true" : "false") +
@@ -860,12 +862,14 @@ document.addEventListener('click',event=>{if(event.target.closest('.rh-nav a')&&
                 const RadioStation& station = stations[slot];
                 if (station.url.isEmpty()) continue;
                 const String name = station.name.isEmpty() ? station.url : station.name;
-                html += "<div class='rh-station'><div class='rh-art' aria-hidden='true'>" +
-                    String(stationArtworkExists(slot) ? "<img alt='' src='/api/stations/artwork?slot=" + String(slot) + "'>" : htmlEscape(name.substring(0, 1))) + "</div><div><div class='rh-stationname'><bdi>" +
+                html += "<div class='rh-station'><button class='rh-stationplay' type='button' data-play='" + String(slot) +
+                    "' aria-label='Play " + htmlEscape(name) + "' disabled><span class='rh-art' aria-hidden='true'>" +
+                    String(stationArtworkExists(slot) ? "<img alt='' src='/api/stations/artwork?slot=" + String(slot) + "'>" : htmlEscape(name.substring(0, 1))) + "</span><span><span class='rh-stationname'><bdi>" +
                     htmlEscape(name) + "</bdi>";
-                if (slot == mediaPlayingStation()) html += "<span class='rh-playing'>Playing</span>";
-                html += "</div><p class='rh-stationdesc' dir='ltr'>" + htmlEscape(station.url) +
-                    "</p></div><div class='rh-actions'><button class='rh-iconbutton' type='button' data-favorite='" + String(slot) +
+                html += "<span class='rh-live' data-playing='" + String(slot) + "'" +
+                    String(slot == mediaPlayingStation() ? "" : " hidden") + ">Playing</span>";
+                html += "</span><span class='rh-stationdesc' dir='ltr'>" + htmlEscape(station.url) +
+                    "</span></span></button><div class='rh-actions'><button class='rh-iconbutton' type='button' data-favorite='" + String(slot) +
                     "' aria-label='Toggle favorite for " + htmlEscape(name) + "' aria-pressed='" +
                     String(isStationFavorite(slot) ? "true" : "false") + "'>★</button><button class='rh-iconbutton' type='button' data-edit='" +
                     String(slot) + "' aria-label='Edit " + htmlEscape(name) + "'>✎</button></div></div>";
@@ -886,12 +890,27 @@ document.addEventListener('click',event=>{if(event.target.closest('.rh-nav a')&&
             "<script>";
         html += R"JS((()=>{
 const $=id=>document.getElementById(id), api=(path,body)=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});
-let state=null,draftSlot=null,testPoll=0;
+let state=null,draftSlot=null,testPoll=0,selecting=false;
 const feedback=message=>$('station-feedback').textContent=message;
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const showList=()=>{$('station-editor').hidden=true;window.scrollTo({top:0,behavior:'smooth'});};
-function render(data){state=data;$('station-count').textContent=data.saved+' / '+data.capacity+' stations';$('station-add').disabled=data.saved>=data.capacity;const list=$('station-list');list.innerHTML=data.stations.length?data.stations.map(s=>`<div class="rh-station"><div class="rh-art" aria-hidden="true">${s.artwork?`<img alt="" src="/api/stations/artwork?slot=${s.slot}&r=${s.artworkRevision}">`:esc((s.name||s.url).slice(0,1))}</div><div><div class="rh-stationname"><bdi>${esc(s.name||s.url)}</bdi>${s.playing?'<span class="rh-live">Playing</span>':''}</div><p class="rh-stationdesc" dir="ltr">${esc(s.url)}</p></div><div class="rh-actions"><button class="rh-iconbutton" data-favorite="${s.slot}" aria-label="Toggle favorite for ${esc(s.name)}" aria-pressed="${s.favorite}">★</button><button class="rh-iconbutton" data-edit="${s.slot}" aria-label="Edit ${esc(s.name)}">✎</button></div></div>`).join(''):'<p class="rh-empty">No saved stations. Add your first station above.</p>';list.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(Number(b.dataset.edit)));list.querySelectorAll('[data-favorite]').forEach(b=>b.onclick=()=>favorite(Number(b.dataset.favorite)));}
+function render(data){state=data;$('station-count').textContent=data.saved+' / '+data.capacity+' stations';$('station-add').disabled=data.saved>=data.capacity;const list=$('station-list');list.innerHTML=data.stations.length?data.stations.map(s=>`<div class="rh-station"><button class="rh-stationplay" type="button" data-play="${s.slot}" aria-label="Play ${esc(s.name||s.url)}"${selecting?' disabled':''}><span class="rh-art" aria-hidden="true">${s.artwork?`<img alt="" src="/api/stations/artwork?slot=${s.slot}&r=${s.artworkRevision}">`:esc((s.name||s.url).slice(0,1))}</span><span><span class="rh-stationname"><bdi>${esc(s.name||s.url)}</bdi><span class="rh-live" data-playing="${s.slot}"${s.playing?'':' hidden'}>Playing</span></span><span class="rh-stationdesc" dir="ltr">${esc(s.url)}</span></span></button><div class="rh-actions"><button class="rh-iconbutton" data-favorite="${s.slot}" aria-label="Toggle favorite for ${esc(s.name)}" aria-pressed="${s.favorite}">★</button><button class="rh-iconbutton" data-edit="${s.slot}" aria-label="Edit ${esc(s.name)}">✎</button></div></div>`).join(''):'<p class="rh-empty">No saved stations. Add your first station above.</p>';list.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>play(Number(b.dataset.play)));list.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(Number(b.dataset.edit)));list.querySelectorAll('[data-favorite]').forEach(b=>b.onclick=()=>favorite(Number(b.dataset.favorite)));}
 async function refresh(){try{render(await fetch('/api/stations',{cache:'no-store'}).then(r=>r.json()))}catch(_){feedback('Radio connection lost.')}}
+async function play(slot){
+ if(selecting||!state)return;
+ const station=state.stations.find(s=>s.slot===slot);if(!station)return;
+ selecting=true;$('station-list').querySelectorAll('[data-play]').forEach(b=>b.disabled=true);
+ feedback('Connecting to '+(station.name||station.url)+'…');
+ try{render(await api('/api/stations/play',{slot,revision:state.revision}));feedback('Station selected. See playback status above.');}
+ catch(error){await refresh();feedback(error.message);}
+ finally{selecting=false;$('station-list').querySelectorAll('[data-play]').forEach(b=>b.disabled=false);}
+}
+document.addEventListener('radiohead-player',event=>{
+ if(!state||selecting)return;
+ const player=event.detail;
+ $('station-list').querySelectorAll('[data-playing]').forEach(b=>{b.hidden=player.stationRevision!==state.revision||player.source!=='radio'||player.playbackState!=='playing'||Number(b.dataset.playing)!==player.playingStation;});
+});
+
 function openEditor(slot){const existing=slot===null?null:state.stations.find(s=>s.slot===slot);if(!existing&&state.saved>=state.capacity){feedback('All 10 slots are full. Edit or remove a saved station to make room.');return;}draftSlot=slot;clearInterval(testPoll);$('station-editor-title').textContent=existing?'Edit station':'Make it yours';$('station-name').value=existing?existing.name:'';$('station-url').value=existing?existing.url:'';$('station-favorite').checked=!!(existing&&existing.favorite);$('station-remove').hidden=!existing;$('station-form-status').textContent='Not tested';$('station-editor').hidden=false;$('station-editor').scrollIntoView({behavior:'smooth'});}
 async function favorite(slot){try{const data=await api('/api/stations/favorite',{slot,revision:state.revision});render(data);feedback('Favorite updated.')}catch(error){feedback(error.message);await refresh();}}
 async function search(){const query=$('directory-query').value.trim();if(!query){$('directory-status').textContent='Enter a station name.';return;}$('directory-status').textContent='Searching directory…';const aliases={nyt:'New York Times'};const term=aliases[query.toLowerCase()]||query;const params=new URLSearchParams({name:term,limit:'20',hidebroken:'true'});const country=$('directory-country').value.trim(),language=$('directory-language').value.trim();if(country)params.set('country',country);if(language)params.set('language',language);const mirrors=['https://de1.api.radio-browser.info','https://at1.api.radio-browser.info'];let results;for(const mirror of mirrors){try{const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),7000);const response=await fetch(mirror+'/json/stations/search?'+params,{signal:ctl.signal});clearTimeout(timer);if(response.ok){results=await response.json();break;}}catch(_){}}if(!results){$('directory-status').textContent='The station directory is unavailable. Try again when internet returns, or enter a stream URL manually.';return;}const norm=s=>s.normalize('NFKC').toLocaleLowerCase().trim().replace(/\s+/g,' ');const target=norm(term);results=results.filter(r=>r&&r.name&&(r.url_resolved||r.url)).sort((a,b)=>{const score=r=>{const n=norm(r.name);return n===target?3:n.split(' ').includes(target)?2:n.includes(target)?1:0};return score(b)-score(a)||(Number(b.votes)||0)-(Number(a.votes)||0)}).slice(0,5);$('directory-status').textContent=results.length?(term!==query?'Searching for '+term+'.':'Suggested matches'):'No matching stations found. Try another name or enter a stream URL manually.';$('directory-results').innerHTML=results.map((r,i)=>`<button class="rh-result" type="button" data-result="${i}"><span class="rh-art">${esc(r.name.slice(0,1))}</span><span><bdi>${esc(r.name)}</bdi><small>${esc([r.country,r.language,r.codec].filter(Boolean).join(' · ')||'Untested')}</small></span></button>`).join('');$('directory-results').querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{const r=results[Number(b.dataset.result)];$('station-name').value=r.name;$('station-url').value=r.url_resolved||r.url;$('station-form-status').textContent='Not tested';$('directory-results').innerHTML='';$('directory-status').textContent='Suggestion copied to your editable draft.';});}
@@ -1102,7 +1121,7 @@ void handleConfigShell(WebSection section) {
     html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
         "<link rel='icon' type='image/png' href='/favicon.png'>"
-        "<link rel='stylesheet' href='/ui/radiohead.css?v=programs'></head><body class='radiohead-page'><div id='rh-config'>"
+        "<link rel='stylesheet' href='/ui/radiohead.css?v=station-play'></head><body class='radiohead-page'><div id='rh-config'>"
         "<header class='rh-top'><div class='rh-brand'><span class='rh-brand-mark' aria-hidden='true'>⌁</span>radiohead <span class='rh-muted'>/ settings</span></div>"
         "<div class='rh-topmeta'><span>" + htmlEscape(connectionState()) + "</span><span dir='ltr'>" +
         htmlEscape(addressLabel) + "</span></div></header><div class='rh-layout'><aside class='rh-sidebar'>";
@@ -1138,7 +1157,7 @@ void handleConfigShell(WebSection section) {
         "const observed=state.muted&&state.playbackState==='playing'?'muted':state.playbackState;document.getElementById('player-art').hidden=!spotify;document.getElementById('player-label').textContent=(state.source==='none'?'Nothing playing':(labels[observed]||'Nothing playing')+' · '+(spotify?'Spotify':state.source==='podcast'?'Recorded Show':'Live Radio'));"
         "document.getElementById('player-name').textContent=spotify?(state.title||'Spotify'):(state.name||'Nothing playing');"
         "document.getElementById('player-detail').textContent=spotify?[state.artist,state.album].filter(Boolean).join(' · '):(state.source==='radio'?state.title||'':'');"
-        "};"
+        "document.dispatchEvent(new CustomEvent('radiohead-player',{detail:state}));};"
         "const request=(path,body)=>{if(writing){pendingRequest={path,body};return}writing=true;body.set('revision',revision);fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(async response=>{const state=await response.json();reflect(state);if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Values were refreshed.':'The radio did not accept that change.');show('Changes saved after you stop adjusting.')}).catch(error=>show(error.message)).finally(()=>{writing=false;const next=pendingRequest;pendingRequest=null;if(next)request(next.path,next.body)})};"
         "volume.addEventListener('input',()=>{value.textContent=volume.value+' / 21';clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{volumeTimer=0;request('/api/player/volume',new URLSearchParams({volume:volume.value}))},140)});"
         "mute.addEventListener('click',()=>request('/api/player/mute',new URLSearchParams()));"
@@ -2155,6 +2174,25 @@ void startWebServer() {
     });
     server.on("/api/stations", HTTP_GET, [] { sendStationList(); });
     server.on("/api/stations/artwork", HTTP_GET, sendStationArtworkThumbnail);
+    server.on("/api/stations/play", HTTP_POST, [] {
+        if (!hasCurrentStationRevision()) return;
+        int slot = -1;
+        if (!parseIntegerArg("slot", 0, STATION_COUNT - 1, slot) || !isHttpUrl(stations[slot].url)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid station.\"}");
+            return;
+        }
+        if (isAP || webRestartScheduled || webMaintenanceBusy()) {
+            server.send(409, "application/json; charset=utf-8", "{\"error\":\"Station playback is unavailable during setup or maintenance.\"}");
+            return;
+        }
+        playStation(slot);
+        if (mediaRequestedStation() != slot || mediaPlaybackState() == PlaybackState::Failed) {
+            server.send(502, "application/json; charset=utf-8", "{\"error\":\"The radio could not start that station.\"}");
+            return;
+        }
+        queueSettingsSave();
+        sendStationList(202);
+    });
     server.on("/api/stations/save", HTTP_POST, [] {
         if (!hasCurrentStationRevision()) return;
         const String name = server.arg("name");

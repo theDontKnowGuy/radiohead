@@ -19,6 +19,8 @@ constexpr int PIN_B = 7;
 constexpr int PIN_K0 = 6;
 // Encoder switch/light-sleep wake; preserve the existing sleep behavior.
 constexpr int PIN_SW = 13;
+// External speaker mute/relay driver: HIGH silences, LOW enables speakers.
+constexpr int SPEAKER_MUTE = 2;
 // Backlight PWM uses a non-strapping RTC GPIO for the sleep hold.
 constexpr int TFT_BLK = 1;
 constexpr int TFT_SCLK = 12;

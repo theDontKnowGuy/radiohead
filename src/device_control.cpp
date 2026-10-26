@@ -99,6 +99,7 @@ void goToSleep() {
         return;
     }
     saveSettings();
+    mediaSilenceSpeakers();
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     stopStationPlayback();
 #else
@@ -115,6 +116,7 @@ void goToSleep() {
     ledcWrite(TFT_BLK, 0);
     delay(50);
     rtc_gpio_hold_en(static_cast<gpio_num_t>(TFT_BLK));
+    gpio_hold_en(static_cast<gpio_num_t>(SPEAKER_MUTE));
     const esp_err_t result = esp_light_sleep_start();
     if (result != ESP_OK) {
         Serial.printf("Sleep failed (%d); restarting\n", static_cast<int>(result));
@@ -122,6 +124,7 @@ void goToSleep() {
     // Reuse the existing startup path to restore display, Wi-Fi and playback.
     // Release first so encoder wake cannot request the boot-time setup AP.
     waitForPowerButtonsRelease();
+    gpio_hold_dis(static_cast<gpio_num_t>(SPEAKER_MUTE));
     ESP.restart();
 }
 
