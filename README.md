@@ -72,55 +72,25 @@ IP5310 KEY input. It replaces the relay proposal. That circuit requires differen
 switch wiring and bench validation; its software shutdown sequence is not yet
 implemented.
 
-## Stereo speakers
+## Installed audio hardware
 
-The firmware already sends stereo audio on the I2S bus. Two mono MAX98357A
-amplifiers share the same BCLK, LRC/WS, and DIN signals; their `SD_MODE` wiring
-selects left or right audio.
+As confirmed by the owner on **2026-10-26**, the radio now uses the **PCM5100
+DAC, the new HX-A244 stereo amplifier, and the owner's two-transistor
+speaker-mute circuit**. The MAX98357A boards are removed and permanently
+retired; they are not a fallback or a planned configuration.
 
-With power disconnected, wire the two MAX98357A boards as follows:
+The firmware sends stereo I2S on GPIO39/40/41. GPIO2 controls external speaker
+mute: **HIGH = silent, LOW = sound enabled**, with a minimum four-second
+startup hold. See the [current hardware record](docs/hardware/current-audio-hardware.md)
+and [speaker-mute behavior](docs/hardware/speaker-mute.md).
 
-| Connection | Left amplifier | Right amplifier |
-| --- | --- | --- |
-| Regulated 5 V supply | `VIN` | `VIN` |
-| Common GND with ESP32-S3 | `GND` | `GND` |
-| GPIO 39 (`I2S_BCK`) | `BCLK` | `BCLK` |
-| GPIO 41 (`I2S_LRC`) | `LRC` / `WS` | `LRC` / `WS` |
-| GPIO 40 (`I2S_DIN`, ESP32 data output) | `DIN` | `DIN` |
-| Gain selection | Leave `GAIN` unconnected | Leave `GAIN` unconnected |
-| Speaker terminals | Left speaker to this board's `SPK+` / `SPK-` | Right speaker to this board's `SPK+` / `SPK-` |
+## PCM5100 DAC + HX-A244 amplifier wiring
 
-The amps accept the ESP32's 3.3 V I2S signals while powered from 5 V. No MCLK is
-needed. Use a supply and wiring sized for both amps plus the radio, and keep I2S
-wires short. Use speakers rated at least 4 ohms with a suitable power rating.
-Unconnected `GAIN` selects the default 9 dB gain. See the
-[Adafruit MAX98357A pinout guide](https://learn.adafruit.com/adafruit-max98357-i2s-class-d-mono-amp/pinouts).
-
-For common **Adafruit-style boards powered at 5 V**:
-
-- Left amp: connect `SD` / `SD_MODE` directly to its `VIN`.
-- Right amp: connect `SD` / `SD_MODE` to its `VIN` through an **additional 1 MΩ
-  resistor**, retaining the board's existing pull-up.
-
-Before attaching speakers, measure `SD` to GND: left must be above 1.4 V; right
-must be between 0.77 and 1.4 V. Clone pull-ups can differ, so choose the resistor
-for the measured voltage if needed. Then test channel separation at low volume
-using known left/right audio. Electrical and playback checks remain on-device
-verification; this table does not claim they have been performed.
-
-![MAX98357A stereo wiring diagram](docs/hardware/max98357a-stereo-wiring.svg)
-
-The diagram shows the additional 1 MΩ pull-up used to select the right channel on
-the common 5 V Adafruit-style board. See the
-[MAX98357A stereo wiring notes](docs/hardware/max98357a-stereo.md) before connecting
-the second amplifier or using a different breakout. The speaker outputs are
-bridge-tied and must not be connected together or to ground.
-
-## PCM5102A DAC + XH-A244 amplifier wiring
-
-This alternative replaces **both MAX98357A boards** with one stereo PCM5102A
-DAC and one XH-A244 amplifier. Disconnect all power before rewiring. The sketch
-matches the **back of the owner's red PCM5102 board**, photographed 2026-10-25:
+This is the installed audio path. The earlier wiring notes identified the DAC
+module as PCM5102/PCM5102A; the owner now calls it PCM5100. The drawing below
+retains the earlier board identification, without claiming the exact chip
+variant has been verified. Disconnect all power before any wiring changes.
+The sketch matches the **back of the owner's red DAC board**, photographed 2026-10-25:
 six holes across the top, nine down the left, and the audio jack on the right.
 Follow the printed labels when turning the board over; the view will be mirrored.
 
@@ -149,17 +119,17 @@ GPIO 41 -------------------- LRCK    (left/right clock)
 GND ------------------------ GND
 Verified module supply ----- VIN     (see power note below)
 
-PCM5102A LEFT EDGE           XH-A244 ANALOG AUDIO INPUT
+PCM5102A LEFT EDGE           HX-A244 ANALOG AUDIO INPUT
 LROUT ---------------------- L / IN-L
 ROUT ----------------------- R / IN-R
 AGND ----------------------- GND     (either AGND hole)
 
-12 V supply + -------------- XH-A244 DC+ / VCC
-12 V supply - -------------- XH-A244 DC- / power GND
+12 V supply + -------------- HX-A244 DC+ / VCC
+12 V supply - -------------- HX-A244 DC- / power GND
                                   |
 ESP32 GND + DAC GND ---------------+  common ground
 
-XH-A244 SPEAKER OUTPUTS
+HX-A244 SPEAKER OUTPUTS
 L+ ------------------------- Left Dayton PC83-4 +
 L- ------------------------- Left Dayton PC83-4 -
 R+ ------------------------- Right Dayton PC83-4 +
@@ -169,9 +139,8 @@ R- ------------------------- Right Dayton PC83-4 -
 The GPIO assignments match [include/app_audio_pins.h](include/app_audio_pins.h).
 `SCK` is **not** `BCK`: ground `SCK`, and connect only `BCK` to GPIO 39.
 The bottom label **`LROUT` means the left analog output** on this board layout;
-use it together with `ROUT` for stereo. Do not connect the old MAX speaker outputs
-to the new amplifier's input. The amplifier labels above describe function, not
-physical terminal order; its connector layout has not been photographed.
+use it together with `ROUT` for stereo. The amplifier labels above describe
+function, not physical terminal order; its connector layout has not been photographed.
 
 **DAC power still needs confirmation from the component side or its seller's
 schematic.** The back photo shows `VIN` and `A3V3`, but does not establish the
@@ -181,7 +150,7 @@ assumption alone. Leave `A3V3` externally unconnected in this VIN-powered setup;
 it is the analog 3.3 V rail, not a second VIN. Never apply 12 V to any DAC or ESP32
 pin. Keep the ESP32 on its existing supply.
 
-### PCM5102A configuration pads
+### DAC configuration pads (earlier PCM5102A board reference)
 
 These four left-edge control pins are normally configured by the board's solder
 jumpers, so they need **no additional ESP32 GPIO wires** when set correctly:
@@ -209,9 +178,10 @@ Connect one 4-ohm Dayton PC83-4 per channel. **Neither speaker negative is groun
 do not join the speaker negatives.** These are bridge-tied outputs on the
 [TPA3110D2](https://www.ti.com/product/TPA3110D2).
 
-Start with low volume and flat bass EQ, then check left/right separation with
-known stereo audio. No firmware edit is made for this wiring; compatibility,
-startup/mute behavior, noise and playback still require on-device verification.
+The DAC/amplifier and two-transistor speaker-mute circuit are installed. The
+report does not supply new playback or electrical test results. Check left/right
+separation at low volume and flat bass EQ, then startup/mute behavior and noise;
+see the [mute acceptance checks](docs/hardware/speaker-mute.md).
 
 ## Build
 

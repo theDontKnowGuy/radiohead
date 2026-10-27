@@ -1,5 +1,10 @@
 # TFT white-screen investigation
 
+Audio hardware update, 2026-10-26: PCM5100 + new amplifier + the owner's
+two-transistor mute circuit are installed; MAX98357A is permanently retired.
+See the [current hardware record](current-audio-hardware.md). This installation
+does not establish that the recorded TFT fault is resolved.
+
 ## User observations, 2026-10-16
 
 - Display: 2.8-inch ILI9341 TFT; exact module PCB/revision not yet identified.
@@ -25,8 +30,8 @@ No cause is established. Initial scope observations are recorded below.
 Prioritize capturing TFT power and reset at the display end during the event.
 An intact waveform measured only after the failure does not exclude a transient.
 Attach ordinary scope probe grounds only to circuit GND, never to either
-MAX98357A speaker output. Use short ground connections and avoid slipping
-between adjacent TFT header pins.
+amplifier speaker output (including the installed HX-A244). Use short ground
+connections and avoid slipping between adjacent TFT header pins.
 
 Repository inspection: reset is GPIO10; TFT SPI write clock inherits the pinned
 LovyanGFX default of 16 MHz. The flashed image has not been verified in this

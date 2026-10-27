@@ -1,5 +1,10 @@
 # Battery power candidate evaluation
 
+Audio context update, 2026-10-26: references below to "both amplifiers" describe
+the permanently retired MAX98357A assembly. The installed hardware is PCM5100 +
+new amplifier + the owner's two-transistor mute circuit. See the
+[current hardware record](current-audio-hardware.md) and revised power-plan limits.
+
 **Historical evaluation, superseded on 2026-10-06.** The user waived off while
 charging and accepted double-click shutdown. Use the
 [simple battery power plan](battery-power-architecture-plan.md) for the current

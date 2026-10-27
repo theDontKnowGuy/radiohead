@@ -1,5 +1,11 @@
 # Native Spotify firmware and standalone candidate
 
+**Current hardware, 2026-10-26:** PCM5100 DAC + new amplifier + the owner's
+two-transistor speaker-mute circuit are installed; MAX98357A is permanently
+retired. The standalone MAX adapter and GPIO15/17/16 references below are
+historical. Current integrated I2S uses GPIO39/40/41 (BCK/DOUT/WS) from the
+shared pin header. See the [hardware record](../../docs/hardware/current-audio-hardware.md).
+
 ## Default integrated firmware build
 
 Run `pio run` or `pio run -e esp32s3` from the repository root. The default

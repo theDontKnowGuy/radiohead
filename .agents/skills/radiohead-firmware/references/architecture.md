@@ -1,5 +1,10 @@
 # Firmware architecture
 
+Current audio assembly, confirmed 2026-10-26: PCM5100 DAC, HX-A244 stereo amplifier, and the owner's two-transistor speaker-mute circuit.
+MAX98357A boards are permanently retired. Consult
+`docs/hardware/current-audio-hardware.md` and `docs/hardware/speaker-mute.md`;
+do not treat old MAX wiring or test results as current hardware.
+
 Read this reference when changing ownership, startup, the main loop, hardware mappings,
 or behavior spanning multiple modules.
 

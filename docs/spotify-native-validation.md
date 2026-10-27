@@ -1,5 +1,11 @@
 # Native Spotify: execution handoff and pre-UI acceptance
 
+Hardware update, 2026-10-26: use the
+[current audio hardware record](hardware/current-audio-hardware.md): PCM5100 DAC,
+new amplifier, owner's two-transistor mute circuit installed; MAX98357A permanently
+retired. Earlier playback evidence is specific to the assembly tested. Include
+GPIO2 speaker-mute behavior in acceptance of the replacement assembly.
+
 Updated: 2026-09-24. Initial source baseline: `b47961c`.
 Status: ready to execute; every hardware gate below is **NOT VERIFIED**.
 Research and candidate links: [Spotify investigation](spotify-integration-research.md).
@@ -59,8 +65,9 @@ credentials in chat or treat absent hardware as a passing test.
 4. Run `pio run -e esp32s3` and `git diff --check`; record toolchain/library
    versions, RAM/flash and application/OTA slot sizes. Enumerate serial devices
    (e.g. `pio device list`) and identify the radio before upload. Confirm its
-   actual DAC/amplifier and wiring from available hardware evidence; ask the
-   user only if it cannot be established.
+   wiring against the current hardware record and shared audio-pin header.
+   The owner's replacement hardware installation is already confirmed; ask only
+   for missing details needed by a specific test.
 5. Create `docs/spotify-validation/progress.md` with the evidence ledger below.
    Preserve a known-good build, exact restore/upload command and private recovery
    material as appropriate before the first experimental flash. Never commit

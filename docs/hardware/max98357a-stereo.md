@@ -1,5 +1,11 @@
 # MAX98357A stereo speaker wiring
 
+**RETIRED permanently — 2026-10-26. Historical reference only; do not use this
+as installation guidance.** All MAX98357A boards have been removed. The installed
+assembly is PCM5100 DAC + new amplifier + the owner's two-transistor mute circuit.
+Use the [current hardware record](current-audio-hardware.md). The old wiring and
+checks below are retained only to explain earlier measurements.
+
 The Radiohead firmware already emits left and right samples. The normal audio
 path configures Philips I2S in stereo mode, and the optional Spotify sink also
 requires two-channel PCM. Adding the second speaker is therefore a wiring and

@@ -1,5 +1,15 @@
 # Radiohead firmware agent instructions
 
+## Current audio hardware — confirmed 2026-10-26
+
+The installed path is PCM5100 DAC → HX-A244 stereo amplifier
+→ speakers, with the owner's two-transistor speaker-mute circuit installed.
+MAX98357A boards are permanently removed: never propose bringing them back or
+continue their hardware troubleshooting as current work. Read the
+[current audio hardware record](docs/hardware/current-audio-hardware.md) and
+[GPIO2 mute contract](docs/hardware/speaker-mute.md). Older PCM5102A labels and
+MAX98357A measurements are historical context, not a different current assembly.
+
 ## Project intent
 
 Maintain the ESP32-S3 internet-radio firmware as a reliable embedded application.

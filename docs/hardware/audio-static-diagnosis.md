@@ -1,5 +1,12 @@
 # Playback static and channel separation investigation
 
+**Historical MAX98357A investigation — closed for this hardware, 2026-10-26.**
+The MAX boards have been removed permanently. The PCM5100, new amplifier and
+owner's two-transistor mute circuit are installed; see the
+[current hardware record](current-audio-hardware.md). Proposed MAX measurements
+below are no longer next actions. Their recorded symptoms and measurements do
+not establish the behavior of the replacement assembly.
+
 ## User observations, 2026-10-16
 
 - Both internet radio and Spotify have harsh static that grows with volume;

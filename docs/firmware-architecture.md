@@ -1,5 +1,11 @@
 # Firmware organization review — 2026-10-03
 
+Current audio hardware (2026-10-26): PCM5100 DAC → new stereo amplifier →
+speakers, with the owner's two-transistor mute circuit installed and controlled
+by the GPIO2 firmware contract. MAX98357A is permanently retired. See the
+[hardware record](hardware/current-audio-hardware.md) and
+[mute behavior](hardware/speaker-mute.md).
+
 `main.cpp` contains only the Arduino entry points. `application.cpp` coordinates
 startup and the cooperative loop; implementations stay in their feature modules.
 Keep application code in `src/`, public interfaces in `include/`, build/validation

@@ -1,5 +1,13 @@
 # Simple battery power plan
 
+**Audio-load update, 2026-10-26:** the installed PCM5100 DAC, new HX-A244
+amplifier and owner's two-transistor mute circuit replace the MAX98357A boards
+permanently. The existing amplifier wiring reference uses 12 V. This 5 V battery
+proposal is therefore incomplete for the current whole radio: amplifier supply
+conversion/distribution and coordinated shutdown remain undecided. The mute
+circuit is not evidence of amplifier power isolation. See the
+[current hardware record](current-audio-hardware.md).
+
 Updated: 2026-10-06. Proposed circuit for bench validation; not electrically tested.
 
 ## Decisions
@@ -47,7 +55,9 @@ must still defer during writes. Firmware cannot override a directly wired button
 flowchart LR
     USB[USB charger] --> PMIC[IP5310 board]
     PACK[Protected 1S2P pack] --> PMIC
-    PMIC -->|5 V output| RADIO[ESP32 + existing TFT supply path + both amplifiers]
+    PMIC -->|5 V output| RADIO[ESP32 + existing TFT supply path]
+    AMP[HX-A244 amplifier supply and shutdown: unresolved]
+    DAC[PCM5100 supply: confirm module rating]
     SW[Encoder switch] ---|Replaces KEY-to-GND button| PMIC
     PMIC ---|KEY signal only| SHIFT[Adapted BSS138 level shifter]
     SHIFT ---|LV1 / existing GPIO 13| ESP[ESP32]
@@ -60,14 +70,17 @@ flowchart LR
   before paralleling; 3500 mAh alone does not establish suitability.
 - Pack output connects to the identified battery pads. USB charging connects to
   the module's charging port, not the ESP32 programming connector.
-- Fixed **5 V output** supplies the devboard's verified 5 V input, both amplifiers
-  and the TFT's existing appropriate supply path. Do not move a 3.3 V-only TFT
-  connection to 5 V.
-- All grounds are common. Speaker terminals remain on their individual amplifier
-  outputs; neither speaker terminal is ground.
+- Fixed **5 V output** supplies the devboard's verified 5 V input and the TFT's
+  existing appropriate supply path. Do not move a 3.3 V-only TFT connection to
+  5 V. Confirm the PCM5100 module's VIN rating before assigning its supply.
+- The HX-A244's documented 12 V supply is not provided by this 5 V diagram.
+  Its battery power path and shutdown coordination need a separate design decision.
+- All grounds are common. Speakers remain on the stereo amplifier's separate
+  channel outputs; neither speaker terminal is ground.
 - Size protection, fuse, holder, connectors and wires for measured peak battery
   current. Advertised 3.1 A is not a measured continuous rating of the assembled
-  module. Test both amplifiers at the intended volume.
+  module. Recalculate the load budget for the DAC, amplifier and mute circuit;
+  test the stereo amplifier at the intended volume once its power path is defined.
 
 ## Replacing the button and connecting the ESP32
 
@@ -187,7 +200,8 @@ replacement is implemented and tested.
 3. Check software pulses, startup press, reset and clicks. Insert/remove charger
    USB and verify accepted powered behavior. Confirm charging-powered OTA cannot
    be interrupted by PMIC button shutdown.
-4. Test actual ESP32, TFT and both amplifiers: startup, loud playback, muted/dim
+4. Once the amplifier power path is defined, test ESP32, TFT, PCM5100, HX-A244
+   and the two-transistor mute circuit: startup, loud playback, muted/dim
    operation, low battery, rail stability, temperature and total off current.
 
 Plan and shortlist prepared. Exact module qualification, firmware, final physical

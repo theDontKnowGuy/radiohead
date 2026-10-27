@@ -1,5 +1,13 @@
 # Boot audio quiet-output experiment
 
+**Historical experiment on the retired MAX98357A assembly.** As of 2026-10-26,
+the PCM5100, new amplifier and owner's two-transistor mute circuit are installed.
+The current [GPIO2 mute contract](speaker-mute.md) supersedes the statement below
+that no shutdown/mute GPIO was added. The old pin sequence and MAX-specific
+standby rationale describe the earlier experiment, not current wiring or a
+validated fix for the replacement assembly. Use the
+[current hardware record](current-audio-hardware.md) for future tests.
+
 Purpose: test whether a short, loud startup-static burst comes from the
 firmware's initial I2S state. This is an experiment, not a confirmed fix.
 

@@ -1,5 +1,12 @@
 # S3 resource and responsiveness run
 
+**Hardware update, 2026-10-26:** the owner confirms the PCM5100 DAC, new amplifier
+and their two-transistor speaker-mute circuit are installed. MAX98357A is permanently
+retired. Earlier device results and MAX/pin references below describe the hardware
+at the time; they do not validate the replacement assembly. Current I2S is
+GPIO39/40/41 (BCK/DOUT/WS). See the
+[current hardware record](../hardware/current-audio-hardware.md).
+
 Status: implementation built and short device runs measured; full S3 acceptance open.
 
 ## First device probe and correction

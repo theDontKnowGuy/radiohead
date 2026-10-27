@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
-  <title id="title">MAX98357A stereo wiring for the Radiohead ESP32-S3 project</title>
-  <desc id="desc">GPIO 15, GPIO 17, and GPIO 16 branch to two MAX98357A amplifier boards. A regulated 5 volt supply powers both amplifiers and shares ground with the ESP32. The left amplifier SD MODE pin is connected directly to VIN. The right amplifier SD MODE pin is connected to VIN through an additional 1 megaohm resistor. Each amplifier drives its own speaker through SPK plus and SPK minus.</desc>
+  <title id="title">RETIRED 2026-10-26: historical MAX98357A stereo wiring</title>
+  <desc id="desc">Historical diagram only. MAX98357A permanently removed; current hardware is PCM5100, new amplifier and two-transistor mute circuit. GPIO 15, GPIO 17, and GPIO 16 branch to two MAX98357A amplifier boards. A regulated 5 volt supply powers both amplifiers and shares ground with the ESP32. The left amplifier SD MODE pin is connected directly to VIN. The right amplifier SD MODE pin is connected to VIN through an additional 1 megaohm resistor. Each amplifier drives its own speaker through SPK plus and SPK minus.</desc>
 
   <defs>
     <style>
@@ -34,8 +34,8 @@
   </defs>
 
   <rect class="background" width="1440" height="900"/>
-  <text class="title" x="720" y="52" text-anchor="middle">MAX98357A stereo wiring</text>
-  <text class="subtitle" x="720" y="82" text-anchor="middle">Both amplifiers share the I²S bus; SD_MODE chooses which stereo channel each one plays.</text>
+  <text class="title" x="720" y="52" text-anchor="middle">RETIRED: MAX98357A wiring</text>
+  <text class="subtitle" x="720" y="82" text-anchor="middle">Historical only — removed permanently 2026-10-26. See current-audio-hardware.md.</text>
 
   <!-- ESP32-S3 -->
   <rect class="panel" x="42" y="176" width="250" height="350" rx="18"/>

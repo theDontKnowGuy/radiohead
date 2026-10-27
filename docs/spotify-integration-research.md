@@ -1,5 +1,11 @@
 # Spotify Premium: feasibility, alternatives and project plan
 
+**Hardware update, 2026-10-26:** the installed assembly is PCM5100 DAC + HX-A244
+amplifier + the owner's two-transistor speaker-mute circuit.
+MAX98357A is permanently retired. The initial source snapshot and unresolved
+hardware questions below are historical; current I2S is GPIO39/40/41
+(BCK/DOUT/WS). Use the [hardware record](hardware/current-audio-hardware.md).
+
 Research date: 2026-09-24. Repository inspected at `b47961c`.
 Status: research background; no firmware changes or device tests.
 
@@ -35,7 +41,7 @@ Source inspection, rather than hardware measurement, established:
 | Area | Current implementation | Implication |
 | --- | --- | --- |
 | Processor/storage | ESP32-S3 N16R8; 16 MB flash, 8 MB OPI PSRAM; Arduino under pinned pioarduino PlatformIO platform | A plausible native target, but free internal RAM and CPU headroom remain unmeasured. |
-| Audio | Global `Audio audio`; vendored ESP32-audioI2S; I2S BCK 15, DOUT 16, WS 17 | Preserve these pins. The physical DAC/amplifier model must be confirmed; do not copy another board's codec setup. |
+| Audio | Global `Audio audio`; vendored ESP32-audioI2S; I2S BCK 15, DOUT 16, WS 17 | Historical pins; current assignments and installed audio hardware are in the hardware update above. Do not copy another board's codec setup. |
 | Playback | `media.cpp` owns radio/podcast playback and recovery; `main.cpp` services audio and HTTP | Introduce source ownership in `media`, with Spotify behind a separate adapter. |
 | Output lifetime | `Audio::stopSong()` stops the stream/decoder but does not delete its I2S channel; the destructor does | Calling stop and starting another I2S driver is not a sufficient switching design. |
 | PCM interface | Inspected public `Audio` API has URL/file playback, but no general public PCM input | cspot PCM cannot simply be passed to `connecttohost()`. Output integration is a first-class work package. |
@@ -238,7 +244,8 @@ Implementation must run `pio run -e esp32s3`, inspect RAM/flash and actual OTA
 partition fit, run `git diff --check`, and perform the package's device tests.
 The full 16 MB chip size is not the OTA application-slot budget.
 
-Unresolved inputs: exact DAC/amplifier model, actual Premium pairing/developer
+At the original research date, unresolved inputs included the DAC/amplifier model
+(now superseded by the hardware record), actual Premium pairing/developer
 access needed by the selected native flow, runtime authentication without a
 compiled secret or companion, measured internal RAM headroom and safe output
 ownership. Native-only is settled; do not ask again about Linux or Raspberry Pi.

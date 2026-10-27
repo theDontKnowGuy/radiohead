@@ -1,5 +1,12 @@
 # S2 output ownership and experimental integration
 
+**Hardware update, 2026-10-26:** the owner confirms the PCM5100 DAC, new amplifier
+and their two-transistor speaker-mute circuit are installed. MAX98357A is permanently
+retired. Earlier device results and MAX/pin references below describe the hardware
+at the time; they do not validate the replacement assembly. Current I2S is
+GPIO39/40/41 (BCK/DOUT/WS). See the
+[current hardware record](../hardware/current-audio-hardware.md).
+
 Date: 2026-09-25; updated 2026-09-29. Status: partial implementation.
 Short-run integrated Spotify playback is verified; directed transitions and
 stability acceptance remain open.
