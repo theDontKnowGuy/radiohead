@@ -1,4 +1,5 @@
 #include "media.h"
+#include "radio_diagnostics.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -278,12 +279,15 @@ void applyLocalOutputSettings() {
 }
 
 void logStreamDiagnostic(const char* event) {
-    Serial.printf(
-        "[stream] event=%s requested=%d playing=%d state=%d running=%d wifi=%d rssi=%ld buffer=%lu/%lu\n",
-        event, requestedStation, playingStation, static_cast<int>(playbackState), audio.isRunning(),
-        static_cast<int>(WiFi.status()), static_cast<long>(WiFi.RSSI()),
-        static_cast<unsigned long>(audio.inBufferFilled()),
-        static_cast<unsigned long>(audio.getInBufferSize()));
+    // Audio callbacks can run on the PCM task. Publish fixed flags only: USB
+    // Serial output here can itself stall playback when no reader is attached.
+    uint32_t flag = 0;
+    if (strcmp(event, "slow stream") == 0) flag = RadioSlow;
+    else if (strcmp(event, "Stream lost") == 0) flag = RadioLost;
+    else if (strcmp(event, "eof") == 0) flag = RadioEof;
+    else if (strcmp(event, "connection timeout") == 0) flag = RadioTimeout;
+    else if (strcmp(event, "player stopped") == 0) flag = RadioStopped;
+    radioDiagnosticsSignal(flag);
 }
 
 void scheduleStationRecovery(const char* reason) {
@@ -296,6 +300,7 @@ void scheduleStationRecovery(const char* reason) {
     stationRecoveryDueAt = millis() + delayMs;
     stationRecoveryScheduled = true;
     validationEvent("station_recovery_scheduled");
+    radioDiagnosticsSignal(RadioRecovery);
     playbackState = PlaybackState::Connecting;
     playingStation = -1;
     forceRedraw = true;
@@ -304,6 +309,10 @@ void scheduleStationRecovery(const char* reason) {
 }
 
 void updatePlaybackFromAudioInfo(Audio::msg_t message) {
+    if (message.msg && message.e == Audio::evt_info && strcmp(message.msg, "stream ready") == 0)
+        radioDiagnosticsSignal(RadioReady);
+    if (message.msg && message.e == Audio::evt_log && strstr(message.msg, "Writing timeout"))
+        radioDiagnosticsSignal(RadioOutputTimeout);
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (outputOwner != OutputOwner::Local) return;
 #endif

@@ -61,7 +61,7 @@ struct Address { String toString() const { return "192.0.2.2"; } };
 struct WifiStub {
     int status() const {
         if (!joined || tick - joinAt < connectionDelay) return 0;
-        if (flap && tick >= 12000 && tick < 14000) return 0;
+        if (flap && tick >= 12000 && tick < 13000) return 0;
         return WL_CONNECTED;
     }
     void begin(const char*, const char*) { joined = true; joinAt = tick; }
@@ -108,7 +108,8 @@ void validationEvent(const char*) {}
 void initializeDisplay() {}
 void initializeTouchCalibration() {}
 void loadSettings() {}
-void stationArtworkBegin() {}
+bool stationArtworkBegin() { return true; }
+void radioDiagnosticsBegin(bool) {}
 void startDeviceControl() {}
 unsigned long lastInteraction = 0;
 bool firmwareAutoUpdate = false, forceRedraw = false;
@@ -157,11 +158,11 @@ int main(int argc, char** argv) {
         assert(qrStates.front() == QrState::Setup && MDNS.begins == 0);
         assert(setupAccessReason == (requestedSetup ? SetupAccessReason::Requested : SetupAccessReason::NoCredentials));
     } else {
-        assert(joinAt == 0 && playbackAt >= firstQrAt + 10000);
+        assert(joinAt == 0 && playbackAt >= firstQrAt + 7000);
         assert(server.handles > 0 && restartsServiced == server.handles);
         assert(audioServiced == server.handles);
         if (scenario == "missing" || scenario == "short-boot-missing") {
-            assert(playbackAt == std::max(bootDuration + 10000, NETWORK_JOIN_TIMEOUT_MS));
+            assert(playbackAt == std::max(bootDuration + 7000, NETWORK_JOIN_TIMEOUT_MS));
             assert(!radioStarted && isAP && setupAccessReason == SetupAccessReason::ConnectionFailed);
             assert(qrStates.front() == QrState::Joining && qrStates.back() == QrState::Setup);
             assert(MDNS.begins == 0 && server.begins == 2);

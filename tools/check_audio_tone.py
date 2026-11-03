@@ -7,7 +7,7 @@ import sys
 root = Path(__file__).resolve().parents[1]
 out = root / '.pio/audio_tone_native'
 (out / 'driver').mkdir(parents=True, exist_ok=True)
-(out / 'Arduino.h').write_text('#pragma once\n#include <string>\nusing String = std::string;\n')
+(out / 'Arduino.h').write_text('#pragma once\n#include <string>\nclass String : public std::string { public: using std::string::string; };\n')
 (out / 'AudioSink.h').write_text('''#pragma once
 #include <cstdint>
 #include <cstddef>
@@ -53,6 +53,7 @@ hook_order = ['audio_process_raw_samples(m_i2sWorkBuff.get(), readWords)',
 assert [vendor.index(call) for call in hook_order] == sorted(vendor.index(call) for call in hook_order)
 
 fixture = r'''
+void radioDiagnosticsPcmBlock() {}
 #include <algorithm>
 #include <cassert>
 #include <cmath>

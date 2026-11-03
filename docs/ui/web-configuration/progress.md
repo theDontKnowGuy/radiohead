@@ -1,5 +1,26 @@
 # Web configuration implementation progress
 
+### 2026-11-03 — Persistent radio stall diagnostics (ready for device testing)
+
+- Add an always-on bounded RTC flight recorder and read-only paged diagnostic
+  export. Archive retained evidence at startup before playback; no flash writes
+  or Serial logging in the recording hot path. No settings or visual changes.
+- Scope: media signals, local PCM progress, loop coordination, diagnostic module,
+  and `/api/radio/diagnostics`. Separate sample/event rings use 6,320 bytes of RTC
+  memory; startup archives the recovered session and preserves the latest crash
+  independently of normal restarts. Power loss can erase the unarchived tail.
+- Functional: `tools/check_radio_diagnostics.py` exercises production sampler and
+  archive code under ASan/UBSan, including damaged records, failed writes,
+  reset/archive behavior and paginated collection. Audio filter/tone/link-map and
+  startup checks pass. Corrected obsolete startup-test expectations to the
+  existing seven-second QR hold; firmware startup timing was not changed.
+- Build: `pio run -e esp32s3` and `git diff --check` pass. Image 4,695,232 bytes,
+  with 1,858,368 bytes free; DIRAM 261,947 bytes (76.65%). RTC SLOW 6,352 bytes,
+  with 1,840 bytes free. No vendored changes or generated artifacts added.
+- Visual: no browser layout or native rendering changes. Hardware: not flashed;
+  reset retention, stream continuity and runtime overhead remain unverified.
+  See [collection, interpretation and acceptance steps](../../radio-stall-diagnostics.md).
+
 ### 2026-10-25 — Click saved stations to play (ready for device testing)
 
 - Saved station artwork/name/URL now form a native button, usable by pointer,

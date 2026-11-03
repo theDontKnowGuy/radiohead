@@ -1,4 +1,5 @@
 #include "validation_diagnostics.h"
+#include "radio_diagnostics.h"
 
 #if (defined(RADIO_VALIDATION_DIAGNOSTICS) && RADIO_VALIDATION_DIAGNOSTICS) || defined(RADIO_SPOTIFY_EXPERIMENT)
 
@@ -49,6 +50,7 @@ std::atomic<uint32_t> lastFailedCaps{0};
 uint32_t minimumInputFill = UINT32_MAX;
 
 void failedAllocation(size_t requestedBytes, uint32_t capabilities, const char*) {
+    radioDiagnosticsAllocationFailure(requestedBytes);
     failedAllocations.fetch_add(1, std::memory_order_relaxed);
     lastFailedBytes.store(static_cast<uint32_t>(requestedBytes), std::memory_order_relaxed);
     lastFailedCaps.store(capabilities, std::memory_order_relaxed);

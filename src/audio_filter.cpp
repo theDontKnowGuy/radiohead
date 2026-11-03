@@ -1,6 +1,7 @@
 #include "audio_notch.h"
 #include "audio_tone.h"
 #include "media.h"
+#include "radio_diagnostics.h"
 
 namespace {
 uint32_t appliedTone = UINT32_MAX;
@@ -46,6 +47,7 @@ void audio_process_raw_samples(int32_t* samples, int16_t words) {
 // Pinned library hook after its EQ and volume. Restoring gain here uses the
 // headroom available at the chosen volume, rather than clipping before volume.
 void audio_process_i2s(int32_t* samples, int16_t words, bool*) {
+    if (samples && words > 0) radioDiagnosticsPcmBlock();
     if (toneMakeup == 1.0f || !samples || words <= 0) return;
     toneLimiter.configure(mediaLocalSampleRate());
     for (int index = 0; index + 1 < words; index += 2) {

@@ -23,6 +23,25 @@ def resolve_path(value):
     return (ROOT / path).resolve() if not path.is_absolute() else path.resolve()
 
 
+def platformio_packages(core):
+    # PlatformIO keeps conflicting package versions in suffixed directories.
+    # Ask its resolver which installation belongs to this environment.
+    command = """
+import json
+from platformio.platform.factory import PlatformFactory
+platform = PlatformFactory.from_env("esp32s3")
+names = ("framework-espidf", "framework-arduinoespressif32",
+         "tool-cmake", "tool-ninja", "toolchain-xtensa-esp-elf")
+print(json.dumps({name: platform.get_package_dir(name) for name in names}))
+"""
+    result = run([core / "penv/bin/python", "-c", command], capture_output=True, text=True)
+    packages = json.loads(result.stdout)
+    for name, path in packages.items():
+        if not path:
+            raise RuntimeError(f"Missing PlatformIO package {name}; run pio pkg install -e esp32s3")
+    return {name: resolve_path(path) for name, path in packages.items()}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tft-color-test", action="store_true",
@@ -41,8 +60,9 @@ def main():
     if not args.prepared:
         # Package installation only: this never invokes an application compiler.
         run([pio, "pkg", "install", "-e", "esp32s3"])
-    idf = resolve_path(os.environ.get("IDF_PATH") or core / "packages/framework-espidf")
-    arduino = core / "packages/framework-arduinoespressif32"
+    packages = platformio_packages(core)
+    idf = resolve_path(os.environ.get("IDF_PATH") or packages["framework-espidf"])
+    arduino = packages["framework-arduinoespressif32"]
     lovyan = ROOT / ".pio/libdeps/esp32s3/LovyanGFX"
     arduinojson = ROOT / ".pio/libdeps/esp32s3/ArduinoJson"
     for path, version in ((idf, "3.50505"), (arduino, "3.3.11"),
@@ -78,10 +98,7 @@ def main():
                  RADIOHEAD_LOVYAN_DIR=str(lovyan), RADIOHEAD_ARDUINOJSON_DIR=str(arduinojson))
     tool_paths = []
     for tool, suffix in (("tool-cmake", "bin"), ("tool-ninja", ""), ("toolchain-xtensa-esp-elf", "bin")):
-        path = core / "tools" / tool
-        if not path.exists():
-            path = core / "packages" / tool
-        tool_paths.append(str(path / suffix))
+        tool_paths.append(str(packages[tool] / suffix))
     child["PATH"] = os.pathsep.join(tool_paths + [child.get("PATH", "")])
     if not python.exists():
         # Provision ESP-IDF's own Python environment on a newly installed toolchain.

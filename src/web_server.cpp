@@ -19,6 +19,8 @@
 #include "FirmwareVersion.h"
 #include "firmware_updater.h"
 #include "media.h"
+#include "radio_diagnostics.h"
+#include "radio_diagnostics_store.h"
 #include "settings.h"
 #include "settings_backup.h"
 #include "spotify_adapter.h"
@@ -1714,6 +1716,19 @@ void startWebServer() {
     // The configuration endpoint does not grant cross-origin access.
     const char* configurationHeaders[] = {"X-Radiohead-Config", "X-Radiohead-Backup"};
     server.collectHeaders(configurationHeaders, 2);
+    server.on("/api/radio/diagnostics", HTTP_GET, [] {
+        const String bank = server.hasArg("bank") ? server.arg("bank") : String("live");
+        size_t offset = 0;
+        if ((bank != "live" && bank != "previous" && bank != "crash") ||
+            (server.hasArg("offset") && !RadioLog::parseOffset(server.arg("offset").c_str(), offset))) {
+            server.send(400, "application/json", "{\"error\":\"Invalid bank or offset\"}");
+            return;
+        }
+        const String json = radioDiagnosticsJson(bank, offset);
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(json.isEmpty() ? 503 : 200, "application/json",
+            json.isEmpty() ? String("{\"error\":\"Diagnostics unavailable\"}") : json);
+    });
     server.on("/api/settings/backup", HTTP_GET, handleSettingsBackup);
     server.on("/api/settings/restore", HTTP_POST, finishSettingsRestore, handleSettingsRestoreUpload);
 #if defined(RADIO_SPOTIFY_EXPERIMENT)

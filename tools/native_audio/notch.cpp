@@ -7,6 +7,7 @@
 void audio_process_raw_samples(int32_t*, int16_t);
 uint32_t rate = 44100;
 uint32_t mediaLocalSampleRate() { return rate; }
+void radioDiagnosticsPcmBlock() {}
 void mediaApplyLocalTone(int, int, int) {}
 constexpr double pi = 3.14159265358979323846;
 

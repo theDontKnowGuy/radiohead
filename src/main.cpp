@@ -10,6 +10,7 @@
 #include "display.h"
 #include "firmware_updater.h"
 #include "media.h"
+#include "radio_diagnostics.h"
 #include "wifi_network.h"
 #include "settings.h"
 #include "ui_controller.h"
@@ -20,7 +21,6 @@
 void setup() {
     mediaPrepareBootOutput();
     Serial.begin(115200);
-    validationBegin();
 
     initializeDisplay();
     // A held encoder requests browser-based Wi-Fi setup. Touch calibration is
@@ -35,7 +35,9 @@ void setup() {
     // Initialize artwork storage once, including the user-authorized recovery
     // of the currently corrupt LittleFS partition, before web rendering can
     // ask for station thumbnails.
-    stationArtworkBegin();
+    const bool artworkReady = stationArtworkBegin();
+    radioDiagnosticsBegin(artworkReady);
+    validationBegin();
 
     mediaConfigureOutput();
     const unsigned long networkJoinStartedAt = millis();
@@ -88,17 +90,22 @@ void setup() {
 }
 
 void loop() {
+    radioDiagnosticsPhase(RadioPhase::Audio);
     validationLoopEnter();
     const uint32_t audioStartedUs = micros();
     if (mediaLocalAudioAvailable()) audio.loop();
     validationAudioServiced(micros() - audioStartedUs);
+    radioDiagnosticsPhase(RadioPhase::Web);
     const uint32_t webStartedUs = micros();
     serviceWebConnectivity();
     server.handleClient();
     validationWebServiced(micros() - webStartedUs);
+    radioDiagnosticsPhase(RadioPhase::Network);
     serviceWebNetworkRequests(millis());
     serviceWifiRoaming(millis());
+    radioDiagnosticsPhase(RadioPhase::Weather);
     updateWeatherData();
+    radioDiagnosticsPhase(RadioPhase::Controls);
 
     const unsigned long now = millis();
     serviceFirmwareUpdateDisplay(now);
@@ -118,9 +125,14 @@ void loop() {
     serviceUiCommands(now);
     serviceSettingsSave(now);
 
+    radioDiagnosticsPhase(RadioPhase::Media);
     mediaTick(now);
     updatePowerState(now);
     uiControllerTick(now);
+    radioDiagnosticsPhase(RadioPhase::Display);
     serviceDisplayRefresh(now, currentTime, timeValid);
     validationTick();
+    radioDiagnosticsPhase(RadioPhase::Diagnostics);
+    radioDiagnosticsTick();
+    radioDiagnosticsPhase(RadioPhase::Idle);
 }

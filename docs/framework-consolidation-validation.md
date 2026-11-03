@@ -149,6 +149,26 @@ Kconfig with the same flash auto-detection behavior as the baseline. NVS at
 set. Upload command generation was checked without opening or resetting a port.
 No firmware was uploaded and no release was published during this task.
 
+## Package resolution repair, 2026-10-29
+
+The build stopped before compilation with `Expected pinned version 3.3.11`.
+PlatformIO had installed Arduino-ESP32 3.3.11 in a suffixed package directory
+alongside Arduino 2.0.17 in the unsuffixed directory. The native entry script
+assumed the unsuffixed path, so it selected the older installation even though
+PlatformIO correctly resolved the configured dependency.
+
+`tools/build_firmware.py` now asks PlatformIO's environment package resolver for
+framework and tool paths, retaining the existing version checks. Both installed
+Arduino versions remain in place; the shared Arduino component symlink now points
+to the resolved 3.3.11 installation.
+
+`pio run -e esp32s3` passed a fresh native compilation, and
+`python3 tools/build_firmware.py` passed the incremental build. Package resolution
+was also checked directly with both Arduino versions installed. The application
+is 4,688,208 bytes, leaving 1,865,392 bytes in the OTA slot. DIRAM use is
+261,835 bytes (76.61%), leaving 79,925 bytes. No firmware was flashed; these
+checks do not add physical-device acceptance evidence.
+
 ## Physical-device acceptance still required
 
 Record boot/setup AP, radio/podcast/Spotify continuity, repeated source switches,
