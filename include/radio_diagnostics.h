@@ -13,6 +13,9 @@ enum RadioEvent : uint32_t {
 // Begin after artwork storage mounts, before any audio starts. Other calls are
 // loop-owned except the three atomic-only signal functions below.
 void radioDiagnosticsBegin(bool filesystemReady);
+bool radioDiagnosticsDetailedEnabled();
+// Persist first; an unsuccessful save leaves the running mode unchanged.
+bool radioDiagnosticsSetDetailedEnabled(bool enabled);
 void radioDiagnosticsPhase(RadioPhase phase);
 void radioDiagnosticsTick();
 void radioDiagnosticsSignal(uint32_t events);

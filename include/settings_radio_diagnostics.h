@@ -3,6 +3,8 @@
 
 namespace RadioLog {
 constexpr size_t PageSize = 8;
+bool loadDetailedEnabled();
+bool saveDetailedEnabled(bool enabled);
 // Only at startup, before playback. Existing archive stays intact on failure.
 bool archive(const Store& store, uint32_t endingReset, bool crash);
 bool readArchive(bool crash, size_t offset, Header& header, uint32_t& phase,

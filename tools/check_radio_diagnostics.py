@@ -20,6 +20,7 @@ stubs = {
 class String : public std::string {
 public:
  using std::string::string;
+ String(const std::string& s) : std::string(s) {}
  bool reserve(size_t n) { std::string::reserve(n); return true; }
 };
 extern uint32_t clockMs, clockUs;
@@ -83,6 +84,16 @@ inline void heap_caps_get_info(multi_heap_info_t* p, uint32_t) { *p={50000,40000
 inline size_t heap_caps_get_free_size(uint32_t) { return 1000000; }
 inline int heap_caps_register_failed_alloc_callback(void (*)(size_t,uint32_t,const char*)) { return 0; }
 ''',
+'Preferences.h': r'''#pragma once
+inline bool savedLogging=true, loggingKeyExists=false, preferencesFail=false;
+inline unsigned preferenceWrites=0;
+struct Preferences {
+ bool begin(const char*, bool) { return !preferencesFail; }
+ bool getBool(const char*, bool fallback) { return loggingKeyExists ? savedLogging : fallback; }
+ size_t putBool(const char*, bool value) { if(preferencesFail)return 0; savedLogging=value; loggingKeyExists=true; ++preferenceWrites; return sizeof(bool); }
+ void end() {}
+};
+''',
 'LittleFS.h': r'''#pragma once
 #include <algorithm>
 #include <cstdint>
@@ -145,6 +156,7 @@ bool hasEvent(uint32_t event) {
  for(const auto& r:retained.records) if(RadioLog::valid(r) && (r.events & event)) return true;
  return false;
 }
+// CONFIG_ROUTES
 int main() {
  using namespace RadioLog;
  static_assert(sizeof(Store)<7500);
@@ -173,6 +185,22 @@ int main() {
  assert(hasEvent(RadioWifi) && hasEvent(RadioAllocation) && hasEvent(RadioLoopGap));
  assert(hasEvent(RadioSlow) && hasEvent(RadioLost) && hasEvent(RadioOutputTimeout));
  assert(files.empty());
+ const uint32_t sequenceBefore=sequence, blocksBefore=pcmBlocks.load();
+ assert(radioDiagnosticsDetailedEnabled());
+ assert(radioDiagnosticsSetDetailedEnabled(false));
+ assert(!radioDiagnosticsDetailedEnabled() && !RadioLog::loadDetailedEnabled());
+ for(int i=0;i<40;++i) {advance(250);radioDiagnosticsPcmBlock();radioDiagnosticsSignal(RadioLost);radioDiagnosticsTick();}
+ assert(sequence==sequenceBefore && pcmBlocks.load()==blocksBefore);
+ radioDiagnosticsPhase(RadioPhase::Weather);
+ assert(retained.phase==uint32_t(RadioPhase::Weather)); // Basic crash location remains.
+ assert(radioDiagnosticsSetDetailedEnabled(false) && preferenceWrites==1);
+ preferencesFail=true;
+ assert(!radioDiagnosticsSetDetailedEnabled(true) && !radioDiagnosticsDetailedEnabled());
+ preferencesFail=false;
+ assert(radioDiagnosticsSetDetailedEnabled(true));
+ for(int i=0;i<24;++i){advance(250);radioDiagnosticsPcmBlock();radioDiagnosticsTick();}
+ assert(sequence>sequenceBefore && !stalled); // No false stall from disabled time.
+ checkConfigRoutes();
  std::cout << radioDiagnosticsJson("live",32) << '\n';
  assert(radioDiagnosticsJson("live",56).empty());
  assert(radioDiagnosticsJson("bad",0).empty());
@@ -211,8 +239,65 @@ int main() {
  std::cout << radioDiagnosticsJson("crash",0) << '\n';
  files["/radio-crash.bin"].resize(3);
  std::cout << radioDiagnosticsJson("crash",0) << '\n';
+ assert(radioDiagnosticsSetDetailedEnabled(false));
+ resetReason=3;
+ radioDiagnosticsBegin(true);
+ assert(!radioDiagnosticsDetailedEnabled() && retained.header.reserved[0]==2);
+ for(const auto& row:retained.records) assert(!RadioLog::valid(row));
+ radioDiagnosticsPhase(RadioPhase::Display);
+ assert(retained.phase==uint32_t(RadioPhase::Display));
+ assert(radioDiagnosticsSetDetailedEnabled(true));
 }
 '''
+web = (root / 'src/web_server.cpp').read_text()
+routes = web[web.index('    server.on("/api/radio/diagnostics/config", HTTP_GET'):web.index('    server.on("/api/radio/diagnostics", HTTP_GET')]
+config_fixture = r'''
+#include <functional>
+constexpr int HTTP_GET=0, HTTP_POST=1;
+struct ServerFake {
+ std::map<int,std::function<void()>> handlers;
+ std::map<std::string,String> args;
+ int status=0;
+ String response;
+ void on(const char*,int method,std::function<void()> fn){handlers[method]=fn;}
+ String arg(const char* key){return args[key];}
+ void sendHeader(const char*,const char*){}
+ void send(int code,const char*,String body){status=code;response=body;}
+} server;
+bool webRestartScheduled=false, maintenance=false;
+bool webMaintenanceBusy(){return maintenance;}
+struct UpdaterFake {
+ bool reserved=false;
+ bool tryBeginLocalMaintenance(){if(reserved)return false;reserved=true;return true;}
+ void endLocalMaintenance(){reserved=false;}
+} firmwareUpdater;
+void sendMaintenanceBusy(){server.send(409,"application/json","{}");}
+void registerConfigRoutes(){
+''' + routes + r'''
+}
+void checkConfigRoutes(){
+ registerConfigRoutes();
+ server.handlers[HTTP_GET]();assert(server.status==200);
+ for(const char* bad : {"", "true", "2", "-1"}){
+  server.args={{"enabled",bad},{"expected","1"}};
+  server.handlers[HTTP_POST]();assert(server.status==400 && radioDiagnosticsDetailedEnabled());
+ }
+ server.args={{"enabled","0"},{"expected","0"}};
+ server.handlers[HTTP_POST]();assert(server.status==409);
+ server.args={{"enabled","0"},{"expected","1"}};
+ maintenance=true;server.handlers[HTTP_POST]();assert(server.status==409);
+ maintenance=false;webRestartScheduled=true;
+ server.handlers[HTTP_POST]();assert(server.status==409);
+ webRestartScheduled=false;preferencesFail=true;
+ server.handlers[HTTP_POST]();assert(server.status==500 && !firmwareUpdater.reserved);
+ assert(radioDiagnosticsDetailedEnabled());preferencesFail=false;
+ server.handlers[HTTP_POST]();assert(server.status==200 && !radioDiagnosticsDetailedEnabled());
+ assert(!firmwareUpdater.reserved && !RadioLog::loadDetailedEnabled());
+ server.args={{"enabled","1"},{"expected","0"}};
+ server.handlers[HTTP_POST]();assert(server.status==200 && radioDiagnosticsDetailedEnabled());
+}
+'''
+fixture = fixture.replace('// CONFIG_ROUTES', config_fixture)
 unit = out / 'check.cpp'
 unit.write_text(fixture)
 exe = out / 'check'

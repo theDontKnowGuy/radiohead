@@ -14,6 +14,7 @@ namespace {
 RTC_NOINIT_ATTR RadioLog::Store retained;
 std::atomic<uint32_t> signals{0}, pcmBlocks{0}, allocationFailures{0}, failedBytes{0};
 std::atomic<uint32_t> disconnects{0}, disconnectReason{0};
+std::atomic<bool> detailedEnabled{true};
 bool ready = false, filesystem = false, recovered = false, archiveOk = true;
 uint32_t sequence = 0, sampleIndex = 0, eventIndex = 0;
 uint32_t phaseAtUs = 0, loopAtUs = 0, gapMax = 0, audioMax = 0, webMax = 0;
@@ -35,13 +36,45 @@ void save(RadioLog::Record record, bool event) {
 }
 } // namespace
 
-void radioDiagnosticsSignal(uint32_t events) { signals.fetch_or(events, std::memory_order_relaxed); }
+bool radioDiagnosticsDetailedEnabled() { return detailedEnabled.load(std::memory_order_relaxed); }
+
+bool radioDiagnosticsSetDetailedEnabled(bool enabled) {
+    if (!ready) return false;
+    if (enabled == radioDiagnosticsDetailedEnabled()) return true;
+    if (!RadioLog::saveDetailedEnabled(enabled)) return false;
+    detailedEnabled.store(enabled, std::memory_order_relaxed);
+    signals.exchange(0, std::memory_order_relaxed);
+    pending = 0;
+    gapMax = audioMax = webMax = phaseMax = 0;
+    loopAtUs = 0;
+    phaseAtUs = micros();
+    sampleAt = eventAt = pollAt = pcmAt = millis();
+    inputMin = UINT32_MAX;
+    wasPlaying = stalled = false;
+    previousState = -1;
+    previousStation = -2;
+    previousWifi = -1;
+    previousDisconnects = disconnects.load(std::memory_order_relaxed);
+    previousFailures = allocationFailures.load(std::memory_order_relaxed);
+    // 0 means legacy detailed mode, 1 enabled, 2 disabled. This uses an existing
+    // reserved byte so previous firmware archives remain readable.
+    auto header = retained.header;
+    header.reserved[0] = enabled ? 1 : 2;
+    RadioLog::commit(retained.header, header);
+    return true;
+}
+
+void radioDiagnosticsSignal(uint32_t events) {
+    if (radioDiagnosticsDetailedEnabled()) signals.fetch_or(events, std::memory_order_relaxed);
+}
 void radioDiagnosticsPcmBlock() {
+    if (!radioDiagnosticsDetailedEnabled()) return;
     // Only the local PCM task writes this counter; publish with one 32-bit store.
     static uint32_t blocks = 0;
     pcmBlocks.store(++blocks, std::memory_order_relaxed);
 }
 void radioDiagnosticsAllocationFailure(size_t bytes) {
+    if (!radioDiagnosticsDetailedEnabled()) return;
     allocationFailures.fetch_add(1, std::memory_order_relaxed);
     failedBytes.store(bytes, std::memory_order_relaxed);
 }
@@ -66,6 +99,8 @@ void radioDiagnosticsBegin(bool filesystemReady) {
     header.magic = RadioLog::Magic;
     header.boot = boot;
     header.resetReason = reason;
+    detailedEnabled.store(RadioLog::loadDetailedEnabled(), std::memory_order_relaxed);
+    header.reserved[0] = radioDiagnosticsDetailedEnabled() ? 1 : 2;
     const auto* description = esp_app_get_description();
     for (size_t i = 0; i < 8; ++i) snprintf(header.build + i * 2, 3, "%02x", description->app_elf_sha256[i]);
     RadioLog::commit(retained.header, header);
@@ -76,6 +111,7 @@ void radioDiagnosticsBegin(bool filesystemReady) {
     // consumers keep their counters; no allocation or logging in either hook.
     heap_caps_register_failed_alloc_callback(allocationFailed);
     WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
+        if (!radioDiagnosticsDetailedEnabled()) return;
         disconnectReason.store(info.wifi_sta_disconnected.reason, std::memory_order_relaxed);
         disconnects.fetch_add(1, std::memory_order_relaxed);
     }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
@@ -86,12 +122,13 @@ void radioDiagnosticsPhase(RadioPhase phase) {
     const uint32_t now = micros();
     const uint32_t elapsed = now - phaseAtUs;
     const uint32_t old = retained.phase;
-    if (old != uint32_t(RadioPhase::Boot)) {
+    const bool detailed = radioDiagnosticsDetailedEnabled();
+    if (detailed && old != uint32_t(RadioPhase::Boot)) {
         if (elapsed > phaseMax) { phaseMax = elapsed; slowPhase = old; }
         if (old == uint32_t(RadioPhase::Audio)) audioMax = std::max(audioMax, elapsed);
         if (old == uint32_t(RadioPhase::Web)) webMax = std::max(webMax, elapsed);
     }
-    if (phase == RadioPhase::Audio) {
+    if (detailed && phase == RadioPhase::Audio) {
         if (loopAtUs) gapMax = std::max(gapMax, now - loopAtUs);
         loopAtUs = now;
     }
@@ -104,7 +141,7 @@ void radioDiagnosticsPhase(RadioPhase phase) {
 }
 
 void radioDiagnosticsTick() {
-    if (!ready) return;
+    if (!ready || !radioDiagnosticsDetailedEnabled()) return;
     const uint32_t now = millis();
     if (now - pollAt < 250) return;
     pollAt = now;
@@ -188,10 +225,11 @@ String radioDiagnosticsJson(const String& bank, size_t offset) {
     if (!json.reserve(8000)) return String();
     char text[1000];
     snprintf(text, sizeof(text),
-        "{\"schema\":1,\"bank\":\"%s\",\"available\":%s,\"rtcRecovered\":%s,\"archiveOk\":%s,\"filesystemReady\":%s,"
+        "{\"schema\":1,\"bank\":\"%s\",\"available\":%s,\"rtcRecovered\":%s,\"archiveOk\":%s,\"filesystemReady\":%s,\"detailedEnabled\":%s,"
         "\"boot\":%u,\"build\":\"%.16s\",\"bootResetReason\":%u,\"endingResetReason\":%u,"
         "\"lastPhase\":%u,\"lastPhaseMs\":%u,\"offset\":%u,\"nextOffset\":%d,\"records\":[",
         bank.c_str(), available ? "true" : "false", recovered ? "true" : "false", archiveOk ? "true" : "false", filesystem ? "true" : "false",
+        header.reserved[0] == 2 ? "false" : "true",
         header.boot, header.build, header.resetReason, endingReset, phase, phaseMs, unsigned(offset),
         offset + count < RadioLog::Count ? int(offset + count) : -1);
     json += text;

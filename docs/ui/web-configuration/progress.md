@@ -1,5 +1,32 @@
 # Web configuration implementation progress
 
+### 2026-11-03 — Detailed playback logging switch (ready for device testing)
+
+- Add a persisted switch under Device → Open diagnostics. Keep detailed logging
+  enabled by default; off retains boot/reset metadata and last service location.
+  Preserve existing evidence and the crash archive. Apply without restarting.
+- Reuses the existing navy/coastal controls. One additive `radio/radioLog` key;
+  `/api/radio/diagnostics/config` GET/POST validates inputs, expected prior state,
+  maintenance conflicts and persistence errors. Basic mode keeps the fixed RTC
+  allocation and boot-time archival; there are no playback-time log writes.
+- Functional: `python3 tools/check_radio_diagnostics.py` and
+  `node tools/check_touch_diagnostics_web.cjs` pass, including immediate toggling,
+  off-mode suppression, saved-state reload, archive preservation, failure paths,
+  duplicate clicks and stale-state refresh. `git diff --check` passes.
+- Build: `pio run -e esp32s3` passes; `.pio/radio-logging-toggle-build.log`.
+  Image 4,700,480 bytes; slot headroom 1,853,120 bytes. DIRAM 261,947 bytes and
+  RTC SLOW 6,352 bytes, unchanged. No vendor edits or generated artifacts tracked.
+- Visual: isolated production control markup with supplied CSS inspected at desktop
+  and 320 px in `.pio/radio_logging_ui/static-desktop.png` and `phone-frame.png`;
+  both states fit and remain readable. Full-page interactive visual
+  verification remains open (browser access host unavailable; headless full-page
+  fixture timed out). No native TFT changes. Hardware: not redeployed; verify the
+  switch and persisted mode after restart with normal radio/Spotify playback.
+- An additional existing native touch test is blocked by a stale fixture:
+  `tools/check_touch_diagnostics.py` omits `UiRenderState.volumeOverlay`, which
+  the unchanged production renderer now reads. This change does not touch that
+  renderer or fixture. Logging and browser behavior checks above pass.
+
 ### 2026-11-03 — Persistent radio stall diagnostics (ready for device testing)
 
 - Add an always-on bounded RTC flight recorder and read-only paged diagnostic

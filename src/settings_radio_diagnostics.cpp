@@ -1,10 +1,27 @@
 #include "settings_radio_diagnostics.h"
 #include <LittleFS.h>
+#include <Preferences.h>
 
 namespace RadioLog {
 namespace {
 const char* path(bool crash) { return crash ? "/radio-crash.bin" : "/radio-previous.bin"; }
 constexpr const char* Temporary = "/radio-log.tmp";
+}
+
+bool loadDetailedEnabled() {
+    Preferences storage;
+    if (!storage.begin("radio", true)) return true;
+    const bool enabled = storage.getBool("radioLog", true);
+    storage.end();
+    return enabled;
+}
+
+bool saveDetailedEnabled(bool enabled) {
+    Preferences storage;
+    if (!storage.begin("radio", false)) return false;
+    const bool saved = storage.putBool("radioLog", enabled) == sizeof(bool);
+    storage.end();
+    return saved;
 }
 
 bool archive(const Store& store, uint32_t endingReset, bool crash) {

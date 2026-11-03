@@ -10,7 +10,7 @@ scripts.forEach(s => new vm.Script(s));
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
   const elements = {}, events = {}, timers = new Map();
-  let sequence = 0, reads = 0, posts = 0, recoveries = 0, fail = false, reject = false, recoverFail = false;
+  let sequence = 0, reads = 0, posts = 0, recoveries = 0, fail = false, reject = false, recoverFail = false, loggingMode = true, loggingPosts = 0, loggingFail = false;
   let data = {touchDebugEnabled: false, touchDebugAvailable: true, touchContact: false, touchOnPanel: false, touchRaw: [0,0], touchScreen: [0,0]};
   const $ = id => elements[id] ||= {dataset: {}, disabled: false, files: [], value: '', open: false, textContent: '', innerHTML: '', attributes: {},
     focus() {}, setAttribute(k,v) {this.attributes[k] = v;}, addEventListener(type, fn) {this[type] = fn;}};
@@ -19,6 +19,13 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   const context = {document, URLSearchParams, Event, AbortSignal, confirm: () => true,
     setTimeout(fn, ms) {const id = ++sequence; timers.set(id, {fn, ms}); return id;}, clearTimeout(id) {timers.delete(id);},
     async fetch(url, options = {}) {
+      if (url === '/api/radio/diagnostics/config') {
+        ++loggingPosts;
+        if (options.body.get('expected') !== (loggingMode ? '1' : '0')) return {ok:false,json:async()=>({error:'Logging changed elsewhere.'})};
+        if (loggingFail) return {ok:false,json:async()=>({error:'Could not save logging setting; previous setting kept.'})};
+        loggingMode = options.body.get('enabled') === '1';
+        return {ok:true,json:async()=>({enabled:loggingMode})};
+      }
       if (url === '/api/device/touch-recover') {
         assert.equal(options.method,'POST');++recoveries;
         if(reject)return {ok:false,json:async()=>({error:'Maintenance busy.'})};
@@ -34,7 +41,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
         if (fail) throw Error('Connection lost.');
         return {ok: true, json: async () => ({...data})};
       }
-      if (url === '/api/device') return {ok: true, json: async () => ({touchCalibrationSaved: true, touchCalibrationState: 'idle', touchCalibrationParameters: [3677,459,3593,3739,475,464,535,3729], touchActiveCalibration: [3677,459,3593,3739,475,464,535,3729], touchCalibrationSource: 'saved at boot'})};
+      if (url === '/api/device') return {ok: true, json: async () => ({radioDetailedLogging: loggingMode, touchCalibrationSaved: true, touchCalibrationState: 'idle', touchCalibrationParameters: [3677,459,3593,3739,475,464,535,3729], touchActiveCalibration: [3677,459,3593,3739,475,464,535,3729], touchCalibrationSource: 'saved at boot'})};
       assert.equal(url, '/api/update/status');
       return {ok: true, json: async () => ({busy: false, status: 'idle'})};
     }};
@@ -42,6 +49,18 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.match($('device-diagnostics').innerHTML, /Saved touch points/);
   assert.match($('device-diagnostics').innerHTML, /P1: \(3677, 459\)/);
   assert.match($('device-diagnostics').innerHTML, /Active calibration source/);
+  const logging = $('device-radio-logging');
+  assert.equal(logging.attributes['aria-pressed'], 'true');
+  const saveLogging = logging.onclick(); await logging.onclick(); await saveLogging; await flush();
+  assert.equal(loggingPosts, 1); assert.equal(logging.attributes['aria-pressed'], 'false');
+  assert.match($('device-radio-logging-status').textContent, /disabled and saved/);
+  loggingFail = true; await logging.onclick(); await flush();
+  assert.equal(logging.attributes['aria-pressed'], 'false');
+  assert.match($('device-radio-logging-status').textContent, /previous setting kept/);
+  loggingFail = false; loggingMode = true; // Another browser changed it.
+  await logging.onclick(); await flush();
+  assert.equal(logging.attributes['aria-pressed'], 'true');
+  assert.match($('device-radio-logging-status').textContent, /changed elsewhere/);
   assert.equal(reads, 0); // Collapsed diagnostics do not poll.
   const panel = $('device-diagnostics-panel'), button = $('device-touch-debug');
   panel.open = true; panel.toggle(); await flush();

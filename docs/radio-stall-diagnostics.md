@@ -5,6 +5,39 @@ Galatz stream. Enabled in the normal firmware; no serial monitor or opt-in image
 is required. This records evidence; it does not change reconnect policy or prove
 that a particular pause came from the broadcaster.
 
+## Detailed logging switch
+
+Under **Device & maintenance → Open diagnostics → Playback logging**, click
+**Detailed playback logging: On/Off** to change the mode. It is on by default
+for the current investigation. The change applies immediately, without restarting
+playback, and is saved across restarts. A failed save leaves the old mode active.
+
+Off stops periodic snapshots, playback events, PCM progress counters and detailed
+service timing. Boot/reset metadata, the last entered service and crash archiving
+remain active. Existing records and the last crash archive are kept; they can
+still be downloaded. Off does not release the fixed RTC allocation or eliminate
+boot-time archive writes. Changing the switch writes one Preferences value;
+there are still no continuous log writes to flash during playback.
+
+The additive `radio/radioLog` Preferences key defaults to true when absent and
+is cleared with the existing radio settings during factory reset. Ordinary
+settings saves preserve it. `GET /api/device` includes `radioDetailedLogging`.
+`GET /api/radio/diagnostics/config` returns `enabled`; POST to the same endpoint
+takes `enabled=0|1` and `expected=0|1` (the last observed value). Invalid values
+return 400, stale state/maintenance conflicts return 409, and persistence failure
+returns 500. The browser refreshes state after each attempt. Log export adds
+`detailedEnabled`, the mode at the end of that bank's session; legacy archives
+without this metadata are interpreted as detailed mode.
+
+Switch validation: production recorder/settings/HTTP-handler tests verify default
+on, immediate off, no sampling/counter progress while off, preserved basic service
+location, reboot persistence, resumed sampling without false stalls, failed saves,
+invalid arguments, stale clients and maintenance exclusions. Device JavaScript
+tests cover state rendering, duplicate clicks, save failure and stale-state refresh.
+The firmware build passes: 4,700,480 bytes, 1,853,120 bytes free in the app slot;
+DIRAM remains 261,947 bytes, RTC SLOW remains 6,352 bytes. This switch has not yet
+been deployed or tested on the physical radio.
+
 ## Collect evidence
 
 1. Install the built firmware using the normal settings-preserving upload flow.
