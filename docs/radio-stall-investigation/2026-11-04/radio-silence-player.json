@@ -1,0 +1,28 @@
+{
+  "revision": 726689692,
+  "playingStation": 1,
+  "stationRevision": 803411168,
+  "audioRevision": 623015660,
+  "volume": 8,
+  "muted": false,
+  "bass": -1,
+  "mid": 0,
+  "treble": 0,
+  "notchEnabled": false,
+  "notchHz": 0,
+  "notchEndHz": 5000,
+  "state": "playing",
+  "name": "\u05d2\u05dc\u05d9 \u05e6\u05d4\u05dc",
+  "source": "radio",
+  "playbackState": "playing",
+  "mediaRevision": 4,
+  "title": "",
+  "artist": "",
+  "album": "",
+  "artworkIdentity": "",
+  "actions": {
+    "pause": false,
+    "previous": false,
+    "next": false
+  }
+}

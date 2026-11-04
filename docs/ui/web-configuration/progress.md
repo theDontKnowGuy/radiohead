@@ -1,5 +1,13 @@
 # Web configuration implementation progress
 
+### 2026-11-04 — Network incident evidence (in progress)
+
+- Extend the existing diagnostic export with bounded first-failure evidence and
+  numeric roaming observations. Preserve existing fields, controls and settings.
+- Validate legacy archive reading, storm retention, callback publication, recovery
+  and logging-off behavior; build and inspect RTC usage before deployment.
+- No UI styling or display work is included. Device comparison remains pending.
+
 ### 2026-11-03 — Detailed playback logging switch (ready for device testing)
 
 - Add a persisted switch under Device → Open diagnostics. Keep detailed logging

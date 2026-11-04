@@ -22,8 +22,8 @@ def collect(base, bank):
     for _ in range(7):
         url = base.rstrip('/') + '/api/radio/diagnostics?' + urlencode({'bank': bank, 'offset': offset})
         with urlopen(url, timeout=10) as response:
-            body = response.read(10001)
-        if len(body) > 10000:
+            body = response.read(16001)
+        if len(body) > 16000:
             raise ValueError('Unexpectedly large diagnostics response')
         page = json.loads(body)
         if page.get('schema') != 1 or page.get('bank') != bank or page.get('offset') != offset:
@@ -56,7 +56,8 @@ def main():
         parser.error('Use the radio HTTP base URL without a path, credentials or query')
     banks = {bank: collect(args.radio, bank) for bank in ('live', 'previous', 'crash')}
     report = {'collectedUtc': datetime.now(timezone.utc).isoformat(), 'banks': banks}
-    args.output.write_text(json.dumps(report, indent=2) + '\n')
+    with args.output.open('x') as destination:
+        destination.write(json.dumps(report, indent=2) + '\n')
     print(f'Saved {args.output}: ' + ', '.join(f'{bank}={len(data["records"])} records' for bank, data in banks.items()))
 
 

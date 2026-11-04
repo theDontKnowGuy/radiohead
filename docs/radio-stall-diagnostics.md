@@ -5,6 +5,14 @@ Galatz stream. Enabled in the normal firmware; no serial monitor or opt-in image
 is required. This records evidence; it does not change reconnect policy or prove
 that a particular pause came from the broadcaster.
 
+Current investigation handoff and preserved raw captures:
+[Radio silence investigation — 2026-11-04](radio-stall-investigation/README.md).
+It includes the confirmed Wi-Fi interruption and recommended next work.
+The [network follow-up](radio-stall-investigation/network-followup.md) documents
+the added first-incident extension, temporary roaming comparison API, legacy
+archive compatibility, updated RTC/flash budget and bounded HTTP watcher.
+Its current storage figures supersede the original logger-only figures below.
+
 ## Detailed logging switch
 
 Under **Device & maintenance → Open diagnostics → Playback logging**, click
@@ -35,13 +43,17 @@ location, reboot persistence, resumed sampling without false stalls, failed save
 invalid arguments, stale clients and maintenance exclusions. Device JavaScript
 tests cover state rendering, duplicate clicks, save failure and stale-state refresh.
 The firmware build passes: 4,700,480 bytes, 1,853,120 bytes free in the app slot;
-DIRAM remains 261,947 bytes, RTC SLOW remains 6,352 bytes. This switch has not yet
-been deployed or tested on the physical radio.
+DIRAM remains 261,947 bytes, RTC SLOW remains 6,352 bytes. November 4 device
+captures now report build `c78bbe75c4d568ad` with `detailedEnabled:true`, so the
+earlier statement that the device still had the initial logger-only image is
+outdated. Physical off/on interaction with the switch remains unverified.
 
 ## Collect evidence
 
-1. Install the built firmware using the normal settings-preserving upload flow.
-   This change has **not** been flashed or verified on the radio.
+1. Ensure a firmware with the recorder is installed using the normal
+   settings-preserving upload flow. Read-only captures on November 3–4 verified
+   recording on this radio; the November 4 capture also verified recovery of a
+   previous-session archive after a software restart.
 2. Play the affected saved station normally with the USB serial monitor closed.
 3. As soon as a pause happens, note the approximate time and collect from the same
    network (replace the address if mDNS is unavailable):
@@ -63,7 +75,7 @@ Banks are `live`, `previous`, and `crash`. `nextOffset` supplies the next page;
 ring positions, so sort by `seq` (the collector does this). Missing/corrupt slots
 are omitted. Invalid banks/offsets return 400; allocation/uninitialized failures
 return 503. `available:false` means that bank could not be read/validated, not
-that playback was healthy. No browser layout or settings forms changed.
+that playback was healthy. The separate UI control is described above.
 
 An export is a short, bounded sequence of reads, not a frozen live snapshot;
 new live records can arrive while collecting. The collector detects a changed
@@ -123,7 +135,7 @@ A stage identifies where progress stopped, not necessarily the cause.
 
 | Evidence | Meaning / interpretation |
 | --- | --- |
-| `input`, `inputMin`, `capacity` | Compressed input buffer bytes; minima observed at 250 ms polling intervals since the last saved record. Very short dips can be missed. |
+| `input`, `inputMin`, `capacity` | Compressed input buffer bytes; minima observed at 250 ms polling intervals since the last saved record. `capacity` is the library's nominal main-buffer size, not its full physical allocation; see the reserve-area explanation below. Very short dips can be missed. |
 | `pcmBlocks`, `pcmIdleMs` | Cumulative blocks reaching the local pre-I2S hook and time since observed progress. This proves decoder/output preparation progress, not successful DMA delivery or audible sound. |
 | `wifi`, `rssi`, `disconnects`, `disconnectReason` | Connection status, connected RSSI in dBm (zero when disconnected), cumulative disconnect count and last ESP Wi-Fi reason. Captures disconnect/reconnect between polls. |
 | `heapFree`, `heapMin`, `heapLargest`, `psramFree` | Internal 8-bit heap free/lifetime minimum/largest block and current free PSRAM bytes. |
@@ -148,6 +160,18 @@ media/power 6, display 7, idle 8, diagnostics 9. Phase/timing measurements run i
 normal operation; callbacks only publish atomic numeric signals. The PCM hook
 publishes a single 32-bit counter, without allocation, formatting, flash or Serial.
 The old stream diagnostic Serial print was replaced by these signals.
+
+Buffer interpretation correction (2026-11-03): the pinned `AudioBuffer` allocates
+655,350 main bytes plus a 65,535-byte reserve, totaling 720,885 bytes.
+`getInBufferSize()` returns only `m_mainSize`, while `writeSpace()` permits the
+writer into the reserve and `bufferFilled()` can include those bytes in its
+pointer-distance calculation. A fill above the exported `capacity` therefore
+does not by itself indicate memory corruption or an overrun. The three initial
+device captures peaked at 697,170 bytes, within that allocation. The earlier
+description of these values as inconsistent/questionable was too strong; the
+misleading part is treating nominal main capacity as a physical upper bound.
+This explains those readings, without establishing that all library buffer
+operations are correct or identifying the cause of the reported audible pauses.
 
 A low input buffer plus slow/lost-stream events with healthy service timing
 suggests incoming-data starvation. Wi-Fi disconnects/weak RSSI strengthen a local
@@ -174,7 +198,41 @@ problem; the logger alone cannot separate those.
 
 Hardware acceptance is open: listen to the affected stream with serial closed;
 compare buffer/PCM timing during an observed pause, a temporary AP outage and a
-normal reconnect; verify software-restart retention first, then panic/watchdog
-retention using a dedicated bench test image. Verify crash-archive preservation
+normal reconnect. Software-restart archival is now observed in the November 4
+capture; panic/watchdog retention still needs a dedicated bench test image.
+Verify crash-archive preservation
 after subsequent normal boots and a power cycle **after** archive completion.
 No intentional-crash endpoint was added to production firmware.
+
+## Captured audible interruption — 2026-11-04
+
+The user reported silence and then confirmed sound returned during investigation.
+Saved capture: `.pio/radio-silence-2026-11-04.json`; separate player/resource
+responses are `.pio/radio-silence-player.json` and `.pio/radio-silence-resources.json`.
+All times below are Asia/Hebron (UTC+02:00).
+
+- The retained tail already shows disconnected/connecting playback at 08:09:48:
+  compressed input zero, local PCM block counter fixed at 108,222, and 193
+  cumulative Wi-Fi disconnect events. The beginning of the outage was overwritten.
+- Through 08:12:06, repeated Wi-Fi disconnection events increased the counter to
+  235, eventually reaching 237. Most retained reasons are 2 (`AUTH_EXPIRE`);
+  the last is 36 (`STA_LEAVING`). Espressif documents reason 2 as an authentication
+  timeout or an authentication-expiry reason received from the AP. It does not
+  by itself establish a wrong password, defective router or firmware fault.
+- Wi-Fi was connected again by 08:12:13 at approximately -56 dBm. The decoder
+  reported stream ready at 08:12:18 and PCM blocks began increasing; the input
+  buffer subsequently refilled. A second read still showed 237 disconnects and
+  continued PCM progress, and the user confirmed audible recovery.
+- Player state: saved station 1 (Galatz), volume 8, mute false, notch disabled.
+  No allocation failures were recorded. The immediate cause of this silence was
+  Wi-Fi loss/rejoin failures starving playback; this capture does not support a
+  broadcaster outage or memory exhaustion as the immediate cause.
+- Source inspection shows automatic stronger-AP roaming every ten minutes in
+  `serviceWifiRoaming()`, using `WiFi.begin(..., channel, bssid)`. This is an
+  investigation candidate, not a proven trigger: the retained event tail lacks
+  the original disconnect, AP identity and roaming-attempt evidence. The 237
+  events include repeated reconnect failures, not necessarily 237 successful
+  connections followed by drops. No firmware/network settings or playback actions
+  were changed during capture.
+
+Reference: [Espressif Wi-Fi reason codes](https://docs.espressif.com/projects/esp-idf/en/v5.1.4/esp32s3/api-guides/wifi.html#wi-fi-reason-code).

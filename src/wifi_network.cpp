@@ -6,6 +6,7 @@
 
 #include "app_state.h"
 #include "settings.h"
+#include "radio_diagnostics.h"
 
 namespace {
 constexpr unsigned long kRoamScanIntervalMs = 10UL * 60UL * 1000UL;
@@ -17,7 +18,11 @@ ScanOwner scanOwner = ScanOwner::None;
 bool browserResultsReady = false;
 unsigned long browserResultsReadyAt = 0;
 bool networkJoinStarted = false;
+bool backgroundRoaming = true;
 }  // namespace
+
+bool wifiBackgroundRoamingEnabled() { return backgroundRoaming; }
+void setWifiBackgroundRoaming(bool enabled) { backgroundRoaming = enabled; }
 
 WifiScanStartResult startWifiBrowserScan() {
     if (scanOwner == ScanOwner::Roaming || WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
@@ -67,7 +72,7 @@ void serviceWifiRoaming(unsigned long now) {
         const int count = WiFi.scanComplete();
         if (count == WIFI_SCAN_RUNNING) return;
         scanOwner = ScanOwner::None;
-        if (!isAP && count > 0 && WiFi.status() == WL_CONNECTED && WiFi.SSID() == st_ssid) {
+        if (backgroundRoaming && !isAP && count > 0 && WiFi.status() == WL_CONNECTED && WiFi.SSID() == st_ssid) {
             const int32_t currentRssi = WiFi.RSSI();
             const String currentBssid = WiFi.BSSIDstr();
             int bestIndex = -1;
@@ -84,10 +89,10 @@ void serviceWifiRoaming(unsigned long now) {
                 uint8_t bssid[6];
                 memcpy(bssid, WiFi.BSSID(bestIndex), sizeof(bssid));
                 const int32_t channel = WiFi.channel(bestIndex);
+                radioDiagnosticsRoamStart(WiFi.BSSID(), bssid, channel, currentRssi, bestRssi);
                 WiFi.scanDelete();
-                Serial.printf("[wifi] roaming to stronger AP: %ld -> %ld dBm\n",
-                              static_cast<long>(currentRssi), static_cast<long>(bestRssi));
-                WiFi.begin(st_ssid.c_str(), st_pass.c_str(), channel, bssid);
+                const auto result = WiFi.begin(st_ssid.c_str(), st_pass.c_str(), channel, bssid);
+                radioDiagnosticsRoamResult(int32_t(result));
                 return;
             }
         }
@@ -95,7 +100,7 @@ void serviceWifiRoaming(unsigned long now) {
         return;
     }
 
-    if (isAP || st_ssid.isEmpty()) return;
+    if (!backgroundRoaming || isAP || st_ssid.isEmpty()) return;
     if (WiFi.status() != WL_CONNECTED || now - lastScanAt < kRoamScanIntervalMs ||
         WiFi.scanComplete() != WIFI_SCAN_FAILED) return;
     lastScanAt = now;

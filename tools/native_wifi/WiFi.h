@@ -57,12 +57,14 @@ struct TestWiFi {
     String BSSIDstr(int i) const { return aps.at(i).id; }
     int32_t RSSI() const { return signal; }
     int32_t RSSI(int i) const { return aps.at(i).rssi; }
+    uint8_t* BSSID() { static uint8_t current[6]={6,5,4,3,2,1}; return current; }
     uint8_t* BSSID(int i) { return aps.at(i).bssid.data(); }
     int32_t channel(int i) const { return aps.at(i).channel; }
-    void begin(const char*, const char*, int32_t channel = 0, const uint8_t* bssid = nullptr) {
+    int begin(const char*, const char*, int32_t channel = 0, const uint8_t* bssid = nullptr) {
         ++joins;
         joinedChannel = channel;
         if (bssid) std::copy(bssid, bssid + 6, joinedBssid.begin());
+        return 0;
     }
     void disconnect(bool, bool) {}
     void mode(int) {}

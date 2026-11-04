@@ -21,5 +21,10 @@ void radioDiagnosticsTick();
 void radioDiagnosticsSignal(uint32_t events);
 void radioDiagnosticsPcmBlock();
 void radioDiagnosticsAllocationFailure(size_t bytes);
+// Loop-owned, bounded numeric instrumentation; never changes reconnect policy.
+uint32_t radioDiagnosticsApId(const uint8_t* bssid);
+void radioDiagnosticsRoamStart(const uint8_t* from, const uint8_t* target,
+                               int32_t channel, int32_t fromRssi, int32_t targetRssi);
+void radioDiagnosticsRoamResult(int32_t status);
 // Eight physical slots/page; sort by sequence offline.
 String radioDiagnosticsJson(const String& bank, size_t offset);

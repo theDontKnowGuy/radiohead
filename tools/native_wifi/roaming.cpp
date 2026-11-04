@@ -1,9 +1,15 @@
 #include "wifi_network.h"
+#include "radio_diagnostics.h"
 #include "app_state.h"
 #include "WiFi.h"
 #include <iostream>
 #include <limits>
 
+int roamStarts=0, roamResults=0;
+void radioDiagnosticsRoamStart(const uint8_t* from, const uint8_t* target, int32_t channel, int32_t fromRssi, int32_t targetRssi) {
+    assert(from && target && channel>0 && targetRssi>=fromRssi+10); ++roamStarts;
+}
+void radioDiagnosticsRoamResult(int32_t status) { assert(status==0); ++roamResults; }
 constexpr unsigned long interval = 600000;
 const TestAp nearby{"home", "nearby", -45, 11, {1, 2, 3, 4, 5, 6}};
 
@@ -41,6 +47,21 @@ int main(int argc, char** argv) {
         serviceWifiRoaming(interval * 2 - 1);
         assert(WiFi.scans == 1);
         startRoaming(interval * 2);
+        assert(roamStarts==1 && roamResults==1);
+    } else if (scenario == "disabled") {
+        assert(wifiBackgroundRoamingEnabled());
+        setWifiBackgroundRoaming(false);
+        serviceWifiRoaming(interval*3);
+        assert(WiFi.scans==0 && WiFi.joins==0);
+        assert(startWifiBrowserScan()==WifiScanStartResult::Started);
+        WiFi.complete({nearby}); clearWifiBrowserScan();
+        setWifiBackgroundRoaming(true);
+        startRoaming(interval*4);
+        setWifiBackgroundRoaming(false);
+        WiFi.complete({nearby});
+        serviceWifiRoaming(interval*4+1);
+        assert(WiFi.joins==0 && WiFi.scanComplete()==WIFI_SCAN_FAILED);
+        assert(roamStarts==0 && roamResults==0);
     } else if (scenario == "margin") {
         startRoaming();
         TestAp candidate = nearby;

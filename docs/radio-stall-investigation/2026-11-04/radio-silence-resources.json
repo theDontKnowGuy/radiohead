@@ -1,0 +1,47 @@
+{
+  "uptimeMs": 1422451,
+  "resetReason": 3,
+  "tasks": 19,
+  "internal": [
+    35635,
+    20352,
+    18432
+  ],
+  "dma": [
+    27935,
+    12652,
+    18432
+  ],
+  "psram": [
+    6348900,
+    6258812,
+    6291456
+  ],
+  "allocationFailures": 0,
+  "lastFailedBytes": 0,
+  "lastFailedCaps": 0,
+  "stackBytes": {
+    "loop": 10612,
+    "Ctrl": 3272,
+    "PeriodicTask": 1584,
+    "firmware-update": 7108,
+    "spotify_connect": 8784,
+    "spotify_output": 6288,
+    "cspot_decoder": 0,
+    "CSpotTrackQueue": 23620,
+    "mercury_dispatcher": 8384
+  },
+  "loopGapBuckets": [
+    222229,
+    407203,
+    216884,
+    1209,
+    24,
+    10,
+    792,
+    46
+  ],
+  "loopGapMaxUs": 1794906,
+  "audioCallMaxUs": 489623,
+  "webCallMaxUs": 94161
+}

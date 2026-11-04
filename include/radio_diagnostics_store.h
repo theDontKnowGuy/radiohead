@@ -26,12 +26,39 @@ struct Header {
     uint8_t reserved[3];
     uint32_t checksum;
 };
+// Append-only extension. Legacy header/record offsets and Magic stay unchanged.
+// AP numbers are boot-local opaque IDs; zero means unknown/table exhausted.
+struct Roam {
+    uint32_t startedMs, fromAp, targetAp, channel;
+    int32_t fromRssi, targetRssi, beginStatus;
+    uint32_t finishedMs, connectedAp, outcome;
+};
+struct Network {
+    uint32_t version, flags, firstMs, firstUtc, lastMs;
+    uint32_t firstDisconnectMs, lastDisconnectMs, firstReason, lastReason, disconnectCount;
+    uint32_t emptyMs, wifiRecoveredMs, pcmRecoveredMs, outageMs;
+    uint32_t reasonOverflow, queueDropped, loggingInterrupted;
+    uint32_t configuredPinned, configuredAp, configuredChannel, autoReconnect;
+    uint32_t recoveredAp, recoveredChannel;
+    struct Reason { uint32_t code, count; } reasons[16];
+    Record before, first;
+    Roam incidentRoam, latestRoam;
+    uint32_t checksum;
+};
+enum NetworkFlag : uint32_t {
+    Incident = 1, Disconnected = 2, Empty = 4, WifiRecovered = 8,
+    PcmRecovered = 16, Complete = 32,
+};
 struct Store {
     Header header;
     // Last entered service survives a hang without needing a completed sample.
     uint32_t phase, phaseMs, phaseInverse;
     Record records[Count];
+    Network network;
 };
+constexpr size_t LegacyStoreSize = offsetof(Store, network);
+static_assert(LegacyStoreSize == 6320, "Keep legacy archive offsets stable");
+static_assert(sizeof(Network) == 528, "Version the extension before changing its layout");
 static_assert(sizeof(Store) < 7500, "Leave RTC memory headroom");
 
 inline uint32_t checksum(const void* data, size_t size) {

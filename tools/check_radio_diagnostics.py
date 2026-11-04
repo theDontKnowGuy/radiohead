@@ -52,17 +52,27 @@ extern AudioFake audio;
 ''',
 'WiFi.h': r'''#pragma once
 #include <cstdint>
-constexpr int WL_CONNECTED=3, ARDUINO_EVENT_WIFI_STA_DISCONNECTED=1;
+constexpr int WL_CONNECTED=3, ARDUINO_EVENT_WIFI_STA_DISCONNECTED=1, ARDUINO_EVENT_WIFI_STA_GOT_IP=2;
 using WiFiEvent_t=int;
 struct WiFiEventInfo_t { struct { uint32_t reason; } wifi_sta_disconnected; };
 struct WifiFake {
  int statusValue=3;
  void (*callback)(WiFiEvent_t, WiFiEventInfo_t)=nullptr;
+ void (*gotIp)(WiFiEvent_t, WiFiEventInfo_t)=nullptr;
+ uint8_t* BSSID() { static uint8_t bssid[6]={1,2,3,4,5,6}; return bssid; }
+ int channel() { return 6; }
+ bool getAutoReconnect() { return true; }
  int status() { return statusValue; }
  int RSSI() { return -55; }
- void onEvent(void (*fn)(WiFiEvent_t, WiFiEventInfo_t), int) { callback=fn; }
+ void onEvent(void (*fn)(WiFiEvent_t, WiFiEventInfo_t), int event) { if(event==1)callback=fn; else gotIp=fn; }
 };
 extern WifiFake WiFi;
+''',
+'esp_wifi.h': r'''#pragma once
+#include <cstdint>
+constexpr int WIFI_IF_STA=0, ESP_OK=0;
+struct wifi_config_t { struct { uint8_t bssid_set=1, channel=6, bssid[6]={1,2,3,4,5,6}; } sta; };
+inline int esp_wifi_get_config(int,wifi_config_t*) { return ESP_OK; }
 ''',
 'esp_attr.h': '#pragma once\n#define RTC_NOINIT_ATTR\n',
 'esp_system.h': r'''#pragma once
@@ -156,6 +166,95 @@ bool hasEvent(uint32_t event) {
  for(const auto& r:retained.records) if(RadioLog::valid(r) && (r.events & event)) return true;
  return false;
 }
+void checkNetworkEvidence() {
+ using namespace RadioLog;
+ auto fresh = [] {
+  RadioLog::Network n{}; n.version=1; commit(retained.network,n);
+  preceding={}; inputArmed=false;
+  networkRead.store(networkWrite.load()); networkDropped.store(0);
+  audio.fill=100000; WiFi.statusValue=3; state=PlaybackState::Playing;
+  advance(250); radioDiagnosticsPcmBlock(); radioDiagnosticsTick();
+ };
+ fresh();
+ const uint8_t oldAp[6]={6,5,4,3,2,1}, target[6]={1,2,3,4,5,6};
+ radioDiagnosticsRoamStart(oldAp,target,6,-69,-56);
+ radioDiagnosticsRoamResult(0);
+ const auto before=preceding;
+ const uint32_t onset=clockMs;
+ WiFi.callback(1,{{2}});
+ state=PlaybackState::Connecting; WiFi.statusValue=0; audio.fill=0;
+ advance(250); radioDiagnosticsTick();
+ assert(retained.network.firstDisconnectMs==onset && retained.network.firstReason==2);
+ assert(retained.network.before.input==before.input && retained.network.before.ms==before.ms);
+ assert(retained.network.flags==(Incident|Disconnected|Empty));
+ assert(retained.network.configuredPinned==1 && retained.network.autoReconnect==1);
+ assert(retained.network.configuredAp==retained.network.incidentRoam.targetAp);
+ const auto first=retained.network.first;
+ // Overwrite both original rings several times, keeping the incident onset.
+ for(int i=0;i<300;++i) {
+  WiFi.callback(1,{{2}}); advance(1000); radioDiagnosticsSignal(RadioLoopGap); radioDiagnosticsTick();
+ }
+ assert(retained.network.firstDisconnectMs==onset && retained.network.disconnectCount==301);
+ assert(retained.network.reasons[0].code==2 && retained.network.reasons[0].count==301);
+ assert(retained.network.latestRoam.outcome==4); // Timeout observes; no fallback.
+ assert(memcmp(&first,&retained.network.first,sizeof(first))==0);
+ // Recovery is a GOT_IP event, not a possibly stale Arduino status value.
+ WiFi.statusValue=3; advance(250); radioDiagnosticsTick();
+ assert(!(retained.network.flags&WifiRecovered));
+ const uint32_t recoveredAt=clockMs;
+ // Buffered PCM made progress earlier in the outage, then stopped. Old
+ // progress must not be mistaken for recovery when GOT_IP finally arrives.
+ radioDiagnosticsPcmBlock(); advance(250); radioDiagnosticsTick();
+ state=PlaybackState::Playing; audio.fill=20000;
+ WiFi.gotIp(2,{}); const uint32_t gotIpAt=clockMs;
+ advance(250); radioDiagnosticsTick();
+ assert(gotIpAt>recoveredAt);
+ assert(retained.network.wifiRecoveredMs==gotIpAt && retained.network.outageMs==gotIpAt-onset);
+ assert(!(retained.network.flags&PcmRecovered));
+ state=PlaybackState::Playing; audio.fill=20000; radioDiagnosticsPcmBlock();
+ advance(250); radioDiagnosticsTick();
+ assert(retained.network.flags&Complete);
+ assert(retained.network.latestRoam.outcome==2);
+ const auto frozen=retained.network;
+ WiFi.callback(1,{{36}}); advance(250); radioDiagnosticsTick();
+ assert(memcmp(&frozen,&retained.network,sizeof(frozen))==0);
+ const uint32_t writes=preferenceWrites;
+ assert(radioDiagnosticsSetDetailedEnabled(false));
+ WiFi.callback(1,{{2}}); advance(500); radioDiagnosticsTick();
+ assert(retained.network.disconnectCount==301 && retained.network.loggingInterrupted==1);
+ assert(radioDiagnosticsSetDetailedEnabled(true));
+ assert(preferenceWrites==writes+2 && retained.network.firstDisconnectMs==onset);
+ std::cout << radioDiagnosticsJson("live",0) << '\n';
+ assert(archive(retained,3,false));
+ Header h{}; uint32_t ph=0,ms=0,end=0; Record page[PageSize]{}; RadioLog::Network n{};
+ assert(readArchive(false,0,h,ph,ms,end,page,&n) && n.firstDisconnectMs==onset && valid(n));
+ files["/radio-previous.bin"][offsetof(Store,network)+8]^=1;
+ assert(readArchive(false,0,h,ph,ms,end,page,&n) && n.version==0 && validHeader(h));
+ // Old 6,324-byte archives remain readable, with unavailable extension.
+ auto& legacy=files["/radio-previous.bin"];
+ legacy.resize(LegacyStoreSize+4);
+ memcpy(legacy.data()+LegacyStoreSize,&end,4);
+ assert(readArchive(false,0,h,ph,ms,end,page,&n) && n.version==0);
+ fresh();
+ // Queue pressure preserves the earliest event; overflow is counted separately.
+ for(int i=0;i<50;++i) WiFi.callback(1,{{uint32_t(i+1)}});
+ state=PlaybackState::Connecting; audio.fill=0; WiFi.statusValue=0;
+ advance(250); radioDiagnosticsTick();
+ assert(retained.network.firstReason==1 && retained.network.disconnectCount==32);
+ assert(retained.network.queueDropped==18 && retained.network.reasonOverflow==16);
+ fresh();
+ // Millisecond rollover does not fabricate a huge outage duration.
+ clockMs=UINT32_MAX-100; pollAt=clockMs-250;
+ WiFi.callback(1,{{2}}); radioDiagnosticsTick();
+ advance(500); WiFi.gotIp(2,{}); radioDiagnosticsPcmBlock(); radioDiagnosticsTick();
+ assert(retained.network.outageMs==500 && retained.network.flags&Complete);
+ // A fresh stopped/startup stream does not freeze an empty-buffer incident.
+ fresh(); state=PlaybackState::Stopped; audio.fill=0; advance(250); radioDiagnosticsTick();
+ state=PlaybackState::Connecting; advance(250); radioDiagnosticsTick();
+ assert(retained.network.flags==0);
+ // Turning logging on/off must not reset or erase retained evidence.
+ assert(valid(retained.network));
+}
 // CONFIG_ROUTES
 int main() {
  using namespace RadioLog;
@@ -247,19 +346,22 @@ int main() {
  radioDiagnosticsPhase(RadioPhase::Display);
  assert(retained.phase==uint32_t(RadioPhase::Display));
  assert(radioDiagnosticsSetDetailedEnabled(true));
+ checkNetworkEvidence();
 }
 '''
 web = (root / 'src/web_server.cpp').read_text()
-routes = web[web.index('    server.on("/api/radio/diagnostics/config", HTTP_GET'):web.index('    server.on("/api/radio/diagnostics", HTTP_GET')]
+routes = web[web.index('    server.on("/api/radio/diagnostics/roaming", HTTP_GET'):web.index('    server.on("/api/radio/diagnostics", HTTP_GET')]
 config_fixture = r'''
 #include <functional>
 constexpr int HTTP_GET=0, HTTP_POST=1;
 struct ServerFake {
- std::map<int,std::function<void()>> handlers;
+ std::map<int,std::function<void()>> handlers, roamingHandlers;
  std::map<std::string,String> args;
  int status=0;
  String response;
- void on(const char*,int method,std::function<void()> fn){handlers[method]=fn;}
+ void on(const char* path,int method,std::function<void()> fn){
+  (std::string(path).find("/roaming")!=std::string::npos ? roamingHandlers : handlers)[method]=fn;
+ }
  String arg(const char* key){return args[key];}
  void sendHeader(const char*,const char*){}
  void send(int code,const char*,String body){status=code;response=body;}
@@ -272,11 +374,24 @@ struct UpdaterFake {
  void endLocalMaintenance(){reserved=false;}
 } firmwareUpdater;
 void sendMaintenanceBusy(){server.send(409,"application/json","{}");}
+bool roamEnabled=true;
+bool wifiBackgroundRoamingEnabled(){return roamEnabled;}
+void setWifiBackgroundRoaming(bool value){roamEnabled=value;}
 void registerConfigRoutes(){
 ''' + routes + r'''
 }
 void checkConfigRoutes(){
  registerConfigRoutes();
+ server.roamingHandlers[HTTP_GET](); assert(server.status==200);
+ server.args={{"enabled","0"},{"expected","0"}};
+ server.roamingHandlers[HTTP_POST](); assert(server.status==409 && roamEnabled);
+ server.args={{"enabled","x"},{"expected","1"}};
+ server.roamingHandlers[HTTP_POST](); assert(server.status==400 && roamEnabled);
+ server.args={{"enabled","0"},{"expected","1"}};
+ maintenance=true; server.roamingHandlers[HTTP_POST](); assert(server.status==409 && roamEnabled);
+ maintenance=false; server.roamingHandlers[HTTP_POST](); assert(server.status==200 && !roamEnabled && !firmwareUpdater.reserved);
+ server.args={{"enabled","1"},{"expected","0"}};
+ server.roamingHandlers[HTTP_POST](); assert(server.status==200 && roamEnabled);
  server.handlers[HTTP_GET]();assert(server.status==200);
  for(const char* bad : {"", "true", "2", "-1"}){
   server.args={{"enabled",bad},{"expected","1"}};
@@ -307,7 +422,10 @@ subprocess.run(['clang++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                 str(unit), '-o', str(exe)], check=True)
 result = subprocess.run([str(exe)], check=True, capture_output=True, text=True)
 reports = [json.loads(line) for line in result.stdout.splitlines()]
-live, crash, previous, corrupt_header, corrupt = reports
+live, crash, previous, corrupt_header, corrupt, network_report = reports
+assert network_report["network"]["disconnectCount"] == 301
+assert network_report["network"]["firstReason"] == 2
+assert len(json.dumps(network_report)) < 16000
 assert len(live['records']) <= 8 and live['nextOffset'] == 40
 assert any(r['pcmIdleMs'] >= 1000 for r in live['records'])
 assert any(r['allocationFailures'] == 1 and r['failedBytes'] == 12345 for r in live['records'])
@@ -349,3 +467,4 @@ except ValueError as error:
 else:
     raise AssertionError('Collector accepted mixed boot pages')
 print('Collector pagination, ordering, annotations and reboot rejection passed.')
+print('Network evidence: storm/freeze, reason bins, queue overflow, roaming timeout/recovery, GOT_IP vs stale status, PCM recovery, legacy archives, mode gaps and rollover passed.')

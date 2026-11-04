@@ -1727,6 +1727,39 @@ void startWebServer() {
     // The configuration endpoint does not grant cross-origin access.
     const char* configurationHeaders[] = {"X-Radiohead-Config", "X-Radiohead-Backup"};
     server.collectHeaders(configurationHeaders, 2);
+    server.on("/api/radio/diagnostics/roaming", HTTP_GET, [] {
+        const bool connected = WiFi.status() == WL_CONNECTED;
+        char json[180];
+        snprintf(json, sizeof(json),
+            "{\"enabled\":%s,\"connected\":%s,\"apId\":%u,\"channel\":%ld,\"rssi\":%ld}",
+            wifiBackgroundRoamingEnabled() ? "true" : "false", connected ? "true" : "false",
+            connected ? radioDiagnosticsApId(WiFi.BSSID()) : 0,
+            connected ? static_cast<long>(WiFi.channel()) : 0L,
+            connected ? static_cast<long>(WiFi.RSSI()) : 0L);
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json", json);
+    });
+    server.on("/api/radio/diagnostics/roaming", HTTP_POST, [] {
+        const String enabled = server.arg("enabled");
+        const String expected = server.arg("expected");
+        if ((enabled != "0" && enabled != "1") || (expected != "0" && expected != "1")) {
+            server.send(400, "application/json", "{\"error\":\"Invalid roaming setting.\"}");
+            return;
+        }
+        if ((expected == "1") != wifiBackgroundRoamingEnabled()) {
+            server.send(409, "application/json", "{\"error\":\"Roaming setting changed; reload first.\"}");
+            return;
+        }
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy();
+            return;
+        }
+        setWifiBackgroundRoaming(enabled == "1");
+        firmwareUpdater.endLocalMaintenance();
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json", String("{\"enabled\":") +
+            (wifiBackgroundRoamingEnabled() ? "true}" : "false}"));
+    });
     server.on("/api/radio/diagnostics/config", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json", String("{\"enabled\":") +
