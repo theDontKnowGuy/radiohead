@@ -1,12 +1,81 @@
 # Web configuration implementation progress
 
-### 2026-11-04 — Network incident evidence (in progress)
+### 2026-11-04 — Persistent roaming control (built; device verification pending)
 
-- Extend the existing diagnostic export with bounded first-failure evidence and
-  numeric roaming observations. Preserve existing fields, controls and settings.
-- Validate legacy archive reading, storm retention, callback publication, recovery
-  and logging-off behavior; build and inspect RTC usage before deployment.
-- No UI styling or display work is included. Device comparison remains pending.
+- User requested persistence across boots and a Network-page control. Added
+  **Background Wi-Fi roaming** between Connection and Change Wi-Fi. The control
+  loads actual state, reports saving/saved/error states and applies immediately.
+  It uses the existing coastal components and an accessible pressed-state button.
+- Added `radio/wifiRoam` (default true when absent). `settings_wifi.cpp` owns
+  Preferences reads/writes; normal join and setup-AP startup load the value.
+  `setWifiBackgroundRoaming` saves before applying and returns failure without
+  changing active state. Repeated identical values avoid writes. Factory reset
+  clears this key; the generic settings backup includes it in `radio`.
+- Existing GET/POST `/api/radio/diagnostics/roaming` stays compatible. POST now
+  returns HTTP 500 if saving fails and always releases maintenance ownership.
+  Expected-state, exact-value and maintenance guards remain. The Network script
+  suppresses duplicate requests, rereads after uncertain/stale saves and retries
+  failed loads. Hidden pages stop its five-second state refresh.
+- Passed: `python3 tools/check_wifi_roaming.py` (9 scenarios including actual
+  persistence implementation, startup/setup reload, no-op writes and failed
+  open/write); `python3 tools/check_radio_diagnostics.py` (including HTTP save
+  failure and maintenance release); `node tools/check_wifi_roaming_web.cjs`
+  (production JS, loaded state, duplicates, save rejection, stale clients, lost
+  reply, invalid response, reconnect and hidden polling);
+  `node tools/check_touch_diagnostics_web.cjs`; and
+  `python3 tools/check_startup_sequence.py` (16 startup/fallback scenarios,
+  asserting the stored roaming value is loaded before playback/setup).
+- `pio run -e esp32s3` passes; `.pio/wifi-roaming-persistent-build.log`.
+  Image 4,711,536 bytes; slot free 1,842,064 bytes. DIRAM 262,539 bytes (unchanged),
+  RTC SLOW 6,880 bytes (unchanged; 1,312 free). `git diff --check` passes.
+- Visual: inspected actual production Network markup/scripts with supplied CSS
+  and simulated API data in headless Chrome: `.pio/wifi_roaming_ui/desktop-on.png`
+  (1280 px) and `phone-off.png` (320 px iframe). The new control wraps without
+  clipping at 320 px and both states are legible. These are browser fixtures,
+  not firmware-served or device evidence. No TFT change.
+- Hardware: not flashed by this agent. Install the new firmware, turn roaming off
+  in Network, restart and verify it remains off; repeat for on. Check save-error
+  presentation, normal radio playback and disabled background scanning over
+  multiple ten-minute intervals. Earlier brief RAM-only API verification does
+  not verify this persistence change.
+
+### 2026-11-04 — Network incident evidence (built; comparison pending)
+
+- Added a 528-byte versioned RTC extension that preserves the first incident,
+  pre-incident state, disconnect reasons/counts, roaming decision and separate
+  Wi-Fi/PCM recovery. Existing ring/archive offsets and JSON fields remain;
+  the reader also accepts old archives. No periodic flash writes or vendor edits.
+- Added API-only GET/POST `/api/radio/diagnostics/roaming`, a temporary RAM switch
+  for background roaming, default enabled at boot. Validates exact values,
+  expected prior state and maintenance exclusion. Disabling prevents pending
+  scan results from initiating a roam; browser scanning/startup are unchanged.
+  GET exposes only boot-local AP number/channel/RSSI. No browser/TFT visual changes.
+- Added bounded read-only `tools/watch_radio_network.py` JSONL capture, including
+  HTTP errors, player/resources and mode. Collector refuses output overwrites.
+- Passed: `python3 tools/check_radio_diagnostics.py` (ASan/UBSan, including 300
+  retry events, queue/table overflow, first-incident freeze, GOT_IP vs stale
+  status, recent PCM progress, rollover, logging gaps, legacy/corrupt extensions,
+  API guards and collector); `python3 tools/check_wifi_roaming.py` (8 scenarios);
+  `node tools/check_touch_diagnostics_web.cjs`; `python3 tools/check_startup_sequence.py`
+  (16 scenarios); `python3 tools/check_firmware_artifacts.py`; Python compilation;
+  `git diff --check`; preserved evidence SHA-256 verification.
+- Full final `pio run -e esp32s3` passes: `.pio/radio-network-build.log`.
+  Firmware 4,708,368 bytes; slot free 1,845,232 bytes. DIRAM 262,539 bytes;
+  RTC SLOW 6,880 bytes, free 1,312 bytes. Final ELF prefix `cad09a2851d9f501`.
+  The initial target-build error (Arduino `Network` name collision) was corrected;
+  final target build and native tests both pass.
+- Device: read-only capture found boot 4 running an intermediate diagnostic image
+  `764f1f7df1d30ba0`, Galatz playing, PCM progressing and zero new disconnects.
+  Old boot-3 archive is readable with `network:null`. Brief API disable/GET/restore
+  succeeded and left roaming enabled. A prior HTTP timeout is preserved without
+  assigning its cause. Final image was not installed by this agent; it adds
+  current AP fields, invalid-extension sanitization and stricter PCM recovery
+  versus that intermediate image. Multi-interval comparison, actual failure
+  onset/recovery retention and listening acceptance remain pending.
+- Source finding: pinned Arduino reconnect reuses a BSSID-pinned configuration;
+  no application fallback exists. This does not establish that roaming caused
+  the original outage. The user has no AP logs. See the
+  [follow-up and test commands](../../radio-stall-investigation/network-followup.md).
 
 ### 2026-11-03 — Detailed playback logging switch (ready for device testing)
 

@@ -15,9 +15,10 @@ bool networkJoinPending();
 // No-op if a station join was not started (e.g. an explicitly requested AP).
 void finishNetworkConnection();
 void serviceWifiRoaming(unsigned long now);
-// Temporary comparison control; resets to enabled at boot. Does not reconnect.
+// Persist before applying; defaults to enabled when no setting is stored.
+// Does not reconnect. A failed save leaves the active state unchanged.
 bool wifiBackgroundRoamingEnabled();
-void setWifiBackgroundRoaming(bool enabled);
+bool setWifiBackgroundRoaming(bool enabled);
 
 enum class WifiScanStartResult : uint8_t { Started, Busy, Failed };
 // Call from the Arduino loop/web handlers. Browser and roaming scans share the

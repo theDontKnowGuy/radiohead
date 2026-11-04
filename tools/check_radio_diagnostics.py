@@ -374,9 +374,9 @@ struct UpdaterFake {
  void endLocalMaintenance(){reserved=false;}
 } firmwareUpdater;
 void sendMaintenanceBusy(){server.send(409,"application/json","{}");}
-bool roamEnabled=true;
+bool roamEnabled=true, roamSaveFail=false;
 bool wifiBackgroundRoamingEnabled(){return roamEnabled;}
-void setWifiBackgroundRoaming(bool value){roamEnabled=value;}
+bool setWifiBackgroundRoaming(bool value){if(roamSaveFail)return false;roamEnabled=value;return true;}
 void registerConfigRoutes(){
 ''' + routes + r'''
 }
@@ -389,7 +389,9 @@ void checkConfigRoutes(){
  server.roamingHandlers[HTTP_POST](); assert(server.status==400 && roamEnabled);
  server.args={{"enabled","0"},{"expected","1"}};
  maintenance=true; server.roamingHandlers[HTTP_POST](); assert(server.status==409 && roamEnabled);
- maintenance=false; server.roamingHandlers[HTTP_POST](); assert(server.status==200 && !roamEnabled && !firmwareUpdater.reserved);
+ maintenance=false; roamSaveFail=true;
+ server.roamingHandlers[HTTP_POST](); assert(server.status==500 && roamEnabled && !firmwareUpdater.reserved);
+ roamSaveFail=false; server.roamingHandlers[HTTP_POST](); assert(server.status==200 && !roamEnabled && !firmwareUpdater.reserved);
  server.args={{"enabled","1"},{"expected","0"}};
  server.roamingHandlers[HTTP_POST](); assert(server.status==200 && roamEnabled);
  server.handlers[HTTP_GET]();assert(server.status==200);

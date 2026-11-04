@@ -2,6 +2,7 @@
 #include "radio_diagnostics.h"
 #include "app_state.h"
 #include "WiFi.h"
+#include "Preferences.h"
 #include <iostream>
 #include <limits>
 
@@ -62,6 +63,30 @@ int main(int argc, char** argv) {
         serviceWifiRoaming(interval*4+1);
         assert(WiFi.joins==0 && WiFi.scanComplete()==WIFI_SCAN_FAILED);
         assert(roamStarts==0 && roamResults==0);
+    } else if (scenario == "persistence") {
+        beginNetworkConnection();
+        assert(wifiBackgroundRoamingEnabled() && roamingWrites == 0);
+        assert(setWifiBackgroundRoaming(false) && roamingWrites == 1);
+        assert(!wifiBackgroundRoamingEnabled() && !savedRoaming);
+        assert(setWifiBackgroundRoaming(false) && roamingWrites == 1);
+        // Production startup must reload the saved state before scans run.
+        beginNetworkConnection();
+        assert(!wifiBackgroundRoamingEnabled());
+        serviceWifiRoaming(interval * 3);
+        assert(WiFi.scans == 0);
+        failRoamingOpen = true;
+        assert(!setWifiBackgroundRoaming(true) && !wifiBackgroundRoamingEnabled());
+        failRoamingOpen = false; failRoamingWrite = true;
+        assert(!setWifiBackgroundRoaming(true) && !wifiBackgroundRoamingEnabled());
+        assert(!savedRoaming && roamingWrites == 1);
+        failRoamingWrite = false;
+        assert(setWifiBackgroundRoaming(true) && savedRoaming && roamingWrites == 2);
+        savedRoaming = false; // Simulate the next boot reading a stored off value.
+        startSetupAccessPoint(SetupAccessReason{});
+        assert(!wifiBackgroundRoamingEnabled());
+        roamingKeyExists = false; // Factory reset restores the enabled default.
+        beginNetworkConnection();
+        assert(wifiBackgroundRoamingEnabled());
     } else if (scenario == "margin") {
         startRoaming();
         TestAp candidate = nearby;

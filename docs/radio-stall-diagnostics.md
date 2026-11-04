@@ -9,7 +9,7 @@ Current investigation handoff and preserved raw captures:
 [Radio silence investigation — 2026-11-04](radio-stall-investigation/README.md).
 It includes the confirmed Wi-Fi interruption and recommended next work.
 The [network follow-up](radio-stall-investigation/network-followup.md) documents
-the added first-incident extension, temporary roaming comparison API, legacy
+the added first-incident extension, persisted Network-page roaming switch and API, legacy
 archive compatibility, updated RTC/flash budget and bounded HTTP watcher.
 Its current storage figures supersede the original logger-only figures below.
 

@@ -60,6 +60,8 @@ void formatConfiguredClock(char* destination, size_t destinationSize, const tm& 
 // Wi-Fi password or weather key, and let web handlers distinguish a durable
 // write from an attempted network/weather operation.
 constexpr int WIFI_SAVED_NETWORK_LIMIT = 5;
+bool loadWifiRoamingEnabled();
+bool saveWifiRoamingEnabled(bool enabled);
 bool saveWiFiCredentials(const String& ssid, const String& password);
 int savedWiFiNetworkCount();
 String savedWiFiNetworkSsid(int index);

@@ -38,6 +38,9 @@ unsigned long firstQrAt = 0, bootEndedAt = 0, playbackAt = 0;
 bool requestedSetup = false, joined = false, isAP = false, flap = false;
 bool radioStarted = false, ntpStarted = false;
 bool networkJoinStarted = false;
+bool backgroundRoaming = true;
+unsigned roamingLoads = 0;
+bool loadWifiRoamingEnabled() { ++roamingLoads; return false; }
 bool webStationConnected = false, webSetupAccessPoint = false, webMdnsStarted = false;
 enum class SetupAccessReason : uint8_t { Requested, NoCredentials, ConnectionFailed };
 SetupAccessReason setupAccessReason = SetupAccessReason::Requested;
@@ -152,6 +155,7 @@ int main(int argc, char** argv) {
     if (scenario == "requested-setup") requestedSetup = true;
     if (scenario == "flap") { connectionDelay = 8000; flap = true; }
     setup();
+    assert(roamingLoads > 0 && !backgroundRoaming);
     assert(firstQrAt == bootDuration); // No Wi-Fi wait before the second screen.
     if (scenario == "no-credentials" || scenario == "requested-setup") {
         assert(!joined && isAP && !radioStarted && playbackAt == bootDuration);

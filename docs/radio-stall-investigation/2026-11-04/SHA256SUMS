@@ -7,3 +7,6 @@ a0c2135031a84d09f702a640ab3f7b4620923402a14b7bd7c12dd45f1b7f5fa8  radio-silence-
 73e6f6618e460f27b01082ede205721af5b361968e97f8daf0f13a420300e6a2  radio-silence-resources.json
 3a38a12a5683125a17fbf230939df4aeee5eb03a12b2b278feff298753759069  radio-network-baseline-2026-11-04.json
 c8ed684ec57bc3b6bf35e97bff9f30b8055f75c4c5ccb80f5e0bf12e1a86585b  radio-network-watch-baseline-2026-11-04.jsonl
+444319e12c4939124fde7ebddb556070364babdbac2d125f387c7d64bca0efbf  radio-network-watch-followup-2026-11-04.jsonl
+b66ab157ec439a8fed816b25ff1a45cd4fe701d94f65b9e572ff3e2b90cd83f8  radio-network-boot4-2026-11-04.json
+54ac67c51e52a11df0f26fe943e4f69fedeec5d1efd2840aa0d3676c835c2c46  radio-network-mode-check-2026-11-04.json

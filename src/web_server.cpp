@@ -929,6 +929,9 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
 <section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>
 <dt>Status</dt><dd id='network-state'>Loading…</dd><dt>Network</dt><dd id='network-name'><bdi>—</bdi></dd><dt>Signal</dt><dd id='network-signal'>Not available</dd><dt>AP MAC address (BSSID)</dt><dd id='network-bssid' dir='ltr'>Not available</dd><dt>Address</dt><dd id='network-address' dir='ltr'>—</dd></dl>
 <div class='rh-row'><button class='rh-button rh-danger' type='button' id='network-forget'>Forget network</button></div><p class='rh-note rh-warning' id='network-recovery' hidden></p></section>
+<section class='rh-box' aria-labelledby='network-roaming-heading'><h2 id='network-roaming-heading'>Background Wi-Fi roaming</h2>
+<p id='network-roaming-help'>Automatically switch to a stronger access point using the same network name. Changes apply immediately and stay saved after restarting.</p>
+<div class='rh-footer'><span class='rh-formstatus' id='network-roaming-status' role='status'>Loading setting…</span><button class='rh-button' type='button' id='network-roaming-toggle' aria-pressed='false' aria-describedby='network-roaming-help' disabled>Loading…</button></div></section>
 <section class='rh-box' aria-labelledby='change-network'><h2 id='change-network'>Change Wi-Fi</h2><p>Scan results report the radio's observed security. Scanning does not replace your draft.</p>
 <div class='rh-row'><button class='rh-button' type='button' id='network-scan'>Scan networks</button><button class='rh-button rh-quiet' type='button' id='network-hidden'>Hidden network…</button></div><div id='network-results' class='rh-results' aria-live='polite'></div>
 <label class='rh-field'><span>Network name</span><input id='network-ssid' maxlength='32' autocomplete='off' required></label>
@@ -951,6 +954,25 @@ async function loadScan(){try{renderScan(await fetch('/api/network/scan',{cache:
 async function scan(){try{await api('/api/network/scan/start');await loadScan();}catch(error){$('network-form-status').textContent=error.message;}}
 async function connect(){const ssid=$('network-ssid').value,open=$('network-security').value==='open',password=$('network-password').value;if(!ssid){$('network-form-status').textContent='Enter the exact network name.';$('network-ssid').focus();return;}let passwordAction=open?'clear':password?'replace':ssid===state.configuredSsid&&state.hasSavedPassword?'keep':'';if(!open&&!passwordAction){$('network-form-status').textContent='Enter a password, or explicitly select an open network.';$('network-password').focus();return;}try{await api('/api/network/connect',{revision:state.revision,ssid,password:open?'':password,passwordAction});restarting=true;$('network-password').value='';$('network-connect').disabled=true;$('network-forget').disabled=true;$('network-form-status').textContent='Wi-Fi settings saved. Restarting radio… Rejoin the new network and reopen the radio’s address.';}catch(error){$('network-form-status').textContent=error.message;}}
 $('network-scan').onclick=scan;$('network-hidden').onclick=()=>{$('network-ssid').focus();$('network-form-status').textContent='Enter the exact hidden network name and its security.';};$('network-security').onchange=passwordControls;$('network-show-password').onchange=e=>$('network-password').type=e.target.checked?'text':'password';$('network-cancel').onclick=()=>{resetDraft();$('network-form-status').textContent='Draft discarded.';};$('network-connect').onclick=connect;$('network-forget').onclick=async()=>{if(!state.configuredSsid||!confirm(`Forget ${state.configuredSsid}? The radio will disconnect and restart. If no saved network connects, join the radio’s setup Wi-Fi and reopen its setup address.`))return;try{render(await api('/api/network/forget',{revision:state.revision}));restarting=true;$('network-connect').disabled=true;$('network-forget').disabled=true;$('network-form-status').textContent='Network removed from saved settings. Radio restarting; reconnect through another saved network or setup Wi-Fi.';}catch(error){$('network-form-status').textContent=error.message;}};refresh();setInterval(()=>{if(!document.hidden)refresh();},2500);})();</script>)JS";
+        html += R"JS(<script>(()=>{
+const button=document.getElementById('network-roaming-toggle'),status=document.getElementById('network-roaming-status'),path='/api/radio/diagnostics/roaming';
+let enabled=null,busy=false,loading=false;
+function render(){button.disabled=busy||loading||enabled===null;button.setAttribute('aria-pressed',enabled===true?'true':'false');button.textContent=busy?'Saving…':enabled===null?'Loading…':enabled?'Turn roaming off':'Turn roaming on';}
+async function read(showStatus=true){
+ if(busy||loading)return;loading=true;render();
+ try{const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(5000)}),data=await response.json();if(!response.ok||typeof data.enabled!=='boolean')throw Error(data.error||'Could not read roaming setting.');enabled=data.enabled;if(showStatus)status.textContent=enabled?'Roaming is on. Saved across restarts.':'Roaming is off. Saved across restarts.';}
+ catch(error){enabled=null;status.textContent=(showStatus?'':status.textContent+' ')+(error.message||'Could not read roaming setting.')+' Retrying…';}
+ finally{loading=false;render();}
+}
+button.onclick=async()=>{
+ if(busy||loading||enabled===null)return;const expected=enabled;busy=true;render();status.textContent='Saving roaming setting…';let reload=false;
+ try{const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({enabled:expected?'0':'1',expected:expected?'1':'0'}),signal:AbortSignal.timeout(5000)}),data=await response.json();if(!response.ok||typeof data.enabled!=='boolean')throw Error(data.error||'Could not confirm the saved roaming setting.');enabled=data.enabled;status.textContent=enabled?'Roaming turned on and saved.':'Roaming turned off and saved.';}
+ catch(error){status.textContent=error.message||'Could not save roaming setting.';enabled=null;reload=true;}
+ finally{busy=false;render();}
+ if(reload)await read(false);
+};
+read();setInterval(()=>{if(!document.hidden)read();},5000);
+})();</script>)JS";
         break;
     case WebSection::Weather:
         html += "<div class='rh-pagehead'><div><h1>Weather &amp; time</h1><p>A little local context for your radio.</p></div></div>"
@@ -1754,11 +1776,12 @@ void startWebServer() {
             sendMaintenanceBusy();
             return;
         }
-        setWifiBackgroundRoaming(enabled == "1");
+        const bool saved = setWifiBackgroundRoaming(enabled == "1");
         firmwareUpdater.endLocalMaintenance();
         server.sendHeader("Cache-Control", "no-store");
-        server.send(200, "application/json", String("{\"enabled\":") +
-            (wifiBackgroundRoamingEnabled() ? "true}" : "false}"));
+        server.send(saved ? 200 : 500, "application/json", saved ?
+            String("{\"enabled\":") + (wifiBackgroundRoamingEnabled() ? "true}" : "false}") :
+            String("{\"error\":\"Could not save roaming setting; previous setting kept.\"}"));
     });
     server.on("/api/radio/diagnostics/config", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "no-store");

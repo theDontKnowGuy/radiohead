@@ -119,7 +119,8 @@ pages retain 8 KB, and the collector caps responses at 16 KB.
 ## Controlled comparison
 
 After installing this image, keep USB serial closed and play Galatz normally.
-The temporary control is API-only:
+The **Network → Background Wi-Fi roaming** switch applies immediately and is
+saved across restarts. The same control is available through the API:
 
 ```sh
 curl --max-time 10 http://192.168.11.127/api/radio/diagnostics/roaming
@@ -128,11 +129,17 @@ curl --max-time 10 http://192.168.11.127/api/radio/diagnostics/roaming
 GET reports `enabled`, connected status, current boot-local `apId`, channel and
 RSSI. No raw AP identifier is exported. POST uses exactly `enabled=0|1` and
 `expected=0|1`, with stale-state and maintenance checks like the logging switch.
-It changes RAM only, does not disconnect, and defaults to enabled on reboot.
+It saves `radio/wifiRoam` before changing the active state. Missing settings
+default to enabled; both normal startup and setup mode reload the saved value.
+A failed save returns HTTP 500 and keeps the previous state. Repeating the
+already-active value does not write flash. Changing the setting does not
+disconnect the radio. Factory reset restores the enabled default. The generic
+settings backup includes this key with the rest of the `radio` namespace.
 A running roaming scan may finish after disabling, but cannot initiate a join.
 Browser scans and startup's strongest-AP selection remain available.
 
-1. Start from a fresh boot with detailed logging enabled and roaming enabled.
+1. Start from a fresh boot with detailed logging enabled. Check the saved
+   roaming setting and enable it in Network if necessary.
    Record current AP/channel and listen through at least four ten-minute periods:
 
    ```sh
@@ -160,7 +167,8 @@ Browser scans and startup's strongest-AP selection remain available.
    control is necessary, isolate a known AP externally. Without router access,
    this comparison has that limitation.
 
-3. Restore with `enabled=1&expected=0` or reboot. Repeat comparable runs if
+3. Restore with `enabled=1&expected=0` or the Network switch. Reboot preserves
+   the selected value. Repeat comparable runs if
    needed. Keep station, radio position and listening conditions consistent.
    Note local times of actual silence and return of sound.
 
@@ -191,6 +199,21 @@ investigation. A healthy 40-minute run alone does not establish a fix.
   and maintenance/stale-state rejection. They are not AP or hardware tests.
 - The user's first build caught an ambiguous `Network` reference colliding with
   Arduino's global instance; it was fixed by qualifying `RadioLog::Network`.
-- Final build/check results and image sizes are recorded in the web progress
-  ledger. Deployment, listening, multi-interval comparison and physical retained
-  incident recovery are not yet verified. No root-cause fix is claimed.
+- Later capture at 09:09 UTC (11:09 local) found boot 4 running intermediate
+  image `764f1f7df1d30ba0`, with the extension enabled, zero incident flags,
+  progressing PCM, input 655,350 and RSSI −58 dBm. The previous boot-3 archive
+  remains readable and exports `network:null`. Preserved in the boot4 JSON and
+  watch-followup JSONL in the evidence folder.
+- A brief physical API test changed enabled → disabled → enabled and verified
+  each response, on boot 4. Roaming was restored. This verifies the control
+  endpoint, not a ten-minute disabled-scan interval or audible continuity.
+  Preserved as `radio-network-mode-check-2026-11-04.json`.
+- Final firmware build passes: 4,708,368 bytes, slot free 1,845,232 bytes, DIRAM
+  262,539 bytes, RTC SLOW 6,880 bytes. Final ELF hash prefix `cad09a2851d9f501`.
+  The final image adds current AP fields on the mode endpoint, sanitizes invalid
+  archived extensions, and requires recent PCM progress for recovery versus
+  the intermediate image currently observed on the device.
+- Final checks and image details are also recorded in the web progress ledger.
+  The agent has not installed the final image. Listening, multi-interval
+  comparison and physical first-incident retention remain unverified.
+  No root-cause fix is claimed.

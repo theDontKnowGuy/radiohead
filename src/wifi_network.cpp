@@ -22,7 +22,12 @@ bool backgroundRoaming = true;
 }  // namespace
 
 bool wifiBackgroundRoamingEnabled() { return backgroundRoaming; }
-void setWifiBackgroundRoaming(bool enabled) { backgroundRoaming = enabled; }
+bool setWifiBackgroundRoaming(bool enabled) {
+    if (enabled == backgroundRoaming) return true;
+    if (!saveWifiRoamingEnabled(enabled)) return false;
+    backgroundRoaming = enabled;
+    return true;
+}
 
 WifiScanStartResult startWifiBrowserScan() {
     if (scanOwner == ScanOwner::Roaming || WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
@@ -111,6 +116,7 @@ void serviceWifiRoaming(unsigned long now) {
 }
 
 bool startSetupAccessPoint(SetupAccessReason reason) {
+    backgroundRoaming = loadWifiRoamingEnabled();
     // Retain the station interface for the configuration page's asynchronous
     // network scan while presenting the open setup AP.
     WiFi.disconnect(false, false);
@@ -127,6 +133,7 @@ bool startSetupAccessPoint(SetupAccessReason reason) {
 }
 
 void beginNetworkConnection() {
+    backgroundRoaming = loadWifiRoamingEnabled();
     WiFi.mode(WIFI_STA);
     // This must precede WiFi.begin() so the DHCP request and the mDNS responder
     // agree on the radio's name.

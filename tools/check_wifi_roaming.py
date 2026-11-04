@@ -11,8 +11,9 @@ subprocess.run([
     "-fsanitize=address,undefined",
     f'-I{root / "tools/native_wifi"}', f'-I{root / "tools/native_ui"}',
     f'-I{root / "include"}', str(root / "src/wifi_network.cpp"),
+    str(root / "src/settings_wifi.cpp"),
     str(root / "tools/native_wifi/roaming.cpp"), "-o", str(exe),
 ], check=True)
-for scenario in ("selection", "margin", "abandoned", "consumed", "failure", "setup", "wrap", "disabled"):
+for scenario in ("selection", "margin", "abandoned", "consumed", "failure", "setup", "wrap", "disabled", "persistence"):
     subprocess.run([str(exe), scenario], check=True)
 
