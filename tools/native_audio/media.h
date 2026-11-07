@@ -2,3 +2,4 @@
 #include <cstdint>
 uint32_t mediaLocalSampleRate();
 void mediaApplyLocalTone(int, int, int);
+void mediaLocalPcmBlock();

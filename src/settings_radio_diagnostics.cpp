@@ -50,12 +50,13 @@ bool archive(const Store& store, uint32_t endingReset, bool crash) {
 }
 
 bool readArchive(bool crash, size_t offset, Header& header, uint32_t& phase,
-                 uint32_t& phaseMs, uint32_t& endingReset, Record* page, Network* network) {
+                 uint32_t& phaseMs, uint32_t& endingReset, Record* page, Network* network, Breadcrumbs* breadcrumbs) {
     if (offset >= Count || !page) return false;
     File file = LittleFS.open(path(crash), FILE_READ);
     if (network) *network = {};
-    const bool legacy = file && file.size() == LegacyStoreSize + sizeof(endingReset);
-    if (!file || (!legacy && file.size() != sizeof(Store) + sizeof(endingReset)) ||
+    if (breadcrumbs) *breadcrumbs = {};
+    const size_t storeSize = file && file.size() >= sizeof(endingReset) ? file.size() - sizeof(endingReset) : 0;
+    if (!file || (storeSize != LegacyStoreSize && storeSize != NetworkStoreSize && storeSize != sizeof(Store)) ||
         file.read(reinterpret_cast<uint8_t*>(&header), sizeof(header)) != sizeof(header) ||
         !validHeader(header)) return false;
     uint32_t breadcrumb[3];
@@ -65,12 +66,17 @@ bool readArchive(bool crash, size_t offset, Header& header, uint32_t& phase,
     const size_t bytes = std::min(PageSize, Count - offset) * sizeof(Record);
     if (!file.seek(offsetof(Store, records) + offset * sizeof(Record)) ||
         file.read(reinterpret_cast<uint8_t*>(page), bytes) != bytes ||
-        !file.seek(legacy ? LegacyStoreSize : sizeof(Store)) ||
+        !file.seek(storeSize) ||
         file.read(reinterpret_cast<uint8_t*>(&endingReset), sizeof(endingReset)) != sizeof(endingReset)) return false;
-    if (network && !legacy) {
+    if (network && storeSize >= NetworkStoreSize) {
         if (!file.seek(offsetof(Store, network)) ||
             file.read(reinterpret_cast<uint8_t*>(network), sizeof(*network)) != sizeof(*network) ||
             network->version != 1 || !valid(*network)) *network = {};
+    }
+    if (breadcrumbs && storeSize == sizeof(Store)) {
+        if (!file.seek(offsetof(Store, breadcrumbs)) ||
+            file.read(reinterpret_cast<uint8_t*>(breadcrumbs), sizeof(*breadcrumbs)) != sizeof(*breadcrumbs) ||
+            breadcrumbs->version != 1 || !valid(*breadcrumbs)) *breadcrumbs = {};
     }
     return true;
 }

@@ -255,6 +255,32 @@ void checkNetworkEvidence() {
  // Turning logging on/off must not reset or erase retained evidence.
  assert(valid(retained.network));
 }
+void checkBreadcrumbs() {
+ using namespace RadioLog;
+ radioDiagnosticsWebBegin(3,1);const auto start=retained.breadcrumbs.web.startedMs;
+ advance(100);radioDiagnosticsWebBegin(3,1);
+ assert(retained.breadcrumbs.web.startedMs==start); // Upload -> middleware keeps start.
+ radioDiagnosticsWebEnd(200);
+ assert(retained.breadcrumbs.web.result==200 && !retained.breadcrumbs.web.active);
+ radioDiagnosticsMediaBegin(RadioMediaOperation::Connect,3);
+ advance(25000);radioDiagnosticsMediaEnd(0);
+ radioDiagnosticsMediaRetryWait(4);
+ assert(retained.breadcrumbs.lastMedia.finishedMs-retained.breadcrumbs.lastMedia.startedMs==25000);
+ assert(retained.breadcrumbs.lastMedia.result==0 && retained.breadcrumbs.media.attempt==4);
+ const auto waiting=retained.breadcrumbs.media.startedMs;
+ advance(500);radioDiagnosticsMediaRetryWait(4);assert(retained.breadcrumbs.media.startedMs==waiting);
+ assert(radioDiagnosticsSetDetailedEnabled(false));
+ radioDiagnosticsWebBegin(7,3);assert(retained.breadcrumbs.web.active);
+ assert(archive(retained,4,false));
+ Header h{};uint32_t ph=0,ms=0,end=0;Record page[PageSize]{};RadioLog::Network n{};Breadcrumbs b{};
+ assert(readArchive(false,0,h,ph,ms,end,page,&n,&b) && valid(b) && b.web.code==7*16+3);
+ files["/radio-previous.bin"][offsetof(Store,breadcrumbs)+8]^=1;
+ assert(readArchive(false,0,h,ph,ms,end,page,&n,&b) && valid(n) && b.version==0);
+ auto& old=files["/radio-previous.bin"];
+ old.resize(NetworkStoreSize+4);memcpy(old.data()+NetworkStoreSize,&end,4);
+ assert(readArchive(false,0,h,ph,ms,end,page,&n,&b) && valid(n) && b.version==0);
+ assert(radioDiagnosticsSetDetailedEnabled(true));
+}
 // CONFIG_ROUTES
 int main() {
  using namespace RadioLog;
@@ -346,6 +372,7 @@ int main() {
  radioDiagnosticsPhase(RadioPhase::Display);
  assert(retained.phase==uint32_t(RadioPhase::Display));
  assert(radioDiagnosticsSetDetailedEnabled(true));
+ checkBreadcrumbs();
  checkNetworkEvidence();
 }
 '''

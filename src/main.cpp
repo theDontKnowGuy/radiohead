@@ -6,6 +6,7 @@
 
 #include "app_state.h"
 #include "boot_screen.h"
+#include "crash_diagnostics.h"
 #include "device_control.h"
 #include "display.h"
 #include "firmware_updater.h"
@@ -37,6 +38,7 @@ void setup() {
     // ask for station thumbnails.
     const bool artworkReady = stationArtworkBegin();
     radioDiagnosticsBegin(artworkReady);
+    crashDiagnosticsBegin();
     validationBegin();
 
     mediaConfigureOutput();

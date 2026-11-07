@@ -45,6 +45,15 @@ struct Network {
     Roam incidentRoam, latestRoam;
     uint32_t checksum;
 };
+struct Operation {
+    uint32_t code, startedMs, finishedMs, active, attempt;
+    int32_t result;
+};
+struct Breadcrumbs {
+    uint32_t version;
+    Operation web, media, lastMedia;
+    uint32_t checksum;
+};
 enum NetworkFlag : uint32_t {
     Incident = 1, Disconnected = 2, Empty = 4, WifiRecovered = 8,
     PcmRecovered = 16, Complete = 32,
@@ -55,10 +64,13 @@ struct Store {
     uint32_t phase, phaseMs, phaseInverse;
     Record records[Count];
     Network network;
+    Breadcrumbs breadcrumbs;
 };
 constexpr size_t LegacyStoreSize = offsetof(Store, network);
+constexpr size_t NetworkStoreSize = offsetof(Store, breadcrumbs);
 static_assert(LegacyStoreSize == 6320, "Keep legacy archive offsets stable");
 static_assert(sizeof(Network) == 528, "Version the extension before changing its layout");
+static_assert(NetworkStoreSize == 6848, "Keep network archives readable");
 static_assert(sizeof(Store) < 7500, "Leave RTC memory headroom");
 
 inline uint32_t checksum(const void* data, size_t size) {

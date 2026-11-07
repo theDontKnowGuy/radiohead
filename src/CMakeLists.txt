@@ -12,6 +12,9 @@ else()
     idf_component_register(SRCS ${RADIOHEAD_SOURCES}
         INCLUDE_DIRS "../include" "../.pio/ui_assets"
         REQUIRES arduino radiohead_audio radiohead_lovyangfx radiohead_arduinojson
-            radiohead_spotify espressif__expat)
+            radiohead_spotify espressif__expat espcoredump)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE RADIO_SPOTIFY_EXPERIMENT=1)
+    if("$ENV{RADIOHEAD_CRASH_TEST}" STREQUAL "ON")
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE RADIOHEAD_CRASH_TEST=1)
+    endif()
 endif()

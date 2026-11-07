@@ -61,6 +61,13 @@ The image reads Spotify credentials and pairing from NVS. S2 playback was
 accepted by the user; S3 resource/stress acceptance remains open. Current device
 evidence and resource concerns are in
 [the validation ledger](../../docs/spotify-validation/progress.md).
+The token-refresh crash fix catches connection exceptions in the Spotify queue
+task, releases the pending-refresh flag during unwinding, and retries after five
+seconds with shutdown checks every 100 ms. It applies to fresh candidates and is
+also checked/applied to existing prepared candidates before each firmware build.
+Conflicting local dependency edits stop the build for reconciliation.
+`python3 tools/check_spotify_token_refresh.py` exercises failures, retry,
+shutdown and patch application. On-device token-refresh recovery remains unverified.
 The integrated adapter disables Wi-Fi modem sleep after association to sustain
 the 44.1 kHz stereo PCM rate measured in the corrected device trial. It also
 asks cspot's decoder to close its current CDN stream and acknowledge suspension

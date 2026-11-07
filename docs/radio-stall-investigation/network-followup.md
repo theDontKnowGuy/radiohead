@@ -1,5 +1,9 @@
 # Network investigation follow-up — 2026-11-04
 
+2026-11-07: [Playback-aware roaming](../wifi-roaming.md) supersedes this
+snapshot's unconditional roaming and missing-fallback behavior. The historical
+incident findings below remain unchanged; the new firmware is not device-verified.
+
 The user requested the handoff recommendations be carried out. This package
 implements priorities 1–2 and prepares the controlled comparison in priority 3.
 The user has no router/AP logs. Display optimization is a separate task; neither

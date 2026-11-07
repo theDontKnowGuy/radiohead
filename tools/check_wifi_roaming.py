@@ -14,6 +14,6 @@ subprocess.run([
     str(root / "src/settings_wifi.cpp"),
     str(root / "tools/native_wifi/roaming.cpp"), "-o", str(exe),
 ], check=True)
-for scenario in ("selection", "margin", "abandoned", "consumed", "failure", "setup", "wrap", "disabled", "persistence"):
+for scenario in ("selection", "margin", "abandoned", "consumed", "failure", "setup", "wrap", "disabled", "persistence", "healthy", "buffer", "fallback", "later_loss", "join_failure", "disconnect_failure", "disconnect_timeout", "weak_wrap"):
     subprocess.run([str(exe), scenario], check=True)
 

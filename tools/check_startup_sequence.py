@@ -39,6 +39,10 @@ bool requestedSetup = false, joined = false, isAP = false, flap = false;
 bool radioStarted = false, ntpStarted = false;
 bool networkJoinStarted = false;
 bool backgroundRoaming = true;
+enum class Handoff { None };
+Handoff handoff = Handoff::None;
+bool pinnedByRoam = false, pinnedDisconnected = false, weakSignal = false;
+void finishHandoff() { handoff = Handoff::None; }
 unsigned roamingLoads = 0;
 bool loadWifiRoamingEnabled() { ++roamingLoads; return false; }
 bool webStationConnected = false, webSetupAccessPoint = false, webMdnsStarted = false;
@@ -113,6 +117,7 @@ void initializeTouchCalibration() {}
 void loadSettings() {}
 bool stationArtworkBegin() { return true; }
 void radioDiagnosticsBegin(bool) {}
+void crashDiagnosticsBegin() {}
 void startDeviceControl() {}
 unsigned long lastInteraction = 0;
 bool firmwareAutoUpdate = false, forceRedraw = false;

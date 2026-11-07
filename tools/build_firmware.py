@@ -10,6 +10,8 @@ from pathlib import Path
 
 from firmware_artifacts import (APP_SLOT_SIZE, EXPORT_FILES, FLASH_FILES,
                                 FLASH_SETTINGS, digest, validate_export, validate_layout)
+from archive_firmware_symbols import archive_symbols
+from ensure_spotify_patches import ensure_token_refresh_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,17 +46,20 @@ print(json.dumps({name: platform.get_package_dir(name) for name in names}))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tft-color-test", action="store_true",
+    diagnostics = parser.add_mutually_exclusive_group()
+    diagnostics.add_argument("--crash-test", action="store_true",
+                        help="Full radio with explicit controlled-panic endpoint, separate output")
+    diagnostics.add_argument("--tft-color-test", action="store_true",
                         help="Build only the TFT color diagnostic in separate default directories")
     parser.add_argument("--build-dir")
     parser.add_argument("--output-dir")
     parser.add_argument("--prepared", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     build = resolve_path(args.build_dir or (
-        ".pio/idf-tft-color-test" if args.tft_color_test else
+        ".pio/idf-tft-color-test" if args.tft_color_test else ".pio/idf-crash-test" if args.crash_test else
         os.environ.get("RADIOHEAD_SPOTIFY_BUILD", ".pio/idf-build")))
     output = resolve_path(args.output_dir or (
-        ".pio/build/tft-color-test" if args.tft_color_test else ".pio/build/esp32s3"))
+        ".pio/build/tft-color-test" if args.tft_color_test else ".pio/build/crash-test" if args.crash_test else ".pio/build/esp32s3"))
     core = resolve_path(os.environ.get("PLATFORMIO_CORE_DIR", Path.home() / ".platformio"))
     pio = os.environ.get("PIO", shutil.which("pio") or str(core / "penv/bin/pio"))
     if not args.prepared:
@@ -80,6 +85,7 @@ def main():
         actual = run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         if actual != revision:
             raise RuntimeError(f"Unexpected candidate revision in {path}: {actual}")
+    ensure_token_refresh_patch(candidate)
     run([sys.executable, ROOT / "tools/prepare_ui_assets.py"])
     # ESP-IDF names an external component after its directory basename.
     component = ROOT / ".pio/spotify-components/arduino"
@@ -105,10 +111,28 @@ def main():
         python_env.mkdir(parents=True, exist_ok=True)
         run([sys.executable, idf / "tools/idf_tools.py", "install-python-env"], env=child)
     build.mkdir(parents=True, exist_ok=True)
+    # Existing IDF sdkconfig choices override defaults. Enforce just the crash
+    # contract on incremental builds as well as clean builds.
+    config = build / "sdkconfig"
+    if config.exists():
+        import re
+        mandatory = {}
+        for line in (ROOT / "sdkconfig.defaults").read_text().splitlines():
+            if line.startswith(("CONFIG_ESP_COREDUMP_", "CONFIG_APP_RETRIEVE_LEN_ELF_SHA=")):
+                key, value = line.split("=", 1)
+                mandatory[key] = value
+        mandatory.update(CONFIG_ESP_COREDUMP_ENABLE_TO_NONE="n", CONFIG_ESP_COREDUMP_ENABLE_TO_UART="n")
+        lines = [line for line in config.read_text().splitlines()
+                 if not any(re.match(rf"(?:# )?{key}(?:=| is not set)", line) for key in mandatory)]
+        lines.extend(f"{key}={value}" if value != "n" else f"# {key} is not set" for key, value in mandatory.items())
+        updated = "\n".join(lines) + "\n"
+        if config.read_text() != updated:
+            config.write_text(updated)
     diagnostic = "ON" if args.tft_color_test else "OFF"
     run([python, idf / "tools/idf.py", "-B", build, "-D", f"SDKCONFIG={build / 'sdkconfig'}",
          "-D", f"SDKCONFIG_DEFAULTS={ROOT / 'sdkconfig.defaults'}",
-         "-D", f"RADIOHEAD_TFT_COLOR_TEST={diagnostic}", "build", "size"], env=child)
+         "-D", f"RADIOHEAD_TFT_COLOR_TEST={diagnostic}",
+         "-D", f"RADIOHEAD_CRASH_TEST={'ON' if args.crash_test else 'OFF'}", "build", "size"], env=child)
     flash = json.loads((build / "flasher_args.json").read_text())
     validate_layout(build, flash["flash_files"], flash["flash_settings"])
     output.mkdir(parents=True, exist_ok=True)
@@ -130,9 +154,12 @@ def main():
                 "sha256": {name: digest(output / name) for name in sorted(names)}}
     (output / "artifacts.json").write_text(json.dumps(manifest, indent=2) + "\n")
     validate_export(output)
+    archive = archive_symbols(output, build / "sdkconfig", ROOT / ".pio/symbols",
+                              "crash-test" if args.crash_test else "tft-color-test" if args.tft_color_test else "radio")
     size = (output / "firmware.bin").stat().st_size
     label = "TFT color test" if args.tft_color_test else "Native Spotify"
     print(f"{label} image: {output / 'firmware.bin'} ({size:,} bytes; {APP_SLOT_SIZE - size:,} bytes free)")
+    print(f"Matching symbols/configuration archived: {archive}")
 
 
 if __name__ == "__main__":

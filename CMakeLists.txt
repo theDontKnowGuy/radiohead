@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.16.0)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 option(RADIOHEAD_TFT_COLOR_TEST "Build only the TFT color diagnostic" OFF)
+option(RADIOHEAD_CRASH_TEST "Include explicit controlled-panic endpoint" OFF)
 # ESP-IDF discovers component requirements in a child CMake script.
 set(ENV{RADIOHEAD_TFT_COLOR_TEST} "${RADIOHEAD_TFT_COLOR_TEST}")
+set(ENV{RADIOHEAD_CRASH_TEST} "${RADIOHEAD_CRASH_TEST}")
 if(NOT DEFINED ENV{RADIOHEAD_ARDUINO_DIR})
     message(FATAL_ERROR "Run python3 tools/build_firmware.py to prepare the pinned components")
 endif()

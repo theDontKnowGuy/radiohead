@@ -9,5 +9,5 @@ bool saveDetailedEnabled(bool enabled);
 bool archive(const Store& store, uint32_t endingReset, bool crash);
 bool readArchive(bool crash, size_t offset, Header& header, uint32_t& phase,
                  uint32_t& phaseMs, uint32_t& endingReset, Record* page,
-                 Network* network = nullptr);
+                 Network* network = nullptr, Breadcrumbs* breadcrumbs = nullptr);
 }

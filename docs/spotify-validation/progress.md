@@ -20,6 +20,18 @@ firmware backups are kept outside the repository.
 | S3 | PASS (normal and integrated images build; fixed endpoint verified on device) | PARTIAL (computer-controlled Spotify played clearly; one Spotify-to-radio handoff reached local `playing`; iPhone connection unresolved) | FAIL (decoder/queue stack below preset 25% reserve; full resource budget and stress run open) | Short-run passes and limits are in [S3 measurements](s3-resources.md). Full S3 acceptance remains open. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 
+## Token-refresh abort fix: 2026-11-07
+
+The cspot patch releases the pending-refresh gate on every exit, catches standard
+refresh exceptions in the queue, and retries after five seconds with shutdown
+checks every 100 ms. Logs omit exception text. Fresh and already-prepared
+candidates receive the patch; conflicting local edits stop the build.
+
+`tools/check_spotify_token_refresh.py` passes with ASan/UBSan for failures,
+retry, shutdown, pending-gate reset and patch idempotency/conflict refusal.
+Firmware build and artifact checks pass. The fix has not been installed;
+on-device token-refresh recovery and audible playback remain unverified.
+
 ## Default build promotion: 2026-09-29
 
 After a routine Arduino build temporarily removed Spotify from the radio, the

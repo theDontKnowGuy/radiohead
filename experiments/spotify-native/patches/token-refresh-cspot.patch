@@ -1,0 +1,57 @@
+diff --git a/cspot/src/AccessKeyFetcher.cpp b/cspot/src/AccessKeyFetcher.cpp
+--- a/cspot/src/AccessKeyFetcher.cpp
++++ b/cspot/src/AccessKeyFetcher.cpp
+@@ -53,10 +53,14 @@
+ }
+ 
+ void AccessKeyFetcher::updateAccessKey() {
+-  if (keyPending) {
++  if (keyPending.exchange(true)) {
+     return;
+   }
+-  keyPending = true;
++  // Release the refresh gate on both normal return and a network exception.
++  struct PendingReset {
++    std::atomic<bool>& pending;
++    ~PendingReset() { pending = false; }
++  } pendingReset{keyPending};
+ 
+   std::string body = "grant_type=client_credentials"
+                      "&client_id=" + ctx->config.clientId +
+@@ -98,5 +102,4 @@
+   }
+ #endif
+ 
+-  keyPending = false;
+ }
+diff --git a/cspot/src/TrackQueue.cpp b/cspot/src/TrackQueue.cpp
+--- a/cspot/src/TrackQueue.cpp
++++ b/cspot/src/TrackQueue.cpp
+@@ -2,6 +2,7 @@
+ #include <pb_decode.h>
+ 
+ #include <algorithm>
++#include <exception>
+ #include <functional>
+ #include <memory>
+ #include <mutex>
+@@ -464,7 +465,18 @@
+     processSemaphore->twait(100);
+ 
+     // Make sure we have the newest access key
+-    accessKey = accessKeyFetcher->getAccessKey();
++    try {
++      accessKey = accessKeyFetcher->getAccessKey();
++    } catch (const std::exception&) {
++      // Token refresh can fail even while local radio owns playback. Keep the
++      // queue task alive, avoid stale-key processing and bound retry frequency.
++      // Never log exception text: transport errors may include private data.
++      CSPOT_LOG(error, "Access token refresh failed; retrying in 5s");
++      for (int wait = 0; wait < 50 && isRunning; ++wait) {
++        BELL_SLEEP_MS(100);
++      }
++      continue;
++    }
+ 
+     int loadedIndex = currentTracksIndex;
+ 

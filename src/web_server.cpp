@@ -15,6 +15,8 @@
 #include "app_state.h"
 #include "audio_notch.h"
 #include "device_control.h"
+#include "crash_diagnostics.h"
+#include "web_diagnostic_routes.h"
 #include "display.h"
 #include "FirmwareVersion.h"
 #include "firmware_updater.h"
@@ -1247,6 +1249,7 @@ void handleSettingsBackup() {
 void handleSettingsRestoreUpload() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
+        radioDiagnosticsWebBegin(radioWebRouteId(server.uri().c_str()), uint32_t(server.method()));
         if (settingsUploadReceived) {
             settingsUploadStatus = 400;
             settingsUploadComplete = false;
@@ -1332,6 +1335,7 @@ void showFirmwareUploadProgress(uint8_t percent) {
 void handleUpdateUpload() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
+        radioDiagnosticsWebBegin(radioWebRouteId(server.uri().c_str()), uint32_t(server.method()));
         if (otaUploadReceived) {
             failFirmwareUpload(400, "Upload exactly one firmware file.");
             return;
@@ -1611,6 +1615,7 @@ void handleEpisodes() {
 void handleArtworkUpload() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
+        radioDiagnosticsWebBegin(radioWebRouteId(server.uri().c_str()), uint32_t(server.method()));
         artworkUploadAccepted = false;
         artworkUploadSucceeded = false;
         int slot = -1;
@@ -1749,6 +1754,70 @@ void startWebServer() {
     // The configuration endpoint does not grant cross-origin access.
     const char* configurationHeaders[] = {"X-Radiohead-Config", "X-Radiohead-Backup"};
     server.collectHeaders(configurationHeaders, 2);
+    server.addMiddleware([](WebServer& request, Middleware::Callback next) {
+        radioDiagnosticsWebBegin(radioWebRouteId(request.uri().c_str()), uint32_t(request.method()));
+        const bool handled = next();
+        radioDiagnosticsWebEnd(request.responseCode());
+        return handled;
+    });
+    server.on("/api/radio/crash", HTTP_GET, [] {
+        const String json = crashDiagnosticsJson();
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(json.isEmpty() ? 503 : 200, "application/json",
+            json.isEmpty() ? String("{\"error\":\"Crash summary unavailable\"}") : json);
+    });
+    server.on("/api/radio/crash/clear", HTTP_POST, [] {
+        if (server.header("X-Radiohead-Config") != "1") { server.send(403); return; }
+        const String id = server.arg("id");
+        if (server.arg("confirm") != "CLEAR" || id.length() != 8) { server.send(400); return; }
+        for (size_t i = 0; i < id.length(); ++i) {
+            if (!((id[i] >= '0' && id[i] <= '9') || (id[i] >= 'a' && id[i] <= 'f'))) { server.send(400); return; }
+        }
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy(); return;
+        }
+        const bool cleared = crashDiagnosticsClear(id);
+        firmwareUpdater.endLocalMaintenance();
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(cleared ? 200 : 409, "application/json", cleared ?
+            "{\"cleared\":true,\"captureArmed\":true}" : "{\"error\":\"Stale crash ID or flash erase failed; reread summary\"}");
+    });
+#if defined(RADIOHEAD_CRASH_TEST)
+    // Bench-only service export, explicitly guarded like settings backup. It is
+    // absent from the normal firmware and must be saved as private local data.
+    server.on("/api/radio/crash/test-partition", HTTP_GET, [] {
+        if (server.header("X-Radiohead-Backup") != "1") { server.send(403); return; }
+        uint8_t bytes[256];
+        const String id = server.arg("id");
+        if (!crashDiagnosticsReadTestPartition(id, 0, bytes, sizeof(bytes))) { server.send(409); return; }
+        if (webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy(); return;
+        }
+        server.sendHeader("Cache-Control", "no-store");
+        server.sendHeader("Content-Disposition", "attachment; filename=private-core-partition.bin");
+        server.setContentLength(0x10000);
+        server.send(200, "application/octet-stream", "");
+        auto client = server.client();
+        for (size_t offset = 0; offset < 0x10000; offset += sizeof(bytes)) {
+            if (!crashDiagnosticsReadTestPartition(id, offset, bytes, sizeof(bytes)) ||
+                client.write(bytes, sizeof(bytes)) != sizeof(bytes)) {
+                client.stop(); break;
+            }
+            if (mediaLocalAudioAvailable()) audio.loop();
+        }
+        firmwareUpdater.endLocalMaintenance();
+    });
+    server.on("/api/radio/crash/test", HTTP_POST, [] {
+        if (server.header("X-Radiohead-Config") != "1" || server.arg("confirm") != "CRASH") { server.send(403); return; }
+        if (!crashDiagnosticsEmpty() || webRestartScheduled || webMaintenanceBusy() || !firmwareUpdater.tryBeginLocalMaintenance()) {
+            sendMaintenanceBusy(); return;
+        }
+        mediaSilenceSpeakers();
+        server.send(202, "application/json", "{\"controlledCrash\":true}");
+        delay(100);
+        radioCrashTestFault();
+    });
+#endif
     server.on("/api/radio/diagnostics/roaming", HTTP_GET, [] {
         const bool connected = WiFi.status() == WL_CONNECTED;
         char json[180];

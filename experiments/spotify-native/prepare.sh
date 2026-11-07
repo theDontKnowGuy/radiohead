@@ -30,6 +30,7 @@ git -C "$output/lib/cspot" apply "$script_dir/patches/wifi-recovery-session.patc
 git -C "$output/lib/cspot" apply "$script_dir/patches/s2-activation-cspot.patch"
 git -C "$output/lib/cspot" apply "$script_dir/patches/s2-suspend-cspot.patch"
 git -C "$output/lib/cspot" apply "$script_dir/patches/s1-stream-open-cspot.patch"
+python3 "$script_dir/../../tools/ensure_spotify_patches.py" "$output"
 
 echo "Native candidate prepared in $output"
 echo "Build with ESP-IDF 5.5.5. The candidate reads Wi-Fi and Spotify credentials from NVS."

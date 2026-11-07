@@ -54,6 +54,8 @@ assert [vendor.index(call) for call in hook_order] == sorted(vendor.index(call) 
 
 fixture = r'''
 void radioDiagnosticsPcmBlock() {}
+unsigned localProgressBlocks = 0;
+void mediaLocalPcmBlock() { ++localProgressBlocks; }
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -157,10 +159,13 @@ int main() {
     assert(peak[0] > 0 && peak[0] <= INT32_MAX);
     assert(std::abs(double(peak[1]) / peak[0] - 0.5) < 0.000001);
     int32_t silent[] = {0, 0};
+    const auto progressBeforeSilence = localProgressBlocks;
     audio_process_i2s(silent, 2, nullptr);
     assert(silent[0] == 0 && silent[1] == 0);
+    assert(localProgressBlocks == progressBeforeSilence + 1);
     audio_process_i2s(nullptr, 2, nullptr);
     audio_process_i2s(peak, 0, nullptr);
+    assert(localProgressBlocks == progressBeforeSilence + 1);
     int32_t odd[] = {123};
     audio_process_i2s(odd, 1, nullptr);
     assert(odd[0] == 123);

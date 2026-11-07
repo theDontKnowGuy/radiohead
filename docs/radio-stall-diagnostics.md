@@ -1,5 +1,11 @@
 # Radio playback flight recorder
 
+Automatic saved-radio recovery detects sustained PCM stalls independently of
+this recorder's logging switch; see [Automatic recovery](#automatic-recovery).
+
+Persistent panic dumps, HTTP crash summaries, operation breadcrumbs and matching
+symbol archives are documented in [Panic evidence](radio-crash-diagnostics.md).
+
 Implemented 2026-11-03 for intermittent live-radio pauses, including the supplied
 Galatz stream. Enabled in the normal firmware; no serial monitor or opt-in image
 is required. This records evidence; it does not change reconnect policy or prove
@@ -12,6 +18,24 @@ The [network follow-up](radio-stall-investigation/network-followup.md) documents
 the added first-incident extension, persisted Network-page roaming switch and API, legacy
 archive compatibility, updated RTC/flash budget and bounded HTTP watcher.
 Its current storage figures supersede the original logger-only figures below.
+
+## Automatic recovery
+
+`media` monitors a local PCM block counter independently of diagnostic logging.
+A saved radio station marked Playing with no PCM progress for 15 seconds enters
+Connecting and retries after 2, 5, 15, then 30 seconds. While Wi-Fi is unavailable,
+retries wait and check every five seconds. Connection timeout is 12 seconds.
+Thirty seconds of PCM progress resets retry backoff; decoder-ready alone does
+not. Explicit selection/stop resets it immediately. The attempt counter saturates
+rather than wrapping. Mute, volume zero and encoded silence still count as PCM
+progress; podcasts, Spotify, stopped playback and unsaved previews are excluded.
+The PCM task only publishes an atomic counter; recovery runs on the main loop.
+
+`python3 tools/check_station_recovery.py` covers timing, cancellation, source
+isolation, backoff, logging-off behavior and rollover. The recovery build was
+installed and reported resumed radio/PCM progress; deliberate network-outage
+recovery and audible continuity still require device validation. For the newer
+AP handover policy, see [Wi-Fi roaming](wifi-roaming.md).
 
 ## Detailed logging switch
 

@@ -1,5 +1,18 @@
 # Web configuration implementation progress
 
+### 2026-11-04 — Panic evidence package (built and controlled crash verified)
+
+- Added persistent bounded panic capture, selected HTTP summary, ID-checked
+  explicit clear, numeric web/media breadcrumbs and matching symbol archives.
+  Normal firmware exports no raw stack memory or panic text. Routes and the
+  isolated test build are documented in [Panic evidence](../../radio-crash-diagnostics.md).
+- Firmware build, summary/HTTP/recorder, archive/decode, startup and artifact
+  checks passed. No browser/TFT layout changed; visual acceptance is N/A.
+- The controlled device test verified crash capture, matching-symbol decoding,
+  preservation across reads and normal-image OTA, explicit clear/rearm, and
+  absence of test endpoints in normal firmware. Audible listening and spontaneous
+  failure capture were not established by that controlled test.
+
 ### 2026-11-04 — Persistent roaming control (built; device verification pending)
 
 - User requested persistence across boots and a Network-page control. Added

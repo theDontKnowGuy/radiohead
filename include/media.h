@@ -55,6 +55,10 @@ struct PodcastShow;
 
 void mediaBegin();
 void mediaTick(unsigned long now);
+// Loop-only Wi-Fi handover contract. Defer unsupported sources and require a
+// playable reserve before a voluntary scan/switch. Never stops buffered audio.
+bool mediaCanRoamWifi();
+void mediaWifiHandoffStarted();
 bool mediaLocalAudioAvailable();
 String parseM3U(const String& url);
 // Starts a single bounded HTTPS job. Completion is published by mediaTick();
@@ -87,6 +91,8 @@ void toggleRadioMute();
 void mediaSetTone(int bass, int mid, int treble);
 // PCM-task bridge for the pinned local EQ; not a main-loop settings API.
 void mediaApplyLocalTone(int bass, int mid, int treble);
+// PCM-task-only progress publication; independent of optional diagnostics.
+void mediaLocalPcmBlock();
 bool isStationMuted();
 // v4 delivers VU data through the audio callback; this is the latest combined
 // channel level normalized to the 0..255 range used by the renderer.

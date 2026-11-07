@@ -28,6 +28,7 @@ fixture = r'''
 #include <map>
 int gB=0,gM=0,gT=0,mainVal=7,audioNotchHz=3000,audioNotchEndHz=0;
 bool radioMuted=false,audioNotchEnabled=false,forceRedraw=false;
+bool isAP=false;
 int queued=0;
 void queueSettingsSave(){++queued;}
 template<class T> T constrain(T x,T low,T high){return std::clamp(x,low,high);}
@@ -42,6 +43,7 @@ struct {
  void send(int code,const char*,const String& body){status=code;response=body;}
 } server;
 void sendPlayerState(int code=200){server.status=code;}
+void redirectTo(const String& path){server.status=303;server.response=path;}
 '''
 fixture += function(media, 'void mediaSetNotchFilter(')
 fixture += function(web, 'bool parseIntegerArg(')
@@ -132,6 +134,8 @@ int main(int argc,char**argv){
  assert(server.response.find("Sound · custom tone")==std::string::npos);
  handleConfigShell(WebSection::Network);
  assert(server.response.find("tone-bass")==std::string::npos);
+ isAP=true;handleConfigShell(WebSection::Audio);
+ assert(server.status==303 && server.response=="/network");
  puts("Production Audio route rejects invalid/stale input without partial mutation; volume changes do not conflict.");
 }
 '''

@@ -1,5 +1,6 @@
 #include "media.h"
 #include "radio_diagnostics.h"
+#include "radio_stream_health.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -47,6 +48,13 @@ void mediaSetNotchFilter(bool enabled, int frequencyHz, int endHz) {
 }
 
 namespace {
+
+std::atomic<uint32_t> localPcmBlocks{0};
+RadioStreamHealth stationHealth;
+bool wifiHandoffPending = false;
+uint32_t wifiHandoffBlocks = 0;
+uint32_t wifiHandoffProgressAt = 0;
+uint32_t wifiHandoffBuffered = 0;
 
 // Temporary startup-noise experiment. Set false to restore the old sequence
 // in both the PlatformIO baseline and the integrated Spotify image.
@@ -269,6 +277,9 @@ bool hasRecoverableStation() {
 }
 
 void cancelStationRecovery() {
+    wifiHandoffPending = false;
+    stationHealth.reset();
+    radioDiagnosticsMediaEnd(-3); // Explicit source change/stop cancels pending work.
     stationRecoveryScheduled = false;
     stationRecoveryAttempts = 0;
 }
@@ -296,7 +307,9 @@ void scheduleStationRecovery(const char* reason) {
     const size_t delayIndex = std::min<size_t>(
         stationRecoveryAttempts, sizeof(kRecoveryDelaysMs) / sizeof(kRecoveryDelaysMs[0]) - 1);
     const unsigned long delayMs = kRecoveryDelaysMs[delayIndex];
-    ++stationRecoveryAttempts;
+    // A station can remain unavailable indefinitely; never wrap back to the
+    // shortest retry interval after 255 attempts.
+    if (stationRecoveryAttempts < UINT8_MAX) ++stationRecoveryAttempts;
     stationRecoveryDueAt = millis() + delayMs;
     stationRecoveryScheduled = true;
     validationEvent("station_recovery_scheduled");
@@ -333,7 +346,8 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
         strcmp(message.msg, "stream ready") == 0 && (requestedStation >= 0 || stationTestPlayback)) {
         ignoreEofUntilPlaybackReady = false;
         stationRecoveryScheduled = false;
-        stationRecoveryAttempts = 0;
+        // Decoder initialization is not sustained audio progress. Keep retry
+        // backoff until the loop observes a stable period of PCM production.
         playbackState = PlaybackState::Playing;
         playingStation = requestedStation;
         forceRedraw = true;
@@ -611,8 +625,69 @@ void readHttpLines(HTTPClient& http, LineHandler handleLine) {
 
 }  // namespace
 
+void mediaLocalPcmBlock() {
+    // The local output task is the only writer. No clocks, logging, allocation
+    // or recovery side effects belong on this task.
+    static uint32_t blocks = 0;
+    localPcmBlocks.store(++blocks, std::memory_order_relaxed);
+}
+
 void mediaBegin() {
     Audio::audio_info_callback = updatePlaybackFromAudioInfo;
+}
+
+bool mediaCanRoamWifi() {
+    if (!mediaLocalAudioAvailable()) return false;
+    if (playbackState == PlaybackState::Stopped) return true;
+    if (!hasRecoverableStation() || playbackState != PlaybackState::Playing ||
+        stationRecoveryScheduled || wifiHandoffPending || !audio.isRunning()) return false;
+    const uint32_t bitRate = audio.getBitRate();
+    // Estimated compressed-audio duration, not buffer capacity. Unknown rate
+    // defers roaming; 64-bit arithmetic also handles malformed stream metadata.
+    return bitRate > 0 && uint64_t(audio.inBufferFilled()) * 8 >= uint64_t(bitRate) * 12;
+}
+
+void mediaWifiHandoffStarted() {
+    if (!mediaLocalAudioAvailable() || !hasRecoverableStation() ||
+        playbackState == PlaybackState::Stopped) return;
+    wifiHandoffPending = true;
+    wifiHandoffBlocks = localPcmBlocks.load(std::memory_order_relaxed);
+    wifiHandoffProgressAt = uint32_t(millis());
+    wifiHandoffBuffered = audio.inBufferFilled();
+}
+
+// Keep decoding the old connection's buffered data during association/DHCP.
+// Once it runs low (or PCM stops), restart promptly on the recovered network.
+// Network/source operations stay on the loop, never on the PCM task.
+bool serviceMediaWifiHandoff() {
+    if (!wifiHandoffPending) return false;
+    if (!hasRecoverableStation() || playbackState == PlaybackState::Stopped) {
+        wifiHandoffPending = false;
+        return false;
+    }
+    const uint32_t now = uint32_t(millis());
+    const uint32_t blocks = localPcmBlocks.load(std::memory_order_relaxed);
+    if (blocks != wifiHandoffBlocks) {
+        wifiHandoffBlocks = blocks;
+        wifiHandoffProgressAt = now;
+    }
+    const uint32_t buffered = audio.inBufferFilled();
+    const bool receiving = buffered > wifiHandoffBuffered;
+    wifiHandoffBuffered = buffered;
+    if (WiFi.status() != WL_CONNECTED) return true;
+    if (receiving && playbackState == PlaybackState::Playing) {
+        wifiHandoffPending = false; // Existing stream survived/resumed.
+        return false;
+    }
+    const uint32_t bitRate = audio.getBitRate();
+    const bool reserve = bitRate > 0 &&
+        uint64_t(buffered) * 16 > bitRate; // > half a second
+    if (playbackState == PlaybackState::Playing && audio.isRunning() && reserve &&
+        uint32_t(now - wifiHandoffProgressAt) < 750) return true;
+    wifiHandoffPending = false;
+    scheduleStationRecovery("Wi-Fi handoff");
+    if (stationRecoveryScheduled) stationRecoveryDueAt = millis();
+    return false;
 }
 
 void mediaTick(unsigned long now) {
@@ -620,6 +695,8 @@ void mediaTick(unsigned long now) {
     serviceSpotifySignals();
 #endif
     mediaUpdateSpeakerMute();
+    // Loop owns retained breadcrumbs; audio callbacks keep their existing signals.
+    if (playbackState == PlaybackState::Playing) radioDiagnosticsPlaybackReady();
     bool hasResult = false;
     int resultShow = -1;
     int resultCount = 0;
@@ -662,6 +739,11 @@ void mediaTick(unsigned long now) {
     if (outputOwner != OutputOwner::Local) return;
 #endif
 
+    if (serviceMediaWifiHandoff()) {
+        mediaUpdateSpeakerMute();
+        return;
+    }
+
     if (stationRecoveryScheduled && static_cast<long>(now - stationRecoveryDueAt) >= 0) {
         if (WiFi.status() != WL_CONNECTED) {
             stationRecoveryDueAt = now + kWifiRecoveryPollMs;
@@ -671,14 +753,20 @@ void mediaTick(unsigned long now) {
             const int station = requestedStation;
             stationRecoveryScheduled = false;
             stationRecoveryAttempt = true;
+            radioDiagnosticsMediaEnd(1);
             playStation(station);
             stationRecoveryAttempt = false;
         }
     }
 
+    // A retry above (or a UI command earlier in this loop) can start a request
+    // after `now` was sampled. Reusing that older time underflows the unsigned
+    // elapsed time and immediately expires a fresh connection.
+    const unsigned long connectionNow = millis();
     if (playbackState == PlaybackState::Connecting && !stationRecoveryScheduled &&
-        now - requestStartedAt >= kConnectionTimeoutMs) {
+        connectionNow - requestStartedAt >= kConnectionTimeoutMs) {
         logStreamDiagnostic("connection timeout");
+        radioDiagnosticsMediaEnd(-2);
         playbackState = PlaybackState::Failed;
         forceRedraw = true;
         scheduleStationRecovery("connection timeout");
@@ -691,6 +779,17 @@ void mediaTick(unsigned long now) {
     } else if (playbackState == PlaybackState::Failed && !stationRecoveryScheduled) {
         scheduleStationRecovery("connection failed");
     }
+    const auto health = stationHealth.update(
+        hasRecoverableStation() && playbackState == PlaybackState::Playing &&
+            !stationRecoveryScheduled,
+        uint32_t(millis()), localPcmBlocks.load(std::memory_order_relaxed));
+    if (health == RadioStreamHealth::Result::Stalled) {
+        radioDiagnosticsSignal(RadioPcmStall);
+        scheduleStationRecovery("PCM stalled");
+    } else if (health == RadioStreamHealth::Result::Healthy) {
+        stationRecoveryAttempts = 0;
+    }
+    if (stationRecoveryScheduled) radioDiagnosticsMediaRetryWait(stationRecoveryAttempts);
     mediaUpdateSpeakerMute();
 }
 
@@ -785,12 +884,15 @@ int adjacentPlayableStationSlot(int stationIndex, int direction) {
 }
 
 String parseM3U(const String& url) {
+    radioDiagnosticsMediaBegin(RadioMediaOperation::Playlist, stationRecoveryAttempts);
     if (!isHttpUrl(url) || (!url.endsWith(".m3u") && !url.endsWith(".m3u8"))) {
+        radioDiagnosticsMediaEnd(0); // Direct stream: playlist request skipped.
         return url;
     }
 
     HTTPClient http;
     if (!http.begin(url)) {
+        radioDiagnosticsMediaEnd(-1);
         return url;
     }
     http.setTimeout(3000);
@@ -808,6 +910,7 @@ String parseM3U(const String& url) {
     }
 
     http.end();
+    radioDiagnosticsMediaEnd(httpCode);
     return streamUrl.isEmpty() ? url : streamUrl;
 }
 
@@ -992,6 +1095,8 @@ void playStation(int stationIndex) {
         (isAP || stationIndex < 0 || stationIndex >= STATION_COUNT)) return;
 #endif
     mediaSilenceSpeakers();
+    wifiHandoffPending = false;
+    stationHealth.reset();
     validationEvent("radio_start");
     stationTestPlayback = false;
     stationTestName = "";
@@ -1034,9 +1139,14 @@ void playStation(int stationIndex) {
     forceRedraw = true;
     const String targetUrl = parseM3U(stations[stationIndex].url);
     if (isHttpUrl(targetUrl)) {
-        if (!audio.connecttohost(targetUrl.c_str())) {
+        radioDiagnosticsMediaBegin(RadioMediaOperation::Connect, stationRecoveryAttempts);
+        const bool connected = audio.connecttohost(targetUrl.c_str());
+        radioDiagnosticsMediaEnd(connected ? 1 : 0);
+        if (!connected) {
             playbackState = PlaybackState::Failed;
             forceRedraw = true;
+        } else {
+            radioDiagnosticsMediaBegin(RadioMediaOperation::AwaitPlayback, stationRecoveryAttempts);
         }
     } else {
         playbackState = PlaybackState::Failed;
@@ -1067,9 +1177,14 @@ bool startStationTest(const String& name, const String& url) {
     ignoreEofUntilPlaybackReady = true;
     forceRedraw = true;
     const String targetUrl = parseM3U(url);
-    if (!isHttpUrl(targetUrl) || !audio.connecttohost(targetUrl.c_str())) {
+    radioDiagnosticsMediaBegin(RadioMediaOperation::Connect, 0);
+    const bool connected = isHttpUrl(targetUrl) && audio.connecttohost(targetUrl.c_str());
+    radioDiagnosticsMediaEnd(connected ? 1 : 0);
+    if (!connected) {
         playbackState = PlaybackState::Failed;
         forceRedraw = true;
+    } else {
+        radioDiagnosticsMediaBegin(RadioMediaOperation::AwaitPlayback, 0);
     }
     return true;
 }

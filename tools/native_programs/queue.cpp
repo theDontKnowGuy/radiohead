@@ -11,6 +11,9 @@ bool validPodcastShow(const PodcastShow& draft){return !draft.webName.isEmpty()&
 struct {template<typename...Args>void printf(const char*,Args...) {}} Serial;
 struct {unsigned getFreeHeap(){return 200000;}} ESP;
 unsigned long millis(){return 100;}
+PlaybackState playbackState = PlaybackState::Stopped;
+void radioDiagnosticsPlaybackReady() {}
+void mediaUpdateSpeakerMute(bool) {}
 #define portMUX_TYPE int
 #define portMUX_INITIALIZER_UNLOCKED 0
 #define portENTER_CRITICAL(mux) (void)(mux)

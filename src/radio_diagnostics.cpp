@@ -243,6 +243,7 @@ void radioDiagnosticsBegin(bool filesystemReady) {
         // An older firmware has no extension; never archive unchecked trailing
         // RTC bytes as network evidence after an upgrade or a torn commit.
         if (retained.network.version != 1 || !RadioLog::valid(retained.network)) retained.network = {};
+        if (retained.breadcrumbs.version != 1 || !RadioLog::valid(retained.breadcrumbs)) retained.breadcrumbs = {};
         const bool crash = reason == ESP_RST_PANIC || reason == ESP_RST_INT_WDT ||
             reason == ESP_RST_TASK_WDT || reason == ESP_RST_WDT;
         // Keep the most recent crash independently of subsequent normal boots.
@@ -262,6 +263,9 @@ void radioDiagnosticsBegin(bool filesystemReady) {
     RadioLog::Network network{};
     network.version = 1;
     RadioLog::commit(retained.network, network);
+    RadioLog::Breadcrumbs breadcrumbs{};
+    breadcrumbs.version = 1;
+    RadioLog::commit(retained.breadcrumbs, breadcrumbs);
     preceding = {};
     inputArmed = false;
     apCount = 0;
@@ -303,6 +307,45 @@ void radioDiagnosticsPhase(RadioPhase phase) {
     std::atomic_thread_fence(std::memory_order_seq_cst);
     retained.phaseInverse = ~uint32_t(phase);
     phaseAtUs = now;
+}
+
+void radioDiagnosticsWebBegin(uint32_t route, uint32_t method) {
+    if (!ready) return;
+    auto b = retained.breadcrumbs;
+    const uint32_t code = route * 16 + method;
+    // Upload callbacks run during request parsing, before server middleware.
+    if (b.web.active && b.web.code == code) return;
+    b.web = {code, uint32_t(millis()), 0, 1, 0, 0};
+    RadioLog::commit(retained.breadcrumbs, b);
+}
+void radioDiagnosticsWebEnd(int32_t status) {
+    if (!ready) return;
+    auto b = retained.breadcrumbs;
+    b.web.finishedMs = millis(); b.web.active = 0; b.web.result = status;
+    RadioLog::commit(retained.breadcrumbs, b);
+}
+void radioDiagnosticsMediaBegin(RadioMediaOperation operation, uint32_t attempt) {
+    if (!ready) return;
+    auto b = retained.breadcrumbs;
+    if (b.media.code && !b.media.active) b.lastMedia = b.media;
+    b.media = {uint32_t(operation), uint32_t(millis()), 0, 1, attempt, 0};
+    RadioLog::commit(retained.breadcrumbs, b);
+}
+void radioDiagnosticsMediaEnd(int32_t result) {
+    if (!ready || !retained.breadcrumbs.media.active) return;
+    auto b = retained.breadcrumbs;
+    b.media.finishedMs = millis(); b.media.active = 0; b.media.result = result;
+    RadioLog::commit(retained.breadcrumbs, b);
+}
+void radioDiagnosticsPlaybackReady() {
+    if (ready && retained.breadcrumbs.media.active &&
+        retained.breadcrumbs.media.code == uint32_t(RadioMediaOperation::AwaitPlayback))
+        radioDiagnosticsMediaEnd(1);
+}
+void radioDiagnosticsMediaRetryWait(uint32_t attempt) {
+    if (ready && (retained.breadcrumbs.media.code != uint32_t(RadioMediaOperation::RetryWait) ||
+        !retained.breadcrumbs.media.active || retained.breadcrumbs.media.attempt != attempt))
+        radioDiagnosticsMediaBegin(RadioMediaOperation::RetryWait, attempt);
 }
 
 void radioDiagnosticsTick() {
@@ -423,15 +466,17 @@ String radioDiagnosticsJson(const String& bank, size_t offset) {
     RadioLog::Record page[RadioLog::PageSize]{};
     RadioLog::Network network{};
     uint32_t phase = 0, phaseMs = 0, endingReset = 0;
+    RadioLog::Breadcrumbs breadcrumbs{};
     bool available = true;
     const size_t count = std::min(RadioLog::PageSize, RadioLog::Count - offset);
     if (bank == "live") {
         header = retained.header;
         if (offset == 0) network = retained.network;
+        if (offset == 0) breadcrumbs = retained.breadcrumbs;
         phase = retained.phase; phaseMs = retained.phaseMs;
         std::memcpy(page, retained.records + offset, count * sizeof(page[0]));
     } else {
-        available = filesystem && RadioLog::readArchive(bank == "crash", offset, header, phase, phaseMs, endingReset, page, offset == 0 ? &network : nullptr);
+        available = filesystem && RadioLog::readArchive(bank == "crash", offset, header, phase, phaseMs, endingReset, page, offset == 0 ? &network : nullptr, offset == 0 ? &breadcrumbs : nullptr);
     }
     if (!available) { header = {}; phase = phaseMs = endingReset = 0; }
     String json;
@@ -465,6 +510,19 @@ String radioDiagnosticsJson(const String& bank, size_t offset) {
     }
     json += "]";
     if (offset == 0) appendNetworkJson(json, network);
+    if (offset == 0) {
+        if (breadcrumbs.version != 1 || !RadioLog::valid(breadcrumbs)) json += ",\"breadcrumbs\":null";
+        else {
+            json += ",\"breadcrumbs\":{\"version\":1";
+            auto append = [&](const char* name, const RadioLog::Operation& op) {
+                snprintf(text, sizeof(text), ",\"%s\":{\"code\":%u,\"startedMs\":%u,\"finishedMs\":%u,\"active\":%s,\"attempt\":%u,\"result\":%d}",
+                    name, op.code, op.startedMs, op.finishedMs, op.active ? "true" : "false", op.attempt, op.result);
+                json += text;
+            };
+            append("web", breadcrumbs.web); append("media", breadcrumbs.media); append("lastMedia", breadcrumbs.lastMedia);
+            json += "}";
+        }
+    }
     json += "}";
     return json;
 }

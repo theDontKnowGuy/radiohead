@@ -9,6 +9,7 @@
 constexpr int WIFI_SCAN_FAILED = -2;
 constexpr int WIFI_SCAN_RUNNING = -1;
 constexpr int WL_CONNECTED = 3;
+constexpr int WL_CONNECT_FAILED = 4;
 constexpr int WIFI_STA = 1;
 constexpr int WIFI_AP_STA = 3;
 constexpr int WIFI_ALL_CHANNEL_SCAN = 1;
@@ -29,6 +30,14 @@ struct TestWiFi {
     int scans = 0;
     int deletes = 0;
     int joins = 0;
+    int disconnects = 0;
+    bool autoReconnect = true;
+    bool disconnectFails = false;
+    bool joinFails = false;
+    struct Station {
+        bool associated = true;
+        bool connected() const { return associated; }
+    } STA;
     int32_t signal = -75;
     int32_t joinedChannel = 0;
     std::array<uint8_t, 6> joinedBssid{};
@@ -63,9 +72,18 @@ struct TestWiFi {
     int begin(const char*, const char*, int32_t channel = 0, const uint8_t* bssid = nullptr) {
         ++joins;
         joinedChannel = channel;
+        joinedBssid = {};
         if (bssid) std::copy(bssid, bssid + 6, joinedBssid.begin());
-        return 0;
+        return joinFails ? WL_CONNECT_FAILED : 0;
     }
+    bool getAutoReconnect() const { return autoReconnect; }
+    void setAutoReconnect(bool enabled) { autoReconnect = enabled; }
+    bool disconnectAsync(bool off, bool erase) {
+        assert(!off && !erase); ++disconnects;
+        return !disconnectFails;
+    }
+    void disconnected() { connected = false; STA.associated = false; }
+    void gotIp() { connected = true; STA.associated = true; }
     void disconnect(bool, bool) {}
     void mode(int) {}
     bool softAP(const char*) { return true; }
