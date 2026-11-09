@@ -7,7 +7,8 @@
 | Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four identical 74×74 square, dense, slightly translucent category-gradient tiles; a 78×78 visible focus mask; four 38×38 #E8EEF3 icons; a 20×20 radio brand mark; 24×19 Wi-Fi; eight 64×56 weather assets whose visible ink is aligned by the renderer. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
 | Home clock atlas | Inter Display SemiBold 4.1 outlines, via `tools/prepare_home_clock_atlas.py` | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | Current committed masks are rasterized at 40 px into 36×42 straight-alpha cells. The JSON records font/rasterizer hashes, baseline, advances, tracking and colon spacing. Ordinary builds embed the committed atlas. The older supplied `assets/home/home-clock-assets/` package is historical reference, not a build or regeneration input. |
 | Episode player | `tools/prepare_podcast_assets.py` | `assets/podcast/*.png` → `.pio/ui_assets/ui_podcast_assets.h` | Recorded episode player | Direct 4:3 background with a 14–20% right-increasing black veil; a 115×115 rounded generic microphone/show image is used until actual local show artwork is supplied. |
-| Recorded-player transport | User-supplied `icons/{rewind-15,pause,play,forward-30}.svg` | Native 58×58 replay and 72×72 play/pause PNGs → `.pio/ui_assets/ui_player_assets.h` | Recorded player controls | `tools/rasterize_svg.swift` uses AppKit to rasterize each SVG at its final displayed dimensions with alpha intact. This preserves the supplied icon geometry while avoiding a runtime SVG renderer. |
+| Player transport | Supplied `icons/{rewind-15,pause,play,forward-30,previous-track,next-track}.svg` | Native 58×58 side controls and 72×72 play/pause PNGs → flash RGBA runs in `.pio/ui_assets/ui_alpha_icons.h` | Recorded and Spotify player controls | `tools/rasterize_svg.swift` uses AppKit at final dimensions with alpha intact. Build-time decoding preserves every pixel; rendering requires no heap/DMA allocation. PNG arrays remain host comparison references. |
+| Shared header alpha icons | `icons/back-chevron.svg`, `assets/home/wifi*.png` | `.pio/ui_assets/ui_alpha_icons.h` | Back and Wi-Fi indicators | Same flash run compositor as transport. This removes other alpha-PNG DMA allocation paths from a Spotify player redraw. |
 | List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
 
 The background has no UI text or controls. It is source material only; production
@@ -41,8 +42,9 @@ row cannot visually widen its following gap. These assets contain
 only translucent surface/border pixels—labels, chevrons, artwork, and favorite
 state remain dynamic firmware drawing.
 
-Requires Pillow only for asset preparation. The checked-in PNG assets and their
-manifest are consumed by normal firmware builds without Pillow. The manifest
+Pillow is required by normal build-time asset preparation to decode the small
+transport/header alpha icons into flash runs. Other checked-in PNG assets and
+their manifests are embedded without rerasterization. The manifest
 records sizes, Pillow version and source/output hashes; the build checks them.
 All runtime drawing is at native dimensions. PNG transparency blends into the
 readable PSRAM canvas, never the TFT. If that canvas is unavailable, Home uses
@@ -56,8 +58,9 @@ composition while giving the type and controls clear priority.
 ## Smooth typography assets (2026-09-19)
 
 `assets/fonts/{small,body,home_title,recorded_header,title,temperature,header_clock,label,home_label,caption}.vlw` are intentional font
-assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need neither a
-system font nor Pillow. Generated C headers remain under `.pio/ui_assets`.
+assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need no system
+font installation; the separate alpha-icon preparation uses Pillow. Generated
+C headers remain under `.pio/ui_assets`.
 
 Current Latin source: Roboto Regular/Medium
 2.001101 (2014), from TeX Live's
@@ -92,12 +95,29 @@ runtime enlargement of a tiny bitmap.
 `icons/back-chevron.svg` is original project geometry for the compact page
 header: a 24×24 view box containing an off-white 2.5 px open stroke with rounded
 caps and join. `tools/prepare_ui_assets.py` rasterizes it through AppKit at the
-same 24×24 runtime size and embeds the generated alpha PNG in
-`.pio/ui_assets/ui_header_assets.h`; no runtime scaling is used. Every ordinary
+same 24×24 runtime size. The original PNG remains in
+`.pio/ui_assets/ui_header_assets.h` for native comparison; production draws
+predecoded RGBA runs from `.pio/ui_assets/ui_alpha_icons.h` without allocation.
+No runtime scaling is used. Every ordinary
 non-Home page draws the asset at x=5/y=10, placing its visible center on y=22. The
 low-memory direct-TFT path uses a two-pixel primitive fallback because it cannot
 safely alpha-blend over a readable backing canvas. The startup configuration
 handoff intentionally omits Back because it has no navigable parent.
+
+The 2026-11-09 compositor change preserves all eleven transport/header/Wi-Fi
+icons pixel-for-pixel against LovyanGFX PNG output on four RGB565 backgrounds
+(`python3 tools/render_ui_fonts.py --alpha-icons-only`).
+`python3 tools/check_ui_alpha_icons.py` exercises the production draw function
+with heap access forbidden, readable/direct paths and clipping. Whole-page PNG
+backgrounds and other page-specific artwork retain their existing render paths.
+
+The subsequent Home-return crash (`19fb8805`) identified the same unchecked
+allocation in a Home tile. The flash-run renderer now also covers all 18 Home
+RGBA assets (brand, weather, tiles, icons and focus), plus the 11 list surfaces
+used when navigating from Home. Forty assets retain exact PNG pixel parity on
+four backgrounds and pass allocation-forbidden drawing/clipping tests. Source
+artwork and layout remain unchanged; maximum generated geometry is 320×240,
+with run counts checked to fit 16 bits. Opaque photo backgrounds retain PNG.
 
 Composition uses a 16-bit readable sprite. Its buffer stores `lgfx::swap565_t`;
 the matching typed `pushImage` overload preserves channel/byte order. The native

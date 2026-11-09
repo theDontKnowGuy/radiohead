@@ -10,6 +10,7 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <esp_timer.h>
+#include <esp_debug_helpers.h>
 #include <freertos/task.h>
 
 #include "app_state.h"
@@ -49,11 +50,36 @@ std::atomic<uint32_t> lastFailedBytes{0};
 std::atomic<uint32_t> lastFailedCaps{0};
 uint32_t minimumInputFill = UINT32_MAX;
 
+// Preserve the first failures even when HTTP/Wi-Fi stops working. Each slot
+// has exactly one writer and is immutable after release-publication. Capture
+// addresses only: no allocator calls, USB output, or heap walking in the hook.
+struct AllocationFailure {
+    uint32_t bytes = 0, caps = 0, atMs = 0, pc[8] = {};
+    std::atomic<bool> ready{false};
+};
+AllocationFailure allocationFailureTrace[8];
+std::atomic<uint32_t> allocationFailureSlots{0};
+
 void failedAllocation(size_t requestedBytes, uint32_t capabilities, const char*) {
     radioDiagnosticsAllocationFailure(requestedBytes);
     failedAllocations.fetch_add(1, std::memory_order_relaxed);
     lastFailedBytes.store(static_cast<uint32_t>(requestedBytes), std::memory_order_relaxed);
     lastFailedCaps.store(capabilities, std::memory_order_relaxed);
+    uint32_t slot = allocationFailureSlots.load(std::memory_order_relaxed);
+    while (slot < 8 && !allocationFailureSlots.compare_exchange_weak(
+               slot, slot + 1, std::memory_order_relaxed)) {}
+    if (slot >= 8) return;
+    auto& trace = allocationFailureTrace[slot];
+    trace.bytes = requestedBytes;
+    trace.caps = capabilities;
+    trace.atMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+    esp_backtrace_frame_t frame = {};
+    esp_backtrace_get_start(&frame.pc, &frame.sp, &frame.next_pc);
+    for (size_t i = 0; i < 8; ++i) {
+        trace.pc[i] = frame.pc;
+        if (!frame.next_pc || !esp_backtrace_get_next_frame(&frame)) break;
+    }
+    trace.ready.store(true, std::memory_order_release);
 }
 
 void recordGap(GapStats& stats, uint32_t gapUs) {
@@ -216,7 +242,36 @@ String validationDiagnosticsJson() {
         static_cast<unsigned long>(loopGaps.buckets[6]), static_cast<unsigned long>(loopGaps.buckets[7]),
         static_cast<unsigned long>(loopGaps.maxUs), static_cast<unsigned long>(maxAudioCallUs),
         static_cast<unsigned long>(maxWebCallUs));
-    return length > 0 && static_cast<size_t>(length) < sizeof(buffer) ? String(buffer) : String("{}");
+    if (length <= 0 || static_cast<size_t>(length) >= sizeof(buffer)) return String("{}");
+    String json(buffer);
+    json.remove(json.length() - 1);
+    // Arduino overrides IDF counts in dynamic mode. Report the configured
+    // budget only when its static policy is selected before initialization.
+    json += ",\"wifiStaticBuffers\":";
+    json += WiFi.useStaticBuffers() ? "true" : "false";
+    if (WiFi.useStaticBuffers()) {
+        char policy[160];
+        snprintf(policy, sizeof(policy),
+            ",\"wifiConfiguredBuffers\":{\"staticRx\":%u,\"staticTx\":%u,\"rxBaWin\":%u,\"txBaWin\":%u}",
+            unsigned(CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM), unsigned(CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM),
+            unsigned(CONFIG_ESP_WIFI_RX_BA_WIN), unsigned(CONFIG_ESP_WIFI_TX_BA_WIN));
+        json += policy;
+    }
+    json += ",\"allocationFailureTrace\":[";
+    bool comma = false;
+    for (const auto& trace : allocationFailureTrace) {
+        if (!trace.ready.load(std::memory_order_acquire)) continue;
+        char entry[256];
+        snprintf(entry, sizeof(entry),
+            "%s{\"ms\":%u,\"bytes\":%u,\"caps\":%u,\"pc\":[%u,%u,%u,%u,%u,%u,%u,%u]}",
+            comma ? "," : "", trace.atMs, trace.bytes, trace.caps,
+            trace.pc[0], trace.pc[1], trace.pc[2], trace.pc[3],
+            trace.pc[4], trace.pc[5], trace.pc[6], trace.pc[7]);
+        json += entry;
+        comma = true;
+    }
+    json += "]}";
+    return json;
 }
 #endif
 

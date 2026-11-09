@@ -2,7 +2,8 @@
 
 Usage: python tools/prepare_ui_fonts.py --font-dir /path/to/roboto/otf \
     --fallback-font-dir /path/to/dejavu/ttf
-Normal firmware builds embed the checked-in VLW assets and need no Pillow/font installation.
+Normal firmware builds embed the checked-in VLW assets without source fonts.
+Their separate alpha-icon preparation step requires Pillow.
 """
 import argparse
 import hashlib

@@ -19,7 +19,7 @@ bool radioDiagnosticsSetDetailedEnabled(bool enabled);
 void radioDiagnosticsPhase(RadioPhase phase);
 // Loop-owned fixed numeric breadcrumbs; active even when detailed logging is off.
 // Web code = route ID * 16 + HTTPMethod (see web_diagnostic_routes.h).
-enum class RadioMediaOperation : uint32_t { Playlist = 1, Connect = 2, AwaitPlayback = 3, RetryWait = 4 };
+enum class RadioMediaOperation : uint32_t { Playlist = 1, Connect = 2, AwaitPlayback = 3, RetryWait = 4, SpotifyRestore = 5 };
 void radioDiagnosticsWebBegin(uint32_t route, uint32_t method);
 void radioDiagnosticsWebEnd(int32_t status);
 void radioDiagnosticsMediaBegin(RadioMediaOperation operation, uint32_t attempt);

@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 from subprocess import run
+from itertools import groupby
+from PIL import Image
 
 project = Path(__file__).resolve().parents[1]
 source = project / "docs" / "bg1.png"
@@ -278,9 +280,8 @@ header_content = "\n".join(header_arrays)
 if not header_header.exists() or header_header.read_text() != header_content:
     header_header.write_text(header_content, encoding="utf-8")
 
-# Recorded-player transport artwork is user supplied as SVG. LovyanGFX decodes
-# the rasterized native-size PNG into the readable UI canvas; it never needs an
-# SVG renderer on the ESP32.
+# Player transport artwork is supplied as SVG. Native-size PNGs are retained
+# for reference; the firmware draws the predecoded flash runs generated below.
 player_sources = {
     "rewind_15": ("rewind-15.svg", 58),
     "pause": ("pause.svg", 72),
@@ -313,3 +314,52 @@ for symbol, (filename, size) in player_sources.items():
 player_content = "\n".join(player_arrays)
 if not player_header.exists() or player_header.read_text() != player_content:
     player_header.write_text(player_content, encoding="utf-8")
+
+# Spotify pause redraws must also work when audio has exhausted the DMA heap.
+# LovyanGFX's alpha PNG callback allocates an unchecked DMA scanline. Decode
+# these bounded shared icons and Home tiles off-device and retain their original RGBA pixels as
+# compact runs in flash instead. The PNGs remain available for host comparison.
+alpha_sources = {
+    **{f"player_{name}": player_output_dir / f"{name}_{size}.png"
+       for name, (_, size) in player_sources.items()},
+    "back_chevron": header_output_dir / "back_chevron_24.png",
+    **{f"list_{path.stem}": path for path in sorted(list_dir.glob("*.png"))},
+    **{f"home_{path.stem}": path
+       for path in sorted((project / "docs/ui/assets/home").glob("*.png"))
+       if path.stem != "background" and not path.stem.startswith("wifi")},
+    **{name: project / "docs/ui/assets/home" / f"{name}.png"
+       for name in ("wifi", "wifi_fair", "wifi_weak", "wifi_dot")},
+}
+alpha_arrays = ["""#pragma once
+#include <stdint.h>
+struct UiAlphaRun { uint8_t count, red, green, blue, alpha; };
+struct UiAlphaIcon {
+    const UiAlphaRun* runs;
+    uint16_t runCount, width, height;
+};
+"""]
+for symbol, path in alpha_sources.items():
+    image = Image.open(path).convert("RGBA")
+    if not (0 < image.width <= 320 and 0 < image.height <= 240):
+        raise RuntimeError(f"Alpha icon exceeds the bounded renderer geometry: {path}")
+    runs = []
+    rgba_pixels = (image.getpixel((x, y))
+                   for y in range(image.height) for x in range(image.width))
+    for rgba, pixels in groupby(rgba_pixels):
+        count = sum(1 for _ in pixels)
+        while count:
+            length = min(255, count)
+            runs.append((length, *rgba))
+            count -= length
+    assert len(runs) <= 65535
+    assert sum(run[0] for run in runs) == image.width * image.height
+    alpha_arrays.append(
+        f"const UiAlphaRun ui_alpha_{symbol}_runs[] = {{\n" +
+        ",\n".join("    {" + ", ".join(map(str, run)) + "}" for run in runs) +
+        "\n};\n" +
+        f"const UiAlphaIcon ui_alpha_{symbol} = {{ui_alpha_{symbol}_runs, " +
+        f"{len(runs)}, {image.width}, {image.height}}};\n")
+alpha_header = output / "ui_alpha_icons.h"
+alpha_content = "\n".join(alpha_arrays)
+if not alpha_header.exists() or alpha_header.read_text() != alpha_content:
+    alpha_header.write_text(alpha_content, encoding="utf-8")

@@ -20,6 +20,40 @@ firmware backups are kept outside the repository.
 | S3 | PASS (normal and integrated images build; fixed endpoint verified on device) | PARTIAL (computer-controlled Spotify played clearly; one Spotify-to-radio handoff reached local `playing`; iPhone connection unresolved) | FAIL (decoder/queue stack below preset 25% reserve; full resource budget and stress run open) | Short-run passes and limits are in [S3 measurements](s3-resources.md). Full S3 acceptance remains open. |
 | S4 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | Outside this request. |
 
+## Remote Stop investigation: 2026-11-09
+
+A preserved on-device crash, decoded with its matching ELF, faults in the
+Spotify player's alpha-PNG icon rendering: LovyanGFX uses an unchecked DMA
+scanline allocation. The live device also reports DMA memory pressure. The
+owner subsequently reproduced disappearance from Spotify alongside HTTP/Wi-Fi
+loss; session-task failure previously left readiness falsely true.
+See the [investigation and validation record](stop-disconnect-2026-11-09.md).
+The allocation-free icon fix, native pixel-parity/regression checks and firmware
+build pass. Session/event diagnostics were added for the unresolved disappearance.
+The initial agent pass did not flash firmware. A later live capture confirms
+that image (`a52e7375e267adc3`) running on the radio and reproduces network loss
+after activation/song change. Native serial and USB JTAG then identify a decoder
+blocked in a CDN TLS body read: local station selection releases the sink but
+times out waiting for decoder suspension. The owner flashed the cancellable-read
+fix (`d7c8c74d83aa3472`) and reproduced the network failure. Its decoder was
+acknowledging suspension at capture, but local output restoration had failed.
+Four allocation failures include a 444-byte DMA/internal request. A diagnostic
+candidate now captures allocation caller PCs and the exact handoff failure stage,
+removes blocking USB error logging, and includes Sol's tested AP reconnect fixes.
+The initiating network-loss cause and remote Stop/resume acceptance remain open.
+The later touch freeze during this capture was caused by debugger suspension;
+it must not be counted as a new spontaneous firmware failure.
+
+Follow-up traces identified Wi-Fi dynamic-TX DMA allocation failure. Sol's
+fixed TX-pool policy restored short-run playback/song changes. A separate
+Home-return crash then identified alpha-PNG rendering of Home tiles; root
+extended the existing allocation-free compositor to Home/list assets. On
+`fcc2828...`, the owner confirms playback, remote pause/resume, Home navigation
+and return to radio all work; final HTTP confirms radio playing. The device is
+left on this verified image. A further weather-task allocation retry guard is
+built/tested in `e61638...` but not flashed. Memory headroom and long-run resource
+acceptance remain open; no recent regression commit has been established.
+
 ## Token-refresh abort fix: 2026-11-07
 
 The cspot patch releases the pending-refresh gate on every exit, catches standard

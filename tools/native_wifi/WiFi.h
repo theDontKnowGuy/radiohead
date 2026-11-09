@@ -24,6 +24,13 @@ struct TestAp {
 };
 
 struct TestWiFi {
+    bool staticBuffers = false;
+    bool initialized = false;
+    int bufferSelections = 0;
+    bool useStaticBuffers() const { return staticBuffers; }
+    void useStaticBuffers(bool enabled) {
+        assert(!initialized); staticBuffers = enabled; ++bufferSelections;
+    }
     int scanState = WIFI_SCAN_FAILED;
     bool connected = true;
     bool scanFails = false;
@@ -84,8 +91,8 @@ struct TestWiFi {
     }
     void disconnected() { connected = false; STA.associated = false; }
     void gotIp() { connected = true; STA.associated = true; }
-    void disconnect(bool, bool) {}
-    void mode(int) {}
+    void disconnect(bool, bool) { assert(staticBuffers); }
+    void mode(int) { assert(staticBuffers); initialized = true; }
     bool softAP(const char*) { return true; }
     String softAPIP() const { return "192.0.2.1"; }
     void setHostname(const char*) {}

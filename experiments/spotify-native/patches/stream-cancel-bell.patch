@@ -1,0 +1,238 @@
+--- a/main/io/include/BellSocket.h
++++ b/main/io/include/BellSocket.h
+@@ -1,9 +1,13 @@
+ #pragma once
+ 
+ #include <string>
++#include <functional>
++#include <utility>
+ 
+ namespace bell {
+ class Socket {
++ protected:
++  std::function<bool()> cancelled;
+  public:
+   Socket(){};
+   virtual ~Socket() = default;
+@@ -15,5 +19,8 @@
+   virtual bool isOpen() = 0;
+   virtual void close() = 0;
+   virtual int getFd() = 0;
++  void setCancellationHandler(std::function<bool()> handler) {
++    cancelled = std::move(handler);
++  }
+ };
+ }  // namespace bell
+--- a/main/io/include/SocketStream.h
++++ b/main/io/include/SocketStream.h
+@@ -10,20 +10,28 @@
+ class SocketBuffer : public std::streambuf {
+  private:
+   std::unique_ptr<bell::Socket> internalSocket;
++  std::function<bool()> cancelled;
+ 
+   static const int bufLen = 1024;
+   char ibuf[bufLen], obuf[bufLen];
+ 
+  public:
+-  SocketBuffer() { internalSocket = nullptr; }
++  SocketBuffer() {
++    setg(ibuf, ibuf, ibuf);
++    setp(obuf, obuf + bufLen);
++  }
+ 
+-  SocketBuffer(const std::string& hostname, int port, bool isSSL = false) {
++  SocketBuffer(const std::string& hostname, int port, bool isSSL = false) : SocketBuffer() {
+     open(hostname, port);
+   }
+ 
+   int open(const std::string& hostname, int port, bool isSSL = false);
+ 
+   int close();
++  void setCancellationHandler(std::function<bool()> handler) {
++    cancelled = std::move(handler);
++    if (internalSocket) internalSocket->setCancellationHandler(cancelled);
++  }
+ 
+   bool isOpen() {
+     return internalSocket != nullptr && internalSocket->isOpen();
+@@ -61,11 +69,16 @@
+     int err = socketBuf.open(hostname, port, isSSL);
+     if (err)
+       setstate(std::ios::failbit);
++    else
++      clear();
+     return err;
+   }
+ 
+   int close() { return socketBuf.close(); }
+ 
+   bool isOpen() { return socketBuf.isOpen(); }
++  void setCancellationHandler(std::function<bool()> handler) {
++    socketBuf.setCancellationHandler(std::move(handler));
++  }
+ };
+ }  // namespace bell
+--- a/main/io/include/HTTPClient.h
++++ b/main/io/include/HTTPClient.h
+@@ -100,8 +100,10 @@
+   };
+ 
+   static std::unique_ptr<Response> get(const std::string& url,
+-                                       Headers headers = {}) {
++                                       Headers headers = {},
++                                       std::function<bool()> cancelled = {}) {
+     auto response = std::make_unique<Response>();
++    response->stream().setCancellationHandler(std::move(cancelled));
+     response->connect(url);
+     response->get(url, headers);
+     return response;
+--- a/main/io/SocketStream.cpp
++++ b/main/io/SocketStream.cpp
+@@ -18,16 +18,20 @@
+     internalSocket = std::make_unique<bell::TCPSocket>();
+   }
+ 
++  internalSocket->setCancellationHandler(cancelled);
+   internalSocket->open(hostname, port);
+   return 0;
+ }
+ 
+ int SocketBuffer::close() {
+-  if (internalSocket != nullptr && isOpen()) {
+-    pubsync();
++  if (internalSocket != nullptr) {
++    // Requests flush explicitly. Destruction/cancellation must not perform
++    // another blocking write or throw while unwinding a failed request.
+     internalSocket->close();
+     internalSocket = nullptr;
+   }
++  setg(ibuf, ibuf, ibuf);
++  setp(obuf, obuf + bufLen);
+   return 0;
+ }
+ 
+@@ -35,7 +39,7 @@
+   ssize_t bw, n = pptr() - pbase();
+   while (n > 0) {
+     bw = internalSocket->write(reinterpret_cast<uint8_t*>(pptr() - n), n);
+-    if (bw < 0) {
++    if (bw <= 0) {
+       setp(pptr() - n, obuf + bufLen);
+       pbump(n);
+       return -1;
+@@ -49,7 +53,7 @@
+ SocketBuffer::int_type SocketBuffer::underflow() {
+   ssize_t br = internalSocket->read(reinterpret_cast<uint8_t*>(ibuf), bufLen);
+   if (br <= 0) {
+-    setg(NULL, NULL, NULL);
++    setg(ibuf, ibuf, ibuf);
+     return traits_type::eof();
+   }
+   setg(ibuf, ibuf, ibuf + br);
+@@ -74,7 +78,7 @@
+     return __n;
+   }
+   traits_type::copy(__s, gptr(), bn);
+-  setg(NULL, NULL, NULL);
++  setg(ibuf, ibuf, ibuf);
+   std::streamsize remain = __n - bn;
+   char_type* end = __s + __n;
+   ssize_t br;
+@@ -101,7 +105,7 @@
+   const char_type* end = __s + __n;
+   while (remain > bufLen) {
+     bw = internalSocket->write((uint8_t*)(end - remain), remain);
+-    if (bw < 0)
++    if (bw <= 0)
+       return (__n - remain);
+     remain -= bw;
+   }
+--- a/main/io/TLSSocket.cpp
++++ b/main/io/TLSSocket.cpp
+@@ -4,9 +4,43 @@
+ #include <mbedtls/ssl.h>          // for mbedtls_ssl_conf_authmode, mbedtls_...
+ #include "esp_random.h"
+ #include <stdexcept>              // for runtime_error
++#include <chrono>
++#include <cerrno>
++#include <sys/select.h>
+ 
+ #include "BellLogger.h"  // for AbstractLogger, BELL_LOG
+ #include "X509Bundle.h"  // for shouldVerify, attach
++
++namespace {
++// Bound each TLS operation, including repeated WANT_READ/WANT_WRITE. A reset
++// is noticed within one select slice rather than waiting for peer traffic.
++template<class Operation>
++int runTlsOperation(int fd, const std::function<bool()>& cancelled,
++                    Operation&& operation) {
++  if (fd < 0 || fd >= FD_SETSIZE)
++    throw std::runtime_error("TLS socket unavailable");
++  using Clock = std::chrono::steady_clock;
++  const auto deadline = Clock::now() + std::chrono::seconds(5);
++  for (;;) {
++    if (cancelled && cancelled()) throw std::runtime_error("TLS operation cancelled");
++    if (Clock::now() >= deadline) throw std::runtime_error("TLS operation timed out");
++    const int result = operation();
++    if (result >= 0) return result;
++    if (result != MBEDTLS_ERR_SSL_WANT_READ && result != MBEDTLS_ERR_SSL_WANT_WRITE)
++      throw std::runtime_error("TLS operation failed");
++    fd_set ready;
++    FD_ZERO(&ready);
++    FD_SET(fd, &ready);
++    timeval slice = {0, 100000};
++    const int selected = select(fd + 1,
++        result == MBEDTLS_ERR_SSL_WANT_READ ? &ready : nullptr,
++        result == MBEDTLS_ERR_SSL_WANT_WRITE ? &ready : nullptr,
++        nullptr, &slice);
++    if (selected < 0 && errno != EINTR)
++      throw std::runtime_error("TLS socket wait failed");
++  }
++}
++}  // namespace
+ 
+ /**
+  * IDF 5.5 uses mbedTLS 3 and requires an explicit RNG for each TLS config.
+@@ -24,6 +58,7 @@
+ 
+ void bell::TLSSocket::open(const std::string& hostUrl, uint16_t port) {
+   int ret;
++  if (cancelled && cancelled()) throw std::runtime_error("TLS operation cancelled");
+ 
+   // PSA must be initialized before any TLS 1.3 / PSA-backed operation.
+   // psa_crypto_init() is idempotent; safe to call on every open().
+@@ -70,23 +105,25 @@
+   if ((ret = mbedtls_ssl_set_hostname(&ssl, hostUrl.c_str())) != 0) {
+     throw std::runtime_error("mbedtls_ssl_set_hostname failed");
+   }
++  if (mbedtls_net_set_nonblock(&server_fd) != 0)
++    throw std::runtime_error("TLS nonblocking setup failed");
+   mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv,
+                       NULL);
+ 
+-  while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
+-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+-      BELL_LOG(error, "http_tls", "failed! config returned %d\n", ret);
+-      throw std::runtime_error("mbedtls_ssl_handshake error");
+-    }
+-  }
++  runTlsOperation(server_fd.fd, cancelled, [&] { return mbedtls_ssl_handshake(&ssl); });
+ }
+ 
+ size_t bell::TLSSocket::read(uint8_t* buf, size_t len) {
+-  return mbedtls_ssl_read(&ssl, buf, len);
++  const int result = runTlsOperation(server_fd.fd, cancelled,
++      [&] { return mbedtls_ssl_read(&ssl, buf, len); });
++  return static_cast<size_t>(result);
+ }
+ 
+ size_t bell::TLSSocket::write(uint8_t* buf, size_t len) {
+-  return mbedtls_ssl_write(&ssl, buf, len);
++  const int result = runTlsOperation(server_fd.fd, cancelled,
++      [&] { return mbedtls_ssl_write(&ssl, buf, len); });
++  if (result == 0 && len) throw std::runtime_error("TLS write made no progress");
++  return static_cast<size_t>(result);
+ }
+ 
+ size_t bell::TLSSocket::poll() {

@@ -24,12 +24,11 @@
 #include "ui_text.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
-#include "ui_header_assets.h"
+#include "ui_alpha_icons.h"
 #include "ui_home_clock_atlas.h"
 #include "ui_home_temperature_atlas.h"
 #include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
-#include "ui_player_assets.h"
 
 bool drawPngAsset(
     const uint8_t* pngData,
@@ -162,6 +161,13 @@ void setBrightness(int duty) {
 
 void updateWeatherData() {
     static unsigned long lastWeatherUpdate = 0;
+    static uint32_t failedTaskAt = 0;
+    static bool taskRetryPending = false;
+    const uint32_t now = millis();
+    // Spotify can temporarily consume the internal memory needed for this
+    // worker's stack. Do not retry its failed 8 KiB allocation every loop.
+    if (taskRetryPending && uint32_t(now - failedTaskAt) < 30000UL) return;
+    taskRetryPending = false;
     if (!weatherFetchInProgress &&
         (weatherRefreshRequested || millis() - lastWeatherUpdate > 900000 || lastWeatherUpdate == 0)) {
         if (WiFi.status() == WL_CONNECTED && !isAP && !owmKey.isEmpty()) {
@@ -179,6 +185,9 @@ void updateWeatherData() {
                     nullptr,
                     NETWORK_WORKER_CORE) != pdPASS) {
                 weatherFetchInProgress = false;
+                failedTaskAt = now;
+                taskRetryPending = true;
+                weatherRefreshRequested = true;
             } else {
                 lastWeatherUpdate = millis();
             }
@@ -734,9 +743,11 @@ void footerButton(int16_t x, int16_t width, const char* label, bool highlighted 
     canvas().drawString(label, x + width / 2, 214, uiFont(&fonts::FreeSans9pt7b));
 }
 
-template<size_t N>
-bool drawSurfaceAsset(const uint8_t (&asset)[N], int16_t x, int16_t y) {
-    return canvas().drawPng(asset, N, x, y);
+void drawAlphaIcon(const UiAlphaIcon& icon, int16_t x, int16_t y);
+
+bool drawSurfaceAsset(const UiAlphaIcon& asset, int16_t x, int16_t y) {
+    drawAlphaIcon(asset, x, y);
+    return true;
 }
 
 // Alpha surfaces must only be composited on the readable PSRAM canvas.  The
@@ -745,11 +756,11 @@ void drawListCard(int16_t x, int16_t y, bool focused, bool wide = false) {
     bool drawn = false;
     if (uiFrameReady) {
         if (wide) {
-            drawn = focused ? drawSurfaceAsset(ui_list_card_wide_focused, x, y)
-                            : drawSurfaceAsset(ui_list_card_wide, x, y);
+            drawn = focused ? drawSurfaceAsset(ui_alpha_list_card_wide_focused, x, y)
+                            : drawSurfaceAsset(ui_alpha_list_card_wide, x, y);
         } else {
-            drawn = focused ? drawSurfaceAsset(ui_list_card_focused, x, y)
-                            : drawSurfaceAsset(ui_list_card, x, y);
+            drawn = focused ? drawSurfaceAsset(ui_alpha_list_card_focused, x, y)
+                            : drawSurfaceAsset(ui_alpha_list_card, x, y);
         }
     }
     if (!drawn) {
@@ -787,14 +798,14 @@ void drawListPager(int offset, int count, int rows, int16_t top = kStationListTo
     bool downDrawn = false;
     if (uiFrameReady) {
         if (primaryListRail) {
-            railDrawn = drawSurfaceAsset(ui_list_rail, kListRailLeft, kStationListTop);
+            railDrawn = drawSurfaceAsset(ui_alpha_list_rail, kListRailLeft, kStationListTop);
         } else if (top == kFavoriteListTop && bottom == kFavoriteListBottom) {
-            railDrawn = drawSurfaceAsset(ui_list_rail_favorites, kListRailLeft, top);
+            railDrawn = drawSurfaceAsset(ui_alpha_list_rail_favorites, kListRailLeft, top);
         }
-        upDrawn = canPrevious ? drawSurfaceAsset(ui_list_pager_active, pagerLeft, upY)
-                              : drawSurfaceAsset(ui_list_pager, pagerLeft, upY);
-        downDrawn = canNext ? drawSurfaceAsset(ui_list_pager_active, pagerLeft, downY)
-                             : drawSurfaceAsset(ui_list_pager, pagerLeft, downY);
+        upDrawn = canPrevious ? drawSurfaceAsset(ui_alpha_list_pager_active, pagerLeft, upY)
+                              : drawSurfaceAsset(ui_alpha_list_pager, pagerLeft, upY);
+        downDrawn = canNext ? drawSurfaceAsset(ui_alpha_list_pager_active, pagerLeft, downY)
+                             : drawSurfaceAsset(ui_alpha_list_pager, pagerLeft, downY);
     }
     if (!railDrawn) {
         canvas().fillRoundRect(kListRailLeft, top, kListRailWidth, bottom - top, 7, kNavy);
@@ -826,9 +837,9 @@ void drawListPager(int offset, int count, int rows, int16_t top = kStationListTo
         bool thumbDrawn = false;
         if (uiFrameReady) {
             switch (pages) {
-            case 1: thumbDrawn = drawSurfaceAsset(ui_list_pager_thumb_1, kThumbX, kTrackTop); break;
-            case 2: thumbDrawn = drawSurfaceAsset(ui_list_pager_thumb_2, kThumbX, kTrackTop + page * 42); break;
-            default: thumbDrawn = drawSurfaceAsset(ui_list_pager_thumb_3, kThumbX, kTrackTop + page * 28); break;
+            case 1: thumbDrawn = drawSurfaceAsset(ui_alpha_list_pager_thumb_1, kThumbX, kTrackTop); break;
+            case 2: thumbDrawn = drawSurfaceAsset(ui_alpha_list_pager_thumb_2, kThumbX, kTrackTop + page * 42); break;
+            default: thumbDrawn = drawSurfaceAsset(ui_alpha_list_pager_thumb_3, kThumbX, kTrackTop + page * 28); break;
             }
         }
         if (!thumbDrawn) {
@@ -859,14 +870,40 @@ void drawSettingsBackground() {
     }
 }
 
+void drawAlphaIcon(const UiAlphaIcon& icon, int16_t x, int16_t y) {
+    // Predecoded flash runs avoid the PNG alpha callback's DMA allocation.
+    // Use the same RGB888 blend/rounding as LovyanGFX, then quantize to RGB565.
+    uint16_t column = 0, row = 0;
+    for (uint16_t index = 0; index < icon.runCount; ++index) {
+        const UiAlphaRun& run = icon.runs[index];
+        for (uint16_t pixel = 0; pixel < run.count; ++pixel) {
+            if (run.alpha && (uiFrameReady || run.alpha >= 128)) {
+                uint8_t red = run.red, green = run.green, blue = run.blue;
+                if (uiFrameReady && run.alpha < 255) {
+                    const lgfx::rgb565_t background(canvas().readPixel(x + column, y + row));
+                    const uint16_t inverse = 255U - run.alpha;
+                    red = (red * run.alpha + background.R8() * inverse + 255U) >> 8;
+                    green = (green * run.alpha + background.G8() * inverse + 255U) >> 8;
+                    blue = (blue * run.alpha + background.B8() * inverse + 255U) >> 8;
+                }
+                canvas().drawPixel(x + column, y + row, lgfx::color888(red, green, blue));
+            }
+            if (++column == icon.width) {
+                column = 0;
+                if ((++row & 7U) == 0) serviceUiAudio();
+            }
+        }
+    }
+}
+
 void drawWiFiSignal(int16_t centerX, int16_t top) {
     const uint8_t level = wifiSignalLevel();
-    if (level == 4) canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), centerX - 12, top);
+    if (level == 4) drawAlphaIcon(ui_alpha_wifi, centerX - 12, top);
     // Center the visible mark on the header text, accounting for the extra
     // transparent space left above each variant when outer arcs are removed.
-    else if (level == 3) canvas().drawPng(ui_home_wifi_fair, sizeof(ui_home_wifi_fair), centerX - 12, top - 2);
-    else if (level == 2) canvas().drawPng(ui_home_wifi_weak, sizeof(ui_home_wifi_weak), centerX - 12, top - 4);
-    else if (level == 1) canvas().drawPng(ui_home_wifi_dot, sizeof(ui_home_wifi_dot), centerX - 12, top - 6);
+    else if (level == 3) drawAlphaIcon(ui_alpha_wifi_fair, centerX - 12, top - 2);
+    else if (level == 2) drawAlphaIcon(ui_alpha_wifi_weak, centerX - 12, top - 4);
+    else if (level == 1) drawAlphaIcon(ui_alpha_wifi_dot, centerX - 12, top - 6);
 }
 
 void drawSpeakerIcon(int16_t x, int16_t y, int16_t size, bool muted,
@@ -898,7 +935,7 @@ void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // shared page header below.
     constexpr int16_t centerY = 22;
     if (uiFrameReady) {
-        canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 12, 10);
+        drawAlphaIcon(ui_alpha_home_brand_radio, 12, 10);
     } else {
         canvas().drawRoundRect(14, 18, 15, 10, 3, kHomeText);
         canvas().drawLine(17, 16, 27, 12, kHomeText);
@@ -1019,12 +1056,6 @@ String homeCityLabel(const String& city) {
     String label = comma >= 0 ? city.substring(0, comma) : city;
     label.trim();
     return label.isEmpty() ? String("Weather") : label;
-}
-
-template<size_t N>
-void drawHomeAsset(const uint8_t (&asset)[N], int16_t x, int16_t y) {
-    // Called only on the readable canvas. PNG alpha never reads the TFT.
-    canvas().drawPng(asset, N, x, y);
 }
 
 int8_t homeNumeralGlyphIndex(char character) {
@@ -1176,15 +1207,15 @@ void drawHomeWeatherIcon(int16_t x, int16_t visibleTop, bool valid, int id) {
     // Normalise actual ink, not transparent image rectangles. Clear's art has
     // a one-pixel inset, partly cloudy begins at zero, and cloud states begin
     // 12 pixels down in their common 64×56 canvas.
-    if (!valid) drawHomeAsset(ui_home_weather_unknown, x, visibleTop - 12);
-    else if (id == 800) drawHomeAsset(ui_home_weather_clear, x, visibleTop - 1);
-    else if (id == 801 || id == 802) drawHomeAsset(ui_home_weather_partly, x, visibleTop);
-    else if (id == 803 || id == 804) drawHomeAsset(ui_home_weather_cloudy, x, visibleTop - 12);
-    else if (id >= 200 && id <= 232) drawHomeAsset(ui_home_weather_storm, x, visibleTop - 12);
-    else if ((id >= 300 && id <= 321) || (id >= 500 && id <= 531)) drawHomeAsset(ui_home_weather_rain, x, visibleTop - 12);
-    else if (id >= 600 && id <= 622) drawHomeAsset(ui_home_weather_snow, x, visibleTop - 12);
-    else if (id >= 700 && id < 800) drawHomeAsset(ui_home_weather_mist, x, visibleTop - 12);
-    else drawHomeAsset(ui_home_weather_unknown, x, visibleTop - 12);
+    if (!valid) drawAlphaIcon(ui_alpha_home_weather_unknown, x, visibleTop - 12);
+    else if (id == 800) drawAlphaIcon(ui_alpha_home_weather_clear, x, visibleTop - 1);
+    else if (id == 801 || id == 802) drawAlphaIcon(ui_alpha_home_weather_partly, x, visibleTop);
+    else if (id == 803 || id == 804) drawAlphaIcon(ui_alpha_home_weather_cloudy, x, visibleTop - 12);
+    else if (id >= 200 && id <= 232) drawAlphaIcon(ui_alpha_home_weather_storm, x, visibleTop - 12);
+    else if ((id >= 300 && id <= 321) || (id >= 500 && id <= 531)) drawAlphaIcon(ui_alpha_home_weather_rain, x, visibleTop - 12);
+    else if (id >= 600 && id <= 622) drawAlphaIcon(ui_alpha_home_weather_snow, x, visibleTop - 12);
+    else if (id >= 700 && id < 800) drawAlphaIcon(ui_alpha_home_weather_mist, x, visibleTop - 12);
+    else drawAlphaIcon(ui_alpha_home_weather_unknown, x, visibleTop - 12);
 }
 
 void drawHomeTileIcon(int16_t x, int16_t y, uint8_t tile) {
@@ -1195,10 +1226,10 @@ void drawHomeTileIcon(int16_t x, int16_t y, uint8_t tile) {
         return;
     }
     switch (tile) {
-    case 0: drawHomeAsset(ui_home_icon_radio, x, y); break;
-    case 1: drawHomeAsset(ui_home_icon_shows, x, y); break;
-    case 2: drawHomeAsset(ui_home_icon_favorites, x, y); break;
-    case 3: drawHomeAsset(ui_home_icon_settings, x, y); break;
+    case 0: drawAlphaIcon(ui_alpha_home_icon_radio, x, y); break;
+    case 1: drawAlphaIcon(ui_alpha_home_icon_shows, x, y); break;
+    case 2: drawAlphaIcon(ui_alpha_home_icon_favorites, x, y); break;
+    case 3: drawAlphaIcon(ui_alpha_home_icon_settings, x, y); break;
     }
 }
 
@@ -1280,8 +1311,8 @@ void drawTransport(int16_t x, int16_t y, const char* glyph, bool primary) {
 }
 
 void drawPageBackChevron() {
-    if (uiFrameReady && canvas().drawPng(
-            ui_header_back_chevron, sizeof(ui_header_back_chevron), 5, 10)) {
+    if (uiFrameReady) {
+        drawAlphaIcon(ui_alpha_back_chevron, 5, 10);
         return;
     }
 
@@ -1338,7 +1369,7 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     // keeping all live values and the QR code native at 320 x 240.
     if (uiFrameReady) {
         canvas().fillRectAlpha(0, 0, 320, 240, 36, TFT_BLACK);
-        canvas().drawPng(ui_home_brand_radio, sizeof(ui_home_brand_radio), 10, 7);
+        drawAlphaIcon(ui_alpha_home_brand_radio, 10, 7);
     } else {
         canvas().fillScreen(kNavy);
         canvas().drawRoundRect(12, 15, 15, 10, 3, kHomeText);
@@ -1434,11 +1465,6 @@ void drawPauseOrPlayControl(int16_t x, int16_t y, bool paused) {
         canvas().fillRoundRect(x - 14, y - 13, 10, 26, 2, kWhite);
         canvas().fillRoundRect(x + 4, y - 13, 10, 26, 2, kWhite);
     }
-}
-
-template<size_t N>
-void drawPlayerIcon(const uint8_t (&asset)[N], int16_t x, int16_t y) {
-    canvas().drawPng(asset, N, x, y);
 }
 
 void drawPodcastArtworkFallback(int16_t x, int16_t y) {
@@ -1811,13 +1837,13 @@ void renderPodcastPlayer(const UiRenderState& state, const char* currentTime, bo
     const String remainder = duration == 0 ? String("--:--") : durationLabel(duration - std::min(duration, playback.elapsedSeconds));
     textRight("-" + remainder, 300, 138, uiFont(&fonts::Font0), kWhite, 60);
     if (uiFrameReady) {
-        drawPlayerIcon(ui_player_rewind_15, 53, 165);
+        drawAlphaIcon(ui_alpha_player_rewind_15, 53, 165);
         if (playback.paused) {
-            drawPlayerIcon(ui_player_play, 124, 158);
+            drawAlphaIcon(ui_alpha_player_play, 124, 158);
         } else {
-            drawPlayerIcon(ui_player_pause, 124, 158);
+            drawAlphaIcon(ui_alpha_player_pause, 124, 158);
         }
-        drawPlayerIcon(ui_player_forward_30, 209, 165);
+        drawAlphaIcon(ui_alpha_player_forward_30, 209, 165);
     } else {
         // A visible primitive fallback is retained for the no-canvas path;
         // normal rendering always uses the supplied artwork above.
@@ -1877,7 +1903,7 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         // Use the same prepared Wi-Fi mark as the page headers. This keeps the
         // Settings destination immediately recognizable and avoids a second,
         // slightly different network symbol.
-        canvas().drawPng(ui_home_wifi, sizeof(ui_home_wifi), x - 12, y - 10);
+        drawAlphaIcon(ui_alpha_wifi, x - 12, y - 10);
         break;
     case 1:  // Display
         canvas().drawRoundRect(x - 13, y - 9, 26, 18, 3, color);
@@ -1903,7 +1929,7 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
         break;
     case 5:  // Web configuration
         if (uiFrameReady) {
-            canvas().drawPng(ui_home_icon_settings, sizeof(ui_home_icon_settings),
+            drawAlphaIcon(ui_alpha_home_icon_settings,
                              x - 19, y - 19);
         } else {
             canvas().drawCircle(x, y, 5, color);
@@ -2194,10 +2220,10 @@ void renderConfirm(const UiRenderState& state, const char* currentTime, bool tim
 void drawHomeTile(int16_t x, uint16_t color, const char* top, const char* bottom, uint8_t tile) {
     if (uiFrameReady) {
         switch (tile) {
-        case 0: drawHomeAsset(ui_home_tile_radio, x, kHomeTileY); break;
-        case 1: drawHomeAsset(ui_home_tile_shows, x, kHomeTileY); break;
-        case 2: drawHomeAsset(ui_home_tile_favorites, x, kHomeTileY); break;
-        case 3: drawHomeAsset(ui_home_tile_settings, x, kHomeTileY); break;
+        case 0: drawAlphaIcon(ui_alpha_home_tile_radio, x, kHomeTileY); break;
+        case 1: drawAlphaIcon(ui_alpha_home_tile_shows, x, kHomeTileY); break;
+        case 2: drawAlphaIcon(ui_alpha_home_tile_favorites, x, kHomeTileY); break;
+        case 3: drawAlphaIcon(ui_alpha_home_tile_settings, x, kHomeTileY); break;
         }
     } else {
         canvas().fillRoundRect(x, kHomeTileY, kHomeTileWidth, kHomeTileHeight, 8, color);
@@ -2299,7 +2325,7 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     drawHomeTile(kHomeTileX[3], kHomeSlate, "Settings", nullptr, 3);
     const uint8_t focus = state.homeFocus < 4 ? state.homeFocus : 0;
     if (uiFrameReady) {
-        drawHomeAsset(ui_home_focus, kHomeTileX[focus] - 2, kHomeTileY - 2);
+        drawAlphaIcon(ui_alpha_home_focus, kHomeTileX[focus] - 2, kHomeTileY - 2);
     } else {
         canvas().drawRoundRect(kHomeTileX[focus] - 2, kHomeTileY - 2, kHomeTileWidth + 4, kHomeTileHeight + 4, 9, kBlueFocus);
     }
@@ -2363,12 +2389,12 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
     if (!media.album.isEmpty())
         text(media.album, 124, 126, uiFont(&fonts::Font0), kTextMuted, 172);
     if (media.status == MediaStatus::Playing || media.status == MediaStatus::Paused) {
-        drawPlayerIcon(ui_player_previous_track, 52, 164);
+        drawAlphaIcon(ui_alpha_player_previous_track, 52, 164);
         if (media.status == MediaStatus::Paused)
-            drawPlayerIcon(ui_player_play, 124, 157);
+            drawAlphaIcon(ui_alpha_player_play, 124, 157);
         else
-            drawPlayerIcon(ui_player_pause, 124, 157);
-        drawPlayerIcon(ui_player_next_track, 210, 164);
+            drawAlphaIcon(ui_alpha_player_pause, 124, 157);
+        drawAlphaIcon(ui_alpha_player_next_track, 210, 164);
     } else {
         drawSpotifySurface(13, 162, 294, 62);
         const char* heading = media.status == MediaStatus::Connecting ? "Connecting to Spotify" :

@@ -3,6 +3,9 @@
 #include <WiFi.h>
 #include <cstring>
 #include <time.h>
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
 
 #include "app_state.h"
 #include "settings.h"
@@ -10,6 +13,20 @@
 #include "media.h"
 
 namespace {
+void configureWifiBuffers() {
+#ifdef ESP_PLATFORM
+    static_assert(CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM == 4 &&
+                  CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM == 4 &&
+                  CONFIG_ESP_WIFI_RX_BA_WIN == 4 && CONFIG_ESP_WIFI_TX_BA_WIN == 4 &&
+                  CONFIG_ESP_WIFI_TX_BUFFER_TYPE == 0,
+                  "Wi-Fi DMA budget must match sdkconfig.defaults");
+#endif
+    // Arduino otherwise replaces the IDF static TX policy with up to 32
+    // dynamically allocated DMA buffers. Select the bounded pool before the
+    // first mode()/begin(), including a boot directly into configuration AP.
+    if (!WiFi.useStaticBuffers()) WiFi.useStaticBuffers(true);
+}
+
 constexpr unsigned long kRoamScanIntervalMs = 10UL * 60UL * 1000UL;
 constexpr int32_t kRoamSignalMarginDb = 10;
 constexpr uint32_t kRoamScanMaxMsPerChannel = 120;
@@ -214,6 +231,7 @@ void serviceWifiRoaming(unsigned long now) {
 }
 
 bool startSetupAccessPoint(SetupAccessReason reason) {
+    configureWifiBuffers();
     if (handoff != Handoff::None) finishHandoff();
     pinnedByRoam = pinnedDisconnected = weakSignal = false;
     backgroundRoaming = loadWifiRoamingEnabled();
@@ -233,6 +251,7 @@ bool startSetupAccessPoint(SetupAccessReason reason) {
 }
 
 void beginNetworkConnection() {
+    configureWifiBuffers();
     if (handoff != Handoff::None) finishHandoff();
     pinnedByRoam = pinnedDisconnected = weakSignal = false;
     backgroundRoaming = loadWifiRoamingEnabled();

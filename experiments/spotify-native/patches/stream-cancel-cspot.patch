@@ -1,0 +1,217 @@
+--- a/cspot/include/CDNAudioFile.h
++++ b/cspot/include/CDNAudioFile.h
+@@ -5,6 +5,7 @@
+ #include <memory>   // for shared_ptr, unique_ptr
+ #include <string>   // for string
+ #include <vector>   // for vector
++#include <functional>
+ 
+ #include "Crypto.h"      // for Crypto
+ #include "HTTPClient.h"  // for HTTPClient
+@@ -25,6 +26,9 @@
+   * @brief Opens connection to the provided cdn url, and fetches track metadata.
+   */
+   void openStream();
++  void setCancellationHandler(std::function<bool()> handler) {
++    cancelled = std::move(handler);
++  }
+ 
+   /**
+   * @brief Read and decrypt part of the cdn stream
+@@ -53,6 +57,8 @@
+   void seek(size_t position);
+ 
+  private:
++  std::function<bool()> cancelled;
++  bool isCancelled() const { return cancelled && cancelled(); }
+   const int OPUS_HEADER_SIZE = 8 * 1024;
+   const int OPUS_FOOTER_PREFFERED = 1024 * 12;  // 12K should be safe
+   const int SEEK_MARGIN_SIZE = 1024 * 4;
+--- a/cspot/src/CDNAudioFile.cpp
++++ b/cspot/src/CDNAudioFile.cpp
+@@ -51,11 +51,16 @@
+   // Open connection, read first 128 bytes
+   this->httpConnection = bell::HTTPClient::get(
+       this->cdnUrl,
+-      {bell::HTTPClient::RangeHeader::range(0, OPUS_HEADER_SIZE - 1)});
++      {bell::HTTPClient::RangeHeader::range(0, OPUS_HEADER_SIZE - 1)}, cancelled);
+ 
+   this->httpConnection->stream().read((char*)header.data(), OPUS_HEADER_SIZE);
++  if (isCancelled() || this->httpConnection->stream().gcount() != OPUS_HEADER_SIZE)
++    throw std::runtime_error("Incomplete CDN header");
+   this->totalFileSize =
+       this->httpConnection->totalLength() - SPOTIFY_OPUS_HEADER;
++  if (this->httpConnection->totalLength() <
++      static_cast<size_t>(OPUS_FOOTER_PREFFERED + SPOTIFY_OPUS_HEADER))
++    throw std::runtime_error("Invalid CDN file size");
+ 
+   this->decrypt(header.data(), OPUS_HEADER_SIZE, 0);
+ 
+@@ -71,6 +76,9 @@
+ 
+   this->httpConnection->stream().read((char*)footer.data(),
+                                       this->footer.size());
++  if (isCancelled() || this->httpConnection->stream().gcount() !=
++      static_cast<std::streamsize>(footer.size()))
++    throw std::runtime_error("Incomplete CDN footer");
+ 
+   this->decrypt(footer.data(), footer.size(), footerStartLocation);
+   CSPOT_LOG(info, "Header and footer bytes received");
+@@ -80,6 +88,7 @@
+ }
+ 
+ size_t CDNAudioFile::readBytes(uint8_t* dst, size_t bytes) {
++  if (isCancelled()) return 0;
+   size_t offsetPosition = position + SPOTIFY_OPUS_HEADER;
+   size_t actualFileSize = this->totalFileSize + SPOTIFY_OPUS_HEADER;
+ 
+@@ -148,7 +157,7 @@
+         if (this->httpConnection)
+           this->httpConnection->get(cdnUrl, {range});
+         else
+-          this->httpConnection = bell::HTTPClient::get(cdnUrl, {range});
++          this->httpConnection = bell::HTTPClient::get(cdnUrl, {range}, cancelled);
+         const size_t received = this->httpConnection->contentLength();
+         if (received == 0 || received > this->httpBuffer.size())
+           throw std::runtime_error("Invalid CDN range length");
+@@ -164,6 +173,7 @@
+         break;
+       } catch (const std::exception&) {
+         this->httpConnection.reset();
++        if (isCancelled()) return 0;
+         ++retries;
+         if (xTaskGetTickCount() - started >= pdMS_TO_TICKS(30000)) {
+           ESP_LOGW("val-s1", "cdn_range_timeout retries=%u", retries);
+@@ -171,7 +181,9 @@
+         }
+         if (retries == 1 || retries % 8 == 0)
+           ESP_LOGW("val-s1", "cdn_range_retry count=%u", retries);
+-        vTaskDelay(pdMS_TO_TICKS(500));
++        for (int wait = 0; wait < 10 && !isCancelled(); ++wait)
++          vTaskDelay(pdMS_TO_TICKS(50));
++        if (isCancelled()) return 0;
+       }
+     }
+ #else
+--- a/cspot/include/TrackPlayer.h
++++ b/cspot/include/TrackPlayer.h
+@@ -75,7 +75,8 @@
+   EOFCallback eofCallback;
+ 
+   // Playback control
+-  std::atomic<bool> currentSongPlaying;
++  std::atomic<bool> currentSongPlaying{false};
++  std::atomic<uint32_t> resetGeneration{0};
+   std::mutex playbackMutex;
+   std::mutex dataOutMutex;
+ 
+--- a/cspot/src/TrackPlayer.cpp
++++ b/cspot/src/TrackPlayer.cpp
+@@ -129,6 +129,7 @@
+ 
+ void TrackPlayer::resetState(bool paused) {
+   // Mark for reset
++  this->resetGeneration.fetch_add(1);
+   this->pendingReset = true;
+   this->currentSongPlaying = false;
+   this->startPaused = paused;
+@@ -193,6 +194,7 @@
+     }
+ 
+     endOfQueueReached = false;
++    const uint32_t generation = resetGeneration.load();
+ 
+     // Wait 800ms. If next reset is requested in meantime, restart the queue.
+     // Gets rid of excess actions during rapid queueing
+@@ -219,7 +221,14 @@
+     inFuture = trackOffset > 0;
+ 
+     if (track->state != QueuedTrack::State::READY) {
+-      track->loadedSemaphore->twait(5000);
++      for (int wait = 0; wait < 50 &&
++          track->state != QueuedTrack::State::READY &&
++          !localSuspended && !pendingReset && isRunning &&
++          generation == resetGeneration.load(); ++wait)
++        track->loadedSemaphore->twait(100);
++
++      if (localSuspended || pendingReset || !isRunning ||
++          generation != resetGeneration.load()) continue;
+ 
+       if (track->state != QueuedTrack::State::READY) {
+         CSPOT_LOG(error, "Track failed to load, skipping it");
+@@ -228,6 +237,9 @@
+       }
+     }
+ 
++    if (localSuspended || pendingReset || !isRunning ||
++        generation != resetGeneration.load()) continue;
++
+     CSPOT_LOG(info, "Got track ID=%s", track->identifier.c_str());
+ 
+     currentSongPlaying = true;
+@@ -236,6 +248,14 @@
+       std::scoped_lock lock(playbackMutex);
+ 
+       currentTrackStream = track->getAudioFile();
++      if (!currentTrackStream) {
++        currentSongPlaying = false;
++        track = nullptr;
++        continue;
++      }
++      currentTrackStream->setCancellationHandler([this, generation] {
++        return localSuspended || !isRunning || generation != resetGeneration.load();
++      });
+ 
+       // Open the stream
+ #ifdef ESP_PLATFORM
+@@ -250,7 +270,8 @@
+         currentSongPlaying = false;
+         track = nullptr;
+         pendingReset = true;
+-        BELL_SLEEP_MS(500);
++        if (!localSuspended && isRunning && generation == resetGeneration.load())
++          BELL_SLEEP_MS(500);
+         continue;
+       }
+ #else
+@@ -269,6 +290,14 @@
+ 
+       int32_t r =
+           ov_open_callbacks(this, &vorbisFile, NULL, 0, vorbisCallbacks);
++      if (r < 0) {
++        // Tremor clears failed opens itself. Never decode a cancelled or
++        // incomplete stream as though the Vorbis file had initialized.
++        currentTrackStream = nullptr;
++        currentSongPlaying = false;
++        track = nullptr;
++        continue;
++      }
+ 
+       if (pendingSeekPositionMs > 0) {
+         track->requestedPosition = pendingSeekPositionMs;
+@@ -340,7 +369,8 @@
+       track->loading = false;
+     }
+ 
+-    if (eof) {
++    if (eof && !localSuspended && !pendingReset && isRunning &&
++        generation == resetGeneration.load()) {
+       const bool queueFinished = trackQueue->isFinished();
+ #ifdef ESP_PLATFORM
+       ESP_LOGI("val-s1", "decoder_eof queue_finished=%u", static_cast<unsigned>(queueFinished));
+@@ -358,7 +388,14 @@
+   if (this->currentTrackStream == nullptr) {
+     return 0;
+   }
+-  return this->currentTrackStream->readBytes((uint8_t*)ptr, nmemb * size);
++  if (size && nmemb > SIZE_MAX / size) return 0;
++  try {
++    return this->currentTrackStream->readBytes((uint8_t*)ptr, nmemb * size);
++  } catch (...) {
++    // No C++ exception may cross the C codec callback boundary.
++    currentSongPlaying = false;
++    return 0;
++  }
+ }
+ 
+ size_t TrackPlayer::_vorbisClose() {

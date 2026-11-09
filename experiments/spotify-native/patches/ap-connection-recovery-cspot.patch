@@ -1,0 +1,100 @@
+--- a/cspot/src/PlainConnection.cpp
++++ b/cspot/src/PlainConnection.cpp
+@@ -14,6 +14,7 @@
+ #include <ws2tcpip.h>
+ #endif
++#include <memory>         // for unique_ptr
+ #include "BellLogger.h"  // for AbstractLogger
+ #include "Logger.h"      // for CSPOT_LOG
+ #include "Packet.h"      // for cspot
+ #include "Utils.h"       // for extract, pack
+@@ -42,7 +43,8 @@
+ };
+ 
+ void PlainConnection::connect(const std::string& apAddress) {
+-  struct addrinfo h, *airoot, *ai;
++  close();
++  struct addrinfo h, *airoot = nullptr, *ai;
+   std::string hostname = apAddress.substr(0, apAddress.find(":"));
+   std::string portStr =
+       apAddress.substr(apAddress.find(":") + 1, apAddress.size());
+@@ -53,8 +55,10 @@
+ 
+   // Lookup host
+   if (getaddrinfo(hostname.c_str(), portStr.c_str(), &h, &airoot)) {
+-    CSPOT_LOG(error, "getaddrinfo failed");
+-  }
++    throw std::runtime_error("Spotify AP resolution failed");
++  }
++  // Every failed address and exception must release resolver-owned storage.
++  std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> addresses(airoot, freeaddrinfo);
+ 
+   // find the right ai, connect to server
+   for (ai = airoot; ai; ai = ai->ai_next) {
+@@ -85,7 +89,8 @@
+                  TCP_NODELAY,  /* name of option */
+                  (char*)&flag, /* the cast is historical cruft */
+                  sizeof(int)); /* length of option value */
+-      break;
++      CSPOT_LOG(debug, "Connected to spotify server");
++      return;
+     }
+ 
+ #ifdef _WIN32
+@@ -94,11 +99,9 @@
+     ::close(this->apSock);
+ #endif
+     apSock = -1;
+-    throw std::runtime_error("Can't connect to spotify servers");
+-  }
+-
+-  freeaddrinfo(airoot);
+-  CSPOT_LOG(debug, "Connected to spotify server");
++  }
++
++  throw std::runtime_error("Can't connect to spotify servers");
+ }
+ 
+ std::vector<uint8_t> PlainConnection::recvPacket() {
+@@ -138,7 +141,9 @@
+ 
+   while (idx < size) {
+   READ:
+-    if ((n = recv(this->apSock, (char*)&dst[idx], size - idx, 0)) <= 0) {
++    n = recv(this->apSock, (char*)&dst[idx], size - idx, 0);
++    if (n == 0) throw std::runtime_error("Spotify AP closed");
++    if (n < 0) {
+       switch (getErrno()) {
+         case EAGAIN:
+         case ETIMEDOUT:
+@@ -148,7 +153,7 @@
+           }
+           goto READ;
+         case EINTR:
+-          break;
++          continue;
+         default:
+           if (retries++ > 4)
+             throw std::runtime_error("Error in read");
+@@ -167,8 +172,10 @@
+ 
+   while (idx < data.size()) {
+   WRITE:
+-    if ((n = send(this->apSock, (char*)&data[idx],
+-                  data.size() - idx < 64 ? data.size() - idx : 64, 0)) <= 0) {
++    n = send(this->apSock, (char*)&data[idx],
++             data.size() - idx < 64 ? data.size() - idx : 64, 0);
++    if (n == 0) throw std::runtime_error("Spotify AP write made no progress");
++    if (n < 0) {
+       switch (getErrno()) {
+         case EAGAIN:
+         case ETIMEDOUT:
+@@ -177,7 +184,7 @@
+           }
+           goto WRITE;
+         case EINTR:
+-          break;
++          continue;
+         default:
+           if (retries++ > 4)
+             throw std::runtime_error("Error in write");

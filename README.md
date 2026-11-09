@@ -196,7 +196,11 @@ Arduino-ESP32 3.3.11 as a component and Spotify included. PlatformIO installs
 the pinned toolchain and libraries; it does not compile a second application.
 The entry command also prepares the pinned cspot/Bell candidate and generates
 UI assets. Asset generation currently requires macOS `sips`, `xxd`, and Swift.
-Python 3, PlatformIO and Git must be installed; the first build needs network
+Python 3 with Pillow, PlatformIO and Git must be installed. Install Pillow into
+the Python environment used to run the build (`python3 -m pip install Pillow`);
+asset preparation uses it to decode small alpha icons into flash data so player
+redraws need no DMA allocation. macOS AppKit/Swift rasterizes the source SVGs.
+The first build needs network
 access for dependencies. Framework updates remain a separate change.
 
 The OTA application stays at `.pio/build/esp32s3/firmware.bin`. Matching factory,

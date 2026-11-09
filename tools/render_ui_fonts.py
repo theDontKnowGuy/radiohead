@@ -40,7 +40,7 @@ for index, path in enumerate(c + cpp):
     deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / 'include/ui_text.h', root / '.pio/ui_assets/ui_font_assets.h']
     if path.name == 'home.cpp':
         deps += [root / 'include/boot_mode.h']
-        deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_header_assets.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_home_temperature_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h']
+        deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_header_assets.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_home_temperature_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h', root / '.pio/ui_assets/ui_alpha_icons.h']
     if obj.exists() and all(obj.stat().st_mtime > dep.stat().st_mtime for dep in deps):
         continue
     command = ['clang++', '-std=c++17'] if path.suffix == '.cpp' else ['clang']
@@ -54,9 +54,16 @@ branding_only = '--branding-only' in sys.argv[1:]
 mute_only = '--mute-only' in sys.argv[1:]
 volume_only = '--volume-only' in sys.argv[1:]
 programs_only = '--programs-only' in sys.argv[1:]
-mode_args = ['--programs-only'] if programs_only else ['--volume-only'] if volume_only else ['--mute-only'] if mute_only else ['--branding-only'] if branding_only else ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
+alpha_icons_only = '--alpha-icons-only' in sys.argv[1:]
+mode_args = ['--alpha-icons-only'] if alpha_icons_only else ['--programs-only'] if programs_only else ['--volume-only'] if volume_only else ['--mute-only'] if mute_only else ['--branding-only'] if branding_only else ['--firmware-only'] if firmware_only else ['--wifi-only'] if wifi_only else ['--network-boot-only'] if network_boot_only else []
 subprocess.run([str(exe), str(out)] + mode_args,
                check=True, env={**os.environ, 'TZ': 'UTC'})
+if alpha_icons_only:
+    from PIL import Image
+    for path in out.glob('alpha-icons-*.ppm'):
+        Image.open(path).save(path.with_suffix('.png'))
+    print(f'PNG allocation-free icon evidence: {out}')
+    sys.exit(0)
 if programs_only:
     from PIL import Image
     for path in out.glob('programs-*.ppm'):

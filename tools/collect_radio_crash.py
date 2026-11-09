@@ -81,7 +81,8 @@ def annotate_bank(bank, symbols):
             operation['route'] = routes[route - 1] if 1 <= route <= len(routes) else None
             operation['method'] = {1: 'GET', 2: 'HEAD', 3: 'POST', 4: 'PUT', 5: 'PATCH', 6: 'DELETE', 7: 'OPTIONS'}.get(method)
         else:
-            operation['operation'] = {1: 'playlist', 2: 'connect', 3: 'await_playback', 4: 'retry_wait'}.get(operation['code'])
+            operation['operation'] = {1: 'playlist', 2: 'connect', 3: 'await_playback',
+                                      4: 'retry_wait', 5: 'spotify_restore'}.get(operation['code'])
 
 
 def main():
@@ -123,4 +124,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()3
+    main()

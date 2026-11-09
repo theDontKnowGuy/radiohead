@@ -20,6 +20,7 @@
 #include "ui_podcast_assets.h"
 #include "ui_list_assets.h"
 #include "ui_player_assets.h"
+#include "ui_alpha_icons.h"
 
 // Only device state is adapted. Rendering, layout, glyph metrics, PNG decoding
 // and RGB565 blending are production code.
@@ -242,12 +243,97 @@ int main(int argc, char** argv) {
                                      std::string(argv[2]) == "--branding-only" ||
                                      std::string(argv[2]) == "--mute-only" ||
                                      std::string(argv[2]) == "--volume-only" ||
+                                     std::string(argv[2]) == "--alpha-icons-only" ||
                                      std::string(argv[2]) == "--programs-only")));
     void* pixels = malloc(320 * 240 * 2);
     assert(pixels);
     frame.setBuffer(pixels, 320, 240, 16);
     assert(frame.isReadable());
     assert(display_fonts::init());
+    if (argc == 3 && std::string(argv[2]) == "--alpha-icons-only") {
+        auto checkIcon = [&](const UiAlphaIcon& icon, const uint8_t* png, size_t bytes) {
+            assert(icon.width <= 320 && icon.height <= 240);
+            static uint16_t expected[320 * 240];
+            for (const uint16_t background : {0x0000, 0xFFFF, 0x1973, 0xEE24}) {
+                frame.fillScreen(background);
+                assert(frame.drawPng(png, bytes, 5, 10));
+                for (int y = 0; y < icon.height; ++y)
+                    for (int x = 0; x < icon.width; ++x)
+                        expected[y * icon.width + x] = frame.readPixel(x + 5, y + 10);
+                frame.fillScreen(background);
+                drawAlphaIcon(icon, 5, 10);
+                for (int y = 0; y < icon.height; ++y)
+                    for (int x = 0; x < icon.width; ++x)
+                        assert(expected[y * icon.width + x] == frame.readPixel(x + 5, y + 10));
+            }
+        };
+#define CHECK_ALPHA_ICON(name, png) checkIcon(ui_alpha_##name, png, sizeof(png))
+        CHECK_ALPHA_ICON(player_rewind_15, ui_player_rewind_15);
+        CHECK_ALPHA_ICON(player_pause, ui_player_pause);
+        CHECK_ALPHA_ICON(player_play, ui_player_play);
+        CHECK_ALPHA_ICON(player_forward_30, ui_player_forward_30);
+        CHECK_ALPHA_ICON(player_previous_track, ui_player_previous_track);
+        CHECK_ALPHA_ICON(player_next_track, ui_player_next_track);
+        CHECK_ALPHA_ICON(back_chevron, ui_header_back_chevron);
+        CHECK_ALPHA_ICON(wifi, ui_home_wifi);
+        CHECK_ALPHA_ICON(wifi_fair, ui_home_wifi_fair);
+        CHECK_ALPHA_ICON(wifi_weak, ui_home_wifi_weak);
+        CHECK_ALPHA_ICON(wifi_dot, ui_home_wifi_dot);
+        CHECK_ALPHA_ICON(home_brand_radio, ui_home_brand_radio);
+        CHECK_ALPHA_ICON(home_focus, ui_home_focus);
+        CHECK_ALPHA_ICON(home_icon_favorites, ui_home_icon_favorites);
+        CHECK_ALPHA_ICON(home_icon_radio, ui_home_icon_radio);
+        CHECK_ALPHA_ICON(home_icon_settings, ui_home_icon_settings);
+        CHECK_ALPHA_ICON(home_icon_shows, ui_home_icon_shows);
+        CHECK_ALPHA_ICON(home_tile_favorites, ui_home_tile_favorites);
+        CHECK_ALPHA_ICON(home_tile_radio, ui_home_tile_radio);
+        CHECK_ALPHA_ICON(home_tile_settings, ui_home_tile_settings);
+        CHECK_ALPHA_ICON(home_tile_shows, ui_home_tile_shows);
+        CHECK_ALPHA_ICON(home_weather_clear, ui_home_weather_clear);
+        CHECK_ALPHA_ICON(home_weather_cloudy, ui_home_weather_cloudy);
+        CHECK_ALPHA_ICON(home_weather_mist, ui_home_weather_mist);
+        CHECK_ALPHA_ICON(home_weather_partly, ui_home_weather_partly);
+        CHECK_ALPHA_ICON(home_weather_rain, ui_home_weather_rain);
+        CHECK_ALPHA_ICON(home_weather_snow, ui_home_weather_snow);
+        CHECK_ALPHA_ICON(home_weather_storm, ui_home_weather_storm);
+        CHECK_ALPHA_ICON(home_weather_unknown, ui_home_weather_unknown);
+        CHECK_ALPHA_ICON(list_card, ui_list_card);
+        CHECK_ALPHA_ICON(list_card_focused, ui_list_card_focused);
+        CHECK_ALPHA_ICON(list_card_wide, ui_list_card_wide);
+        CHECK_ALPHA_ICON(list_card_wide_focused, ui_list_card_wide_focused);
+        CHECK_ALPHA_ICON(list_pager, ui_list_pager);
+        CHECK_ALPHA_ICON(list_pager_active, ui_list_pager_active);
+        CHECK_ALPHA_ICON(list_pager_thumb_1, ui_list_pager_thumb_1);
+        CHECK_ALPHA_ICON(list_pager_thumb_2, ui_list_pager_thumb_2);
+        CHECK_ALPHA_ICON(list_pager_thumb_3, ui_list_pager_thumb_3);
+        CHECK_ALPHA_ICON(list_rail, ui_list_rail);
+        CHECK_ALPHA_ICON(list_rail_favorites, ui_list_rail_favorites);
+#undef CHECK_ALPHA_ICON
+        const std::string dir = argv[1];
+        MediaSnapshot media;
+        media.source = MediaSource::Spotify;
+        media.title = "אליעזר בן יהודה";
+        media.artist = "Matti Caspi";
+        media.album = "צד א צד ב";
+        UiRenderState state;
+        state.page = UiPage::SpotifyPlayer;
+        state.media = &media;
+        for (int repeat = 0; repeat < 10; ++repeat) {
+            media.status = MediaStatus::Playing;
+            renderSpotifyPlayer(state, "14:57", true);
+            media.status = MediaStatus::Paused;
+            renderSpotifyPlayer(state, "14:57", true);
+        }
+        save((dir + "/alpha-icons-spotify-paused.ppm").c_str());
+        media.status = MediaStatus::Playing;
+        renderSpotifyPlayer(state, "14:57", true);
+        save((dir + "/alpha-icons-spotify-playing.ppm").c_str());
+        antialias = false;
+        renderSpotifyPlayer(state, "14:57", true);
+        save((dir + "/alpha-icons-spotify-fallback.ppm").c_str());
+        puts("All 40 flash assets match PNG output pixel-for-pixel on four RGB565 backgrounds; repeated pause/play and fallback fixtures rendered.");
+        return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--programs-only") {
         const std::string dir = argv[1];
         UiRenderState shows;

@@ -141,11 +141,13 @@ bool restoreLocalOutput(const char* reason) {
         return true;
     }
     ++sourceGeneration;
+    radioDiagnosticsMediaBegin(RadioMediaOperation::SpotifyRestore, sourceGeneration);
     spotifyAdapterDiscardPending();
     clearSpotifyMetadata();
     spotifyStatus = MediaStatus::Stopped;
     mediaSilenceSpeakers();
     if (!spotifyAdapterReleaseOutput(1000)) {
+        radioDiagnosticsMediaEnd(-4); // Sink release / decoder acknowledgement timed out.
         outputOwner = OutputOwner::Failed;
         spotifyStatus = MediaStatus::Failed;
         Serial.printf("[s2] generation=%lu restore=%s spotify-stop-timeout\n",
@@ -153,6 +155,7 @@ bool restoreLocalOutput(const char* reason) {
         return false;
     }
     if (!audio.restoreOutputAfterHandoff()) {
+        radioDiagnosticsMediaEnd(-5); // Local I2S allocation/configuration failed.
         outputOwner = OutputOwner::Failed;
         spotifyStatus = MediaStatus::Failed;
         Serial.printf("[s2] generation=%lu restore=%s audio-restore-failed\n",
@@ -160,6 +163,7 @@ bool restoreLocalOutput(const char* reason) {
         return false;
     }
     outputOwner = OutputOwner::Local;
+    radioDiagnosticsMediaEnd(1);
     audio.setVolume(radioMuted ? 0 : mainVal);
     mediaSetTone(gB, gM, gT);
     Serial.printf("[s2] generation=%lu spotify-to-local reason=%s\n",

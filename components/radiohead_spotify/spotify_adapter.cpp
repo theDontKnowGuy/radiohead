@@ -41,6 +41,12 @@ uint8_t signalHead = 0;
 uint8_t signalCount = 0;
 uint32_t nextSignalSequence = 0;
 std::atomic<bool> ready{false}, sessionReady{false};
+enum class SessionPhase : uint8_t { Starting, Pairing, Authenticating, Running, Failed };
+std::atomic<SessionPhase> sessionPhase{SessionPhase::Starting};
+std::atomic<bool> sessionTaskAlive{false};
+std::atomic<uint32_t> sessionErrors{0}, lastSessionErrorAtMs{0};
+std::atomic<int> lastEvent{-1};
+std::atomic<uint32_t> lastEventAtMs{0}, pauseEvents{0}, disconnectEvents{0};
 std::atomic<bool> paired{false};
 std::shared_ptr<cspot::LoginBlob> pairingBlob;
 std::atomic<bool> outputRequested{false}, outputOwned{false};
@@ -64,6 +70,14 @@ StaticTask_t outputTcb, connectTcb;
 StackType_t outputStack[8 * 1024 / sizeof(StackType_t)];
 StackType_t connectStack[16 * 1024 / sizeof(StackType_t)];
 
+// Error callbacks run on decoder/network tasks. USB CDC writes can wait two
+// seconds without a reader, exceeding the source-handoff deadline. Retain only
+// a fixed source identifier and line; never format upstream arguments here.
+constexpr const char* errorFiles[] = {"unknown", "TLSSocket.cpp", "PlainConnection.cpp",
+    "MercurySession.cpp", "CDNAudioFile.cpp", "TrackPlayer.cpp", "TrackQueue.cpp",
+    "SpircHandler.cpp"};
+std::atomic<uint32_t> upstreamErrors{0}, upstreamErrorSite{0};
+
 class RedactedLogger final : public bell::AbstractLogger {
 public:
     void debug(std::string, int, std::string, const char*, ...) override {}
@@ -71,7 +85,12 @@ public:
     void error(std::string filename, int line, std::string, const char*, ...) override {
         const size_t slash = filename.find_last_of("/\\");
         const char* base = slash == std::string::npos ? filename.c_str() : filename.c_str() + slash + 1;
-        Serial.printf("[spotify] upstream error %s:%d (details redacted)\n", base, line);
+        uint32_t file = 0;
+        for (uint32_t i = 1; i < sizeof(errorFiles) / sizeof(errorFiles[0]); ++i)
+            if (std::strcmp(base, errorFiles[i]) == 0) { file = i; break; }
+        upstreamErrorSite.store((file << 24) | (static_cast<uint32_t>(line) & 0xffffff),
+                                std::memory_order_relaxed);
+        upstreamErrors.fetch_add(1, std::memory_order_relaxed);
     }
 };
 RedactedLogger redactedLogger;
@@ -313,6 +332,8 @@ void outputTask(void*) {
 
 void onEvent(std::unique_ptr<cspot::SpircHandler::Event> event) {
     using Type = cspot::SpircHandler::EventType;
+    lastEvent.store(static_cast<int>(event->eventType), std::memory_order_relaxed);
+    lastEventAtMs.store(millis(), std::memory_order_relaxed);
     switch (event->eventType) {
         case Type::ACTIVATE:
             pendingActivation.store(true, std::memory_order_release);
@@ -320,6 +341,7 @@ void onEvent(std::unique_ptr<cspot::SpircHandler::Event> event) {
             break;
         case Type::PLAY_PAUSE:
             paused.store(std::get<bool>(event->data), std::memory_order_relaxed);
+            if (std::get<bool>(event->data)) pauseEvents.fetch_add(1, std::memory_order_relaxed);
             post(SpotifySignalType::Playback, 0,
                  paused.load(std::memory_order_relaxed));
             break;
@@ -332,6 +354,7 @@ void onEvent(std::unique_ptr<cspot::SpircHandler::Event> event) {
                 static_cast<uint16_t>(std::clamp(std::get<int>(event->data), 0, 65535)));
             break;
         case Type::DISC:
+            disconnectEvents.fetch_add(1, std::memory_order_relaxed);
             pendingActivation.store(false, std::memory_order_release);
             paused.store(true, std::memory_order_relaxed);
             depleted.store(false, std::memory_order_relaxed);
@@ -353,6 +376,7 @@ void onEvent(std::unique_ptr<cspot::SpircHandler::Event> event) {
 }
 
 void connectTask(void*) {
+    sessionTaskAlive.store(true, std::memory_order_release);
     bell::bellGlobalLogger = &redactedLogger;
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
     cfg.stack_alloc_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -361,6 +385,10 @@ void connectTask(void*) {
     String savedClientId, savedClientSecret;
     if (!loadSpotifyAppCredentials(savedClientId, savedClientSecret)) {
         Serial.println("[s2] Spotify app credentials absent");
+        sessionErrors.fetch_add(1, std::memory_order_relaxed);
+        lastSessionErrorAtMs.store(millis(), std::memory_order_relaxed);
+        sessionPhase.store(SessionPhase::Failed, std::memory_order_release);
+        sessionTaskAlive.store(false, std::memory_order_release);
         vTaskDelete(nullptr);
         return;
     }
@@ -383,7 +411,9 @@ void connectTask(void*) {
         paired.load(),
         static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
+    sessionPhase.store(SessionPhase::Pairing, std::memory_order_release);
     while (!paired.load(std::memory_order_acquire)) vTaskDelay(pdMS_TO_TICKS(100));
+    sessionPhase.store(SessionPhase::Authenticating, std::memory_order_release);
     try {
         auto ctx = cspot::Context::createFromBlob(blob);
         ctx->config.clientId = savedClientId.c_str();
@@ -412,6 +442,7 @@ void connectTask(void*) {
             throw std::runtime_error("output task creation failed");
         sessionReady.store(true, std::memory_order_release);
         handler->subscribeToMercury();
+        sessionPhase.store(SessionPhase::Running, std::memory_order_release);
         Serial.printf("[s2] authenticated internal=%u largest=%u\n",
             static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
             static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
@@ -429,12 +460,18 @@ void connectTask(void*) {
         }
     } catch (const std::exception&) {
         Serial.println("[s2] Spotify session stopped");
+        sessionReady.store(false, std::memory_order_release);
+        sessionErrors.fetch_add(1, std::memory_order_relaxed);
+        lastSessionErrorAtMs.store(millis(), std::memory_order_relaxed);
+        sessionPhase.store(SessionPhase::Failed, std::memory_order_release);
         acceptPcm.store(false, std::memory_order_release);
+        paused.store(true, std::memory_order_relaxed);
         pendingActivation.store(false, std::memory_order_release);
         outputRequested.store(false, std::memory_order_release);
         post(SpotifySignalType::Stop);
     }
     pendingControl.store(-1, std::memory_order_release);
+    sessionTaskAlive.store(false, std::memory_order_release);
     // Detached Bell tasks have no general safe join; their callback targets
     // retain process lifetime until a controlled reboot.
     vTaskDelete(nullptr);
@@ -463,9 +500,39 @@ String spotifyAdapterDiagnosticsJson() {
         if (pcm) fill = pcm->size();
     }
     String json;
-    json.reserve(340);
+    const SessionPhase phase = sessionPhase.load(std::memory_order_acquire);
+    const char* phaseName = phase == SessionPhase::Starting ? "starting" :
+        phase == SessionPhase::Pairing ? "pairing" :
+        phase == SessionPhase::Authenticating ? "authenticating" :
+        phase == SessionPhase::Running ? "running" : "failed";
+    using Event = cspot::SpircHandler::EventType;
+    const int event = lastEvent.load(std::memory_order_relaxed);
+    const char* eventName = event < 0 ? "none" :
+        event == static_cast<int>(Event::ACTIVATE) ? "activate" :
+        event == static_cast<int>(Event::PLAY_PAUSE) ? "play_pause" :
+        event == static_cast<int>(Event::DISC) ? "disconnect" :
+        event == static_cast<int>(Event::TRACK_INFO) ? "track_info" :
+        event == static_cast<int>(Event::VOLUME) ? "volume" :
+        event == static_cast<int>(Event::FLUSH) ? "flush" :
+        event == static_cast<int>(Event::SEEK) ? "seek" :
+        event == static_cast<int>(Event::PLAYBACK_START) ? "playback_start" :
+        event == static_cast<int>(Event::DEPLETED) ? "depleted" :
+        event == static_cast<int>(Event::NEXT) ? "next" : "previous";
+    const uint32_t errorSite = upstreamErrorSite.load(std::memory_order_relaxed);
+    json.reserve(896);
     json = "{\"ready\":" + String(ready.load() ? "true" : "false") +
         ",\"sessionReady\":" + String(sessionReady.load() ? "true" : "false") +
+        ",\"sessionPhase\":\"" + String(phaseName) + "\"" +
+        ",\"sessionTaskAlive\":" + String(sessionTaskAlive.load() ? "true" : "false") +
+        ",\"sessionErrors\":" + String(sessionErrors.load()) +
+        ",\"lastSessionErrorAtMs\":" + String(lastSessionErrorAtMs.load()) +
+        ",\"lastEvent\":\"" + String(eventName) + "\"" +
+        ",\"lastEventAtMs\":" + String(lastEventAtMs.load()) +
+        ",\"pauseEvents\":" + String(pauseEvents.load()) +
+        ",\"disconnectEvents\":" + String(disconnectEvents.load()) +
+        ",\"upstreamErrors\":" + String(upstreamErrors.load()) +
+        ",\"upstreamErrorFile\":\"" + String(errorFiles[errorSite >> 24]) + "\"" +
+        ",\"upstreamErrorLine\":" + String(errorSite & 0xffffff) +
         ",\"outputOwned\":" + String(outputOwned.load() ? "true" : "false") +
         ",\"buffering\":" + String(outputBuffering.load() ? "true" : "false") +
         ",\"paused\":" + String(paused.load() ? "true" : "false") +

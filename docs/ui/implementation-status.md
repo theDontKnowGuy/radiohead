@@ -1,5 +1,52 @@
 # Touch UI implementation status
 
+## 2026-11-09 — Home return during Spotify playback
+
+**Observed failure:** with the fixed Wi-Fi TX pool installed, the owner reports
+Spotify playback and song changes working. Returning to Home panics; exact-build
+crash `19fb8805` resolves through `drawHomeTile` / `drawHomeAsset` into the same
+unchecked LovyanGFX alpha-PNG DMA scanline allocation. This was reproduced with
+no debugger connected and retrieved through HTTP after reboot.
+
+**Code/functional:** extended the existing allocation-free compositor to all
+18 Home RGBA assets and 11 list surfaces (cards/pager/rail), covering the same
+reachable PNG failure path while browsing away from Spotify. All 40 assets pass
+100 allocation-forbidden readable/fallback repetitions with clipping under
+ASan/UBSan. Native tests compare every pixel against PNG on four backgrounds.
+**Visual:** full native UI checks pass; inspected the Home and Spotify fixtures
+at 320×240, preserving artwork, geometry and composition. Firmware build passes
+(4,811,936-byte app; unchanged DIRAM 267,767 bytes). **Hardware:** the owner
+reports playback, Mac pause/resume, returning to Home and selecting a radio
+station all working on `fcc2828...`; HTTP confirms radio playing without a
+restart during that test. This does not close broader P2/P3 or soak acceptance.
+
+## 2026-11-09 — Spotify pause redraw under low DMA memory
+
+**Functional: focused host checks pass.** A stored crash resolves through
+`renderSpotifyPlayer` and its previous-track alpha PNG into LovyanGFX's unchecked
+DMA scanline allocation/readback. Transport, shared Back and Wi-Fi icons now use
+build-time decoded RGBA runs in flash and an allocation-free compositor. The
+same supplied geometry, colors, alpha and pixel positions are retained; the
+recorded player reuses these transport assets. No library patch is required.
+
+`python3 tools/check_ui_alpha_icons.py` runs the production draw function for
+eleven icons through 100 readable/fallback repetitions and clipped coordinates
+with heap access forbidden and address/undefined-behavior sanitizers.
+`python3 tools/render_ui_fonts.py --alpha-icons-only` compares every icon
+pixel-for-pixel with the former PNG path on four RGB565 backgrounds and renders
+repeated Spotify pause/play transitions.
+
+**Visual: focused native fixtures pass.** Inspected the production 320×240
+paused Spotify composition in `.pio/ui_native/alpha-icons-spotify-paused.png`.
+Playing and direct-TFT fallback fixtures are generated alongside it. The sunset,
+header, metadata and transport layout are preserved; this is not closure of
+older P2/P3 acceptance work.
+
+**Hardware: not flashed or verified.** Repeat Mac Spotify pause/resume with USB
+serial closed and collect HTTP diagnostics if the radio disappears. This change
+addresses the evidenced PNG allocation crash; a surviving session disappearing
+from Connect remains an independent on-device investigation.
+
 ## 2026-10-22 — Spotify metadata vertical alignment
 
 **Visual: native fixtures pass; physical TFT pending.** In response to the

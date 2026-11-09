@@ -68,6 +68,37 @@ also checked/applied to existing prepared candidates before each firmware build.
 Conflicting local dependency edits stop the build for reconciliation.
 `python3 tools/check_spotify_token_refresh.py` exercises failures, retry,
 shutdown and patch application. On-device token-refresh recovery remains unverified.
+
+The stream-cancellation fixes are also checked/applied before every build.
+They address a captured decoder blocked indefinitely in a CDN TLS body read,
+which prevented acknowledgement when switching back to radio. TLS read, write
+and handshake now use nonblocking socket I/O, a five-second operation deadline
+and cancellation checks at most 100 ms apart. Track reset generations keep an
+old stream cancelled after a replacement track clears its reset flag. Metadata
+waits poll cancellation; partial ranges are discarded and retried at their
+original position. Cancellation closes the stream before the decoder reports
+suspension, without replacing the existing I2S ownership gate.
+
+`python3 tools/check_spotify_stream_cancel.py` runs production transport/CDN code
+over real stalled socket pairs with a deterministic TLS record shim, plus the
+production decoder loop against controlled queue/codec seams. It checks
+timeouts, cancelled reads/writes/handshakes, partial ranges, clean close/reopen,
+metadata suspension, reset generations, safe codec unwinding and reproducible
+patch application under address/undefined-behavior sanitizers. This establishes
+host behavior, not actual TLS interoperability or on-device acceptance. DNS/TCP
+connection establishment remains blocking; the one-second suspension target
+is verified for the captured established-stream read and metadata-wait paths,
+not for a task currently resolving/connecting to a host.
+
+`ap-connection-recovery-cspot.patch` separately fixes AP connection error paths:
+failed DNS resolution throws before traversing an address list, resolver storage
+is released on every path, failed addresses try the next result, and interrupted
+reads/writes retry without advancing an unsigned offset by a negative result.
+EOF and zero-progress writes terminate promptly. These defects were found during
+review; they have not been established as the cause of this reproduction.
+`python3 tools/check_spotify_ap_connection.py` injects resolver/socket failures
+into the pinned production code under ASan/UBSan.
+
 The integrated adapter disables Wi-Fi modem sleep after association to sustain
 the 44.1 kHz stereo PCM rate measured in the corrected device trial. It also
 asks cspot's decoder to close its current CDN stream and acknowledge suspension

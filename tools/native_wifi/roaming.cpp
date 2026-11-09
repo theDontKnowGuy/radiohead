@@ -35,7 +35,17 @@ int main(int argc, char** argv) {
     assert(argc == 2);
     const String scenario = argv[1];
     if (scenario != "weak_wrap") serviceWifiRoaming(0);
-    if (scenario == "selection") {
+    if (scenario == "startup_station" || scenario == "startup_ap") {
+        assert(!WiFi.staticBuffers && !WiFi.initialized);
+        if (scenario == "startup_station") beginNetworkConnection();
+        else assert(startSetupAccessPoint(SetupAccessReason{}));
+        assert(WiFi.staticBuffers && WiFi.initialized && WiFi.bufferSelections == 1);
+        // Fallback/retry must retain the initial policy without trying to
+        // reconfigure an already initialized driver.
+        beginNetworkConnection();
+        assert(startSetupAccessPoint(SetupAccessReason{}));
+        assert(WiFi.bufferSelections == 1);
+    } else if (scenario == "selection") {
         serviceWifiRoaming(interval - 1);
         assert(WiFi.scans == 0);
         startRoaming();

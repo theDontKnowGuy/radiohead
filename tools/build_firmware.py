@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -11,9 +12,50 @@ from pathlib import Path
 from firmware_artifacts import (APP_SLOT_SIZE, EXPORT_FILES, FLASH_FILES,
                                 FLASH_SETTINGS, digest, validate_export, validate_layout)
 from archive_firmware_symbols import archive_symbols
-from ensure_spotify_patches import ensure_token_refresh_patch
+from ensure_spotify_patches import ensure_spotify_patches
 
 ROOT = Path(__file__).resolve().parents[1]
+WIFI_BUFFER_KEYS = {
+    "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM",
+    "CONFIG_ESP_WIFI_STATIC_TX_BUFFER", "CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM",
+    "CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM", "CONFIG_ESP_WIFI_RX_BA_WIN", "CONFIG_ESP_WIFI_TX_BA_WIN",
+}
+
+
+def mandatory_configuration(defaults):
+    mandatory = {}
+    for line in defaults.read_text().splitlines():
+        if "=" not in line or not line.startswith("CONFIG_"):
+            continue
+        key, value = line.split("=", 1)
+        if (key.startswith("CONFIG_ESP_COREDUMP_") or
+                key == "CONFIG_APP_RETRIEVE_LEN_ELF_SHA" or key in WIFI_BUFFER_KEYS):
+            mandatory[key] = value
+    mandatory.update(CONFIG_ESP_COREDUMP_ENABLE_TO_NONE="n", CONFIG_ESP_COREDUMP_ENABLE_TO_UART="n",
+                     CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER="n", CONFIG_ESP_WIFI_TX_BUFFER_TYPE="0")
+    return mandatory
+
+
+def enforce_configuration(config, mandatory):
+    if not config.exists():
+        return
+    lines = [line for line in config.read_text().splitlines()
+             if not any(re.match(rf"(?:# )?{key}(?:=| is not set)", line) for key in mandatory)]
+    lines.extend(f"{key}={value}" if value != "n" else f"# {key} is not set"
+                 for key, value in mandatory.items())
+    updated = "\n".join(lines) + "\n"
+    if config.read_text() != updated:
+        config.write_text(updated)
+
+
+def verify_configuration(config, mandatory):
+    actual = config.read_text().splitlines()
+    for key, value in mandatory.items():
+        expected = f"{key}={value}" if value != "n" else f"# {key} is not set"
+        # Kconfig omits invisible disabled options (dynamic TX under PSRAM).
+        omitted_disabled = value == "n" and not any(line.startswith(f"{key}=") for line in actual)
+        if expected not in actual and not omitted_disabled:
+            raise RuntimeError(f"Effective firmware configuration does not match {expected}")
 
 
 def run(command, **kwargs):
@@ -85,7 +127,7 @@ def main():
         actual = run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         if actual != revision:
             raise RuntimeError(f"Unexpected candidate revision in {path}: {actual}")
-    ensure_token_refresh_patch(candidate)
+    ensure_spotify_patches(candidate)
     run([sys.executable, ROOT / "tools/prepare_ui_assets.py"])
     # ESP-IDF names an external component after its directory basename.
     component = ROOT / ".pio/spotify-components/arduino"
@@ -111,28 +153,17 @@ def main():
         python_env.mkdir(parents=True, exist_ok=True)
         run([sys.executable, idf / "tools/idf_tools.py", "install-python-env"], env=child)
     build.mkdir(parents=True, exist_ok=True)
-    # Existing IDF sdkconfig choices override defaults. Enforce just the crash
-    # contract on incremental builds as well as clean builds.
+    # Existing IDF choices override defaults. Enforce the crash and fixed Wi-Fi
+    # DMA buffer contracts on cached builds as well as clean builds.
     config = build / "sdkconfig"
-    if config.exists():
-        import re
-        mandatory = {}
-        for line in (ROOT / "sdkconfig.defaults").read_text().splitlines():
-            if line.startswith(("CONFIG_ESP_COREDUMP_", "CONFIG_APP_RETRIEVE_LEN_ELF_SHA=")):
-                key, value = line.split("=", 1)
-                mandatory[key] = value
-        mandatory.update(CONFIG_ESP_COREDUMP_ENABLE_TO_NONE="n", CONFIG_ESP_COREDUMP_ENABLE_TO_UART="n")
-        lines = [line for line in config.read_text().splitlines()
-                 if not any(re.match(rf"(?:# )?{key}(?:=| is not set)", line) for key in mandatory)]
-        lines.extend(f"{key}={value}" if value != "n" else f"# {key} is not set" for key, value in mandatory.items())
-        updated = "\n".join(lines) + "\n"
-        if config.read_text() != updated:
-            config.write_text(updated)
+    mandatory = mandatory_configuration(ROOT / "sdkconfig.defaults")
+    enforce_configuration(config, mandatory)
     diagnostic = "ON" if args.tft_color_test else "OFF"
     run([python, idf / "tools/idf.py", "-B", build, "-D", f"SDKCONFIG={build / 'sdkconfig'}",
          "-D", f"SDKCONFIG_DEFAULTS={ROOT / 'sdkconfig.defaults'}",
          "-D", f"RADIOHEAD_TFT_COLOR_TEST={diagnostic}",
          "-D", f"RADIOHEAD_CRASH_TEST={'ON' if args.crash_test else 'OFF'}", "build", "size"], env=child)
+    verify_configuration(config, mandatory)
     flash = json.loads((build / "flasher_args.json").read_text())
     validate_layout(build, flash["flash_files"], flash["flash_settings"])
     output.mkdir(parents=True, exist_ok=True)
