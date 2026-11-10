@@ -1,145 +1,55 @@
-# UI asset manifest
+# UI assets and regeneration
 
-| Asset | Source | Build output | Use | Notes |
-| --- | --- | --- | --- | --- |
-| Sunset coast background | `docs/bg1.png` supplied by user | `.pio/ui_assets/background_320x240.png`, embedded C array | Base layer on concept fixtures | Source is 1448×1086 sRGB PNG; resampled directly to 320×240 (same 4:3 aspect ratio) with macOS `sips`. The build script emits a PNG byte array using `xxd`; LovyanGFX decodes it once for a full-page render. |
-| Toned Home background | Same supplied `docs/bg1.png` | `assets/home/background.png` → `.pio/ui_assets/ui_home_assets.h` | Home only | Direct 4:3 Lanczos resize with no crop, saturation 0.92, then a uniform 16% black veil. The original source is retained. |
-| Home tiles, focus, icons and weather | Original geometric recipes in `tools/prepare_home_assets.py` | `assets/home/*.png` → `.pio/ui_assets/ui_home_assets.h` | Reusable Home components | Four identical 74×74 square, dense, slightly translucent category-gradient tiles; a 78×78 visible focus mask; four 38×38 #E8EEF3 icons; a 20×20 radio brand mark; 24×19 Wi-Fi; eight 64×56 weather assets whose visible ink is aligned by the renderer. RGBA edges are prepared at 4× and filtered to native size. No text/clock is baked into these assets. |
-| Home clock atlas | Inter Display SemiBold 4.1 outlines, via `tools/prepare_home_clock_atlas.py` | `assets/home/clock_atlas.{bin,json}` → `.pio/ui_assets/ui_home_clock_atlas.h` | Home clock only | Current committed masks are rasterized at 40 px into 36×42 straight-alpha cells. The JSON records font/rasterizer hashes, baseline, advances, tracking and colon spacing. Ordinary builds embed the committed atlas. The older supplied `assets/home/home-clock-assets/` package is historical reference, not a build or regeneration input. |
-| Episode player | `tools/prepare_podcast_assets.py` | `assets/podcast/*.png` → `.pio/ui_assets/ui_podcast_assets.h` | Recorded episode player | Direct 4:3 background with a 14–20% right-increasing black veil; a 115×115 rounded generic microphone/show image is used until actual local show artwork is supplied. |
-| Player transport | Supplied `icons/{rewind-15,pause,play,forward-30,previous-track,next-track}.svg` | Native 58×58 side controls and 72×72 play/pause PNGs → flash RGBA runs in `.pio/ui_assets/ui_alpha_icons.h` | Recorded and Spotify player controls | `tools/rasterize_svg.swift` uses AppKit at final dimensions with alpha intact. Build-time decoding preserves every pixel; rendering requires no heap/DMA allocation. PNG arrays remain host comparison references. |
-| Shared header alpha icons | `icons/back-chevron.svg`, `assets/home/wifi*.png` | `.pio/ui_assets/ui_alpha_icons.h` | Back and Wi-Fi indicators | Same flash run compositor as transport. This removes other alpha-PNG DMA allocation paths from a Spotify player redraw. |
-| List cards and right pager | `tools/prepare_list_assets.py` | `assets/lists/*.png` → `.pio/ui_assets/ui_list_assets.h` | Every list's rounded translucent rows and its Up/Down controls | 4× RGBA geometry, Lanczos-resampled at native size. Navy cards retain the sunset; focused cards use the same blue language. |
+Sources stay in `docs/ui/assets`, `docs/ui/icons` and `docs/bg1.png`.
+Generated headers/build images stay in `.pio/ui_assets`; do not commit them.
+Manifests beside assets record source/output hashes, dimensions, versions and licensing.
 
-The background has no UI text or controls. It is source material only; production
-labels, artwork placeholders, controls, and dark surfaces are drawn separately.
-No generated header is committed. RGB565 ordering remains a physical-device check.
+| Asset | Recipe / output / details |
+| --- | --- |
+| Coastal photo | `prepare_ui_assets.py`: supplied 1448×1086 `docs/bg1.png` → 320×240 PNG, no baked controls |
+| Home | `prepare_home_assets.py`: direct 4:3 resize, saturation .92, 16% veil; four 74×74 tiles, 38×38 icons, 20 px brand, 24×19 Wi-Fi, eight 64×56 weather assets |
+| Clock | `prepare_home_clock_atlas.py`: Inter Display SemiBold 4.1, 40 px raster/36×42 straight-alpha cells; committed `assets/home/clock_atlas.{bin,json}` embedded by ordinary builds |
+| Recorded player | `prepare_podcast_assets.py`: 14–20% veil and 115×115 generic show artwork until real artwork exists |
+| Transport/header | SVGs rasterized with `rasterize_svg.swift` at 58×58 side/72×72 central transport, 24×24 Back; supplied Wi-Fi PNGs |
+| Lists | `prepare_list_assets.py`: 248×46 paged cards, 304×42 compact cards, 50×44 pager, 57×190/142 rails, 44 px thumbs with 84/42/28 heights |
+| Fonts | `prepare_ui_fonts.py`: committed VLW roles/metrics; Roboto 2.001101 Latin, DejaVu Sans 2.34 Hebrew fallback; clock uses separate atlas |
 
-### Home asset regeneration
+Normal builds need Pillow, macOS `sips`, `xxd` and Swift for the asset pipeline,
+but no installed source fonts. Regeneration commands from the project root:
 
 ```sh
 python3 tools/prepare_home_assets.py
 python3 tools/prepare_home_clock_atlas.py --font-dir /path/to/Inter-4.1/extras/otf
-```
-
-### Episode-player asset regeneration
-
-```sh
 python3 tools/prepare_podcast_assets.py
-```
-
-### List surface regeneration
-
-```sh
 python3 tools/prepare_list_assets.py
-```
-
-The list recipe generates 248×46 cards for four-row paged lists, 304×42 cards for
-compact option lists, 50×44 right-side pager controls, 57×190 and 57×142 translucent
-rounded rails for four-row and Favorites three-row lists, and 44 px-wide page thumbs
-in 84/42/28 px heights for one/two/three pages. Normal and focused cards share the same edge opacity so the focused first
-row cannot visually widen its following gap. These assets contain
-only translucent surface/border pixels—labels, chevrons, artwork, and favorite
-state remain dynamic firmware drawing.
-
-Pillow is required by normal build-time asset preparation to decode the small
-transport/header alpha icons into flash runs. Other checked-in PNG assets and
-their manifests are embedded without rerasterization. The manifest
-records sizes, Pillow version and source/output hashes; the build checks them.
-All runtime drawing is at native dimensions. PNG transparency blends into the
-readable PSRAM canvas, never the TFT. If that canvas is unavailable, Home uses
-the opaque toned background and native primitive/bitmap fallback. Icons are
-original programmatic geometry, not downloaded weather-provider artwork.
-
-The Home background uses a uniform 16% black veil after modest desaturation. This
-is artwork treatment, not white-balance compensation; it preserves the 4:3 source
-composition while giving the type and controls clear priority.
-
-## Smooth typography assets (2026-09-19)
-
-`assets/fonts/{small,body,home_title,recorded_header,title,temperature,header_clock,label,home_label,caption}.vlw` are intentional font
-assets, embedded by `tools/prepare_ui_assets.py`. Normal builds need no system
-font installation; the separate alpha-icon preparation uses Pillow. Generated
-C headers remain under `.pio/ui_assets`.
-
-Current Latin source: Roboto Regular/Medium
-2.001101 (2014), from TeX Live's
-`opentype/google/roboto` directory, upstream <https://github.com/google/roboto>.
-The actual OTF metadata identifies Apache License 2.0; see
-`assets/fonts/LICENSE-Roboto.txt` and `NOTICE-Roboto.txt`. The Hebrew alphabet
-uses DejaVu Sans regular 2.34 from TeX Live as a fallback, upstream
-<https://dejavu-fonts.github.io/>. Its original Bitstream/DejaVu/Arev notices are
-preserved in `assets/fonts/LICENSE-DejaVu.txt`.
-
-`assets/fonts/manifest.json` records source/fallback hashes, Pillow/FreeType
-versions, weights, pixel sizes, measured word-space advances and output hashes.
-The build validates each VLW against that manifest. To regenerate:
-
-```sh
 python3 tools/prepare_ui_fonts.py --font-dir /path/to/roboto/otf --fallback-font-dir /path/to/dejavu/ttf
 ```
 
-The VLW files store big-endian metrics and 8-bit grayscale glyph coverage, not
-RGB/subpixel artwork. Small/body/title/label/home_label/caption include printable ASCII, the Hebrew
-alphabet, degree, bullet, ellipsis and replacement symbols; numeric sizes contain the
-digits, minus, colon and degree. The loader overrides VLW's estimated word space
-with the font's measured advance; measurement and drawing use the same value.
-The Home clock is intentionally excluded from the VLW roles; it uses the
-separate native-size alpha atlas above. Compact headers use non-condensed Regular
-at 18 px. Glyph coverage alone is not Hebrew bidi/niqqud support. The source OTFs/TTFs are
-not embedded in firmware. Fonts are rasterized at their final sizes; there is no
-runtime enlargement of a tiny bitmap.
+Keep `assets/fonts/Inter-LICENSE.txt`, `LICENSE-Roboto.txt`, `NOTICE-Roboto.txt`
+and `LICENSE-DejaVu.txt`. VLW holds big-endian metrics and grayscale glyph coverage;
+loader uses measured word-space advances. Hebrew glyphs alone do not implement bidi/niqqud.
+The older `home-clock-assets/` package is historical, not a regeneration input.
 
-## Header chevron asset (2026-09-23)
+## Runtime and checks
 
-`icons/back-chevron.svg` is original project geometry for the compact page
-header: a 24×24 view box containing an off-white 2.5 px open stroke with rounded
-caps and join. `tools/prepare_ui_assets.py` rasterizes it through AppKit at the
-same 24×24 runtime size. The original PNG remains in
-`.pio/ui_assets/ui_header_assets.h` for native comparison; production draws
-predecoded RGBA runs from `.pio/ui_assets/ui_alpha_icons.h` without allocation.
-No runtime scaling is used. Every ordinary
-non-Home page draws the asset at x=5/y=10, placing its visible center on y=22. The
-low-memory direct-TFT path uses a two-pixel primitive fallback because it cannot
-safely alpha-blend over a readable backing canvas. The startup configuration
-handoff intentionally omits Back because it has no navigable parent.
+The readable 16-bit sprite uses `lgfx::swap565_t` and matching typed `pushImage`.
+No alpha blending reads the physical TFT. Missing canvas uses opaque primitives/
+bitmap fallback; fonts are native size, never enlarged at runtime.
 
-The 2026-11-09 compositor change preserves all eleven transport/header/Wi-Fi
-icons pixel-for-pixel against LovyanGFX PNG output on four RGB565 backgrounds
-(`python3 tools/render_ui_fonts.py --alpha-icons-only`).
-`python3 tools/check_ui_alpha_icons.py` exercises the production draw function
-with heap access forbidden, readable/direct paths and clipping. Whole-page PNG
-backgrounds and other page-specific artwork retain their existing render paths.
-
-The subsequent Home-return crash (`19fb8805`) identified the same unchecked
-allocation in a Home tile. The flash-run renderer now also covers all 18 Home
-RGBA assets (brand, weather, tiles, icons and focus), plus the 11 list surfaces
-used when navigating from Home. Forty assets retain exact PNG pixel parity on
-four backgrounds and pass allocation-forbidden drawing/clipping tests. Source
-artwork and layout remain unchanged; maximum generated geometry is 320×240,
-with run counts checked to fit 16 bits. Opaque photo backgrounds retain PNG.
-
-Composition uses a 16-bit readable sprite. Its buffer stores `lgfx::swap565_t`;
-the matching typed `pushImage` overload preserves channel/byte order. The native
-fixture tests red, green and blue transfer, but physical ordering remains a
-device check. Allocation failure keeps the previous bitmap-font drawing path.
-
-After a firmware build, reproduce native C++ evidence with:
+November 9 crashes identified unchecked LovyanGFX alpha-PNG DMA allocation.
+Production now draws **40 predecoded flash RGBA assets** without allocations:
+11 transport/Back/Wi-Fi, 18 Home and 11 list surfaces. Build-time Pillow decoding
+keeps exact PNG pixels, limits geometry to 320×240/run counts to 16 bits.
+Opaque photos retain PNG. Clipping/readable/fallback drawing was checked under
+ASan/UBSan with heap forbidden, and pixel-compared on four RGB565 backgrounds.
 
 ```sh
+python3 tools/check_ui_alpha_icons.py
 python3 tools/render_ui_fonts.py
 ```
 
-This requires clang/clang++; Pillow is optional for PPM-to-PNG conversion. It
-uses real LovyanGFX drawing into RAM with no SDL window or display readback.
-Outputs remain in `.pio/ui_native`; retained snapshots live under `evidence/`.
-The superseded first DejaVu and Roboto-refinement snapshots were removed during
-repository cleanup. These are evidence, never whole-screen firmware assets.
-
-## Fixture builds
-
-The normal build keeps production/controller behavior. To inspect a native P2
-fixture, append one build define temporarily: `-DUI_P2_FIXTURE=1` (Home), `2`
-(Stations), `3` (Live Player), `11` (Volume), or `16` (Confirmation). These all
-use the production `display.cpp` component and asset path; no reference screenshot
-is ever displayed as a page.
+Native harness needs clang/clang++; Pillow converts PPM to PNG. Outputs go to
+`.pio/ui_native`, retained evidence to `evidence/`. It uses production C++ drawing,
+not a mock screen. Physical colors, text and sustained repaint/audio remain device checks.
+`UI_P2_FIXTURE` values 1/2/3/11/16 select Home/Stations/Live/Volume/Confirmation
+for deliberate development builds; ordinary firmware keeps real behavior.

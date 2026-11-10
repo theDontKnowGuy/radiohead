@@ -1,541 +1,114 @@
-# Radiohead web configuration: implementation handoff
+# Web configuration
 
+Open `http://radio.local` or the IP on the TFT. Current sections:
+**Stations, Programs, Audio, Spotify, Network, Weather & time, Device & maintenance**.
+Setup AP shows Network only. [Progress and outstanding checks](progress.md).
+This page is the change guide; a planned feature is not automatically implemented.
 
-User scope update, 2026-10-24: settings file backup/restore is explicitly
-requested as an API-only feature. This supersedes the prior backup/restore
-exclusion; no browser controls are required. See
-[the API contract](../../settings-backup.md).
+## Use the existing design
 
-Date: 2026-09-21. Scope: the ESP32-hosted web configuration interface.
+Reuse [radiohead.css](radiohead.css), `#rh-config`, body class `radiohead-page` and
+[coast.jpg](assets/coast.jpg). Desktop/phone [references](reference/desktop.png)
+show navy/coastal/blue styling, not live data. Mockup scripts/results are simulated;
+do not deploy them or restore the old orange/cyan palette. No external UI backend,
+CDN fonts/scripts or runtime AI is needed. Keep core setup usable offline.
 
-Implement the navy/coastal web mockup from the current design task. This handoff
-contains the visual specification, screen content, interaction requirements,
-reusable CSS, and a separate progress ledger. It does **not** claim that the
-firmware has these capabilities today. Read [progress.md](progress.md) before
-working and update it when handing off.
-
-User scope update, 2026-10-11: use five sections — **Stations, Spotify, Network,
-Weather & time, Device & maintenance**. Remove Appearance and all M3U import
-functionality; hide station logo upload/configuration while retaining display of
-saved logos. Add 20 px of space between Add station and the saved-station list.
-This supersedes conflicting section counts, import flows and logo editor controls
-in the original handoff below; the frozen visual references remain historical.
-
-User scope update, 2026-10-21: add **Audio** at `/audio`, after Stations. Move
-the shared collapsed sound controls into this tab, preserving Bass / Mid /
-Treble's −15…15 levels. Audio also contains an optional frequency notch filter
-(single frequencies 100–10,000 Hz, initially 3,000 Hz, disabled by default).
-Accept a single frequency such as `3000` or an increasing range such as
-`5000-5100`; an in-band range is strongest near its middle with gradual rolloff
-at its edges. Ranges may start at zero, e.g. `0-10000` removes low frequencies
-while frequencies above 10 kHz can remain. A range reaching the stream’s upper
-frequency limit still filters the playable part, rather than bypassing it.
-A zero-start range covering the stream’s entire spectrum outputs digital silence.
-Existing single-frequency settings remain compatible. Save applies tone and
-filter together, with Cancel / reload and stale-edit protection. The filter
-covers local radio/recorded playback and Spotify; it cannot establish or repair
-an analog noise source. This supersedes the shared footer and five-tab rules
-below; retain the navy/coastal assets and the previous feature removals.
-
-User scope update, 2026-10-22: add **Programs** at `/programs`, after Stations.
-The saved ten-slot recorded-show catalog is now editable: preserve the existing
-Omny defaults/favorites, add public RSS 2.0 feeds, filter saved programs, search
-Apple Podcasts, preview episodes without starting playback, save and remove with
-confirmation. `/episodes` retains browsing in the shared shell. This supersedes
-the future-only recorded-show configuration restriction below. See
-[the catalog handoff](../../programs-catalog.md) for persistence, bounds and
-verification. Hardware acceptance remains separate.
-
-## 1. Sources and precedence
-
-1. The user's explicit instructions and
-   [configuration-and-controls-plan.md](../configuration-and-controls-plan.md)
-   govern retained features, removals, placement, physical controls, and TBD power.
-2. [station-discovery-and-artwork-plan.md](../station-discovery-and-artwork-plan.md)
-   governs search, artwork identity, image preparation, and storage.
-3. This document and [radiohead.css](radiohead.css) govern the new web interface.
-4. [The frozen interactive mockup](reference/mockup-fragment.html) and the PNGs
-   below establish appearance and flow intent, not production behavior or values.
-5. [visual-contract.md](../visual-contract.md) continues to govern the native TFT.
-
-The new web design is the companion to the existing TFT sunset/navy/blue design.
-It supersedes the old web page's orange/cyan/yellow controls. It does not supersede
-the retained-feature rules or authorize redesigning the TFT.
-
-### Visual references
-
-![Desktop web configuration](reference/desktop.png)
-
-![Background editor and TFT preview](reference/appearance.png)
-
-[Phone reference](reference/mobile.png). The fragment is an archived conversation
-mockup, not a standalone firmware page. It has simulated results, optional host
-helpers, and embedded imagery; do not deploy its JavaScript or copy its data model.
-The screenshots include a sample station added while checking the flow.
-
-## 2. Deliverables and boundaries
-
-The 2026-10-08 user instruction adds a separate Spotify section. Build six web
-sections in this order: **Stations, Spotify, Network, Weather & time, Appearance,
-Device & maintenance**. Stations is the default landing page. Preserve
-existing useful show browsing/playback routes, but do not add a Recorded Shows
-configuration section until editable sources actually exist.
-
-Every section shares the brand header, section navigation, connection context,
-now-playing/volume/mute strip, and collapsed **Sound · custom tone** control group.
-On mobile, section navigation becomes a six-item row above the content.
-At 420px and below, it wraps to two rows of three so labels and touch targets fit.
-
-Do not add alarms, EQ presets, sleep timers, brightness adjustment, idle-clock
-mode, visualizer controls, language selection, station/favorite reordering,
-configuration backup/restore controls, or color editing. Do not add placeholders or
-“Coming soon” rows for them. Standby/power-off and device renaming remain outside
-this implementation; their scope is TBD/future in the controlling plan.
-
-Automatic dimming and supported prepared theme selection stay on the TFT.
-Touch calibration can also be started from web Device & maintenance (user update,
-2026-10-11), but its corner markers must be tapped on the radio's TFT.
-Weather units/visibility and custom tone
-must stay consistent with their TFT equivalents.
-
-### Differences between the mockup and production
-
-| Mockup detail | Production requirement |
+| Detail | Rule |
 | --- | --- |
-| “Interactive demo”, sample stations, −52 dBm, timestamps and addresses | Replace with actual state. Never seed sample stations or manufacture status. |
-| Volume 0–100 | Existing `/setvol` accepts indices **0–21**. Use that bounded index and existing `volCurve` mapping. Label it “Volume”; do not silently change the audio curve. |
-| Tone −10…10, labelled dB | Existing `/seteq` accepts **−15…15** for each band. Preserve values and bounds. Use numeric levels unless the installed library's dB interpretation is verified. |
-| Instant successful test/save/connect/update | Render request, validation, actual completion, failure and reconnect states from real responses. |
-| Sample `.example` URLs and canned search results | Only real directory results or user-entered stream URLs. Do not invent endpoints. |
-| A short illustrative timezone list and Tel Aviv default | Support the implemented timezone set with friendly names and search/filter if needed. Use `Asia/Jerusalem` for new and untouched legacy-placeholder installs, preserve explicitly configured non-placeholder zones, and do not infer location from artwork. |
-| Every sample Wi-Fi network requires eight characters | Use scanned security type. Open networks have no password. Preserve intentional empty/unchanged/clear semantics for saved credentials. |
-| One provider rendered as a selector | Show the supported provider as text when there is only one; do not invent alternatives. |
-| Mockup image input limit of 8 MB and M3U limit of 256 KB | These are demo checks, not device budgets. Apply the discovery plan's artwork limits; specify and test independent background/import budgets before enabling uploads. |
-| Background and artwork held in browser memory | Convert, validate, commit atomically on device and verify after reboot. Persist crop/fit results, not just preview CSS. |
-| Design controls: light companion, corners, failure scenarios | Review aids only. Ship the navy design. Do not expose these as product settings. |
-| Proposed reset-scope dialog | Finalize actual reset keys/assets and match the copy exactly before wiring reset. Preserve calibration by default. |
+| Palette | Background #0b1321, panel #111d30, raised #17263c, line #29374b; text #f4f7fc, dim #a7b5ca, blue #3188f4, primary fill #1768ce |
+| Desktop | Shell ≤1180 px, 197 px sidebar, 27 px main padding; list/form panels rather than extra dashboard tiles |
+| Smaller screens | 780 px: 165 px sidebar/20 px padding; ≤560 px: wrapping nav/16 px padding; usable at 320 px |
+| Text/input | Local/system sans; body 14 px/1.5, fields ≥16 px on touch, actions ≥44×44; Hebrew names `dir=auto`/`bdi`, URLs LTR |
+| Photo/icons | Bundled 960×720 coast in banner, not behind inputs; local line icons, real artwork or initials |
 
-## 3. Visual specification
+Serve CSS/photo separately from flash; preserve CSS-relative asset mapping.
+Do not inline large base64 images or concatenate styles per request. Inspect
+response size, RAM/flash and audio-service gaps after packaging changes.
 
-Use [radiohead.css](radiohead.css) as the starting stylesheet, not an inspiration
-to recreate loosely. Keep its `rh-` classes and `#rh-config` scoping unless a
-documented implementation constraint requires adapting them.
+## Pages and behavior
 
-### Palette and typography
+**Stations:** ten slots; Add, edit, favorites, confirmed remove, saved-row click
+plays with existing selection. Keep 20 px after Add. Explicit directory Search
+and manual URL entry prepare editable drafts. Suggestions/health flags are not
+device playback proof. Only **Test on radio** interrupts playback before explicit
+selection; ordinary browsing/save does not. At capacity, disable Add but allow
+edit/remove. A replacement slot must never inherit another station's artwork/favorite.
+No M3U import and no logo editor/upload controls; keep showing existing logos.
+[Discovery and stored-artwork rules](../station-discovery-and-artwork-plan.md).
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `--rh-bg` | `#0b1321` | Page and input background |
-| `--rh-panel` | `#111d30` | Sidebar, forms, lists |
-| `--rh-raised` | `#17263c` | Secondary controls and subtle panels |
-| `--rh-line` | `#29374b` | One-pixel separators |
-| `--rh-text` | `#f4f7fc` | Primary text |
-| `--rh-dim` | `#a7b5ca` | Secondary text; still readable |
-| `--rh-blue` | `#3188f4` | Sliders and active accents |
-| `--rh-action` | `#1768ce` | Filled primary action with white text |
-| `--rh-radius` | `14px` | Main panels and banner |
+**Programs:** editable ten-slot Omny/public RSS catalog, directory suggestions,
+manual fallback, non-playing preview, confirmed removal and shared favorites.
+[Limits/persistence](../../programs-catalog.md). Do not invent offline downloads.
 
-The action fill is slightly darker than the mockup's accent to improve small white
-label contrast. Do not change all blue accents to this darker fill. Keep selected
-navigation navy-blue (`#1c3d66`), favorites gold, errors red and success green.
-Pair color with text/icon state. Avoid bright colored outlines on every card.
+**Audio:** volume 0–21 via existing curve; Bass/Mid/Treble **−15…15 levels**, not
+mockup −10…10 dB. Save/Cancel/reload and stale-edit protection. Filter defaults off,
+3000 Hz; one integer **100–10000** or an increasing range (zero allowed only at
+range start), e.g. `5000-5100` / `0-10000`. In-band rolloff is strongest at center;
+zero-start is high-pass, upper edge reaching Nyquist becomes low-pass, full-band
+zero-start outputs digital silence. Radio/podcasts/Spotify share it. Analog noise
+added after PCM may remain; a broad filter is not a mute control.
 
-Use a local/system sans-serif stack. Inter is optional only when bundled locally;
-offline setup must not depend on font downloads. Body 14px / 1.5; headings 29px,
-18px and 15px; secondary copy 12–13px. Use 400 for normal text and 500–650 for
-hierarchy. Editable fields are at least 16px on touch screens. Preserve readable
-Hebrew and mixed text using `dir="auto"` or `<bdi>` around user/provider names.
-URLs remain left-to-right. No interface-language setting is implied.
-
-### Layout
-
-- Full browser page: center a shell up to 1180px; navy fills the surrounding page.
-  Use natural document scrolling. No fixed-height content frame.
-- Header: brand at left, compact real connection context at right. The demo badge
-  must not appear in firmware.
-- Desktop: 197px sidebar; remaining width is the main area with 27px padding.
-  Sidebar links have one white line icon and a text label. Device name/address sit
-  at the bottom of the sidebar, not in a separate dashboard tile.
-- Main area: compact now-playing banner, page heading/subtitle/action, then one
-  list or a short vertical sequence of form panels. Never put the photo behind
-  text inputs or full forms. Avoid invented metrics or promotional panels.
-- Stations: 44px artwork, name and one secondary line, favorite and edit controls.
-  Use a shared panel with horizontal dividers. No drag handles or reorder UI.
-- Form panels: 21px padding, 18px column gap, about 19px between fields; labels
-  above inputs. Save/Cancel sits at the bottom of its editing unit. One visually
-  primary action per group. Do not nest unnecessary cards.
-- At 780px and below: sidebar narrows to 165px, main padding becomes 20px, paired
-  form columns stack, and volume wraps below the now-playing title.
-- At 560px and below: sidebar becomes the six-item navigation row; content
-  padding is 16px; heading actions wrap naturally. All sections must fit at 320px.
-  Mobile labels are Stations / Spotify / Network / Weather & time / Appearance / Device.
-- Dialogs: light surface over a dimmed page, dark text, neutral Cancel and an
-  action-colored confirmation. Use the provided viewport overlay adaptation or
-  a native modal dialog so long pages cannot hide the dialog above the user.
-
-### Photography, icons, and assets
-
-`assets/coast.jpg` is a 960×720 web derivative of the repository's `docs/bg1.png`.
-Preserve the coastline/sunset identity and the banner's navy left-to-right veil.
-Keep real image detail visible at the right. The web banner uses the bundled
-photo; uploading a custom TFT background does not silently restyle the web page.
-
-CSS resolves `./assets/coast.jpg` relative to the stylesheet; preserve that asset
-relationship in firmware URLs, or change this single token during packaging.
-Serve the photo as a separate cacheable asset. Do not inline the mockup's large
-Base64 image into each HTTP response. Record its bytes and flash impact.
-
-Use consistent local line icons, approximately 17px with 1.7px strokes. The
-mockup used Lucide-style radio, Wi-Fi, cloud/sun, image, sliders, star, edit,
-upload, chevron, volume, trash and refresh icons. Bundle a small licensed SVG
-subset locally or reuse an equivalent existing icon set; no CDN requirement.
-Decorative icons have `aria-hidden="true"`; icon buttons have action-specific
-accessible names, such as “Edit Kan 88” and “Remove Kan 88 from favorites”.
-Use actual saved station artwork when available; initials are the honest fallback.
-
-## 4. Screen content and behavior
-
-### S0 — Shared shell and sound
-
-- Brand: `radiohead / settings`. Show actual device name/address and connection
-  state. Support connected, reconnecting, disconnected and setup-mode states.
-- Player: **Now playing**, current source name and useful metadata. Show
-  **Nothing playing**, **Connecting…**, **Muted** or a stream error when true.
-  Do not label recorded playback “Live”. Long mixed-language titles must wrap.
-- Volume/mute: sliders send bounded values through existing media ownership.
-  Coalesce rapid input; avoid one flash write for every pointer pixel. Update
-  other open surfaces from committed state. Mute preserves the selected volume
-  and stream; turning while muted keeps mute on, as in the encoder contract.
-- **Sound · custom tone** is collapsed by default below the page. Expand to Bass,
-  Mid and Treble only. Changes use the actual −15…15 bounds. Live audio preview
-  is allowed; show failures and debounce persistence. No presets or “Flat” button.
-- Navigation does not pause, restart, or retune playback. Browser Back/Forward
-  must work. Guard modified forms before changing section or leaving the page.
-
-### S1 — Stations
-
-Heading **Stations**; subtitle **A familiar collection. A new discovery.** Primary
-action **Add station**. List heading **Saved on your radio**, with **N / 10 stations**.
-Footer **Favorites appear on your radio, too.** and **Import M3U**.
-
-Each row shows artwork, station name, available country/language or metadata, an
-optional **Playing** marker tied to identity, favorite toggle and edit action.
-Do not manufacture metadata absent from saved/provider data. Favorites update
-without navigating; failure restores the prior state and explains what happened.
-
-Empty: **No saved stations. Add your first station above.** Full: **All 10 slots
-are full. Edit or remove a saved station to make room.** Disable Add at capacity;
-existing edits and removal remain available. Check capacity again at commit.
-
-**F1 — Discover → review → test → save**
-
-1. Heading **Find your next station**; subtitle **Search without interrupting
-   what’s playing.** Steps **1 · Find → 2 · Review & test → 3 · Save**.
-2. Tabs **Search directory** / **Enter manually**. Search fields: Station name,
-   optional Country and Language, explicit **Search**. No search-as-you-type
-   requirement. Enter submits search. Apply the discovery plan's limits,
-   mirror failover, stale-request cancellation and identity ranking.
-3. Results: **Suggested matches**, name, available country/language/codec and logo.
-   Directory results are suggestions; health flags are not device playback proof.
-   Ambiguous results require selection. Distinguish no matches from network error.
-4. Editor heading **Make it yours** or **Edit station**. Fields: Station name,
-   Stream URL, optional Logo URL, **Upload a station logo**, artwork preview,
-   Image framing (**Fit with padding**, **Center crop**), Add to favorites.
-   Helper: **Use a direct audio stream, not a station’s website.** All fields
-   remain independently editable; a later search never overwrites edited fields.
-5. Show **Test on radio changes playback. Browsing, editing and saving keep your
-   current station playing.** Explicit **Test on radio** action, with Not tested,
-   Testing, Playing and Failed states based on device feedback. Changed stream
-   details invalidate the old test result. Test is optional, not an invented save
-   prerequisite. A missing logo must not prevent a valid station from being saved.
-6. **Cancel** / **Save station**. Save acknowledges durable station persistence;
-   separately report artwork failure and retry. No silent success or retune.
-   Retain the draft after failures. Concurrency follows section 5.
-
-No-match copy: **No matching stations found. Try another name or enter a stream URL
-manually.** Directory-outage copy: **The station directory is unavailable. Try again
-when internet returns, or enter a stream URL manually.** During AP-only setup,
-explain that online discovery needs internet; manual fields and local uploads work.
-
-**F2 — Remove station**
-
-Put **Remove station** at the bottom of the edit page, separate from favorite.
-Dialog **Remove {station}?**; explain removal of saved station/favorite/artwork and
-the actual playback consequence; **Cancel** / **Remove station**. Default focus
-Cancel. Never select an unrelated replacement occupant of the deleted slot.
-
-**F3 — M3U import**
-
-Heading **Import stations**; subtitle **Preview your playlist before adding
-anything.** Preserve existing file, pasted/manual and remote-playlist paths where
-supported. Provide file selection and pasted content, **Preview import**, names
-to be added, duplicate/invalid count, and free-slot count. Default is additive:
-keep existing stations. If capacity is exceeded, explain and require correction
-before committing; no implicit replacement. Do not reinterpret an HLS segment
-playlist as a collection of independent radio stations. Apply the discovery plan's
-identity/artwork rules to every import path; imported URLs are not playback proof.
-
-### Spotify — Setup and listening (2026-10-08 addition)
-
-The **Spotify** tab at `/spotify` owns the existing Connect name and app credential
-forms; remove those forms and their scripts from Device. Use local SVG icons in
-navigation and headings, preserving the navy/coastal shell and shared player.
-Keep `/api/device/spotify-name`, `/api/device/spotify-credentials` and their saved
-keys compatible. Returned state must never contain the Client ID or Secret.
-
-Explain how to open or create a Spotify developer app, find its Settings and copy
-Client ID / View client secret, with links to the official Dashboard and
+**Spotify:** own `/spotify` tab; Connect name and private app Client ID/Secret,
+Save then explicit restart then select radio in Spotify's device picker. Explain
+Premium/same-network and phone local-network permission. Link official
+[Dashboard](https://developer.spotify.com/dashboard) and
 [credential guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started).
-If creation requires a Redirect URI, the guide's loopback example may be supplied;
-it is not a radio pairing callback. Do not collect a Spotify account password.
+A developer loopback Redirect URI is not a radio callback. Never request Spotify
+account password or echo saved app credentials. Save confirms storage, not authentication.
 
-Explain Save → Device & maintenance / Restart radio → Spotify app's device picker,
-using the real Connect name. Include the Premium and same-Wi-Fi prerequisites,
-local network permission help for iPhone and
-[Spotify Connect help](https://support.spotify.com/us/article/spotify-connect/).
-A save confirms persistence; it does not establish successful authentication or
-playback. Name/credentials apply after restart. Preserve draft privacy, validation,
-cancel, failure/conflict behavior and the existing factory-reset policy.
+**Network:** actual SSID/address/security/RSSI, async scan (≤20 visible results),
+hidden-network input, password show for the draft only, connect/forget confirmation.
+Selecting a scan result copies SSID; security/password remain explicit. Empty unchanged
+password keeps stored value; Open network explicitly clears it. Connect saves then
+restarts: browser disconnects; rejoin/reopen the displayed address. Failed next boot
+uses setup AP. Never display a sample SSID/IP as actual. Background roaming is a
+persisted switch; [policy/test](../../wifi-roaming.md).
 
-### S2 — Network
+**Weather & time:** location ≤80, C/F, Home visibility, supported provider, private
+key keep/replace/clear, supported timezone and 12/24-hour clock. Empty key keeps old;
+never return it. New/untouched placeholders use Asia/Jerusalem; explicit zones survive.
+Only unambiguous supported city/country chooses its zone automatically. Save success
+is separate from weather refresh; show stale/unavailable/unsynced honestly. No TFT
+weather/time editor or fixed-offset substitute for DST.
 
-Heading **Network**; subtitle **Keep your radio connected.** First panel: actual
-network, connection state, signal and reachable local address. Action **Forget
-network**. In setup mode show the actual setup SSID and
-address, never the sample `Radiohead-Setup` or `192.168.4.1` as unconditional facts.
+**Device:** actual build/resources, browser diagnostics, touch calibration start
+(tap corners on TFT), compiled app upload, release updates, confirmed restart/reset.
+Upload `.pio/build/esp32s3/firmware.bin`, not factory/bootloader/merged images; keep
+power on. Installation succeeds only after image validation/restart/version re-read,
+not at 100% transfer. Reset requires literal `RESET`, erases radio/Wi-Fi/stations/
+programs/favorites/artwork; retains Spotify credentials/pairing and touch calibration.
+[Backup API](../../settings-backup.md) is available without browser controls.
 
-**F4 — Change Wi-Fi**: scan/select network, **Hidden network…** with exact SSID,
-password field when required, **Show password**, **Cancel** / **Connect**.
-**Scan networks** must leave current form edits intact. Selecting a result copies
-only its SSID into the Network name field; security and password remain manual.
-Keep current credentials on an unchanged empty password; selecting Open network
-explicitly clears the password. Never echo a saved password back to the browser.
+## Shared rules
 
-Before Connect show **Changing Wi-Fi restarts the radio. This page will disconnect;
-join the new network and reopen the radio’s address.** Save validated credentials,
-acknowledge the restart, then reboot without attempting an in-place connection or
-previous-network recovery. The next boot attempts only the saved network and falls
-back to setup AP if it cannot connect. Forget requires a named confirmation
-explaining disconnection and setup recovery, not an optimistic success toast.
+One real source-aware player strip appears on all pages: radio/podcast/Spotify,
+connecting/playing/paused/muted/failed. No fake title, LIVE label for podcast,
+clock/RSSI or success message. Mute preserves volume/stream; turning while muted
+keeps mute. Volume writes coalesce rather than writing flash for each pixel.
 
-### S3 — Weather & time
+Keep saved state separate from draft; explicit Save/Cancel; guard unsaved navigation.
+Reject stale revision with current state and retain the draft for review. Late polls/
+search responses cannot overwrite edits. Escape untrusted names/URLs, validate
+schemes/bounds, and never inject provider SVG/HTML as markup. Secrets stay out of
+responses, logs and browser persistence. Mark errors inline; use semantic labels,
+keyboard focus and status announcements. Modal focus starts Cancel, stays inside,
+Escape closes and restores trigger; check at 200% zoom and 320 px without overflow.
 
-Heading **Weather & time**; subtitle **A little local context for your radio.**
-Weather panel: Location (city/country entry or resolved selection), Units
-(Celsius/Fahrenheit), supported provider text, **Show weather on the radio’s Home
-screen**, collapsed **Provider access** with an API-key field and explicit clear
-action if supported. Placeholder when configured: **Configured · enter a new key
-to replace**. Empty input keeps the old key; never return it in page/state/logs.
+Retired: alarms, sleep timer, EQ presets, brightness/idle-clock/visualizer/language/
+reorder/color editors. No Appearance tab. Background upload remains unimplemented;
+W7 needs a new approved entry point/budget before activation. Standby/off/rename
+are outside this package. [Controls specification](../configuration-and-controls-plan.md).
 
-Clock panel: **Time zone**, friendly region/city names, **Clock format** with
-**24-hour · 14:37** and **12-hour · 2:37 PM** examples. Explain that this is the
-weather location's time zone and also drives the radio clock. Automatically match
-only unambiguous supported `city,country` locations; otherwise retain an explicit
-region choice. Regional zones must handle daylight saving with the device's actual
-time implementation; no fixed-offset substitution.
+## For code changes
 
-One **Cancel** / **Save changes** applies the weather/time editing unit. Validate
-before committing; make partial outcomes explicit if backend atomicity is
-unavailable. Distinguish saved configuration from a successful weather refresh.
-Keep stale/unavailable weather and unsynchronized clock states honest on the TFT.
-Avoid restarting the radio simply to save weather when live application is
-supported; if a restart is actually required, state it before the action.
+`web_server` owns pages/validation; `settings` persistence/assets; `media` playback;
+`display`/controller reflect state; `device_control` power safeguards; startup stays
+orchestration. Bound workers/requests, reject stale identities and serialize OTA,
+calibration and other maintenance. Don't block the hot audio path or fetch images
+synchronously inside `server.handleClient()`.
 
-### S4 — Appearance
-
-Heading **Appearance**; subtitle **Your view, with the same familiar controls.**
-Panel **Radio background**: **Choose a background image**, Image framing
-(**Fill screen · crop to fit**, **Fit entire image**), crop-position control, a
-4:3 TFT preview, **Restore default**, **Cancel** / **Save background**.
-
-**F5 — Upload background**: choose → decode/validate → frame → preview → save →
-acknowledge actual durable device commit. Show the native 320×240 composition
-with text/controls overlaid separately; do not bake the sample clock/weather/tiles
-into uploaded pixels. Disable crop position when it has no effect in fit mode.
-Restore default edits the draft until Save; Cancel restores the saved preview.
-
-Required helper: **The previous background stays in place until a new upload
-succeeds.** Invalid file, unsupported format, interrupted upload, full storage and
-reboot must preserve the last valid background. Explicit errors retain the draft
-for retry. Background identity/storage is separate from station logos. Keep navy
-surfaces, white text and blue active states legible on light or busy uploads.
-
-### S5 — Device & maintenance
-
-Heading **Device & maintenance**; subtitle **Updates and the details behind the
-music.** About panel: real device name, firmware/build, hardware and web address.
-No rename field. Technical details are secondary, under **Open diagnostics**:
-network/stream errors, memory/storage, service timing, touch diagnostics and logs.
-Show **Not measured** when absent. Never return credentials. Add **Touch calibration**
-with **Start touch calibration**: acknowledge the request before opening the TFT
-corner markers, explain that playback/web controls may pause, and report the actual
-save result after the radio responds. Block conflicting firmware/restart actions.
-The browser starts calibration; all measurements are performed on the TFT.
-Avoid speculative advanced controls without a real need.
-
-**F6 — Firmware update**: **Choose firmware .bin → Review update → Update
-firmware**. Review filename, size and any verified compatibility info. Validate
-before writing. Show actual writing progress and completion, then reboot/reconnect
-state; share progress with TFT. Copy: **Keep power connected until the update is
-complete.** Do not treat upload completion as firmware installation success.
-Disable conflicting storage/power actions while writing. Handle invalid files,
-write failure, disconnect, reboot and successful version re-read.
-
-**F7 — Restart**: **Restart radio? Playback will stop while the radio restarts.
-Your stations, Wi-Fi and settings will be kept.** Cancel / Restart. Wait for
-actual reconnect before reporting success.
-
-**F8 — Factory reset**: visually separate from Restart. Name the data/keys/assets
-actually erased; preserve touch calibration by default. The mockup proposed
-Wi-Fi, station/favorite, weather/preference, custom artwork/background erasure
-and restoration of the bundled background. Record the final reset policy in
-[progress.md](progress.md) before enabling this action. Do not use a generic
-“Are you sure?” or imply reset is the TBD standby/power-off behavior.
-
-## 5. Shared UX and accessibility contract
-
-- Multi-field forms maintain saved state and a separate draft. Show **No changes
-  yet**, **Unsaved changes**, **Saving…**, **Saved** or a specific failure. Cancel
-  discards draft edits, never clears committed credentials or assets.
-- A navigation guard offers **Cancel** / **Discard changes**. Do not discard on
-  unrelated device updates, incoming directory responses, or connection loss.
-- Read shared entity/settings revisions. A stale save keeps the user's draft and
-  reports **These settings changed on the radio while you were editing.** Offer
-  an explicit reload/review path, clearly warning that reload discards the draft.
-  Never silently overwrite a newer TFT or other-browser change. Recheck identity
-  at artwork upload commit, not only when opening the editor.
-- Use semantic forms/labels/buttons. Enter submits relevant forms. Use active-page
-  semantics for nav; real `aria-pressed` for toggles. Disabling a control needs a
-  visible reason when not obvious. Preserve keyboard focus and native tab order.
-- Status text uses `role="status"`/polite live regions; validation uses linked
-  inline errors and `aria-invalid`, with focus to the first invalid field.
-  Avoid announcing every slider movement from an unrelated live region.
-- Focus-visible ring must work on dark/light surfaces and file controls. Modal
-  focus begins at Cancel, stays inside, supports Escape, and returns to its trigger.
-  Make underlying content inert. Verify keyboard operation at 200% zoom.
-- Touch actions have at least 44×44px non-overlapping targets; editable fields
-  are at least 16px. At 320px, forms/dialogs wrap without horizontal scrolling.
-- Dynamic names and URLs are untrusted text. Escape HTML, validate schemes and
-  bounds, and never insert provider SVG/HTML as executable markup.
-
-## 6. CSS integration contract
-
-Load `radiohead.css` once; put all app markup inside `#rh-config`. Add the body
-class `radiohead-page` for the standalone page reset. Serve assets from the radio;
-this stylesheet does not require a framework, build system, CDN or JavaScript.
-
-```html
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Radiohead settings</title>
-  <link rel="stylesheet" href="/ui/radiohead.css">
-</head>
-<body class="radiohead-page">
-  <div id="rh-config">
-    <header class="rh-top"><div class="rh-brand">radiohead / settings</div></header>
-    <div class="rh-layout">
-      <aside class="rh-sidebar"><nav class="rh-nav" aria-label="Settings">
-        <button type="button" aria-current="page">Stations</button>
-        <!-- Render the other four real section controls. -->
-      </nav></aside>
-      <main class="rh-main" id="main-content">
-        <!-- Shared player, page heading, section form/list, live status. -->
-      </main>
-    </div>
-    <section class="rh-eq"><!-- Custom tone disclosure. --></section>
-    <div class="rh-overlay" hidden><!-- Accessible confirmation dialog. --></div>
-  </div>
-</body>
-</html>
-```
-
-The `/ui/` URLs above are a proposed asset mapping, not existing firmware routes.
-If CSS is served at `/ui/radiohead.css`, serve the included photograph at
-`/ui/assets/coast.jpg`. A firmware packaging step can emit compressed flash data
-from these sources; do not concatenate large styles/images for each request.
-Keep the source CSS authoritative and generated data reproducible. Inspect
-flash/RAM and actual response size before choosing the packaging mechanism.
-
-| Component | Classes / state |
-| --- | --- |
-| Header/navigation | `rh-top`, `rh-brand`, `rh-topmeta`, `rh-layout`, `rh-sidebar`, `rh-nav`; `aria-current="page"` |
-| Player | `rh-hero`, `rh-eyebrow`, `rh-playingname`, `rh-playingmeta`, `rh-volume` |
-| Page/actions | `rh-main`, `rh-pagehead`, `rh-button`, `rh-primary`, `rh-quiet`, `rh-danger`, `rh-iconbutton` |
-| Station list | `rh-list`, `rh-listhead`, `rh-station`, `rh-art`, `rh-stationname`, `rh-stationdesc`, `rh-actions`, `rh-live` |
-| Forms | `rh-box`, `rh-field`, `rh-grid2`, `rh-inlinecheck`, `rh-footer`, `rh-formstatus` |
-| Search/import | `rh-back`, `rh-steps`, `rh-tabs`, `rh-search`, `rh-result`, `rh-upload` |
-| Background | `rh-preview`, `rh-previewtop`, `rh-previewclock`, `rh-previewtiles`, `rh-previewlabel` |
-| Feedback | `rh-note` plus `rh-success`/`rh-warning`/`rh-error`; `rh-toast` plus corresponding variant; `rh-field-error` |
-| Dialog | `rh-overlay`, `rh-dialog`; `hidden` on the overlay when closed |
-| Technical/sound | `rh-data`, `rh-log`, `rh-eq`, `rh-eqgrid` |
-
-Local inline SVG icons inherit currentColor and have scoped sizing. CSS provides
-appearance only: behavior, focus management, data validation, busy states and
-saved-state synchronization must be implemented. It does not make any firmware
-endpoint safe or add unsupported functionality.
-
-## 7. Engineering and ownership
-
-Inspect current source/diffs before each package; this repository has concurrent
-font, TFT, media and podcast changes. Read the root AGENTS instructions and use
-the firmware skill before changing application source or public headers.
-
-| Module | Responsibility |
-| --- | --- |
-| `web_server` | Serve assets/UI, validated request handlers, browser upload/OTA feedback |
-| `settings` | Persistence, migration, asset commit/lifecycle and revision storage |
-| `app_state` | Shared state, identities and bounds |
-| `media` | Playback/test/volume/mute ownership; no duplicate player state machine |
-| `display` / controller | TFT reflects committed changes and progress; native rendering |
-| `device_control` | Physical controls and coordinated restart/power safeguards |
-| `main` | Startup/service orchestration only |
-
-Observed on 2026-09-21: `src/web_server.cpp` still builds old inline pages through
-`pageStart()`. It has `/stations`, `/edit`, `/setvol`, `/seteq`, `/setweather`,
-`/setwifi`, `/scan_data`, M3U paths, `/favorite` and `/update` among other routes.
-These observations are not an API design guarantee; reread current handlers.
-New mute/timezone/background/discovery/diagnostic contracts must be audited rather
-than assumed. Document real methods, parameters, response/failure states and
-revision checks as packages are implemented.
-
-Serve core configuration locally with no project backend, runtime AI, CDN fonts
-or remote UI scripts. Online directory/weather/streams remain external services;
-their outage must not remove manual setup or saved station artwork. All secrets
-stay out of pages, response snapshots, logs and browser persistence. Retain
-existing endpoint behavior unless explicitly changed by the controlling plan.
-Retired alarm/visualizer/color/preset endpoints must not mutate state.
-
-Keep network/image work off the hot audio path. Bound transfers/decoded images,
-cancel stale work and serialize conflicting storage operations. Use actual
-completion signals. Measure `audio.loop()` / `server.handleClient()` gaps during
-search, upload and persistence rather than assuming chunking prevents dropouts.
-
-## 8. Delivery and acceptance
-
-Use packages W0–W8 and checks V/F/H in [progress.md](progress.md). Claim one
-bounded package, note overlapping files and dependencies, update the ledger, then
-implement. This is a work breakdown, not an instruction to launch parallel agents.
-
-For actual source/config changes run `pio run -e esp32s3` and `git diff --check`,
-inspect RAM/flash, and run focused tests appropriate to the changed behavior.
-Pure documentation/style-reference work does not require flashing a device.
-Do not mark native TFT, audio continuity, persistence or power checks passed from
-a browser mockup. Store screenshots from the real web UI at desktop and phone
-widths; link device observations separately.
-
-The handoff is ready when assets/CSS/spec are present and internally checked.
-The implementation is complete only when retained behavior works, removed
-features stay removed, browser visual/function checks pass, and device evidence
-closes the corresponding hardware gates. Leave unmeasured gates unverified.
-
-### Handoff provenance
-
-The mockup follows the referenced “Plan TFT and web settings” task and its current
-configuration specification. CSS was extracted from that mockup and adapted for
-independent page use, focus/error states, local assets and real-page dialogs.
-The repository-required TypeSafe skill was read; deterministic controls and
-validation need no semantic model. Live documentation reads were unavailable; no
-Jev call, runtime AI dependency, firmware build or hardware acceptance is claimed.
+Update [progress](progress.md) before/after a package. W0 assets, W1 shell, W2 state,
+W3 stations, W4 artwork, W5 network, W6 weather, W7 background, W8 maintenance,
+W9 discovery/QR are labels for tracking, not proof of completion. After code changes,
+build, inspect RAM/flash, run focused checks and diff check; inspect actual desktop/
+phone pages and physical persistence/audio/OTA separately. Docs-only changes need no flash.

@@ -1,8 +1,3 @@
-# Simple battery starting point — superseded
+# Superseded
 
-Updated: 2026-10-05. The previous proposal has been replaced.
-
-Use [Battery power: current handoff](battery-power-architecture-plan.md) as the
-current source of requirements, known facts and remaining work.
-
-No previous module shortlist or expanded circuit is a current buy/build recommendation.
+Use the [battery plan](battery-power-architecture-plan.md). Old parts/circuits are not build recommendations.

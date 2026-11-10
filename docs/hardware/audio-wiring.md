@@ -1,100 +1,42 @@
-# PCM5100 DAC + HX-A244 amplifier wiring
+# Wire the DAC and amplifier
 
-Current assembly: [installed hardware record](current-audio-hardware.md).
+Disconnect power. [Current assembly](current-audio-hardware.md): PCM5100/HX-A244.
+The red DAC was previously called PCM5102A; verify chip/VIN rating. Match printed labels.
 
-This is the installed audio path. The earlier wiring notes identified the DAC
-module as PCM5102/PCM5102A; the owner now calls it PCM5100. The drawing below
-retains the earlier board identification, without claiming the exact chip
-variant has been verified. Disconnect all power before any wiring changes.
-The sketch matches the **back of the owner's red DAC board**, photographed 2026-10-25:
-six holes across the top, nine down the left, and the audio jack on the right.
-Follow the printed labels when turning the board over; the view will be mirrored.
+Back-view top holes: **SCK, BCK, DIN, LRCK, GND, VIN**;
+left edge: **FLT, DEMP, XSMT, FMT, A3V3, AGND, ROUT, AGND, LROUT**;
+audio jack at right. `LROUT` is the left analog output.
 
-```text
-                    PCM5102A — BACK VIEW, as in the photo
-                  +---------------------------------------+
-Top header:       |  o     o     o     o      o      o     |
-                  | SCK   BCK   DIN   LRCK   GND    VIN    |
-                  |                                       |
-Left edge:        | o FLT     [solder configuration pads]   |
-                  | o DEMP                                |
-                  | o XSMT                                |
-                  | o FMT                                 |
-                  | o A3V3                                |
-                  | o AGND                                |
-                  | o ROUT                         [audio |
-                  | o AGND                           jack]|
-                  | o LROUT                               |
-                  +---------------------------------------+
+| From | To |
+| --- | --- |
+| ESP32 GPIO39 / GPIO40 / GPIO41 | DAC BCK / DIN / LRCK |
+| Common GND | DAC SCK and GND |
+| Verified module supply | DAC VIN |
+| DAC LROUT / ROUT / AGND | HX-A244 L input / R input / signal GND |
+| 12 V supply + / − | HX-A244 DC+ / DC− |
+| Common ESP32/DAC GND | Amplifier power GND |
+| HX-A244 L+ / L− | Left 4 Ω Dayton PC83-4 + / − |
+| HX-A244 R+ / R− | Right 4 Ω Dayton PC83-4 + / − |
 
-ESP32-S3 / supply             PCM5102A TOP HEADER
-GND ------------------------ SCK     (master clock tied low)
-GPIO 39 -------------------- BCK     (bit clock)
-GPIO 40 -------------------- DIN     (audio data into DAC)
-GPIO 41 -------------------- LRCK    (left/right clock)
-GND ------------------------ GND
-Verified module supply ----- VIN     (see power note below)
+`SCK` is not `BCK`: ground SCK. Amplifier labels describe function, not terminal order. Keep I2S short with a ground alongside.
+Run amplifier power return directly to its supply, not through a thin DAC ground wire.
+**Neither speaker negative is ground; never join them.**
 
-PCM5102A LEFT EDGE           HX-A244 ANALOG AUDIO INPUT
-LROUT ---------------------- L / IN-L
-ROUT ----------------------- R / IN-R
-AGND ----------------------- GND     (either AGND hole)
+## Power and solder pads
 
-12 V supply + -------------- HX-A244 DC+ / VCC
-12 V supply - -------------- HX-A244 DC- / power GND
-                                  |
-ESP32 GND + DAC GND ---------------+  common ground
+Confirm the module regulator/VIN rating from its component side or schematic.
+Use 5 V VIN only if this is the regulated 5 V version. Leave A3V3 unconnected in
+that arrangement; never feed 12 V into the DAC or ESP32.
 
-HX-A244 SPEAKER OUTPUTS
-L+ ------------------------- Left Dayton PC83-4 +
-L- ------------------------- Left Dayton PC83-4 -
-R+ ------------------------- Right Dayton PC83-4 +
-R- ------------------------- Right Dayton PC83-4 -
-```
+| Control | Required state |
+| --- | --- |
+| FLT / DEMP / FMT | GND: normal filter / de-emphasis off / Philips I2S |
+| XSMT | Digital 3.3 V: DAC unmuted |
 
-The GPIO assignments match [include/app_audio_pins.h](../../include/app_audio_pins.h).
-`SCK` is **not** `BCK`: ground `SCK`, and connect only `BCK` to GPIO 39.
-The bottom label **`LROUT` means the left analog output** on this board layout;
-use it together with `ROUT` for stereo. The amplifier labels above describe
-function, not physical terminal order; its connector layout has not been photographed.
+With power off, trace each jumper center to its control pin and identify the GND/
+3.3 V side. Remove an old bridge before changing it; never bridge both sides or
+feed XSMT high against a GND jumper. Power DAC/radio alone and check control voltages
+before connecting the amplifier. [TI pin reference](https://www.ti.com/lit/ds/symlink/pcm5102a.pdf).
 
-**DAC power still needs confirmation from the component side or its seller's
-schematic.** The back photo shows `VIN` and `A3V3`, but does not establish the
-regulator or VIN rating. If this is the usual regulated **5 V VIN** version,
-connect the radio's regulated 5 V supply to `VIN`. Do not apply 5 V on that
-assumption alone. Leave `A3V3` externally unconnected in this VIN-powered setup;
-it is the analog 3.3 V rail, not a second VIN. Never apply 12 V to any DAC or ESP32
-pin. Keep the ESP32 on its existing supply.
-
-## DAC configuration pads (earlier PCM5102A board reference)
-
-These four left-edge control pins are normally configured by the board's solder
-jumpers, so they need **no additional ESP32 GPIO wires** when set correctly:
-
-| Printed control pin | Required state | Purpose |
-| --- | --- | --- |
-| `FLT` | Low / GND | Normal-latency filter |
-| `DEMP` | Low / GND | De-emphasis off |
-| `XSMT` | High / digital 3.3 V | Unmuted output |
-| `FMT` | Low / GND | Philips I2S format |
-
-Solder is visible on the photographed pads, but the selected bridges are not
-confirmed. With power off, identify which jumper center is connected to each
-control pin and which outer pad is GND or digital 3.3 V using continuity and the
-board schematic. If a jumper must change, remove the old bridge before joining
-the center to the required side. Never bridge both sides or wire `XSMT` to 3.3 V
-while its jumper shorts it to GND. After confirming VIN and powering only the
-DAC/radio, check the four control voltages relative to GND before connecting the
-amplifier. The chip's pin functions and three-wire clock mode are documented in
-the [TI PCM5102A datasheet](https://www.ti.com/lit/ds/symlink/pcm5102a.pdf).
-
-Keep I2S wires short and route ground alongside them. Run the amplifier's power
-return directly to its 12 V supply, not through the DAC's thin ground wire.
-Connect one 4-ohm Dayton PC83-4 per channel. **Neither speaker negative is ground;
-do not join the speaker negatives.** These are bridge-tied outputs on the
-[TPA3110D2](https://www.ti.com/product/TPA3110D2).
-
-The DAC/amplifier and two-transistor speaker-mute circuit are installed. The
-report does not supply new playback or electrical test results. Check left/right
-separation at low volume and flat bass EQ, then startup/mute behavior and noise;
-see the [mute acceptance checks](speaker-mute.md).
+Start at low volume with flat bass. Check left/right separation, noise, startup
+and [GPIO2 speaker mute](speaker-mute.md). Installation does not verify these tests.

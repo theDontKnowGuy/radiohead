@@ -1,104 +1,46 @@
-# Radiohead UI: visual contract
+# TFT visual rules
 
-**User direction, confirmed 2026-09-19:** build a UI visually similar to
-[uiconcept.png](uiconcept.png). The user can provide a clean background image.
-This is a faithful native adaptation of that design to the 2.8-inch TFT, not an
-invitation to propose a different style. Keep it beautiful and restrained.
+Use [uiconcept.png](uiconcept.png) as the design reference for the 320×240 ILI9341.
+Keep the **coastal sunset, translucent-looking navy surfaces, white text, blue active
+states and artwork**. The old cream/olive prototype is superseded.
+Current feature removals and encoder behavior come from the [controls spec](configuration-and-controls-plan.md).
 
-Read this before the [implementation guide](agent-implementation-guide.md).
-The image governs appearance; the guide governs architecture, behavior and
-hardware adaptations. The superseded interaction proposal and cream/olive browser
-prototype were removed during repository cleanup. The current cream/olive renderer
-is functional groundwork, not an approved visual baseline.
-
-## What must remain recognizable
-
-| Reference | Required visual result at 320 × 240 landscape |
+| Screen | Keep recognizable |
 | --- | --- |
-| Shared appearance | Coastal city at sunset visible behind content; dark navy treatment for legibility; white text; blue active states; restrained rounded surfaces and consistent white icons. Preserve the photograph's character rather than darkening it into a nearly flat fill. |
-| 1 — Home | Weather at left, prominent clock at right, four labeled icon tiles along the bottom: Live Radio blue, Recorded Shows green, Favorites purple, Settings slate. Keep the composition; omit the decorative slogan if space is tight. |
-| 2 — Live Stations | Back/title/time/connection header; artwork at left; primary and secondary text; blue selected row; separate star at right. Use three touchable rows rather than squeezing in the sheet's five. |
-| 3 — Live Player | Artwork at left, LIVE/status and station/programme text at right, favorite indicator, circular previous/stop/next controls with a blue ring on the central control, bottom volume slider. Keep artwork and transport as the visual anchors. |
-| 11 — Volume | Dark rounded floating panel over a softened background, speaker icon, blue slider and readable value. Prepare softening off-device; no runtime blur. |
-| 16 — Confirmation | Light rounded dialog over a darkened/softened page, clear title, gray Cancel and action-colored confirmation. Default focus is Cancel. Use a real supported action; download deletion remains a later capability. |
-| Text and assets | Native Hebrew and mixed Latin/numbers, readable hierarchy, real supplied station/show artwork where available. Missing artwork gets a consistent neutral placeholder, not a replacement for the whole artwork-led layout. |
+| Home | Weather left, clock right; four labelled tiles: blue Live Radio, green Recorded Shows, purple Favorites, slate Settings |
+| Lists | Back/title/time/Wi-Fi, artwork and primary/secondary text, selected blue row, separate favorite; four 46 px rows and right paging rail |
+| Player | Artwork and metadata, clear real state and touch transport; knob owns volume/mute |
+| Volume | Centered navy floating panel, speaker, blue setting bar/value; no runtime blur |
+| Confirmation | Light rounded dialog, Cancel first, exact action named |
 
-The remaining panels inherit this same visual language. Do not replace Home with
-a text-only Listening screen, replace the player transport with a Stations/Mute/Menu
-footer, or substitute cream/olive colors. A photograph behind the old layout alone
-does not reproduce the concept.
+Use real values or honest unavailable states; sample frequencies/names/weather
+are not requirements. Preserve Hebrew/Latin/numbers with native text layout.
+Missing artwork gets a consistent placeholder. Do not replace the composition
+with a text-only player or put the old layout over a photo and call it complete.
 
-## Adaptations allowed for the actual TFT
-
-- Keep layout, rendering and hit testing on one 320 × 240 coordinate system.
-  Use the implementation guide's geometry; it accounts for this landscape panel.
-- Enlarge touch regions to at least 44 × 44 px, separate adjacent actions, reduce
-  list density, and shorten or ellipsize secondary text before shrinking it.
-- Simplify tiny highlights, shadows and icon detail that disappear in RGB565.
-  Precompose darkening/softening; restore the photo under dirty regions.
-- Adjust photo crop, contrast and type size after native-size inspection. Record
-  deviations with their physical usability or rendering reason.
-- Show actual data or an honest unavailable state. Sample names, clock, weather,
-  frequency and volume numbers in the sheet are not production requirements.
-
-These constraints justify adaptation, not a new visual direction. Optimize drawing
-and asset preparation before discarding the design. Keep bounded buffers, dirty
-updates and audio servicing as specified in the guide.
+Targets must be at least 44×44, non-overlapping. Reduce list density or secondary
+copy before shrinking text. Keep rendering/hit testing in the same coordinates.
+Prepare photo tint, softening and assets off-device; restore photo beneath changed
+regions. RGB565 may need simpler details, but not a different visual direction.
 
 ## Clean background handoff
 
-The user has offered a clean image; **it has not yet been supplied as a separate
-asset**. Prefer that image over generating a different scene. Suggested source path:
-`docs/ui/assets/background-source.png` (or `.jpg`). This path is a convention, not
-a claim that the file exists.
-
-Request the coastal sunset image without text, buttons, logos, borders or screen
-captions. An opaque sRGB PNG or high-quality JPEG, ideally 4:3 and 1280 × 960 or
-larger, gives room to crop; a clean 320 × 240 image is sufficient if its crop is
-already final. Keep the original. Prepare 320 × 240 variants off-device, recording
-crop, darkening, format and provenance in the asset manifest.
-
-Keep the provided image visible through the intended translucent-looking surfaces.
-The firmware may use precomposed opaque surfaces to obtain that appearance cheaply.
-Use a reusable background asset, with real text and controls drawn separately;
-do not restore the removed whole-screen image presentation mode.
-
-While waiting, agents may implement geometry, font handling, icons, background
-restoration and input. A temporary navy fill must be labeled as a development
-placeholder. Missing final background means visual acceptance is pending; it does
-not justify shipping another aesthetic or marking P2 complete.
+The supplied source is now `docs/bg1.png`; older “background missing” notes are stale.
+Keep the original and reproducible 320×240 derivatives. Preserve visible coastal
+detail, with navy treatment for legibility. Images contain no baked clock/text/buttons;
+these remain dynamic. Record crop/tint/format/provenance in the [asset notes](assets-manifest.md).
+A temporary navy fallback must not be counted as visual acceptance.
 
 ## Corrected implementation sequence and evidence
 
-1. Preserve and audit the useful input/controller/playback work. Report the exact
-   P0/P1 checks still missing. Do not rewrite working behavior for cosmetic reasons.
-2. Reopen P2. Prepare assets and reusable components. First produce Home, Live
-   Stations and Live Player fixtures from the production C++ layout/font/drawing
-   path, plus Volume and Confirmation states. Include a long mixed Hebrew/Latin
-   title, selected row, favorite, missing artwork and a connecting/error state.
-3. Compare each fixture with its corresponding reference panel at **native
-   320 × 240**, with an enlarged copy only as an additional aid. Record appearance,
-   legibility and touch-target results. A browser mockup or the concept painted as
-   one bitmap is not evidence that the native renderer reproduces it.
-4. Complete P3 by wiring the accepted P2 compositions to real state and actions.
-   Keep all four Home destinations visible; destinations awaiting P4–P6 may show
-   an explicit unavailable message. Never route an unrelated Menu action to the
-   station list and count it as completed navigation.
-5. Continue P4 onward using the same components. P7 refines an already faithful UI;
-   it does not introduce the background, artwork, Hebrew or concept layout for
-   the first time.
+1. Keep useful input/playback work; finish missing P0/P1 measurements.
+2. P2 supplies production C++ Home/list/player/volume/dialog fixtures with background,
+   artwork, Hebrew, long/missing text, favorite/selection and connecting/error states.
+3. Inspect at native 320×240 against reference panels; enlarged images are additional aids.
+4. P3 wires the same components to real state. Keep all four Home destinations and
+   truthful unavailable states. P7 refines this work; it does not introduce the design.
 
-For each screen, record the reference panel, fixture/device evidence location,
-known differences and reason, and separate **visual**, **functional**, and
-**hardware** results in [implementation-status.md](implementation-status.md).
-Use pass / fail / not verified, rather than a single vague “implemented.”
-Visual similarity requires human inspection; a successful compile proves none of
-it. Evidence must show the production render path, not just an asset preview.
-
-P2 closes only when these native compositions meet the contract and font,
-restoration, timing and memory checks in the guide pass. P3 closes only when that
-appearance survives real metadata/input/web updates and device playback checks.
-If hardware is unavailable, report code/fixture work as ready for device testing
-and leave hardware acceptance open. Do not claim measurements or user approval
-that did not occur. This evidence checkpoint does not require repeatedly asking
-permission to continue already authorized implementation.
+Record **visual, functional and hardware** results separately in [status](implementation-status.md),
+with evidence path and reason for deviations. A browser mockup, build or whole-screen
+reference bitmap does not prove native rendering. P2/P3 remain partial until required
+physical appearance, input, memory/timing and sustained-audio checks are recorded.

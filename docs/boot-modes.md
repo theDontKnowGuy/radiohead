@@ -1,100 +1,35 @@
-# Persisted boot modes
+# Choose the boot screen
 
-Both screens are embedded in the same firmware image; the former
-`RADIOHEAD_NEW_BOOT_SCREEN` build flag is retired.
-
-| Stored ID | C++ value | Artwork | Progress bar Y |
-| --- | --- | --- | --- |
-| 0 | `BootMode::Original` | `docs/boot.png` | 189 |
-| 1 | `BootMode::NewArtwork` | `docs/ui/boot screen/bootscreen.png` | 189 |
-
-On 2026-10-13, mode 1's source artwork was replaced with the owner's second
-supplied variant. Both modes now use the same progress-bar Y coordinate, 189,
-halfway between the previous 168 and 210 positions.
-The original artwork is preserved at
-`docs/ui/boot screen/bootscreen-before-2026-10-13.png`; the first trial is at
-`docs/ui/boot screen/bootscreen-trial-1-2026-10-13.png`. To restore either image,
-copy it over `bootscreen.png`, rebuild, and flash the resulting firmware.
-Mode selection, progress timing and boot audio are unchanged.
-
-Mode 0 is the default for missing, unreadable or unsupported stored values.
-The selection is one unsigned byte at `radio/bootMode` in Preferences. Existing
-settings remain intact; normal settings saves do not write this independently
-owned key. Factory reset clears it with the other radio settings and restores
-mode 0. Preferences survive ordinary firmware updates.
-
-`loadSettings()` loads the mode before drawing the boot screen. `bootMode` is
-active for this startup; `configuredBootMode` is the durable next-startup choice.
-Call `saveBootMode(BootMode::Original)` or `saveBootMode(BootMode::NewArtwork)`
-from the main/application context and check its boolean result. Validation or
-storage failure leaves configured state unchanged. Saves do not restart the
-device or change the active mode.
-
-For software control over HTTP, use `radio.local` or replace it with the radio's
-displayed IP address. Check the current and saved selections:
+Both images are built in. Use the displayed IP if `radio.local` fails.
+Read the current and saved choices:
 
 ```sh
 curl http://radio.local/api/device/boot-mode
 ```
 
-Select the original screen:
-
-```sh
-curl -X POST http://radio.local/api/device/boot-mode \
-  -H 'X-Radiohead-Config: 1' --data 'mode=0'
-```
-
-Select the new screen:
+Save `mode=0` for the original, or `mode=1` for the newer artwork, then restart:
 
 ```sh
 curl -X POST http://radio.local/api/device/boot-mode \
   -H 'X-Radiohead-Config: 1' --data 'mode=1'
-```
-
-After a successful save, explicitly restart to apply the selection. Playback
-stops during reboot:
-
-```sh
 curl -X POST http://radio.local/api/device/restart
 ```
 
-GET and successful POST return
-`bootMode`, `configuredBootMode`, and `bootModeRestartRequired`; `/api/device`
-includes the same fields. All mode responses are uncached. POST accepts exactly
-`0` or `1` and returns 400 for invalid input, 403 for a missing configuration
-header, 409 during maintenance or a scheduled restart, and 500 on storage failure.
-There is no web/TFT selector yet.
+Restart stops playback. No TFT/browser selector exists. GET/POST return
+`bootMode`, `configuredBootMode`, and `bootModeRestartRequired`.
+POST errors: 400 invalid mode, 403 missing header, 409 busy/restarting, 500 save failed.
 
-The two `BootStyle` definitions in `src/boot_screen.cpp` independently own their
-artwork, fill and trough colors, and progress duration; both use the shared
-`kBarY` position. Mode 0 keeps
-its cyan fill and 4.5-second animation; mode 1 uses a white fill and a 6.75-second
-animation (50% longer). Mode 1 waits for that animation before closing even if
-the audio ends early or fails to open. Both retain the blue trough, boot sound,
-audio tail and maximum hold limit. Mode 1 displays `רדיו יהיה בסדר` in the
-Home and network-startup headers and the connected setup heading, using the
-native Hebrew text layout. Mode 0 keeps `Radiohead`. Branding follows the active
-`bootMode`; changing the saved mode after startup does not change labels until
-restart. Web branding and the Spotify Connect device name are independent.
+## For changes to the code
 
-Wi-Fi joining starts alongside the boot artwork. Finishing the boot sound/bar
-never waits for Wi-Fi or clears the display to black: the configuration QR screen
-appears next, showing `Joining saved Wi-Fi` / `Connecting...` until an address is
-available. The stable `http://radio.local` QR remains visible throughout joining;
-HTTP/mDNS become available when connected. The QR screen retains its ten-second
-hold, then waits only for any remaining part of the 15-second join budget measured
-from the start of joining. A failed join switches to the existing setup AP and
-its Wi-Fi QR; normal station playback cannot start in setup mode. Explicit setup
-and boots with no credentials retain the existing immediate AP handoff.
+- Stored byte: `radio/bootMode`; active and next-boot choices are separate.
+  Missing/invalid values and factory reset select mode 0. Normal saves and OTA retain it.
+- Sources: mode 0 `docs/boot.png`; mode 1 `docs/ui/boot screen/bootscreen.png`.
+  Older image variants remain beside it. Replacing an image needs a rebuild.
+- Both bars use Y=189. Mode 0: cyan, 4.5 s, Radiohead branding.
+  Mode 1: white, 6.75 s, `רדיו יהיה בסדר`. Web/Spotify naming is separate.
+- Wi-Fi starts during the boot screen. The configuration QR stays for 7 s;
+  joining has a total 15 s budget, then falls back to setup AP. No credentials
+  or a held encoder switch starts AP setup directly.
 
-`python3 tools/check_startup_sequence.py` exercises production startup, Wi-Fi
-join/fallback and HTTP/mDNS lifecycle with timed hardware seams, including a
-short boot that leaves join time after the QR hold. Both normal and Spotify
-service-registration paths are tested. This does not measure physical Wi-Fi,
-boot audio or display latency.
-
-Physical acceptance still requires saving each mode, restarting, checking the
-artwork/bar/audio, exercising a normal settings save and firmware update, and
-confirming factory-reset behavior. Host checks/builds do not establish device
-acceptance. The 2026-10-13 artwork revisions were flashed over USB with verified
-flash hashes; physical appearance and playback still require owner verification.
+`tools/check_startup_sequence.py` covers startup logic. Artwork was flashed
+2026-10-13 with verified hashes; appearance, audio and reset behavior still need device checks.

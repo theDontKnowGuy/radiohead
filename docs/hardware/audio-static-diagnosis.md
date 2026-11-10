@@ -1,113 +1,46 @@
-# Playback static and channel separation investigation
+# Old static/channel investigation
 
-**Historical MAX98357A investigation — closed for this hardware, 2026-10-26.**
-The MAX boards have been removed permanently. The PCM5100, new amplifier and
-owner's two-transistor mute circuit are installed; see the
-[current hardware record](current-audio-hardware.md). Proposed MAX measurements
-below are no longer next actions. Their recorded symptoms and measurements do
-not establish the behavior of the replacement assembly.
+**Closed for retired MAX98357A hardware, 2026-10-26.** Current
+[PCM5100/HX-A244 assembly](current-audio-hardware.md) needs its own tests.
+These observations are history, not instructions to reinstall MAX boards.
 
-## User observations, 2026-10-16
+## What was observed, 2026-10-16
 
-- Both internet radio and Spotify have harsh static that grows with volume;
-  low-volume playback has little audible noise. Pausing Spotify silences it.
-- Regulated supply set to 5 V; user reports no current limiting and about
-  180 mA on its display. This is not a measurement of transient amplifier current.
-- Speakers are Dayton PC83, reported 4 ohm. Wiring is soldered; swapping whole
-  amplifier boards is not a practical next test for the user.
-- Physical I2S wiring confirmed: BCLK GPIO39, LRC GPIO41, DIN GPIO40.
-- A Spotify left/right test plays both announcements from both speakers.
-  The exact test separates correctly through headphones and previously worked
-  on the radio. Do not dismiss this as ordinary centred musical content.
-- SD readings reported as 0.9 V and 3.8 V, nominally right and left selection.
-  Whether measured against each amplifier's local GND remains unconfirmed.
-- Second amplifier was initially disconnected entirely. The first became clean
-  after adding a short thick ground wire from the hub to the amplifier.
-- Reconnecting the second amplifier with its own short thick ground wire left
-  the first clean but the second noisy. Probe contact at the second amplifier's
-  GND reduces its noise without removing it completely.
+Radio and Spotify produced volume-dependent harsh static; Spotify pause silenced it.
+A proven left/right test played both prompts from both speakers. Reported SD values
+were 0.9/3.8 V; local-GND referencing was unconfirmed. Dayton PC83 speakers were
+reported 4 Ω, wiring soldered, supply set 5 V and showing about 180 mA (not peak current).
+A short thick hub-to-ground wire cleaned the first amp. The second stayed noisy;
+probe contact at its GND reduced noise. This implicates a path, not a proven cause.
 
-## Scope observations and limitations
+ISDS210A/Multi VirAnalyzer 3.13.12.0, X1; clip actually at the ground hub:
 
-Instrument is Instrustar ISDS210A with Multi VirAnalyzer 3.13.12.0. The earlier
-TFT investigation records an unresolved X10 scaling discrepancy. These audio
-captures used X1 on probe/software. The user needs one clear step at a time.
+| Capture | Displayed result |
+| --- | --- |
+| VIN-to-hub DC, 5 V/div, 1 ms | 4.504–5.207 V |
+| VIN-to-hub AC, 200 mV/div, 1 ms | 668 mVpp playing; 414 mVpp paused |
+| Tip at amp GND, clip at hub | 764 mVpp while sound became clear |
+| LRC, DC 1 V/div, 10 µs/div, 50 MSa/s | 44.100512 kHz, ~50%; −184 mV to 3.583 V |
 
-The probe ground clip was actually at the radio ground hub throughout the
-initial measurements, not at amplifier GND as originally requested:
+These are displayed extrema, not established local ripple. Tip-to-hub ground
+measurements include return-path/pickup effects. BCLK probing silenced the amp;
+probe loading invalidates conclusions about missing clock. X10 scaling remains
+unresolved. DIN activity does not prove stereo contents. Never ground a speaker output.
 
-- VIN-to-hub, DC, 5 V/div, 1 ms: displayed min 4.504 V, max 5.207 V.
-- VIN-to-hub, AC, 200 mV/div, 1 ms: playing 668 mV peak-to-peak;
-  paused 414 mV peak-to-peak, with broadly similar spiky traces.
-- Moving only the probe tip to amplifier GND made the first amplifier's music
-  loud and clear; removing it restored noise. That capture displayed 764 mV
-  peak-to-peak despite clean sound.
+## Code finding and test source
 
-These are displayed extrema, not established local supply ripple. VIN-to-hub
-includes ground-path voltage differences and measurement pickup. Probe tip on
-amplifier GND with clip at the hub is not a zero-input noise-floor measurement.
-Probe capacitance or contact pressure can alter behaviour; the tip is not a
-direct grounding jumper. The added-wire result implicates the ground path but
-does not identify a particular bad joint or prove the cause of channel mixing.
-Never attach a scope ground clip to either bridge-tied speaker output.
+Both paths configured Philips stereo; no intentional downmix was found.
+Spotify still hard-coded GPIO15/17/16 while local audio used 39/41/40. Both were
+changed to `include/app_audio_pins.h`; build/diff passed, not installed in this
+record. App 4,514,288 B, DIRAM 260,523 B; previous export:
+`.pio/build/before-shared-audio-pins/`. The stale pins were a source defect, not
+proof of the reported noise's cause. A separate local volume-curve 55 vs library
+21-step mismatch was observed and left unchanged.
 
-## Firmware inspection and prepared correction
-
-Both inspected output paths configure Philips stereo I2S. No application
-force-mono call was found; the local library defaults forceMono to false.
-Spotify processes the interleaved samples separately and uses 44.1 kHz,
-16-bit stereo output. No deliberate downmix was found in the inspected sink.
-
-The Spotify sink still hard-coded GPIO15/17/16 while local playback used
-39/41/40. Both now consume `include/app_audio_pins.h`. This is a confirmed local
-source defect, but it does not by itself explain recognizable Spotify playback
-on the user's reported new pins. Do not declare it the observed fault's cause.
-
-Read-only HTTP access to 192.168.11.127 reported firmware 0.2.1, build
-Oct 16 2026 18:57:16, sketch size 4,514,288 bytes. The diagnostics snapshot was
-paused, with Spotify owning output, full PCM buffer, zero partial writes and
-zero write failures. Those counters do not establish electrical signal integrity.
-
-The shared-pin correction passed `pio run -e esp32s3` and `git diff --check`.
-Image size: 4,514,288 bytes; app-slot headroom: 2,039,312 bytes. Static DIRAM:
-260,523 bytes (76.23%), 81,237 bytes free. Existing 4 MHz TFT experiment and user
-changes were preserved. No vendor changes or volume changes were made.
-
-- Prepared image: `.pio/build/esp32s3/firmware.bin`.
-- Previous local export: `.pio/build/before-shared-audio-pins/`.
-- Not installed; all hardware acceptance remains pending.
-- Next proposed measurement: LRC at the noisy amplifier, referenced to its
-  local GND, to check for a regular frame clock during Spotify playback.
-
-A separate existing local-radio volume mismatch was found: volCurve reaches
-55 while the bundled library defaults to 21 steps. This has not been changed;
-Spotify scales separately, so it cannot alone explain both sources' symptoms.
-
-## Later measurements and direct MP3 comparison
-
-- Live LRC capture: X1/DC, 1 V/div, 10 us/div, 50 MSa/s. Frequency counter
-  reports 44.100512 kHz, approximately 50% duty cycle. Displayed extrema
-  -184 mV to 3.583 V. Clock is present; this does not establish valid I2S data
-  timing. There are sloping plateaus and spikes, with probe effects unresolved.
-- User reports probing BCLK silences the amplifier. X1 probe loading or contact
-  disturbance can invalidate that measurement; do not declare an absent clock.
-  X10 setup should be validated before further fast-clock probing.
-- DIN capture shows digital activity, not evidence of correct stereo contents.
-- Direct MP3 test URL: https://aoakley.com/articles/stereo-test-long.mp3
-  Saved station slot 1, name "Left right". HTTP POST /api/stations/test with
-  name/url starts it without saving station edits. This uses local-radio decoding
-  and still uses Wi-Fi. It is a finite 18-minute file, not a live stream.
-- Download verified HTTP 200, audio/mpeg; decoded format is 16 kHz stereo.
-  PCM analysis of the beginning confirms exact zero samples in the opposite
-  channel during multiple left-only and right-only speech intervals. The centre
-  announcements intentionally use both channels. This rate differs from Spotify.
-- Following the direct-test instructions, user reports static returns when the
-  probe is disconnected; left speaker plays both channels, and right speaker
-  produces speech-correlated static during left speech (a "static ghost").
-  This is not evidence that Spotify detects mono hardware. Audio-correlated
-  contamination could involve ground/power coupling or I2S interpretation;
-  the exact mechanism is unproven.
-- Next useful input: physical wiring photos, including ESP32 ground to the hub,
-  each amplifier ground, board pin labels and the three I2S branches. Soldered
-  wiring makes board-swapping impractical. Avoid prescribing more rewiring before
-  seeing this layout.
+[Direct stereo MP3](https://aoakley.com/articles/stereo-test-long.mp3): 18 minutes,
+16 kHz stereo, verified opposite-channel zeros during isolated speech; center
+prompts intentionally use both. Saved slot 1 “Left right”, or POST
+`/api/stations/test` with name/url for an unsaved test. Still uses Wi-Fi.
+User heard left playing both prompts and right speech-correlated static after
+removing the probe. No mechanism was established. Do not carry old proposed MAX
+scope/rewiring work forward to the new assembly.
