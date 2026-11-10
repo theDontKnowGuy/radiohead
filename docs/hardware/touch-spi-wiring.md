@@ -66,7 +66,7 @@ direction, volume, mute, boot-held Wi-Fi setup, the 3-second sleep hold and
 encoder/K0 wake; also verify backlight brightness, automatic dimming and sleep
 shutdown, touch operation and audio continuity with the USB serial monitor
 closed. GPIO1 remapping does not establish that the TFT LED terminal is an
-appropriate GPIO control input; use the backlight interface described in README.
+appropriate GPIO control input; use the [documented backlight interface](tft-wiring.md#complete-header-wiring-in-pin-order).
 
 ## Rotation failure after the remap
 

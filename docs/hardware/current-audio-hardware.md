@@ -30,7 +30,7 @@ are not established by this installation report.
 I2S pins are shared by local playback and Spotify through
 [`app_audio_pins.h`](../../include/app_audio_pins.h). The analog DAC outputs feed
 left/right amplifier inputs. The amplifier drives the speakers.
-See the [board wiring reference](../../README.md#pcm5100-dac--hx-a244-amplifier-wiring)
+See the [board wiring reference](audio-wiring.md)
 and the [speaker-mute contract](speaker-mute.md).
 
 GPIO2's firmware contract includes a minimum four-second startup mute and
