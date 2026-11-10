@@ -4,8 +4,9 @@ An ESP32-S3 internet radio with a touchscreen, physical volume control, and a
 local web interface for setup and playback control.
 
 <p align="center">
-  <a href="docs/images/radio_type1_2.png"><img src="docs/images/radio_type1_2.png" alt="Radiohead radio with its touchscreen home screen" width="49%"></a>
   <a href="docs/images/radio_type1.png"><img src="docs/images/radio_type1.png" alt="Side view of the Radiohead enclosure" width="49%"></a>
+    <a href="docs/images/radio_type1_2.png"><img src="docs/images/radio_type1_2.png" alt="Radiohead radio with its touchscreen home screen" width="49%"></a>
+
 </p>
 <p align="center">
   <a href="docs/images/radio_type1_3.png"><img src="docs/images/radio_type1_3.png" alt="Close-up of the touchscreen, speaker grille, and volume knob" width="49%"></a>
