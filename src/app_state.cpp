@@ -199,6 +199,7 @@ WebServer server(80);
 Preferences pref;
 BootMode bootMode = DEFAULT_BOOT_MODE;
 BootMode configuredBootMode = DEFAULT_BOOT_MODE;
+bool displayFlipped = false;
 
 String owmKey;
 String owmCity;

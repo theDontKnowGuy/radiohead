@@ -83,6 +83,8 @@ struct WifiStub {
     void setScanMethod(int) {}
     void setSortMethod(int) {}
 } WiFi;
+// Buffer configuration is a hardware seam, like Wi-Fi mode/join above.
+void configureWifiBuffers() {}
 void configTime(int, int, const char*) { ntpStarted = true; }
 void applyConfiguredTimeZone() {}
 struct ServerStub {

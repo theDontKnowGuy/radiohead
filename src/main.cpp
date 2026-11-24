@@ -50,7 +50,6 @@ void setup() {
     }
     BootScreen::draw();
     const unsigned long bootScreenStartedAt = millis();
-    if (BootScreen::AudioStartDelayMs == 0) BootScreen::startAudio();
     BootScreen::hold(bootScreenStartedAt);
     showNetworkQrScreen();
     startWebServer();

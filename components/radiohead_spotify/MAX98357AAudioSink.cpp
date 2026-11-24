@@ -1,5 +1,6 @@
 #include "MAX98357AAudioSink.h"
 #include "app_audio_pins.h"
+#include "audio_balance.h"
 
 #include <algorithm>
 #include <cstring>
@@ -86,6 +87,7 @@ void MAX98357AAudioSink::feedPCMFrames(const uint8_t* source, size_t bytes) {
                 scaled[frame + 1] = radioPcm16(shaped[1]);
             }
         }
+        radioApplyBalance(scaled, count);
         const size_t chunkBytes = count * sizeof(int16_t);
         size_t sent = 0;
         const int64_t deadlineUs = esp_timer_get_time() + 200000;

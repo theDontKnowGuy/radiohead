@@ -23,6 +23,10 @@ struct ArtworkStorageInfo {
 };
 
 bool loadTouchCalibration(TouchCalibration& calibration);
+// Read before the first display drawing. Missing/invalid values use the original view.
+bool loadDisplayFlipped();
+// Writes only radio/displayFlip; the caller applies it after a successful save.
+bool saveDisplayFlipped(bool flipped);
 void loadSettings();
 // Startup only: load the stored mode into active and configured state.
 void loadBootModeSettings();

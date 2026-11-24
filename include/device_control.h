@@ -63,13 +63,15 @@ void recordTouchFrame(const stock_touch_sampling::Frame& frame);
 // Loop-only manual recovery. Calibration and counters survive; held touch is
 // consumed until stable release. Bus init success is not a sensor health test.
 bool recoverTouch();
+// Consume any contact through stable release when display coordinates change.
+void cancelTouchUntilRelease();
 void setTouchDebugEnabled(bool enabled);
 constexpr uint32_t TOUCH_DEBUG_MARKER_HOLD_MS = 750;
 bool touchDebugMarkerVisible(unsigned long now);
 void taskControl(void* parameter);
 int consumeEncoderDetents();
 
-// Snapshot only: observe the existing rotation task without resetting input.
+// Snapshot only: observe the encoder task without resetting input.
 struct EncoderDiagnostics {
     bool taskCreated = false;
     uint32_t samples = 0;
@@ -78,6 +80,14 @@ struct EncoderDiagnostics {
     uint32_t positiveTicks = 0;
     uint32_t negativeTicks = 0;
     uint32_t invalidTransitions = 0;
+    uint32_t maxSampleGapMs = 0;
+    uint32_t buttonEdges = 0;
+    uint32_t buttonPresses = 0;
+    uint32_t buttonClicks = 0;
+    uint32_t buttonHolds = 0;
+    uint32_t buttonClicksConsumed = 0;
+    uint32_t buttonEventsDropped = 0;
+    uint8_t pendingButtonEvents = 0;
     uint8_t sampledAB = 0;
     bool rawA = false, rawB = false, rawSwitch = false;
 };
@@ -89,7 +99,6 @@ enum class ButtonEvent : uint8_t {
     Hold,
 };
 
-ButtonEvent pollEncoderButton(unsigned long now);
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now);
 
 // One input sample per loop; retain dim state from before any wake interaction.

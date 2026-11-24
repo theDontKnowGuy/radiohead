@@ -1,5 +1,6 @@
 #include "settings_backup.h"
 #include "fake_nvs.h"
+#include "web_diagnostic_routes.h"
 #include <cstdio>
 using String=std::string;
 enum UploadStatus { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END, UPLOAD_FILE_ABORTED };
@@ -16,6 +17,8 @@ struct {
     int status=0;
     size_t contentLength=0;
     String header(const char* key) { return requestHeaders[key]; }
+    String uri() const { return "/api/settings/restore"; }
+    int method() const { return 1; }
     void sendHeader(const char* k,const char* v) { responseHeaders[k]=v; }
     void setContentLength(size_t n) { contentLength=n; }
     void send(int code,const char*,const String& value) { status=code;body=value; }
@@ -36,6 +39,7 @@ struct {int loops=0;void loop(){++loops;}} audio;
 struct Restart {};
 struct {void restart(){throw Restart{};}} ESP;
 void delay(int ms){assert(ms==100);}
+void radioDiagnosticsWebBegin(uint32_t, uint32_t) {}
 #include "web.inc"
 using Bytes=std::vector<uint8_t>;
 void resetRequest(bool authorized=true) {

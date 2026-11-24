@@ -153,15 +153,15 @@ void startAudio() {
 void hold(unsigned long startedAt) {
     const unsigned long progressMs = activeStyle().progressMs;
     int lastPercent = -1;
-    bool audioStartAttempted = AudioStartDelayMs == 0;
+    bool audioStartAttempted = false;
     unsigned long audioEndedAt = startedAt;
-    bool audioFinished = audioStartAttempted && !bootAudioStarted;
+    bool audioFinished = false;
     uint32_t maxAudioPosition = 0;
     uint32_t maxAudioSeconds = 0;
     while (true) {
         const unsigned long now = millis();
         const unsigned long elapsed = now - startedAt;
-        if (!audioStartAttempted && elapsed >= AudioStartDelayMs) {
+        if (!audioStartAttempted && mediaBootAudioReady()) {
             audioStartAttempted = true;
             startAudio();
             if (!bootAudioStarted) {

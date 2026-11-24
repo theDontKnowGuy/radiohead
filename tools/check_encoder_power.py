@@ -22,18 +22,17 @@ constants = '\n'.join(re.findall(
     r'constexpr unsigned long kButton(?:Debounce|Hold)Ms = \d+;', source))
 fixture = r'''
 #include <cassert>
-#include <climits>
 #include <cstdint>
 #include <cstdio>
 constexpr int PIN_SW = 13, PIN_K0 = 6, LOW = 0, HIGH = 1;
 enum class ButtonEvent : uint8_t { None, Push, Hold };
-bool encoderDown = false;
-bool releaseScenario = false;
+struct {
+    uint32_t buttonEdges = 0, buttonPresses = 0, buttonClicks = 0, buttonHolds = 0;
+} encoderState;
 unsigned long clockMs = 0;
 unsigned long millis() { return clockMs; }
 void delay(unsigned long ms) { clockMs += ms; }
 int digitalRead(int pin) {
-    if (!releaseScenario) return pin == PIN_SW && encoderDown ? LOW : HIGH;
     // Both buttons must be released; include a bounced wake press.
     const bool down = pin == PIN_SW ? clockMs < 40 || (clockMs >= 55 && clockMs < 58)
                                    : clockMs < 70 || (clockMs >= 80 && clockMs < 83);
@@ -43,9 +42,8 @@ int digitalRead(int pin) {
 checks = r'''
 int main() {
     const auto none = ButtonEvent::None;
-    auto poll = [](unsigned long now, bool down) {
-        encoderDown = down;
-        return pollEncoderButton(now);
+    auto poll = [](uint32_t now, bool down) {
+        return sampleEncoderButton(down, now);
     };
     assert(poll(0, false) == none);
     assert(poll(100, true) == none);
@@ -68,12 +66,16 @@ int main() {
     assert(poll(6225, true) == none);
     assert(poll(6300, false) == none);
     assert(poll(6325, false) == ButtonEvent::Push);
-    const unsigned long start = ULONG_MAX - 1000;
+    assert(poll(6400, true) == none);
+    assert(poll(6425, true) == none);
+    assert(poll(9424, false) == none); // released just before the hold threshold
+    assert(poll(9425, false) == none);
+    assert(poll(9449, false) == ButtonEvent::Push);
+    const uint32_t start = UINT32_MAX - 1000;
     assert(poll(start, true) == none);
     assert(poll(start + 25, true) == none);
     assert(poll(start + 3024, true) == none);
     assert(poll(start + 3025, true) == ButtonEvent::Hold); // millis rollover
-    releaseScenario = true;
     clockMs = 0;
     waitForPowerButtonsRelease();
     assert(clockMs >= 107 && clockMs <= 108);
@@ -87,8 +89,9 @@ out = root / '.pio/encoder_power_native'
 out.mkdir(parents=True, exist_ok=True)
 translation_unit = out / 'encoder_power.cpp'
 translation_unit.write_text(fixture + constants + '\n' +
+                            function('void incrementTouchCounter(') + '\n' +
                             function('void waitForPowerButtonsRelease()') + '\n' +
-                            function('ButtonEvent pollEncoderButton(') + checks)
+                            function('ButtonEvent sampleEncoderButton(') + checks)
 exe = out / 'encoder_power'
 subprocess.run(['clang++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                 str(translation_unit), '-o', str(exe)], check=True)

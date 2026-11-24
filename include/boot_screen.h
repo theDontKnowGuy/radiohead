@@ -4,10 +4,9 @@
 
 namespace BootScreen {
 
-// Tune these together for the embedded AAC. Audio starts after the artwork is
-// painted; mode 1 takes 50% longer to fill than the original ProgressMs below.
+// Tune these together for the embedded AAC. Audio waits for the media boot
+// mute period plus 500 ms; mode 1 takes 50% longer to fill than ProgressMs below.
 // The screen closes after playback + tail and mode 1's full progress animation.
-constexpr unsigned long AudioStartDelayMs = 0;
 constexpr unsigned long ProgressMs = 4500;
 constexpr unsigned long AfterAudioMs = 2000;
 constexpr unsigned long MaxHoldMs = 15000;

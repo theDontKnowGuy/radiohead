@@ -6,6 +6,7 @@
 #include <LittleFS.h>
 
 #include "app_state.h"
+#include "audio_balance.h"
 #include "display.h"
 #include "media.h"
 
@@ -775,6 +776,20 @@ bool loadStationArtwork(int stationIndex, int size, uint16_t* pixels, size_t pix
     return true;
 }
 
+bool loadDisplayFlipped() {
+    if (!pref.begin("radio", true)) return false;
+    const uint8_t value = pref.getUChar("displayFlip", 0);
+    pref.end();
+    return value == 1;
+}
+
+bool saveDisplayFlipped(bool flipped) {
+    if (!pref.begin("radio", false)) return false;
+    const bool saved = pref.putUChar("displayFlip", flipped ? 1 : 0) == sizeof(uint8_t);
+    pref.end();
+    return saved;
+}
+
 bool loadTouchCalibration(TouchCalibration& calibration) {
     if (!pref.begin("touch", true)) {
         return false;
@@ -813,6 +828,7 @@ void saveSettings() {
     pref.putInt("bass", gB);
     pref.putInt("mid", gM);
     pref.putInt("treb", gT);
+    pref.putInt("balance", radioBalance());
     pref.putBool("notchOn", audioNotchEnabled);
     pref.putInt("notchHz", audioNotchHz);
     pref.putInt("notchEnd", audioNotchEndHz);
@@ -854,6 +870,7 @@ void loadSettings() {
     gB = pref.getInt("bass", 0);
     gM = pref.getInt("mid", 0);
     gT = pref.getInt("treb", 0);
+    radioSetBalance(pref.getInt("balance", 0));
     mediaSetNotchFilter(pref.getBool("notchOn", false), pref.getInt("notchHz", 3000),
                         pref.getInt("notchEnd", 0));
     autoDimSeconds = normalizeAutoDimSeconds(pref.getUShort("dimSec", 30));

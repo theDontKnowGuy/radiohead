@@ -46,5 +46,7 @@ void serviceFirmwareUpdateDisplay(unsigned long now);
 
 // Restore the backlight after sleep and initialize the landscape TFT.
 void initializeDisplay();
+// Loop-only application after durable storage. Touch follows the panel rotation.
+void setDisplayFlipped(bool flipped);
 // Own redraw scheduling and its cached clock/progress/signal state.
 void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool timeValid);

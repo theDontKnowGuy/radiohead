@@ -16,11 +16,14 @@ namespace {
 
 constexpr unsigned long kButtonDebounceMs = 25;
 constexpr unsigned long kButtonHoldMs = 3000;
+constexpr uint8_t kButtonQueueSize = 8;
 constexpr unsigned long kTouchPollMs = 8;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 // All shared encoder diagnostics use encoderMux, like encoderPos.
 EncoderDiagnostics encoderState;
+ButtonEvent buttonEvents[kButtonQueueSize];
+uint8_t buttonEventHead = 0;
 TouchDiagnostics touchState;
 TouchPressLatch pressLatch;
 
@@ -236,6 +239,13 @@ void recordTouchFrame(const stock_touch_sampling::Frame& frame) {
     adc.pressureValid = frame.pressureValid;
 }
 
+void cancelTouchUntilRelease() {
+    pressLatch.cancelUntilRelease(static_cast<uint32_t>(millis()));
+    touchState.contact = false;
+    touchState.onPanel = false;
+    touchState.lastContactAt = static_cast<uint32_t>(millis()) - TOUCH_DEBUG_MARKER_HOLD_MS;
+}
+
 bool recoverTouch() {
     touchState.beforeRecoveryAdc = touchState.adc;
     incrementTouchCounter(touchState.recoveryAttempts);
@@ -285,33 +295,67 @@ EncoderDiagnostics encoderDiagnostics() {
     return snapshot;
 }
 
-ButtonEvent pollEncoderButton(unsigned long now) {
+namespace {
+
+// Called under encoderMux by Ctrl, or by the loop if Ctrl could not start.
+ButtonEvent sampleEncoderButton(bool rawNow, uint32_t now) {
     static bool rawPressed = false;
     static bool stablePressed = false;
     static bool holdSent = false;
-    static unsigned long rawChangedAt = 0;
-    static unsigned long pressedAt = 0;
+    static uint32_t rawChangedAt = 0;
+    static uint32_t pressedAt = 0;
 
-    const bool rawNow = digitalRead(PIN_SW) == LOW;
     if (rawNow != rawPressed) {
         rawPressed = rawNow;
         rawChangedAt = now;
+        incrementTouchCounter(encoderState.buttonEdges);
     }
     if (rawPressed != stablePressed && now - rawChangedAt >= kButtonDebounceMs) {
         stablePressed = rawPressed;
         if (stablePressed) {
             pressedAt = now;
             holdSent = false;
+            incrementTouchCounter(encoderState.buttonPresses);
         } else if (!holdSent) {
+            incrementTouchCounter(encoderState.buttonClicks);
             return ButtonEvent::Push;
         }
     }
-    if (stablePressed && !holdSent && now - pressedAt >= kButtonHoldMs) {
+    if (stablePressed && rawPressed && !holdSent && now - pressedAt >= kButtonHoldMs) {
         holdSent = true;
+        incrementTouchCounter(encoderState.buttonHolds);
         return ButtonEvent::Hold;
     }
     return ButtonEvent::None;
 }
+
+void enqueueEncoderButton(ButtonEvent event) {
+    if (event == ButtonEvent::None) return;
+    auto& count = encoderState.pendingButtonEvents;
+    if (count == kButtonQueueSize) {
+        incrementTouchCounter(encoderState.buttonEventsDropped);
+        return;
+    }
+    buttonEvents[(buttonEventHead + count) % kButtonQueueSize] = event;
+    ++count;
+}
+
+ButtonEvent consumeEncoderButton(uint32_t now) {
+    portENTER_CRITICAL(&encoderMux);
+    ButtonEvent event = ButtonEvent::None;
+    if (!encoderState.taskCreated) {
+        event = sampleEncoderButton(digitalRead(PIN_SW) == LOW, now);
+    } else if (encoderState.pendingButtonEvents != 0) {
+        event = buttonEvents[buttonEventHead];
+        buttonEventHead = (buttonEventHead + 1) % kButtonQueueSize;
+        --encoderState.pendingButtonEvents;
+    }
+    if (event == ButtonEvent::Push) incrementTouchCounter(encoderState.buttonClicksConsumed);
+    portEXIT_CRITICAL(&encoderMux);
+    return event;
+}
+
+}  // namespace
 
 TouchEvent pollTouchEvent(int16_t& x, int16_t& y, unsigned long now) {
     static unsigned long lastPoll = 0;
@@ -364,11 +408,14 @@ void taskControl(void* parameter) {
     static constexpr int8_t transitions[16] = {
         0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0,
     };
+    uint32_t lastSampleAt = millis();
     for (;;) {
         oldAB <<= 2;
         oldAB |= (digitalRead(PIN_A) << 1) | digitalRead(PIN_B);
         const int8_t difference = transitions[oldAB & 0x0F];
         const uint8_t ab = oldAB & 0x03;
+        const bool buttonDown = digitalRead(PIN_SW) == LOW;
+        const uint32_t now = millis();
         portENTER_CRITICAL(&encoderMux);
         if (encoderState.samples != 0) {
             const uint8_t changed = encoderState.sampledAB ^ ab;
@@ -378,12 +425,15 @@ void taskControl(void* parameter) {
         }
         encoderState.sampledAB = ab;
         incrementTouchCounter(encoderState.samples);
+        encoderState.maxSampleGapMs = std::max(encoderState.maxSampleGapMs, now - lastSampleAt);
+        enqueueEncoderButton(sampleEncoderButton(buttonDown, now));
         if (difference != 0) {
             encoderPos += difference;
             if (difference > 0) incrementTouchCounter(encoderState.positiveTicks);
             else incrementTouchCounter(encoderState.negativeTicks);
         }
         portEXIT_CRITICAL(&encoderMux);
+        lastSampleAt = now;
         if (difference != 0) {
             lastInteraction = millis();
         }
@@ -439,7 +489,7 @@ void updatePowerState(unsigned long now) {
 DeviceInput pollDeviceInput(unsigned long now) {
     DeviceInput input;
     input.displayWasDimmed = isDimmed;
-    input.button = pollEncoderButton(now);
+    input.button = consumeEncoderButton(now);
     input.touch = pollTouchEvent(input.touchX, input.touchY, now);
     return input;
 }

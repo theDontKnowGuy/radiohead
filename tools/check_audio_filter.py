@@ -15,6 +15,7 @@ subprocess.run([str(out / 'notch')], check=True)
 sink = (root/'components/radiohead_spotify/MAX98357AAudioSink.cpp').read_text()
 header = (root/'components/radiohead_spotify/MAX98357AAudioSink.h').read_text()
 fixture = r'''
+#include "audio_balance.h"
 #include "audio_notch.h"
 #include "audio_tone.h"
 #include <algorithm>

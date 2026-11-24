@@ -1,3 +1,4 @@
+#include "audio_balance.h"
 #include "audio_notch.h"
 #include "audio_tone.h"
 #include "media.h"
@@ -47,18 +48,19 @@ void audio_process_raw_samples(int32_t* samples, int16_t words) {
 // Pinned library hook after its EQ and volume. Restoring gain here uses the
 // headroom available at the chosen volume, rather than clipping before volume.
 void audio_process_i2s(int32_t* samples, int16_t words, bool*) {
-    if (samples && words > 0) {
-        mediaLocalPcmBlock();
-        radioDiagnosticsPcmBlock();
+    if (!samples || words <= 0) return;
+    mediaLocalPcmBlock();
+    radioDiagnosticsPcmBlock();
+    if (toneMakeup != 1.0f) {
+        toneLimiter.configure(mediaLocalSampleRate());
+        for (int index = 0; index + 1 < words; index += 2) {
+            float left = samples[index] / 2147483648.0f * toneMakeup;
+            float right = samples[index + 1] / 2147483648.0f * toneMakeup;
+            toneLimiter.process(left, right);
+            samples[index] = radioPcm32(left);
+            samples[index + 1] = radioPcm32(right);
+        }
     }
-    if (toneMakeup == 1.0f || !samples || words <= 0) return;
-    toneLimiter.configure(mediaLocalSampleRate());
-    for (int index = 0; index + 1 < words; index += 2) {
-        float left = samples[index] / 2147483648.0f * toneMakeup;
-        float right = samples[index + 1] / 2147483648.0f * toneMakeup;
-        toneLimiter.process(left, right);
-        samples[index] = radioPcm32(left);
-        samples[index + 1] = radioPcm32(right);
-    }
+    radioApplyBalance(samples, words);
 }
 

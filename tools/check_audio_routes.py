@@ -19,6 +19,7 @@ def function(source, signature):
 
 fixture = r'''
 #include "Arduino.h"
+#include "audio_balance.h"
 #include "audio_notch.h"
 #include <algorithm>
 #include <cassert>
@@ -126,17 +127,32 @@ int main(int argc,char**argv){
  for(auto frequency:{"100","10000"}){
   defaults();server.args["notchHz"]=frequency;server.args["notchEnabled"]="0";applyAudio();assert(server.status==200&&!audioNotchEnabled);
  }
+ for(auto position:{"-100","0","100","-35"}){
+  defaults();server.args["balance"]=position;
+  auto audioBefore=audioSettingsRevision(),playerBefore=playerRevision();applyAudio();
+  assert(server.status==200 && radioBalance()==std::stoi(position));
+  assert(audioSettingsRevision()!=audioBefore && playerRevision()!=playerBefore);
+ }
+ defaults();applyAudio();assert(server.status==200 && radioBalance()==-35);
+ for(auto value:{"-101","101","1.5","x","", "999999999999999999999999999999"}){
+  defaults();server.args["bass"]="5";server.args["balance"]=value;
+  auto before=audioSettingsRevision();int saves=queued;applyAudio();
+  assert(server.status==400 && radioBalance()==-35 && audioSettingsRevision()==before && queued==saves);
+ }
+ defaults();server.args["balance"]="40";radioSetBalance(-28);
+ applyAudio();assert(server.status==409 && radioBalance()==-28);
  audioNotchHz=5000;audioNotchEndHz=5100;mainVal=7;radioMuted=false;gB=gM=gT=0;
  handleConfigShell(WebSection::Audio);
  std::ofstream(argv[1])<<server.response;
  assert(server.response.find("id='audio-form'")!=std::string::npos);
+ assert(server.response.find("id='audio-balance' type='range' min='-100' max='100' step='1' value='-28'")!=std::string::npos);
  assert(server.response.find("value='5000-5100'")!=std::string::npos);
  assert(server.response.find("Sound · custom tone")==std::string::npos);
  handleConfigShell(WebSection::Network);
  assert(server.response.find("tone-bass")==std::string::npos);
  isAP=true;handleConfigShell(WebSection::Audio);
  assert(server.status==303 && server.response=="/network");
- puts("Production Audio route rejects invalid/stale input without partial mutation; volume changes do not conflict.");
+ puts("Production Audio route validates balance, retains legacy requests and rejects invalid/stale input without partial mutation.");
 }
 '''
 (out / 'routes.cpp').write_text(fixture)

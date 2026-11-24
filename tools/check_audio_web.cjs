@@ -8,8 +8,8 @@ new vm.Script(script);
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 async function fixture({down=false}={}) {
  const elements={},events={},posts=[];let fail=0,hold=null,holdRead=null,poll;
- let data={revision:9,audioRevision:7,bass:0,mid:1,treble:-2,notchEnabled:false,notchHz:3000,notchEndHz:0};
- const $=id=>elements[id]||=( {value:'',checked:false,disabled:id==='audio-save',textContent:'',addEventListener(name,fn){this[name]=fn;}} );
+ let data={revision:9,audioRevision:7,bass:0,mid:1,treble:-2,balance:0,notchEnabled:false,notchHz:3000,notchEndHz:0};
+ const $=id=>elements[id]||=( {value:'',checked:false,disabled:id==='audio-save',textContent:'',addEventListener(name,fn){this[name]=fn;},setAttribute(name,value){this[name]=value;}} );
  const document={hidden:false,getElementById:$,addEventListener(name,fn){events[name]=fn;}};
  let confirm=false;
  vm.runInNewContext(script,{document,window:{addEventListener(name,fn){events[name]=fn;}},URLSearchParams,
@@ -18,7 +18,7 @@ async function fixture({down=false}={}) {
     assert.equal(url,'/api/audio');const body=Object.fromEntries(options.body);posts.push(body);
     if(hold)await new Promise(resolve=>hold.resolve=resolve);
     if(fail)return {ok:false,status:fail,json:async()=>({...data,error:'Save rejected.'})};
-    data={...data,...Object.fromEntries(['bass','mid','treble','notchHz','notchEndHz'].map(key=>[key,Number(body[key])])),notchEnabled:body.notchEnabled==='1',audioRevision:data.audioRevision+1};
+    data={...data,...Object.fromEntries(['bass','mid','treble','balance','notchHz','notchEndHz'].map(key=>[key,Number(body[key])])),notchEnabled:body.notchEnabled==='1',audioRevision:data.audioRevision+1};
    } else {assert.equal(url,'/api/player');if(down)throw Error('Disconnected');const snapshot={...data};if(holdRead)await new Promise(resolve=>holdRead.resolve=resolve);return {ok:true,json:async()=>snapshot};}
    return {ok:true,json:async()=>({...data})};
   }});
@@ -31,8 +31,17 @@ async function fixture({down=false}={}) {
  const f=await fixture();assert.equal(f.$('audio-save').disabled,false);assert.equal(f.$('tone-mid').value,1);assert.equal(f.$('notch-frequency').value,3000);
  f.$('tone-bass').value='-15';f.$('tone-bass').input();f.$('tone-treble').value='15';f.$('notch-enabled').checked=true;f.$('notch-frequency').value='3100';
  f.change({revision:10});await f.poll();assert.equal(f.$('tone-bass').value,'-15');assert.doesNotMatch(f.$('audio-status').textContent,/elsewhere/); // Volume is independent.
- await f.submit();assert.deepEqual({...f.posts[0]},{bass:'-15',mid:'1',treble:'15',notchEnabled:'1',notchHz:'3100',notchEndHz:'0',revision:'7'});
+ await f.submit();assert.deepEqual({...f.posts[0]},{bass:'-15',mid:'1',treble:'15',balance:'0',notchEnabled:'1',notchHz:'3100',notchEndHz:'0',revision:'7'});
  assert.match(f.$('audio-status').textContent,/applied/);
+ const stereo=await fixture();
+ const slider=stereo.$('audio-balance'),balanceValue=stereo.$('audio-balance-value');
+ assert.equal(balanceValue.textContent,'Center');
+ slider.value='-50';slider.input();assert.equal(slider['aria-valuetext'],'Left 50%');
+ stereo.change({audioRevision:8,balance:75});await stereo.poll();
+ assert.equal(slider.value,'-50');assert.match(stereo.$('audio-status').textContent,/elsewhere/);
+ await stereo.$('audio-cancel').onclick();await flush();assert.equal(balanceValue.textContent,'Right 75%');
+ slider.value='100';slider.input();await stereo.submit();
+ assert.equal(stereo.posts[0].balance,'100');assert.equal(stereo.posts[0].revision,'8');assert.equal(balanceValue.textContent,'Right 100%');
  const band=await fixture();band.$('notch-frequency').value='5000-5100';band.$('notch-enabled').checked=true;
  await band.submit();assert.equal(band.posts[0].notchHz,'5000');assert.equal(band.posts[0].notchEndHz,'5100');assert.equal(band.$('notch-frequency').value,'5000-5100');
  band.$('notch-frequency').value=' 5000 - 5200 ';await band.submit();assert.equal(band.posts[1].notchEndHz,'5200');

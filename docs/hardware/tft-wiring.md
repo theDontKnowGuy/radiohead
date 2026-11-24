@@ -36,7 +36,8 @@ GPIO39–41 now carry audio. See [the remap record](touch-spi-wiring.md).
 2. For backlight but no picture, try the [TFT color test](../../experiments/tft-color-test/README.md).
    It temporarily replaces the radio; restore the normal firmware afterward.
 3. Open **Settings → Device → Touch calibration** and tap/release four corners.
-   Calibration is saved in NVS; missing data uses defaults. Recalibrate after changing panels/orientation.
+   Calibration is saved in NVS; missing data uses defaults. Recalibrate after changing panels.
+   The [orientation API](../display-orientation.md) rotates touch with the screen and keeps calibration.
 4. Compare ten comfortable finger-pad taps with ten gentle nail taps at center/edges,
    lifting at least 0.5 s. Count attempts and actual actions separately.
 5. If nail works but light pad fails, inspect shipping film, enclosure pressure and

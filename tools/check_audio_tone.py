@@ -63,6 +63,7 @@ void mediaLocalPcmBlock() { ++localProgressBlocks; }
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include "audio_balance.h"
 #include "audio_tone.h"
 #include "MAX98357AAudioSink.h"
 uint32_t rate = 44100;
@@ -191,12 +192,36 @@ int main() {
         assert(std::abs(int(loud[i]) - 2 * int(loud[i + 1])) < 30);
     const auto muted = spotify(15, 14000, 0.99f, 0);
     for (int16_t sample : muted) assert(sample == 0);
+    publish(0, 0, 0);
+    MAX98357AAudioSink stereo;
+    stereo.volumeChanged(255);
+    const int16_t input[] = {INT16_MIN, INT16_MAX, 10000, -8000};
+    for (int position : {-100, -50, 0, 50, 100}) {
+        radioSetBalance(position);
+        const double leftGain = position > 0 ? 1.0 - position / 100.0 : 1.0;
+        const double rightGain = position < 0 ? 1.0 + position / 100.0 : 1.0;
+        int32_t local[] = {INT32_MIN, INT32_MAX, 10000, -8000, 123};
+        // The attenuated 32-bit full-scale sample rounds through float;
+        // the favored channel and the center bypass remain bit-exact.
+        const double left = INT32_MIN * leftGain;
+        const double right = INT32_MAX * rightGain;
+        audio_process_i2s(local, 5, nullptr);
+        assert(local[0] == left && std::abs(local[1] - right) <= (rightGain == 1.0 ? 0.0 : 1.0));
+        assert(local[2] == 10000 * leftGain && local[3] == -8000 * rightGain && local[4] == 123);
+        captured.clear();
+        stereo.feedPCMFrames(reinterpret_cast<const uint8_t*>(input), sizeof(input));
+        assert(captured.size() == 4);
+        for (size_t i = 0; i < captured.size(); ++i)
+            assert(captured[i] == static_cast<int16_t>(input[i] * (i % 2 == 0 ? leftGain : rightGain)));
+    }
+    radioSetBalance(101);
+    assert(radioBalance() == 0);
     MAX98357AAudioSink invalid;
     captured.clear();
     const uint8_t bytes[3] = {};
     invalid.feedPCMFrames(bytes, 3);
     assert(captured.empty());
-    printf("Tone PCM checks passed: bass ratio %.4f, treble ratio %.4f; bounds, stereo, mute, bypass, publication and limiter release.\n",
+    printf("Tone and balance PCM checks passed: bass ratio %.4f, treble ratio %.4f; stereo, mute, bypass, publication and limiter release.\n",
            bassBoost / bassFlat, trebleBoost / trebleFlat);
 }
 '''

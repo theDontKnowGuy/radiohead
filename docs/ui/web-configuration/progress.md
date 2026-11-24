@@ -1,5 +1,25 @@
 # Web UI: current state and tests
 
+2026-11-24: The Audio tab adds Stereo balance with left/center/right positions
+and the existing revisioned Save/Cancel controls. Save applies to radio,
+podcasts and Spotify and queues persistence in `radio/balance`. Existing
+installs default to center. Host route, form, backup and PCM checks passed.
+Desktop (1440 px) and phone (320 px) layout and keyboard checks passed in
+Chromium with fixture data. `pio run -e esp32s3` and `git diff --check` passed
+with 27% of the app slot and 73,929 bytes of DIRAM free. Physical channel and
+reboot persistence checks remain open.
+
+2026-11-12: [Per-device orientation API](../../display-orientation.md) saves
+`radio/displayFlip` and applies display/touch rotation immediately; startup reads
+it before drawing. Missing settings keep the original view. No web control added.
+Production host storage/boot/API/held-touch checks passed in
+`tools/check_display_orientation.py`; existing touch input/diagnostics, boot-mode,
+startup, firmware-update display and backup/restore checks also passed after
+repairing stale test seams. `pio run -e esp32s3` and `git diff --check` passed;
+application 4,813,872 B (1,739,728 B free), DIRAM 267,767 B (unchanged).
+Not flashed: physical alignment, real reboot persistence and audio during
+rotation remain unverified. No new visual or hardware acceptance is claimed.
+
 2026-11-10 documentation cleanup: shortened the guides and replaced repeated logs
 with these summaries. No firmware/CSS/assets/settings/device behavior changed;
 no new hardware verification is claimed. Full older detail is in Git history.
@@ -15,7 +35,7 @@ links, headings, fences and scoped whitespace checks pass. No firmware build is 
 | W3 stations | Ten-slot CRUD/favorites/search/manual/test; saved row click plays; M3U removed and logo editor hidden by October scope |
 | W4 saved artwork | Identity-safe RGB565 storage/rendering exists; reboot/interruption/full-storage acceptance remains open |
 | Programs | Ten editable Omny/RSS slots, browser search and non-playing previews; [catalog tests/limits](../../programs-catalog.md) |
-| Audio | −15…15 levels, optional frequency/range filter, revisioned Save/Cancel; host/native/browser fixtures passed, physical listening/persistence open |
+| Audio | −15…15 tone levels, stereo balance, optional frequency/range filter and revisioned Save/Cancel. Host/native/browser fixtures passed. Physical listening/persistence open |
 | Spotify | Own tab, name/credentials, restart/pairing guide; configured read-only response observed; real provisioning/restart/full-page testing not established there |
 | W5 network | Scan/dedup, hidden/open/security/draft, save→reboot/forget, setup AP; roaming persistence/control built, multi-interval device test open |
 | W6 weather/time | Private-key entry/clear, C/F/visibility, friendly zones and DST; new default Jerusalem, explicit non-placeholder values retained; physical DST/weather checks open |
@@ -34,16 +54,18 @@ Invalid input normally returns 400; stale revision/maintenance 409; failed persi
 
 | API | Request / behavior |
 | --- | --- |
-| GET `/api/player` | Source/state/metadata/revision, volume 0–21, mute and tone; no secrets |
+| GET `/api/player` | Source/state/metadata/revision, volume 0–21, mute, tone and balance |
 | POST `/api/player/volume` | `revision`, `volume`; apply now, coalesced save after 1 s idle |
 | POST `/api/player/mute` | `revision`; retain volume and stream |
 | POST `/api/player/tone` | `revision`, `bass/mid/treble` each −15…15; retained compatibility |
+| POST `/api/audio` | `audioRevision` sent as `revision`, tone/filter fields, optional integer `balance` −100 (left) to +100 (right), 0 center |
 | GET `/api/network`; POST `/api/network/scan/start`; GET `/api/network/scan` | Async scan ≤20 visible SSIDs/security/RSSI, deduplicated; no passwords |
 | POST `/api/network/connect`, `/retry`, `/forget` | Connect revision, exact SSID ≤32/password ≤63 and keep/replace/clear; 202 schedules reboot, not successful association |
 | GET `/api/weather`; POST `/api/weather/save` | Revision, location ≤80, units/visibility/zone/format, key keep/replace/clear; response excludes key and reports refresh separately |
 | GET `/api/device` | Build, connection, memory/storage/update/calibration and configured flags; never credential values |
 | POST `/api/device/spotify-credentials` | `X-Radiohead-Config: 1`, revision, both `clientId/clientSecret` ≤128 non-space printable ASCII bytes; one checked `spotify/app_creds` blob, 200 durable save/restart needed |
 | POST `/api/device/spotify-name` | Revisioned bounded UTF-8 name; existing keys/ID implications retained; applies after restart |
+| GET/POST `/api/device/display-orientation` | POST requires `X-Radiohead-Config: 1`, `flipped=0`/`1`; save per device and apply now, response `flipped` boolean. No browser control |
 | POST `/api/device/ota?size=<bytes>` | Exactly one `firmware` multipart file, exact size within slot, 36-byte initial ESP32-S3 app-header check, then `Update.end()`; 202 only after validation, reboot follows |
 | POST `/api/device/restart`, `/factory-reset` | Acknowledge before action; reset requires `confirm=RESET` |
 

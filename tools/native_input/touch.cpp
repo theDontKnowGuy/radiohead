@@ -331,6 +331,9 @@ int main() {
     assert(uiControllerRenderState().page == UiPage::Home);
     assert(uiControllerRenderState().homeStationPreview == 1);
     assert(!uiControllerTakeCommand(command));
+    uiControllerPush(0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
+    assert(!uiControllerTakeCommand(command));
     uiControllerMarkRendered();
     assert(uiControllerRenderState().homeStationPreview == -1);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::SelectStation && command.value == 1);

@@ -40,6 +40,7 @@ state_start = source.index("constexpr uint32_t kSpeakerBootMuteMs")
 state_end = source.index("\n", source.index("bool speakerBootHoldComplete", state_start))
 fixture += source[state_start:state_end] + "\n"
 fixture += function("void mediaSilenceSpeakers()") + "\n"
+fixture += function("bool mediaBootAudioReady()") + "\n"
 fixture += function("void mediaUpdateSpeakerMute(bool bootPlaying)") + "\n"
 fixture += r"""
 int main() {
@@ -48,9 +49,14 @@ int main() {
         mediaUpdateSpeakerMute(boot); assert(outputLevel == level);
     };
     playbackState = PlaybackState::Playing; audio.running = true;
+    assert(!mediaBootAudioReady());
     expect(MUTED);
     clockMs = 3999; expect(MUTED); expect(MUTED, true);
     clockMs = 4000; expect(AUDIBLE);
+    assert(!mediaBootAudioReady());
+    clockMs = 4499; assert(!mediaBootAudioReady());
+    clockMs = 4500; assert(mediaBootAudioReady());
+    clockMs = 7000; assert(mediaBootAudioReady()); // Slow initialization.
     radioMuted = true; expect(MUTED); expect(MUTED, true);
     radioMuted = false; expect(AUDIBLE);
     mainVal = 0; expect(MUTED);
@@ -69,6 +75,9 @@ int main() {
     speakerBootHoldComplete = false; speakerBootStartedAt = UINT32_MAX - 1000;
     clockMs = 2998; expect(MUTED);
     clockMs = 2999; expect(AUDIBLE); // hold itself crosses rollover
+    assert(!mediaBootAudioReady());
+    clockMs = 3498; assert(!mediaBootAudioReady());
+    clockMs = 3499; assert(mediaBootAudioReady());
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     outputOwner = OutputOwner::Spotify;
     for (auto state : {MediaStatus::Stopped, MediaStatus::Connecting, MediaStatus::Paused, MediaStatus::Failed}) {

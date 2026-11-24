@@ -993,6 +993,12 @@ body.radiohead-page #rh-config {
   margin-top:15px;
 }
 
+#rh-config .rh-balance-row {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+
 #rh-config .rh-empty {
   text-align:center;
   padding:32px;

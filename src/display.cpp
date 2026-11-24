@@ -2769,8 +2769,18 @@ void initializeDisplay() {
     setBrightness(255);
 
     tft.init();
-    tft.setRotation(1);
+    displayFlipped = loadDisplayFlipped();
+    tft.setRotation(displayFlipped ? 3 : 1);
     tft.fillScreen(TFT_BLACK);
+}
+
+void setDisplayFlipped(bool flipped) {
+    if (displayFlipped == flipped) return;
+    cancelTouchUntilRelease();
+    uiControllerTouchEnd();
+    displayFlipped = flipped;
+    tft.setRotation(flipped ? 3 : 1);
+    forceRedraw = true;
 }
 
 void serviceDisplayRefresh(unsigned long now, const char* currentTime, bool timeValid) {

@@ -109,6 +109,7 @@ extern Preferences pref;
 extern BootMode bootMode;
 // Durable selection for the next boot. Saving never changes the active mode.
 extern BootMode configuredBootMode;
+extern bool displayFlipped;
 
 extern String owmKey;
 extern String owmCity;

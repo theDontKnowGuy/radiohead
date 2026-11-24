@@ -41,7 +41,9 @@ manual fallback, non-playing preview, confirmed removal and shared favorites.
 [Limits/persistence](../../programs-catalog.md). Do not invent offline downloads.
 
 **Audio:** volume 0–21 via existing curve; Bass/Mid/Treble **−15…15 levels**, not
-mockup −10…10 dB. Save/Cancel/reload and stale-edit protection. Filter defaults off,
+mockup −10…10 dB. Stereo balance goes from full left through center to full right
+and applies to radio, podcasts and Spotify. Save/Cancel/reload and stale-edit
+protection. Filter defaults off,
 3000 Hz; one integer **100–10000** or an increasing range (zero allowed only at
 range start), e.g. `5000-5100` / `0-10000`. In-band rolloff is strongest at center;
 zero-start is high-pass, upper edge reaching Nyquist becomes low-pass, full-band

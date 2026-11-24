@@ -21,6 +21,9 @@ MediaSource lastMediaSource = MediaSource::None;
 UiCommand pendingCommand;
 bool hasPendingCommand = false;
 bool pendingCommandWaitsForRender = false;
+// The input bridge dispatches one physical button event per loop. A touch
+// command can wait for a redraw across loops, so give the encoder its own slot.
+UiCommandKind pendingEncoderButton = UiCommandKind::None;
 int pendingVolumeDelta = 0;
 unsigned long volumeOverlayUntil = 0;
 bool lastMuted = false;
@@ -636,6 +639,7 @@ void uiControllerBegin() {
     pendingCommand = {};
     hasPendingCommand = false;
     pendingCommandWaitsForRender = false;
+    pendingEncoderButton = UiCommandKind::None;
     pendingVolumeDelta = 0;
     volumeOverlayUntil = 0;
     lastMuted = isStationMuted();
@@ -662,7 +666,7 @@ void uiControllerPush(unsigned long now, bool displayWasDimmed) {
 
     // A press is mute only; it cannot activate the focused item or accept a
     // dialog after navigation has changed the current page.
-    queue(UiCommandKind::ToggleMute);
+    pendingEncoderButton = UiCommandKind::ToggleMute;
     markDirty();
 }
 
@@ -671,7 +675,7 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
     (void)displayWasDimmed;
 
     // The button classifier fires Hold once and suppresses Push on release.
-    queue(UiCommandKind::EnterStandby);
+    pendingEncoderButton = UiCommandKind::EnterStandby;
 }
 
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {
@@ -818,6 +822,11 @@ bool uiControllerTakeCommand(UiCommand& command) {
     if (pendingVolumeDelta != 0) {
         command = {UiCommandKind::ChangeVolume, pendingVolumeDelta};
         pendingVolumeDelta = 0;
+        return true;
+    }
+    if (pendingEncoderButton != UiCommandKind::None) {
+        command = {pendingEncoderButton};
+        pendingEncoderButton = UiCommandKind::None;
         return true;
     }
     if (!hasPendingCommand) {

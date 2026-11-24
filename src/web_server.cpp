@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "app_state.h"
+#include "audio_balance.h"
 #include "audio_notch.h"
 #include "device_control.h"
 #include "crash_diagnostics.h"
@@ -630,6 +631,7 @@ uint32_t audioSettingsRevision() {
         static_cast<uint8_t>(gT + 15), static_cast<uint8_t>(audioNotchEnabled),
         static_cast<uint8_t>(audioNotchHz), static_cast<uint8_t>(audioNotchHz >> 8),
         static_cast<uint8_t>(audioNotchEndHz), static_cast<uint8_t>(audioNotchEndHz >> 8),
+        static_cast<uint8_t>(radioBalance() + kAudioBalanceLimit),
     };
     for (const uint8_t value : values) hash = (hash ^ value) * 16777619UL;
     return hash & 0x7fffffffUL;
@@ -651,6 +653,7 @@ uint32_t playerRevision() {
         static_cast<uint8_t>(audioNotchHz >> 8),
         static_cast<uint8_t>(audioNotchEndHz),
         static_cast<uint8_t>(audioNotchEndHz >> 8),
+        static_cast<uint8_t>(radioBalance() + kAudioBalanceLimit),
     };
     for (const uint8_t value : values) {
         revision ^= value;
@@ -699,6 +702,7 @@ String playerStateJson() {
         ",\"bass\":" + String(gB) +
         ",\"mid\":" + String(gM) +
         ",\"treble\":" + String(gT) +
+        ",\"balance\":" + String(radioBalance()) +
         ",\"notchEnabled\":" + String(audioNotchEnabled ? "true" : "false") +
         ",\"notchHz\":" + String(audioNotchHz) +
         ",\"notchEndHz\":" + String(audioNotchEndHz) +
@@ -832,27 +836,35 @@ void appendSectionContent(String& html, WebSection section) {
                 " <output id='tone-" + ids[band] + "-value'>" + String(values[band]) +
                 "</output></span><input id='tone-" + ids[band] + "' type='range' min='-15' max='15' step='1' value='" + String(values[band]) + "'></label>";
         }
-        html += "</div></section><section class='rh-box'><h2>Frequency filter</h2>"
+        html += "</div><div class='rh-field'>"
+            "<span class='rh-balance-row'><label for='audio-balance'>Stereo balance</label>"
+            "<output id='audio-balance-value' for='audio-balance'></output></span>"
+            "<input id='audio-balance' type='range' min='-" + String(kAudioBalanceLimit) +
+            "' max='" + String(kAudioBalanceLimit) + "' step='1' value='" + String(radioBalance()) + "'>"
+            "<span class='rh-balance-row rh-muted' aria-hidden='true'><span>Left</span><span>Right</span></span>"
+            "</div></section><section class='rh-box'><h2>Frequency filter</h2>"
             "<p>Reduce one frequency or a range. For example, enter 3000 or 5000-5100.</p>"
             "<label class='rh-inlinecheck'><input id='notch-enabled' type='checkbox'" + String(audioNotchEnabled ? " checked" : "") + ">Enable frequency filter</label>"
             "<label class='rh-field' for='notch-frequency'><span>Frequency or range (Hz)</span><input id='notch-frequency' type='text' maxlength='25' required placeholder='5000-5100' value='" + String(audioNotchHz) +
             (audioNotchEndHz ? "-" + String(audioNotchEndHz) : String("")) + "' aria-describedby='notch-help'></label>"
             "<p class='rh-muted' id='notch-help'>Use one whole-number frequency from 100–10,000 Hz or an increasing range, such as 5000-5100. A range may start at 0: 0-10000 reduces bass, speech and music below 10 kHz; higher sounds can remain. A range reduces sound most near its middle and tapers at its edges. Ranges extending above the stream’s limit still filter the part it contains. Enable the filter and Save audio to apply. Applies to live radio, recorded shows and Spotify. Noise introduced by the amplifier or wiring may remain.</p>"
             "</section><div class='rh-footer'><span class='rh-formstatus' id='audio-status' role='status'></span><button class='rh-button' id='audio-cancel' type='button'>Cancel / reload</button><button class='rh-button rh-primary' id='audio-save' type='submit' disabled>Save audio</button></div></form>";
-        html += R"JS(<script>(()=>{const $=id=>document.getElementById(id),bands=['bass','mid','treble'],inputs=bands.map(b=>$('tone-'+b));let saved=null,saving=false,loading=false,editGeneration=0;
+        html += R"JS(<script>(()=>{const $=id=>document.getElementById(id),bands=['bass','mid','treble'],inputs=bands.map(b=>$('tone-'+b)),balance=$('audio-balance'),filterInputs=[$('notch-enabled'),$('notch-frequency')],fields=[...inputs,balance,...filterInputs];let saved=null,saving=false,loading=false,editGeneration=0;
 const status=message=>$('audio-status').textContent=message;
+function renderBalance(){const position=Number(balance.value),label=position===0?'Center':(position<0?'Left ':'Right ')+Math.abs(position)+'%';$('audio-balance-value').textContent=label;balance.setAttribute('aria-valuetext',label);}
 function frequency(){const match=String($('notch-frequency').value).trim().match(/^([0-9]{1,5})(?:\s*-\s*([0-9]{1,5}))?$/);return match&&(!match[2]||Number(match[2])>Number(match[1]))?{notchHz:Number(match[1]),notchEndHz:match[2]?Number(match[2]):0}:{notchHz:NaN,notchEndHz:NaN};}
-const draft=()=>({bass:Number(inputs[0].value),mid:Number(inputs[1].value),treble:Number(inputs[2].value),notchEnabled:$('notch-enabled').checked,...frequency()});
+const draft=()=>({bass:Number(inputs[0].value),mid:Number(inputs[1].value),treble:Number(inputs[2].value),balance:Number(balance.value),notchEnabled:$('notch-enabled').checked,...frequency()});
 const dirty=()=>saved&&Object.entries(draft()).some(([key,value])=>value!==saved[key]);
-function render(data){saved={...data,notchEndHz:data.notchEndHz||0};inputs.forEach((input,i)=>{input.value=data[bands[i]];$('tone-'+bands[i]+'-value').textContent=input.value;});$('notch-enabled').checked=data.notchEnabled;$('notch-frequency').value=data.notchEndHz?data.notchHz+'-'+data.notchEndHz:data.notchHz;$('audio-save').disabled=false;if(!saving)[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=false);}
+function render(data){saved={...data,notchEndHz:data.notchEndHz||0};inputs.forEach((input,i)=>{input.value=data[bands[i]];$('tone-'+bands[i]+'-value').textContent=input.value;});balance.value=data.balance;renderBalance();$('notch-enabled').checked=data.notchEnabled;$('notch-frequency').value=data.notchEndHz?data.notchHz+'-'+data.notchEndHz:data.notchHz;$('audio-save').disabled=false;if(!saving)fields.forEach(input=>input.disabled=false);}
 async function load(force=false){if(saving||loading)return;loading=true;const generation=editGeneration;try{const response=await fetch('/api/player',{cache:'no-store'});if(!response.ok)throw Error('Could not read audio settings.');const data=await response.json();if(saving||generation!==editGeneration)return;if(force||!dirty()){render(data);if(force)status('Audio settings reloaded.');}else if(data.audioRevision!==saved.audioRevision)status('The radio changed elsewhere. Cancel / reload before saving.');}catch(error){status(error.message);}finally{loading=false;}}
 inputs.forEach((input,i)=>input.addEventListener('input',()=>{++editGeneration;$('tone-'+bands[i]+'-value').textContent=input.value;status('Unsaved changes');}));
-[$('notch-enabled'),$('notch-frequency')].forEach(input=>input.addEventListener('input',()=>{++editGeneration;status('Unsaved changes');}));
-$('audio-form').onsubmit=async event=>{event.preventDefault();if(saving||!saved)return;const values=draft();if(!Number.isInteger(values.notchHz)||values.notchHz<0||values.notchHz>10000||(values.notchHz<100&&!(values.notchHz===0&&values.notchEndHz>=100))||!Number.isInteger(values.notchEndHz)||values.notchEndHz<0||values.notchEndHz>10000||(values.notchEndHz!==0&&(values.notchEndHz<=values.notchHz||values.notchEndHz<100))||inputs.some(input=>!Number.isInteger(Number(input.value))||Number(input.value)<-15||Number(input.value)>15)){status('Use whole-number tone levels from −15 to +15 and a frequency from 100–10,000 Hz or an increasing range ending within those bounds. A range may start at 0.');return;}++editGeneration;saving=true;$('audio-save').disabled=true;$('audio-cancel').disabled=true;[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=true);status('Applying audio settings…');try{const body=new URLSearchParams({...values,notchEnabled:values.notchEnabled?'1':'0',revision:saved.audioRevision});const response=await fetch('/api/audio',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});const data=await response.json();if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Your draft is kept; cancel / reload before saving.':data.error||'Audio settings were not accepted.');render(data);status('Audio applied. Settings save after you stop adjusting.');}catch(error){status(error.message);}finally{saving=false;$('audio-save').disabled=false;$('audio-cancel').disabled=false;[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=false);}};
+balance.addEventListener('input',()=>{++editGeneration;renderBalance();status('Unsaved changes');});
+filterInputs.forEach(input=>input.addEventListener('input',()=>{++editGeneration;status('Unsaved changes');}));
+$('audio-form').onsubmit=async event=>{event.preventDefault();if(saving||!saved)return;const values=draft();if(!Number.isInteger(values.notchHz)||values.notchHz<0||values.notchHz>10000||(values.notchHz<100&&!(values.notchHz===0&&values.notchEndHz>=100))||!Number.isInteger(values.notchEndHz)||values.notchEndHz<0||values.notchEndHz>10000||(values.notchEndHz!==0&&(values.notchEndHz<=values.notchHz||values.notchEndHz<100))||inputs.some(input=>!Number.isInteger(Number(input.value))||Number(input.value)<-15||Number(input.value)>15)){status('Use whole-number tone levels from −15 to +15 and a frequency from 100–10,000 Hz or an increasing range ending within those bounds. A range may start at 0.');return;}++editGeneration;saving=true;$('audio-save').disabled=true;$('audio-cancel').disabled=true;fields.forEach(input=>input.disabled=true);status('Applying audio settings…');try{const body=new URLSearchParams({...values,notchEnabled:values.notchEnabled?'1':'0',revision:saved.audioRevision});const response=await fetch('/api/audio',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});const data=await response.json();if(!response.ok)throw Error(response.status===409?'The radio changed elsewhere. Your draft is kept; cancel / reload before saving.':data.error||'Audio settings were not accepted.');render(data);status('Audio applied. Settings save after you stop adjusting.');}catch(error){status(error.message);}finally{saving=false;$('audio-save').disabled=false;$('audio-cancel').disabled=false;fields.forEach(input=>input.disabled=false);}};
 $('audio-cancel').onclick=()=>{if(!saving)load(true);};
 window.addEventListener('beforeunload',event=>{if(saving||dirty()){event.preventDefault();event.returnValue='';}});
 document.addEventListener('click',event=>{if(event.target.closest('.rh-nav a')&&(saving||dirty())&&!confirm('Leave without saving audio changes?')){event.preventDefault();event.stopImmediatePropagation();}},true);
-[...inputs,$('notch-enabled'),$('notch-frequency')].forEach(input=>input.disabled=true);setInterval(()=>{if(!document.hidden)load();},3000);load();})();</script>)JS";
+renderBalance();fields.forEach(input=>input.disabled=true);setInterval(()=>{if(!document.hidden)load();},3000);load();})();</script>)JS";
         break;
     case WebSection::Stations: {
         const int savedCount = savedStationCount();
@@ -1158,7 +1170,7 @@ void handleConfigShell(WebSection section) {
     html = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#0b1321'><title>radiohead / settings</title>"
         "<link rel='icon' type='image/png' href='/favicon.png'>"
-        "<link rel='stylesheet' href='/ui/radiohead.css?v=station-play'></head><body class='radiohead-page'><div id='rh-config'>"
+        "<link rel='stylesheet' href='/ui/radiohead.css?v=stereo-balance'></head><body class='radiohead-page'><div id='rh-config'>"
         "<header class='rh-top'><div class='rh-brand'><span class='rh-brand-mark' aria-hidden='true'>⌁</span>radiohead <span class='rh-muted'>/ settings</span></div>"
         "<div class='rh-topmeta'><span>" + htmlEscape(connectionState()) + "</span><span dir='ltr'>" +
         htmlEscape(addressLabel) + "</span></div></header><div class='rh-layout'><aside class='rh-sidebar'>";
@@ -2052,12 +2064,15 @@ void startWebServer() {
     });
     server.on("/api/device/encoder-debug", HTTP_GET, [] {
         const EncoderDiagnostics encoder = encoderDiagnostics();
-        char json[512];
+        char json[640];
         snprintf(json, sizeof(json),
             "{\"pinA\":%d,\"pinB\":%d,\"pinSwitch\":%d,\"taskCreated\":%s,"
             "\"samples\":%lu,\"rawA\":%d,\"rawB\":%d,\"rawSwitch\":%d,"
             "\"sampledAB\":%u,\"aEdges\":%lu,\"bEdges\":%lu,"
-            "\"positiveTicks\":%lu,\"negativeTicks\":%lu,\"invalidTransitions\":%lu}",
+            "\"positiveTicks\":%lu,\"negativeTicks\":%lu,\"invalidTransitions\":%lu,"
+            "\"maxSampleGapMs\":%lu,\"buttonEdges\":%lu,\"buttonPresses\":%lu,"
+            "\"buttonClicks\":%lu,\"buttonHolds\":%lu,\"buttonClicksConsumed\":%lu,"
+            "\"buttonEventsDropped\":%lu,\"pendingButtonEvents\":%u}",
             PIN_A, PIN_B, PIN_SW, encoder.taskCreated ? "true" : "false",
             static_cast<unsigned long>(encoder.samples), encoder.rawA, encoder.rawB,
             encoder.rawSwitch, static_cast<unsigned>(encoder.sampledAB),
@@ -2065,9 +2080,42 @@ void startWebServer() {
             static_cast<unsigned long>(encoder.bEdges),
             static_cast<unsigned long>(encoder.positiveTicks),
             static_cast<unsigned long>(encoder.negativeTicks),
-            static_cast<unsigned long>(encoder.invalidTransitions));
+            static_cast<unsigned long>(encoder.invalidTransitions),
+            static_cast<unsigned long>(encoder.maxSampleGapMs),
+            static_cast<unsigned long>(encoder.buttonEdges),
+            static_cast<unsigned long>(encoder.buttonPresses),
+            static_cast<unsigned long>(encoder.buttonClicks),
+            static_cast<unsigned long>(encoder.buttonHolds),
+            static_cast<unsigned long>(encoder.buttonClicksConsumed),
+            static_cast<unsigned long>(encoder.buttonEventsDropped),
+            static_cast<unsigned>(encoder.pendingButtonEvents));
         server.sendHeader("Cache-Control", "no-store");
         server.send(200, "application/json; charset=utf-8", json);
+    });
+    server.on("/api/device/display-orientation", HTTP_GET, [] {
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json; charset=utf-8",
+            String("{\"flipped\":") + (displayFlipped ? "true}" : "false}"));
+    });
+    server.on("/api/device/display-orientation", HTTP_POST, [] {
+        server.sendHeader("Cache-Control", "no-store");
+        if (server.header("X-Radiohead-Config") != "1") {
+            server.send(403, "application/json; charset=utf-8", "{\"error\":\"Include X-Radiohead-Config: 1 to save orientation.\"}");
+            return;
+        }
+        if (webRestartScheduled || webMaintenanceBusy()) { sendMaintenanceBusy(); return; }
+        const String flipped = server.arg("flipped");
+        if (flipped != "0" && flipped != "1") {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"flipped must be 0 (original) or 1 (upside down).\"}");
+            return;
+        }
+        if (!saveDisplayFlipped(flipped == "1")) {
+            server.send(500, "application/json; charset=utf-8", "{\"error\":\"Display orientation could not be saved.\"}");
+            return;
+        }
+        setDisplayFlipped(flipped == "1");
+        server.send(200, "application/json; charset=utf-8",
+            String("{\"flipped\":") + (displayFlipped ? "true}" : "false}"));
     });
     server.on("/api/device/boot-mode", HTTP_GET, [] {
         server.sendHeader("Cache-Control", "no-store");
@@ -2328,6 +2376,13 @@ void startWebServer() {
             sendPlayerState(409);
             return;
         }
+        // Older Audio clients omit balance when saving their other settings.
+        int balance = radioBalance();
+        if (server.hasArg("balance") &&
+            !parseIntegerArg("balance", -kAudioBalanceLimit, kAudioBalanceLimit, balance)) {
+            server.send(400, "application/json; charset=utf-8", "{\"error\":\"Invalid stereo balance\"}");
+            return;
+        }
         int bass = 0, mid = 0, treble = 0, enabled = 0, frequency = 0, endHz = 0;
         if (!parseIntegerArg("bass", -15, 15, bass) ||
             !parseIntegerArg("mid", -15, 15, mid) ||
@@ -2345,6 +2400,7 @@ void startWebServer() {
         gT = treble;
         mediaSetTone(gB, gM, gT);
         mediaSetNotchFilter(enabled != 0, frequency, endHz);
+        radioSetBalance(balance);
         forceRedraw = true;
         queueSettingsSave();
         sendPlayerState();

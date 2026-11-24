@@ -107,6 +107,8 @@ int mediaPlayingStation();
 // Assert GPIO2 speaker mute and quiet I2S before other setup work.
 // Call only before I2S owns the pins. Speaker mute lasts at least four seconds.
 void mediaPrepareBootOutput();
+// Boot-loop only. Start the chime 500 ms after the four-second mute period.
+bool mediaBootAudioReady();
 // Main-loop/boot-loop only. Boot audio supplies its decoder-ready state.
 void mediaUpdateSpeakerMute(bool bootPlaying = false);
 // Immediately silence the external output before stopping/handoff/sleep.

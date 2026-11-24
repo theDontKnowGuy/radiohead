@@ -1,5 +1,11 @@
 # TFT UI: current state
 
+2026-11-12: [Orientation API](../display-orientation.md) now saves each device's
+0°/180° landscape choice and rotates touch with the display. Host storage,
+startup, route and held-touch checks plus the firmware build passed. No logical
+layout/assets changed; physical appearance, touch alignment, reboot persistence
+and audio during rotation are unverified. This image was not flashed.
+
 This summarizes the old iterative logs. [Controls](configuration-and-controls-plan.md)
 and [visual rules](visual-contract.md) define the intended result; a code change,
 native image and physical test are separate evidence. Full prior detail is in Git.

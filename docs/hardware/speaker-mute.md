@@ -7,8 +7,9 @@ It cannot drive speaker or relay-coil current. Circuit values/schematic are undo
 Firmware sets HIGH first in setup and holds it for at least **4 s**, without blocking.
 Afterward it stays HIGH for mute, zero volume, pause/stop, connecting/failure,
 source handoffs and light sleep. Playback on radio/podcasts/Spotify can release it.
-Unmute keeps volume and playback position. Boot audio may become audible after 4 s;
-its fixed volume is independent of saved radio volume.
+Unmute keeps volume and playback position. Boot audio starts 500 ms after the
+4 s mute period ends (at least 4.5 s after setup starts), once boot artwork and
+audio initialization are ready. Its fixed volume is independent of saved radio volume.
 
 The external circuit must default muted during reset/unpowered time; firmware
 cannot silence anything before setup. Check GPIO2 to GND and actual speaker silence

@@ -61,6 +61,7 @@ uint32_t wifiHandoffBuffered = 0;
 constexpr bool kBootQuietOutputExperiment = true;
 constexpr uint8_t kBootVolumeIndex = 10;
 constexpr uint32_t kSpeakerBootMuteMs = 4000;
+constexpr uint32_t kBootAudioAfterMuteMs = 500;
 uint32_t speakerBootStartedAt = 0;
 bool speakerBootHoldComplete = false;
 
@@ -1328,6 +1329,11 @@ void mediaPrepareBootOutput() {
 
 void mediaSilenceSpeakers() {
     gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), 1);
+}
+
+bool mediaBootAudioReady() {
+    return static_cast<uint32_t>(millis() - speakerBootStartedAt) >=
+        kSpeakerBootMuteMs + kBootAudioAfterMuteMs;
 }
 
 void mediaUpdateSpeakerMute(bool bootPlaying) {

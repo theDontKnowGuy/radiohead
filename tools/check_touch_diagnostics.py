@@ -84,7 +84,7 @@ bool haveSaved = true;
 bool loadTouchCalibration(TouchCalibration& result) { result=stored; return haveSaved; }
 void recordTouchPoll(bool,bool,TouchEvent,unsigned long,unsigned long,unsigned long) {}
 enum class UiPage { Home, PodcastPlayer };
-struct UiRenderState { bool dirty=false; UiPage page=UiPage::Home; };
+struct UiRenderState { bool dirty=false, volumeOverlay=false; UiPage page=UiPage::Home; };
 UiRenderState uiControllerRenderState() { return {}; }
 struct PodcastPlaybackSnapshot { bool active=false, paused=false; };
 PodcastPlaybackSnapshot podcastPlaybackSnapshot() { return {}; }
