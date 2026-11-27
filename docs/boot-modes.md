@@ -25,8 +25,8 @@ POST errors: 400 invalid mode, 403 missing header, 409 busy/restarting, 500 save
   Missing/invalid values and factory reset select mode 0. Normal saves and OTA retain it.
 - Sources: mode 0 `docs/boot.png`; mode 1 `docs/ui/boot screen/bootscreen.png`.
   Older image variants remain beside it. Replacing an image needs a rebuild.
-- Both bars use Y=189. Mode 0: cyan, 4.5 s, Radiohead branding.
-  Mode 1: white, 6.75 s, `רדיו יהיה בסדר`. Web/Spotify naming is separate.
+- Both bars use Y=189. Mode 0: cyan, 7.5 s, Radiohead branding.
+  Mode 1: white, 9.75 s, `רדיו יהיה בסדר`. Web/Spotify naming is separate.
 - Wi-Fi starts during the boot screen. The configuration QR stays for 7 s;
   joining has a total 15 s budget, then falls back to setup AP. No credentials
   or a held encoder switch starts AP setup directly.

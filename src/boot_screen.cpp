@@ -33,7 +33,7 @@ struct BootStyle {
 
 // Both modes share the bar position; colors and timing remain independent.
 const BootStyle kOriginalStyle = {boot_logo_png, boot_logo_png_len, kBarY, 0x1BB8EE, 0x0C3764, ProgressMs};
-const BootStyle kNewArtworkStyle = {boot_screen_new_png, boot_screen_new_png_len, kBarY, 0xFFFFFF, 0x0C3764, ProgressMs * 3 / 2};
+const BootStyle kNewArtworkStyle = {boot_screen_new_png, boot_screen_new_png_len, kBarY, 0xFFFFFF, 0x0C3764, NewArtworkProgressMs};
 
 const BootStyle& activeStyle() {
     return bootMode == BootMode::Original ? kOriginalStyle : kNewArtworkStyle;

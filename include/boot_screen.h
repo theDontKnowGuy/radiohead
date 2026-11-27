@@ -4,12 +4,12 @@
 
 namespace BootScreen {
 
-// Tune these together for the embedded AAC. Audio waits for the media boot
-// mute period plus 500 ms; mode 1 takes 50% longer to fill than ProgressMs below.
-// The screen closes after playback + tail and mode 1's full progress animation.
-constexpr unsigned long ProgressMs = 4500;
-constexpr unsigned long AfterAudioMs = 2000;
-constexpr unsigned long MaxHoldMs = 15000;
+// The boot audio starts after the media mute period plus 500 ms. With sound,
+// the screen holds through playback and its tail, up to MaxHoldMs.
+constexpr unsigned long ProgressMs = 7500;
+constexpr unsigned long NewArtworkProgressMs = 9750;
+constexpr unsigned long AfterAudioMs = 5000;
+constexpr unsigned long MaxHoldMs = 18000;
 
 // Paint this boot's selected 4:3 artwork with its mode's empty progress trough.
 void draw();
