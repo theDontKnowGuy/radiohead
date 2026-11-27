@@ -38,6 +38,7 @@ void saveSettings();
 // Coalesce rapid, user-driven web or encoder changes before touching flash.
 void queueSettingsSave();
 void serviceSettingsSave(unsigned long now);
+void flushSettingsSave();
 
 // Zero is the persisted sentinel for disabling automatic dimming.  The TFT
 // also exposes only measured, bounded timeout choices up to five minutes.

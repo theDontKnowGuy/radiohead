@@ -14,6 +14,7 @@
 #include <time.h>
 
 #include "app_state.h"
+#include "audio_balance.h"
 #include "ConfigQrCode.h"
 #include "display_fonts.h"
 #include "firmware_updater.h"
@@ -1960,11 +1961,15 @@ void drawSettingsListRow(int16_t y, const char* label, uint8_t icon, bool danger
     drawSettingsChevron(kListOuterInset + 226, y + 23, danger ? kRed : kWhite);
 }
 
-// Audio rows use the full-width surface, with equal eight-pixel side margins.
-// The 44-pixel +/- targets are shared with hit testing below.
-constexpr int16_t kToneMinusX = 204;
-constexpr int16_t kTonePlusX = 260;
+constexpr int16_t kToneFirstX = 14;
+constexpr int16_t kToneColumnWidth = 102;
+constexpr int16_t kToneButtonTop = 86;
 constexpr int16_t kToneButtonWidth = 44;
+constexpr int16_t kBalanceCardTop = 136;
+constexpr int16_t kEditorCancelX = 16;
+constexpr int16_t kEditorSaveX = 168;
+constexpr int16_t kEditorFooterWidth = 136;
+constexpr int16_t kEditorFooterTop = 190;
 
 // The shared wide-card artwork is 42 px high. These origins center the visible
 // two-line glyph block (the fonts' ink sits below its nominal origin), leaving
@@ -1973,21 +1978,53 @@ constexpr int16_t kToneButtonWidth = 44;
 constexpr int16_t kFirmwareCardPrimaryTextInset = 4;
 constexpr int16_t kFirmwareCardSecondaryTextInset = 22;
 
-void drawEditorControl(int16_t y, const char* label, int value) {
-    drawListCard(8, y + 2, false, true);
-    listPrimaryText(label, 24, y, 104);
+void drawToneControl(int16_t x, const char* label, int value) {
+    const auto* font = uiFont(&fonts::FreeSans9pt7b);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
-    canvas().drawString(String(value).c_str(), 166, y + 23, uiFont(&fonts::FreeSans9pt7b));
-    canvas().fillRoundRect(kToneMinusX + 4, y + 5, kToneButtonWidth - 8, 36, 6, kSlate);
-    canvas().fillRoundRect(kTonePlusX + 4, y + 5, kToneButtonWidth - 8, 36, 6, kBlue);
-    canvas().drawString("-", kToneMinusX + kToneButtonWidth / 2, y + 23, uiFont(&fonts::FreeSans9pt7b));
-    canvas().drawString("+", kTonePlusX + kToneButtonWidth / 2, y + 23, uiFont(&fonts::FreeSans9pt7b));
+    canvas().drawString(label, x + kToneButtonWidth, 56, font);
+    canvas().drawNumber(value, x + kToneButtonWidth, 76, font);
+    canvas().fillRoundRect(x + 4, kToneButtonTop + 4, kToneButtonWidth - 8, 36, 6, kSlate);
+    canvas().fillRoundRect(x + kToneButtonWidth + 4, kToneButtonTop + 4,
+                           kToneButtonWidth - 8, 36, 6, kBlue);
+    canvas().drawString("-", x + kToneButtonWidth / 2, kToneButtonTop + 22, font);
+    canvas().drawString("+", x + 3 * kToneButtonWidth / 2, kToneButtonTop + 22, font);
+}
+
+void drawBalanceControl(int balance) {
+    constexpr int16_t centerX = UI_AUDIO_BALANCE_CENTER_X;
+    constexpr int16_t trackLeft = centerX - kAudioBalanceLimit;
+    constexpr int16_t trackY = kBalanceCardTop + 30;
+    const int16_t thumbX = centerX + balance;
+    drawListCard(8, kBalanceCardTop, false, true);
+
+    const auto* font = uiFont(&fonts::FreeSans9pt7b);
+    text("Stereo balance", 24, kBalanceCardTop + 3, font, kWhite, 166);
+    char value[12] = "Center";
+    if (balance != 0) {
+        snprintf(value, sizeof(value), "%s %d%%", balance < 0 ? "Left" : "Right", std::abs(balance));
+    }
+    canvas().setTextDatum(MR_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString(value, 296, kBalanceCardTop + 11, font);
+
+    const auto* labelFont = uiFont(&fonts::Font0);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kTextMuted);
+    canvas().drawString("Left", 32, trackY, labelFont);
+    canvas().drawString("Right", 288, trackY, labelFont);
+    canvas().fillRoundRect(trackLeft, trackY - 3, 2 * kAudioBalanceLimit + 1, 6, 3, kSurfaceRaised);
+    if (balance != 0) {
+        canvas().fillRect(std::min<int16_t>(centerX, thumbX), trackY - 3,
+                          std::abs(balance) + 1, 6, kBlue);
+    }
+    canvas().drawFastVLine(centerX, trackY - 5, 11, kTextMuted);
+    canvas().fillCircle(thumbX, trackY, 6, kWhite);
 }
 
 void drawEditorFooter() {
-    canvas().fillRoundRect(16, 190, 136, 40, 6, kSlate);
-    canvas().fillRoundRect(168, 190, 136, 40, 6, kBlue);
+    canvas().fillRoundRect(kEditorCancelX, kEditorFooterTop, kEditorFooterWidth, 40, 6, kSlate);
+    canvas().fillRoundRect(kEditorSaveX, kEditorFooterTop, kEditorFooterWidth, 40, 6, kBlue);
     canvas().setTextDatum(MC_DATUM);
     canvas().setTextColor(kWhite);
     canvas().drawString("Cancel", 84, 210, uiFont(&fonts::Font0));
@@ -2066,11 +2103,13 @@ void renderWiFiSettings(const UiRenderState& state, const char* currentTime, boo
     drawPageHeader("Wi-Fi", currentTime, timeValid);
 }
 
-void renderToneSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
+void renderAudioSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawSettingsBackground();
-    drawEditorControl(44, "Bass", state.toneBassDraft);
-    drawEditorControl(92, "Mid", state.toneMidDraft);
-    drawEditorControl(140, "Treble", state.toneTrebleDraft);
+    drawListCard(8, 44, false, true);
+    drawToneControl(kToneFirstX, "Bass", state.toneBassDraft);
+    drawToneControl(kToneFirstX + kToneColumnWidth, "Mid", state.toneMidDraft);
+    drawToneControl(kToneFirstX + 2 * kToneColumnWidth, "Treble", state.toneTrebleDraft);
+    drawBalanceControl(state.balanceDraft);
     drawEditorFooter();
     drawPageHeader("Audio", currentTime, timeValid);
 }
@@ -2570,18 +2609,17 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         }
     } else if (state.page == UiPage::SettingsAudio) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
-        if (x >= kToneMinusX && x < kToneMinusX + kToneButtonWidth) {
-            if (y >= 44 && y < 90) return UiTarget::ToneBassDecrease;
-            if (y >= 92 && y < 138) return UiTarget::ToneMidDecrease;
-            if (y >= 140 && y < 186) return UiTarget::ToneTrebleDecrease;
+        for (int column = 0; column < 3; ++column) {
+            const int16_t left = kToneFirstX + column * kToneColumnWidth;
+            if (contains(x, y, left, kToneButtonTop, 2 * kToneButtonWidth, kToneButtonWidth)) {
+                const int button = x >= left + kToneButtonWidth ? 1 : 0;
+                return static_cast<UiTarget>(static_cast<int>(UiTarget::ToneBassDecrease) +
+                                             2 * column + button);
+            }
         }
-        if (x >= kTonePlusX && x < kTonePlusX + kToneButtonWidth) {
-            if (y >= 44 && y < 90) return UiTarget::ToneBassIncrease;
-            if (y >= 92 && y < 138) return UiTarget::ToneMidIncrease;
-            if (y >= 140 && y < 186) return UiTarget::ToneTrebleIncrease;
-        }
-        if (contains(x, y, 16, 190, 136, 40)) return UiTarget::ToneCancel;
-        if (contains(x, y, 168, 190, 136, 40)) return UiTarget::ToneSave;
+        if (contains(x, y, 8, kBalanceCardTop - 1, 304, 44)) return UiTarget::AudioBalance;
+        if (contains(x, y, kEditorCancelX, kEditorFooterTop - 2, kEditorFooterWidth, 44)) return UiTarget::AudioCancel;
+        if (contains(x, y, kEditorSaveX, kEditorFooterTop - 2, kEditorFooterWidth, 44)) return UiTarget::AudioSave;
     } else if (state.page == UiPage::SettingsDisplay) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
         if (contains(x, y, 218, 64, 44, 52)) return UiTarget::DimDecrease;
@@ -2667,7 +2705,7 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
             renderWiFiSettings(state, currentTime, timeValid);
             break;
         case UiPage::SettingsAudio:
-            renderToneSettings(state, currentTime, timeValid);
+            renderAudioSettings(state, currentTime, timeValid);
             break;
         case UiPage::SettingsDisplay:
             renderDisplaySettings(state, currentTime, timeValid);

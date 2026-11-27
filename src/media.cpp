@@ -228,7 +228,7 @@ void serviceSpotifySignals() {
                     restoreLocalOutput("transfer-away");
                     playbackState = PlaybackState::Stopped;
                     forceRedraw = true;
-                } else if (spotifyStatus == MediaStatus::Failed) {
+                } else if (outputOwner == OutputOwner::Local && spotifyStatus == MediaStatus::Failed) {
                     clearSpotifyMetadata();
                     spotifyStatus = MediaStatus::Stopped;
                     forceRedraw = true;
@@ -294,6 +294,29 @@ void applyLocalOutputSettings() {
     mediaSetTone(gB, gM, gT);
 }
 
+void connectRadioStream(const String& url) {
+    // Audio::loop() dispatches queued events even after stopSong(). Drain
+    // them while stopped so old stream-ready/EOF events cannot change the
+    // next request, including while parseM3U() services the audio loop.
+    playbackState = PlaybackState::Stopped;
+    if (audio.isRunning()) audio.stopSong();
+    audio.loop();
+
+    applyLocalOutputSettings();
+    const String targetUrl = parseM3U(url);
+    radioDiagnosticsMediaBegin(RadioMediaOperation::Connect, stationRecoveryAttempts);
+    const bool connected = isHttpUrl(targetUrl) && audio.connecttohost(targetUrl.c_str());
+    radioDiagnosticsMediaEnd(connected ? 1 : 0);
+    if (!connected) {
+        playbackState = PlaybackState::Failed;
+        return;
+    }
+    playbackState = PlaybackState::Connecting;
+    requestStartedAt = millis();
+    ignoreEofUntilPlaybackReady = true;
+    radioDiagnosticsMediaBegin(RadioMediaOperation::AwaitPlayback, stationRecoveryAttempts);
+}
+
 void logStreamDiagnostic(const char* event) {
     // Audio callbacks can run on the PCM task. Publish fixed flags only: USB
     // Serial output here can itself stall playback when no reader is attached.
@@ -334,6 +357,7 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
     if (outputOwner != OutputOwner::Local) return;
 #endif
+    if (playbackState == PlaybackState::Stopped) return;
     if (message.e == Audio::evt_info && message.msg != nullptr &&
         (strcmp(message.msg, "slow stream") == 0 || strcmp(message.msg, "Stream lost") == 0)) {
         // The audio library has its own stream-loss reconnect path.  Record the
@@ -356,7 +380,7 @@ void updatePlaybackFromAudioInfo(Audio::msg_t message) {
         playbackState = PlaybackState::Playing;
         playingStation = requestedStation;
         forceRedraw = true;
-    } else if (message.e == Audio::evt_eof && playbackState != PlaybackState::Stopped) {
+    } else if (message.e == Audio::evt_eof) {
         // Replacing a station queues an EOF from the old connection.  Let the
         // new request reach `stream ready` (or its bounded timeout) before an
         // EOF can be treated as a failure of that request.
@@ -741,14 +765,14 @@ void mediaTick(unsigned long now) {
     if (podcastState == PodcastLoadState::Loading && !podcastFetchBusy) startPendingPodcastFetch();
 
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
-    if (outputOwner != OutputOwner::Local) return;
+    // A station retry may need to restore output before Audio can run again.
+    if (outputOwner == OutputOwner::Spotify) return;
 #endif
 
-    if (serviceMediaWifiHandoff()) {
+    if (mediaLocalAudioAvailable() && serviceMediaWifiHandoff()) {
         mediaUpdateSpeakerMute();
         return;
     }
-
     if (stationRecoveryScheduled && static_cast<long>(now - stationRecoveryDueAt) >= 0) {
         if (WiFi.status() != WL_CONNECTED) {
             stationRecoveryDueAt = now + kWifiRecoveryPollMs;
@@ -762,6 +786,10 @@ void mediaTick(unsigned long now) {
             playStation(station);
             stationRecoveryAttempt = false;
         }
+    }
+    if (!mediaLocalAudioAvailable()) {
+        if (stationRecoveryScheduled) radioDiagnosticsMediaRetryWait(stationRecoveryAttempts);
+        return;
     }
 
     // A retry above (or a UI command earlier in this loop) can start a request
@@ -1115,48 +1143,28 @@ void playStation(int stationIndex) {
         forceRedraw = true;
         return;
     }
-#if defined(RADIO_SPOTIFY_EXPERIMENT)
-    if (!restoreLocalOutput("station")) return;
-#endif
-
     podcastMode = false;
+    podcastPaused = false;
     hasActivePodcastEpisode = false;
     activePodcastShow = -1;
     activePodcastEpisode = -1;
-    applyLocalOutputSettings();
     podcastShowTft = "";
     songTitle = "";
-    if (!isHttpUrl(stations[stationIndex].url)) {
-        audio.stopSong();
-        playbackState = PlaybackState::Failed;
-        requestedStation = stationIndex;
-        playingStation = -1;
-        forceRedraw = true;
-        return;
-    }
-    currentStationIdx = stationIndex;
-    tempStationIdx = stationIndex;
     requestedStation = stationIndex;
     playingStation = -1;
-    playbackState = PlaybackState::Connecting;
-    requestStartedAt = millis();
-    ignoreEofUntilPlaybackReady = true;
     forceRedraw = true;
-    const String targetUrl = parseM3U(stations[stationIndex].url);
-    if (isHttpUrl(targetUrl)) {
-        radioDiagnosticsMediaBegin(RadioMediaOperation::Connect, stationRecoveryAttempts);
-        const bool connected = audio.connecttohost(targetUrl.c_str());
-        radioDiagnosticsMediaEnd(connected ? 1 : 0);
-        if (!connected) {
-            playbackState = PlaybackState::Failed;
-            forceRedraw = true;
-        } else {
-            radioDiagnosticsMediaBegin(RadioMediaOperation::AwaitPlayback, stationRecoveryAttempts);
-        }
-    } else {
-        playbackState = PlaybackState::Failed;
-        forceRedraw = true;
+    if (isHttpUrl(stations[stationIndex].url)) {
+        currentStationIdx = stationIndex;
+        tempStationIdx = stationIndex;
     }
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    if (!restoreLocalOutput("station")) {
+        playbackState = PlaybackState::Failed;
+        scheduleStationRecovery("output handoff");
+        return;
+    }
+#endif
+    connectRadioStream(stations[stationIndex].url);
 }
 
 bool startStationTest(const String& name, const String& url) {
@@ -1167,41 +1175,25 @@ bool startStationTest(const String& name, const String& url) {
 #endif
     cancelStationRecovery();
     podcastMode = false;
+    podcastPaused = false;
     hasActivePodcastEpisode = false;
     activePodcastShow = -1;
     activePodcastEpisode = -1;
-    applyLocalOutputSettings();
     podcastShowTft = "";
     songTitle = "";
     stationTestPlayback = true;
     stationTestName = name;
     requestedStation = -1;
     playingStation = -1;
-    playbackState = PlaybackState::Connecting;
-    requestStartedAt = millis();
-    ignoreEofUntilPlaybackReady = true;
     forceRedraw = true;
-    const String targetUrl = parseM3U(url);
-    radioDiagnosticsMediaBegin(RadioMediaOperation::Connect, 0);
-    const bool connected = isHttpUrl(targetUrl) && audio.connecttohost(targetUrl.c_str());
-    radioDiagnosticsMediaEnd(connected ? 1 : 0);
-    if (!connected) {
-        playbackState = PlaybackState::Failed;
-        forceRedraw = true;
-    } else {
-        radioDiagnosticsMediaBegin(RadioMediaOperation::AwaitPlayback, 0);
-    }
+    connectRadioStream(url);
     return true;
 }
 
 void stopStationPlayback() {
     mediaSilenceSpeakers();
-#if defined(RADIO_SPOTIFY_EXPERIMENT)
-    if (!restoreLocalOutput("stop")) return;
-#endif
     validationEvent("playback_stop");
     cancelStationRecovery();
-    audio.stopSong();
     podcastMode = false;
     hasActivePodcastEpisode = false;
     activePodcastShow = -1;
@@ -1214,6 +1206,10 @@ void stopStationPlayback() {
     stationTestPlayback = false;
     stationTestName = "";
     forceRedraw = true;
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    if (!restoreLocalOutput("stop")) return;
+#endif
+    audio.stopSong();
 }
 
 PlaybackState mediaPlaybackState() { return playbackState; }
@@ -1230,7 +1226,8 @@ const MediaSnapshot& mediaSnapshot() {
     const String* album = &empty;
     bool canPause = false;
 #if defined(RADIO_SPOTIFY_EXPERIMENT)
-    if (outputOwner == OutputOwner::Spotify || spotifyStatus == MediaStatus::Failed) {
+    if (outputOwner == OutputOwner::Spotify ||
+        (spotifyStatus == MediaStatus::Failed && requestedStation < 0)) {
         source = MediaSource::Spotify;
         status = spotifyStatus;
         nameText = "Spotify";

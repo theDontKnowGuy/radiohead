@@ -14,12 +14,8 @@ constexpr unsigned long MaxHoldMs = 15000;
 // Paint this boot's selected 4:3 artwork with its mode's empty progress trough.
 void draw();
 
-// Start the firmware-embedded boot sound.
-void startAudio();
-
-// Animate from the caller's start time, then keep the screen until playback
-// finishes and its tail elapses; mode 1 also waits for its bar to finish.
-// Never wait for the network here; joining continues on the QR screen.
-void hold(unsigned long startedAt);
+// Animate the progress bar. With sound enabled, also wait for playback and
+// its tail. Network joining continues independently.
+void hold(unsigned long startedAt, bool playSound);
 
 }  // namespace BootScreen

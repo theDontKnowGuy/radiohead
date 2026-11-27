@@ -10,9 +10,12 @@ root = Path(__file__).resolve().parents[1]
 out = root / ".pio/startup_native"
 out.mkdir(parents=True, exist_ok=True)
 main = (root / "src/main.cpp").read_text()
+control = (root / "src/device_control.cpp").read_text()
 web = (root / "src/web_server.cpp").read_text()
 wifi = (root / "src/wifi_network.cpp").read_text()
 setup = main[main.index("void setup() {"):main.index("\nvoid loop() {")]
+daily_state = control[control.index("constexpr int kDailyRebootHour"):control.index("portMUX_TYPE encoderMux")]
+daily_reboot = control[control.index("bool restoreDailyRebootState() {"):control.index("void goToSleep() {")]
 mdns = web[web.index("void startWebMdns() {"):web.index("\nString networkMessage;")]
 connectivity = web[web.index("void serviceWebConnectivity() {"):]
 listener = web[web.index("    server.begin();\n    webStationConnected"):web.index("\nvoid serviceWebConnectivity() {")]
@@ -23,6 +26,7 @@ source = r'''
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <limits>
 #include <string>
 #include <vector>
@@ -124,11 +128,39 @@ void startDeviceControl() {}
 unsigned long lastInteraction = 0;
 bool firmwareAutoUpdate = false, forceRedraw = false;
 void uiControllerBegin() {}
-struct UpdaterStub { void begin(bool) { assert(!isAP); } } firmwareUpdater;
+bool radioMuted = false, bootSound = false;
+bool webRestart = false, webMaintenance = false;
+bool webRestartPending() { return webRestart; }
+bool webUpdateInProgress() { return webMaintenance; }
+struct UpdaterStub {
+    bool busy = false;
+    void begin(bool) { assert(!isAP); }
+    bool tryBeginLocalMaintenance() {
+        if (busy) return false;
+        busy = true;
+        return true;
+    }
+} firmwareUpdater;
+enum esp_reset_reason_t { ESP_RST_POWERON, ESP_RST_SW, ESP_RST_BROWNOUT, ESP_RST_PANIC };
+esp_reset_reason_t resetReason = ESP_RST_POWERON;
+esp_reset_reason_t esp_reset_reason() { return resetReason; }
+#define RTC_NOINIT_ATTR
+unsigned speakerMutes = 0, flushes = 0, dailyRestarts = 0;
+void mediaSilenceSpeakers() { ++speakerMutes; }
+void flushSettingsSave() { assert(speakerMutes > flushes); ++flushes; }
+struct EspStub {
+    void restart() {
+        assert(firmwareUpdater.busy && flushes > dailyRestarts);
+        ++dailyRestarts;
+    }
+} ESP;
 namespace BootScreen {
     void draw() { assert(joined || isAP); }
-    void startAudio() {}
-    void hold(unsigned long) { delay(bootDuration); bootEndedAt = millis(); }
+    void hold(unsigned long, bool playSound) {
+        bootSound = playSound;
+        delay(bootDuration);
+        bootEndedAt = millis();
+    }
 }
 enum class QrState { Joining, Connected, Setup };
 std::vector<QrState> qrStates;
@@ -145,7 +177,7 @@ void mediaStartSavedPlayback() {
     if (radioStarted) assert(ntpStarted && MDNS.begins == 1 && MDNS.http == 1);
 }
 '''
-source += join + "\n" + mdns
+source += daily_state + "\n" + daily_reboot + "\n" + join + "\n" + mdns
 source += "\nvoid startWebServer() {\n" + listener
 source += "\n" + connectivity + "\n" + setup
 source += r'''
@@ -161,7 +193,58 @@ int main(int argc, char** argv) {
     if (scenario == "no-credentials") st_ssid.clear();
     if (scenario == "requested-setup") requestedSetup = true;
     if (scenario == "flap") { connectionDelay = 8000; flap = true; }
+    if (scenario == "daily-reboot") {
+        tm local{};
+        local.tm_year = 126;
+        local.tm_mon = 10;
+        local.tm_mday = 27;
+        local.tm_hour = 3;
+        local.tm_min = 59;
+        serviceDailyReboot(local);
+        assert(dailyRestarts == 0);
+
+        local.tm_hour = 4;
+        local.tm_min = 0;
+        webRestart = true;
+        serviceDailyReboot(local);
+        webRestart = false;
+        webMaintenance = true;
+        serviceDailyReboot(local);
+        webMaintenance = false;
+        firmwareUpdater.busy = true;
+        serviceDailyReboot(local);
+        firmwareUpdater.busy = false;
+        assert(dailyRestarts == 0 && speakerMutes == 0 && flushes == 0);
+
+        radioMuted = true;
+        local.tm_min = 1;
+        serviceDailyReboot(local);
+        assert(dailyRestarts == 1);
+        resetReason = ESP_RST_SW;
+        radioMuted = false;
+        firmwareUpdater.busy = false;
+        setup();
+        assert(!bootSound && radioMuted && radioStarted);
+        assert(!restoreDailyRebootState()); // The next manual boot can play the sound.
+        serviceDailyReboot(local);
+        assert(dailyRestarts == 1 && !firmwareUpdater.busy);
+
+        ++local.tm_mday;
+        local.tm_hour = 5;
+        serviceDailyReboot(local);
+        assert(dailyRestarts == 1);
+        local.tm_hour = 4;
+        serviceDailyReboot(local);
+        assert(dailyRestarts == 2);
+        resetReason = ESP_RST_PANIC;
+        assert(!restoreDailyRebootState());
+        resetReason = ESP_RST_SW;
+        assert(!restoreDailyRebootState());
+        puts("Daily reboot schedule, maintenance, one-shot silence and mute restore passed");
+        return 0;
+    }
     setup();
+    assert(bootSound == (scenario != "no-credentials"));
     assert(roamingLoads > 0 && !backgroundRoaming);
     assert(firstQrAt == bootDuration); // No Wi-Fi wait before the second screen.
     if (scenario == "no-credentials" || scenario == "requested-setup") {
@@ -209,5 +292,5 @@ for spotify in (False, True):
         str(out / "startup.cpp"), "-o", str(exe),
     ], check=True)
     for scenario in ("early", "during-qr", "after-qr", "missing", "short-boot-missing",
-                     "no-credentials", "requested-setup", "flap"):
+                     "no-credentials", "requested-setup", "flap", "daily-reboot"):
         subprocess.run([str(exe), scenario], check=True)

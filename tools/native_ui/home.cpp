@@ -7,6 +7,7 @@
 #include <ctime>
 #include <string>
 #include <lgfx/v1/LGFX_Sprite.hpp>
+#include "audio_balance.h"
 #include "ConfigQrCode.h"
 #include "boot_mode.h"
 #include "display_fonts.h"
@@ -831,17 +832,22 @@ int main(int argc, char** argv) {
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
     assert(uiHitTest(toneHitState, 209, 22) == UiTarget::SettingsBack);
-    assert(uiHitTest(toneHitState, 226, 72) == UiTarget::ToneBassDecrease);
-    assert(uiHitTest(toneHitState, 282, 118) == UiTarget::ToneMidIncrease);
-    assert(uiHitTest(toneHitState, 236, 210) == UiTarget::ToneSave);
-    assert(uiHitTest(toneHitState, 203, 72) == UiTarget::None);
-    assert(uiHitTest(toneHitState, 204, 44) == UiTarget::ToneBassDecrease);
-    assert(uiHitTest(toneHitState, 247, 89) == UiTarget::ToneBassDecrease);
-    assert(uiHitTest(toneHitState, 248, 72) == UiTarget::None);
-    assert(uiHitTest(toneHitState, 259, 72) == UiTarget::None);
-    assert(uiHitTest(toneHitState, 260, 140) == UiTarget::ToneTrebleIncrease);
-    assert(uiHitTest(toneHitState, 303, 185) == UiTarget::ToneTrebleIncrease);
-    assert(uiHitTest(toneHitState, 304, 162) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 14, 86) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 57, 129) == UiTarget::ToneBassDecrease);
+    assert(uiHitTest(toneHitState, 58, 108) == UiTarget::ToneBassIncrease);
+    assert(uiHitTest(toneHitState, 102, 108) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 138, 108) == UiTarget::ToneMidDecrease);
+    assert(uiHitTest(toneHitState, 182, 108) == UiTarget::ToneMidIncrease);
+    assert(uiHitTest(toneHitState, 240, 108) == UiTarget::ToneTrebleDecrease);
+    assert(uiHitTest(toneHitState, 305, 129) == UiTarget::ToneTrebleIncrease);
+    assert(uiHitTest(toneHitState, 305, 130) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 8, 135) == UiTarget::AudioBalance);
+    assert(uiHitTest(toneHitState, 160, 166) == UiTarget::AudioBalance);
+    assert(uiHitTest(toneHitState, 311, 178) == UiTarget::AudioBalance);
+    assert(uiHitTest(toneHitState, 312, 166) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 236, 179) == UiTarget::None);
+    assert(uiHitTest(toneHitState, 84, 188) == UiTarget::AudioCancel);
+    assert(uiHitTest(toneHitState, 236, 231) == UiTarget::AudioSave);
     UiRenderState deviceHitState;
     deviceHitState.page = UiPage::SettingsDevice;
     assert(uiHitTest(deviceHitState, 209, 22) == UiTarget::SettingsBack);
@@ -1050,8 +1056,14 @@ int main(int argc, char** argv) {
     toneHitState.toneBassDraft = -15;
     toneHitState.toneMidDraft = 0;
     toneHitState.toneTrebleDraft = 15;
-    renderToneSettings(toneHitState, "15:01", true);
+    renderAudioSettings(toneHitState, "15:01", true);
     save((dir + "/settings-audio-smooth.ppm").c_str());
+    toneHitState.balanceDraft = -100;
+    renderAudioSettings(toneHitState, "15:01", true);
+    save((dir + "/settings-audio-left-smooth.ppm").c_str());
+    toneHitState.balanceDraft = 100;
+    renderAudioSettings(toneHitState, "15:01", true);
+    save((dir + "/settings-audio-right-smooth.ppm").c_str());
     UiRenderState displaySettings;
     displaySettings.page = UiPage::SettingsDisplay;
     assert(uiHitTest(displaySettings, 209, 22) == UiTarget::SettingsBack);

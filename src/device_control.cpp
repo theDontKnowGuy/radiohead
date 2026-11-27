@@ -3,11 +3,13 @@
 #include <WiFi.h>
 #include <driver/gpio.h>
 #include <driver/rtc_io.h>
+#include <esp_attr.h>
 #include <esp_sleep.h>
-#include <time.h>
+#include <esp_system.h>
 
 #include "app_state.h"
 #include "display.h"
+#include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
 #include "web_server.h"
@@ -18,6 +20,17 @@ constexpr unsigned long kButtonDebounceMs = 25;
 constexpr unsigned long kButtonHoldMs = 3000;
 constexpr uint8_t kButtonQueueSize = 8;
 constexpr unsigned long kTouchPollMs = 8;
+
+constexpr int kDailyRebootHour = 4;
+constexpr uint32_t kDailyRebootMarker = 0x52484452;
+struct DailyRebootState {
+    uint32_t date;
+    uint32_t pendingBoot;
+    uint32_t wasMuted;
+};
+// Retain the date across software resets to avoid repeating the reboot
+// within the same local hour. Consume the sound override on the next boot.
+RTC_NOINIT_ATTR DailyRebootState dailyReboot;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 // All shared encoder diagnostics use encoderMux, like encoderPos.
@@ -84,6 +97,30 @@ void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
 }
 
 }  // namespace
+
+bool restoreDailyRebootState() {
+    const esp_reset_reason_t reason = esp_reset_reason();
+    if (reason == ESP_RST_POWERON || reason == ESP_RST_BROWNOUT) dailyReboot = {};
+    const bool scheduled = reason == ESP_RST_SW && dailyReboot.pendingBoot == kDailyRebootMarker;
+    dailyReboot.pendingBoot = 0;
+    if (scheduled) radioMuted = dailyReboot.wasMuted != 0;
+    return scheduled;
+}
+
+void serviceDailyReboot(const tm& localTime) {
+    // Retry within the 4 a.m. hour if maintenance is in progress or the
+    // clock only becomes available after the hour begins.
+    if (localTime.tm_hour != kDailyRebootHour) return;
+    const uint32_t date = (localTime.tm_year + 1900) * 10000 +
+        (localTime.tm_mon + 1) * 100 + localTime.tm_mday;
+    if (date == dailyReboot.date || webRestartPending() || webUpdateInProgress() ||
+        !firmwareUpdater.tryBeginLocalMaintenance()) return;
+
+    mediaSilenceSpeakers();
+    flushSettingsSave();
+    dailyReboot = {date, kDailyRebootMarker, radioMuted ? 1U : 0U};
+    ESP.restart();
+}
 
 void goToSleep() {
     if (webUpdateInProgress()) {

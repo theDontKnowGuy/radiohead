@@ -116,20 +116,6 @@ void drawProgress(int percent) {
         kBarX, style.barY, width, kBarHeight, kBarRadius, style.barColor);
 }
 
-}  // namespace
-
-void draw() {
-    const BootStyle& style = activeStyle();
-    tft.fillScreen(TFT_BLACK);
-    const bool drawn = tft.drawPng(style.artwork, style.artworkBytes, 0, 0, 320, 240);
-    if (!drawn) {
-        Serial.println("[boot] boot artwork decode failed");
-    }
-    tft.drawRoundRect(
-        kBarX, style.barY, kBarWidth, kBarHeight, kBarRadius,
-        style.barTroughColor);
-}
-
 void startAudio() {
     bootDecoderReady = false;
     bootAudioEnded = false;
@@ -150,7 +136,21 @@ void startAudio() {
                   audio.getVolume());
 }
 
-void hold(unsigned long startedAt) {
+}  // namespace
+
+void draw() {
+    const BootStyle& style = activeStyle();
+    tft.fillScreen(TFT_BLACK);
+    const bool drawn = tft.drawPng(style.artwork, style.artworkBytes, 0, 0, 320, 240);
+    if (!drawn) {
+        Serial.println("[boot] boot artwork decode failed");
+    }
+    tft.drawRoundRect(
+        kBarX, style.barY, kBarWidth, kBarHeight, kBarRadius,
+        style.barTroughColor);
+}
+
+void hold(unsigned long startedAt, bool playSound) {
     const unsigned long progressMs = activeStyle().progressMs;
     int lastPercent = -1;
     bool audioStartAttempted = false;
@@ -161,7 +161,7 @@ void hold(unsigned long startedAt) {
     while (true) {
         const unsigned long now = millis();
         const unsigned long elapsed = now - startedAt;
-        if (!audioStartAttempted && mediaBootAudioReady()) {
+        if (playSound && !audioStartAttempted && mediaBootAudioReady()) {
             audioStartAttempted = true;
             startAudio();
             if (!bootAudioStarted) {
@@ -187,6 +187,7 @@ void hold(unsigned long startedAt) {
             lastPercent = percent;
             drawProgress(percent);
         }
+        if (!playSound && elapsed >= progressMs) break;
         if (audioFinished && millis() - audioEndedAt >= AfterAudioMs &&
             (bootMode == BootMode::Original || elapsed >= progressMs)) break;
         if (elapsed >= MaxHoldMs) break;

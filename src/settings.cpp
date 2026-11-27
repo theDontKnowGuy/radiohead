@@ -860,6 +860,10 @@ void serviceSettingsSave(unsigned long now) {
     }
 }
 
+void flushSettingsSave() {
+    if (settingsSavePending) saveSettings();
+}
+
 void loadSettings() {
     loadBootModeSettings();
     pref.begin("radio", true);

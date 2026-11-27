@@ -15,7 +15,9 @@ CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_MALLOC=y
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
+# Keep ordinary allocations in PSRAM first. Spotify and web activity can fill
+# internal RAM, which I2S, Wi-Fi and task stacks still explicitly require.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0
 # Fixed DMA TX storage avoids packet-time allocations under Spotify pressure.
 # wifi_network selects Arduino's static-buffer policy before Wi-Fi starts.
 # Retain the previous four RX buffers and dynamic-RX/cache queue limits.

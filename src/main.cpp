@@ -33,6 +33,7 @@ void setup() {
     }
     initializeTouchCalibration();
     loadSettings();
+    const bool dailyReboot = restoreDailyRebootState();
     // Initialize artwork storage once, including the user-authorized recovery
     // of the currently corrupt LittleFS partition, before web rendering can
     // ask for station thumbnails.
@@ -50,7 +51,7 @@ void setup() {
     }
     BootScreen::draw();
     const unsigned long bootScreenStartedAt = millis();
-    BootScreen::hold(bootScreenStartedAt);
+    BootScreen::hold(bootScreenStartedAt, !dailyReboot && !st_ssid.isEmpty());
     showNetworkQrScreen();
     startWebServer();
     if (!isAP) {
@@ -129,6 +130,7 @@ void loop() {
     radioDiagnosticsPhase(RadioPhase::Media);
     mediaTick(now);
     updatePowerState(now);
+    if (timeValid) serviceDailyReboot(timeInfo);
     uiControllerTick(now);
     radioDiagnosticsPhase(RadioPhase::Display);
     serviceDisplayRefresh(now, currentTime, timeValid);

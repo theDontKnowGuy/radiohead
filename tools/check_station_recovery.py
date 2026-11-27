@@ -10,9 +10,7 @@ media = (root / 'src/media.cpp').read_text()
 def section(start, end):
     return media[media.index(start):media.index(end, media.index(start))]
 
-branch = section('    if (stationRecoveryScheduled &&', '    mediaUpdateSpeakerMute();')
-gate_start = media.index('#if defined(RADIO_SPOTIFY_EXPERIMENT)\n    if (outputOwner != OutputOwner::Local) return;', media.index('void mediaTick('))
-owner_gate = media[gate_start:media.index('    if (stationRecoveryScheduled &&', gate_start)]
+recovery_tick = section('#if defined(RADIO_SPOTIFY_EXPERIMENT)\n    // A station retry', 'void setRadioVolumeIndex(')
 fixture = r'''
 #include <algorithm>
 #include <atomic>
@@ -20,8 +18,9 @@ fixture = r'''
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include "media.h"
 #include "radio_stream_health.h"
-enum class PlaybackState { Stopped, Connecting, Playing, Failed };
+#include "spotify_adapter.h"
 PlaybackState playbackState;
 constexpr unsigned long kConnectionTimeoutMs = 12000, kWifiRecoveryPollMs = 5000;
 constexpr unsigned long kRecoveryDelaysMs[] = {2000, 5000, 15000, 30000};
@@ -31,59 +30,103 @@ int requestedStation = 1, playingStation = -1, attempts;
 bool forceRedraw = false, podcastPaused = false, podcastMode = false;
 bool stationTestPlayback = false, ignoreEofUntilPlaybackReady = false;
 bool eligible = true, logging = true;
+bool isAP = false, radioMuted = false;
+int currentStationIdx = 1, tempStationIdx = 1, mainVal = 10, gB = 0, gM = 0, gT = 0;
+constexpr int STATION_COUNT = 3, PODCAST_SHOW_COUNT = 1;
+struct RadioStation { String name, url; } stations[STATION_COUNT] = {
+    {"First", "http://first.example/stream"}, {"Second", "http://second.example/list.m3u"},
+    {"Dead", "http://dead.example/stream"},
+};
+String stationTestName, podcastShowTft, songTitle, activePodcastShowName;
+int activePodcastShow = -1, activePodcastEpisode = -1;
+bool hasActivePodcastEpisode = false;
+struct PodcastEpisode { String title; } activePodcastEpisodeData;
 uint8_t stationRecoveryAttempts = 0;
 constexpr int WL_CONNECTED = 3;
 constexpr unsigned RadioPcmStall = 512, RadioRecovery = 16, RadioReady = 8, RadioOutputTimeout = 8192;
 struct { int value = WL_CONNECTED; int status() { return value; } } WiFi;
 struct { template<class... T> void printf(const char*, T...) {} } Serial;
-struct { bool running = true; uint32_t buffered = 256000, bitRate = 128000;
+struct Audio { enum { evt_info, evt_log, evt_eof }; struct msg_t { int e; const char* msg; }; };
+void updatePlaybackFromAudioInfo(Audio::msg_t message);
+struct {
+    bool running = true, queuedReady = false, restoreWorks = true;
+    uint32_t buffered = 256000, bitRate = 128000;
     bool isRunning() { return running; }
     uint32_t inBufferFilled() { return buffered; }
     uint32_t getBitRate() { return bitRate; }
+    void setVolume(int) {}
+    void stopSong() { running = false; }
+    void loop() {
+        if (queuedReady) {
+            queuedReady = false;
+            updatePlaybackFromAudioInfo({Audio::evt_info, "stream ready"});
+            updatePlaybackFromAudioInfo({Audio::evt_eof, "old stream"});
+        }
+    }
+    bool connecttohost(const char* url) {
+        ++attempts;
+        clockMs += 20;
+        return running = std::strcmp(url, "http://dead.example/stream") != 0;
+    }
+    bool releaseOutputForHandoff(unsigned) { return true; }
+    bool restoreOutputAfterHandoff() { return restoreWorks; }
 } audio;
-struct Audio { enum { evt_info, evt_log, evt_eof }; struct msg_t { int e; const char* msg; }; };
+#if !defined(RADIO_SPOTIFY_EXPERIMENT)
 enum class OutputOwner { Local, Spotify, Failed };
 std::atomic<OutputOwner> outputOwner{OutputOwner::Local};
+#endif
 std::atomic<uint32_t> localPcmBlocks{0};
 RadioStreamHealth stationHealth;
 bool wifiHandoffPending = false;
 uint32_t wifiHandoffBlocks = 0, wifiHandoffProgressAt = 0, wifiHandoffBuffered = 0;
-void mediaUpdateSpeakerMute() {}
-bool mediaLocalAudioAvailable() {
-#if defined(RADIO_SPOTIFY_EXPERIMENT)
-    return outputOwner == OutputOwner::Local;
-#else
-    return true;
-#endif
+void mediaUpdateSpeakerMute(bool) {}
+void mediaSilenceSpeakers() {}
+void mediaSetTone(int, int, int) {}
+String parseM3U(const String& url) {
+    assert(!audio.isRunning());
+    audio.loop();
+    clockMs += 1;
+    return url;
 }
 unsigned signals = 0;
 unsigned long millis() { return clockMs; }
+enum class RadioMediaOperation { SpotifyRestore, Connect, AwaitPlayback };
+void radioDiagnosticsMediaBegin(RadioMediaOperation, unsigned) {}
 void radioDiagnosticsMediaEnd(int) {}
 void radioDiagnosticsMediaRetryWait(unsigned) {}
 void radioDiagnosticsSignal(unsigned flag) { if (logging) signals |= flag; }
 void logStreamDiagnostic(const char*) {}
 void validationEvent(const char*) {}
-bool hasRecoverableStation() { return eligible && !podcastMode && requestedStation >= 0; }
+bool hasRecoverableStation() {
+    return eligible && !podcastMode && requestedStation >= 0 && requestedStation < STATION_COUNT;
+}
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+bool spotifyReleases = true;
+SpotifySignal pendingSpotifySignal;
+SpotifySignal spotifyAdapterTakeSignal() {
+    const auto signal = pendingSpotifySignal;
+    pendingSpotifySignal = {};
+    return signal;
+}
+void spotifyAdapterDiscardPending() { pendingSpotifySignal = {}; }
+bool spotifyAdapterReleaseOutput(uint32_t) { return spotifyReleases; }
+bool spotifyAdapterAcquireOutput(uint8_t, uint32_t) { return true; }
+void spotifyAdapterSetOutputVolume(uint8_t) {}
+void spotifyAdapterSetTone(int8_t, int8_t, int8_t) {}
+uint8_t radioVolumeGain8(int value) { return value; }
+int constrain(int value, int low, int high) { return std::clamp(value, low, high); }
+#endif
 '''
-fixture += section('void cancelStationRecovery() {', 'void applyLocalOutputSettings()')
+fixture += section('bool isHttpUrl(', 'bool isPlayableStation(')
+fixture += section('void cancelStationRecovery();', 'uint32_t activePodcastDurationSeconds()')
+fixture += section('void cancelStationRecovery() {', 'void logStreamDiagnostic(')
 fixture += section('void scheduleStationRecovery(', 'bool fetchPodcastEpisodes(')
 fixture += section('void mediaLocalPcmBlock() {', 'void mediaBegin()')
 fixture += section('bool mediaCanRoamWifi() {', 'void mediaTick(')
-fixture += r'''
-void playStation(int) {
-    assert(stationRecoveryAttempt);
-    ++attempts;
-    stationHealth.reset();
-    wifiHandoffPending = false;
-    clockMs += 1;
-    requestStartedAt = clockMs;
-    playbackState = PlaybackState::Connecting;
-    clockMs += 20;
-}
-void tick(unsigned long now) {
-'''
-fixture += owner_gate + branch + r'''
-}
+fixture += section('void playStation(int stationIndex) {', 'bool mediaTestActive()')
+fixture += 'void tick(unsigned long now) {\n'
+fixture += '#if defined(RADIO_SPOTIFY_EXPERIMENT)\n    serviceSpotifySignals();\n#endif\n'
+fixture += recovery_tick + r'''
 void at(unsigned long now) { clockMs = now; tick(now); }
 void reset(unsigned long now) {
     clockMs = requestStartedAt = now; attempts = 0; signals = 0;
@@ -92,6 +135,11 @@ void reset(unsigned long now) {
     playbackState = PlaybackState::Connecting; WiFi.value = WL_CONNECTED;
     eligible = true; requestedStation = 1; podcastMode = podcastPaused = false;
     logging = true; audio.running = true; audio.buffered = 256000; audio.bitRate = 128000; outputOwner = OutputOwner::Local;
+    audio.queuedReady = false; audio.restoreWorks = true;
+    stationTestPlayback = false;
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    spotifyStatus = MediaStatus::Stopped; spotifyReleases = true; pendingSpotifySignal = {};
+#endif
 }
 void playing(unsigned long now) {
     reset(now); playbackState = PlaybackState::Playing; tick(now);
@@ -189,6 +237,56 @@ int main() {
     }
     assert(stationRecoveryAttempts == UINT8_MAX);
 
+    // A failed station must not keep its retry or queued events when the user
+    // selects another station, including when that station uses a playlist.
+    playing(0); playStation(2); assert(playbackState == PlaybackState::Failed);
+    tick(clockMs); assert(stationRecoveryScheduled);
+    const auto deadRetry = stationRecoveryDueAt;
+    audio.queuedReady = true;
+    playStation(1);
+    assert(!stationRecoveryScheduled && !audio.queuedReady && playbackState == PlaybackState::Connecting);
+    assert(mediaSnapshot().name == "Second" && mediaSnapshot().status == MediaStatus::Connecting);
+    updatePlaybackFromAudioInfo({Audio::evt_info, "stream ready"});
+    at(deadRetry); assert(attempts == 2 && playingStation == 1);
+    assert(playbackState == PlaybackState::Playing);
+
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    // A live or paused Spotify session can miss the release deadline. Retain
+    // the station, retry behind the deadline and restore output before tuning.
+    reset(0); requestedStation = -1; audio.running = false; outputOwner = OutputOwner::Spotify;
+    spotifyStatus = MediaStatus::Paused; spotifyReleases = false;
+    playStation(1);
+    assert(outputOwner == OutputOwner::Failed && stationRecoveryScheduled && attempts == 0);
+    assert(mediaSnapshot().source == MediaSource::Radio && mediaSnapshot().status == MediaStatus::Connecting);
+    spotifyReleases = true;
+    at(stationRecoveryDueAt - 1); assert(attempts == 0);
+    at(stationRecoveryDueAt);
+    assert(outputOwner == OutputOwner::Local && !stationRecoveryScheduled && attempts == 1);
+    updatePlaybackFromAudioInfo({Audio::evt_info, "stream ready"});
+    assert(mediaSnapshot().status == MediaStatus::Playing && playingStation == 1);
+
+    // A Spotify transfer-away can fail to create local output before the web
+    // selection arrives. Choosing another station then supersedes that retry.
+    reset(0); requestedStation = -1; audio.running = false; outputOwner = OutputOwner::Spotify;
+    audio.restoreWorks = false; pendingSpotifySignal.type = SpotifySignalType::Stop;
+    tick(clockMs); assert(mediaSnapshot().source == MediaSource::Spotify);
+    assert(mediaSnapshot().status == MediaStatus::Failed);
+    playStation(1); assert(stationRecoveryScheduled);
+    const auto supersededRetry = stationRecoveryDueAt;
+    audio.restoreWorks = true; playStation(0);
+    assert(outputOwner == OutputOwner::Local && !stationRecoveryScheduled && attempts == 1);
+    updatePlaybackFromAudioInfo({Audio::evt_info, "stream ready"});
+    at(supersededRetry); assert(attempts == 1 && playingStation == 0);
+
+    // Stopping or removing the station cancels the retry even when I2S restore
+    // is still failing. A later release must not start the discarded selection.
+    reset(0); requestedStation = -1; audio.running = false; outputOwner = OutputOwner::Spotify;
+    spotifyReleases = false; playStation(1); assert(stationRecoveryScheduled);
+    const auto stoppedRetry = stationRecoveryDueAt;
+    stopStationPlayback(); assert(requestedStation == -1 && !stationRecoveryScheduled);
+    spotifyReleases = true; at(stoppedRetry); assert(attempts == 0);
+#endif
+
     // Voluntary roaming uses actual data, not nominal buffer capacity.
     playing(0); assert(mediaCanRoamWifi());
     audio.buffered = 191999; assert(!mediaCanRoamWifi());
@@ -239,7 +337,10 @@ int main() {
     assert(health.update(true, uint32_t(start + 15001), 0) == Result::Waiting);
     assert(health.update(false, uint32_t(start + 50000), 0) == Result::Waiting);
     assert(health.update(true, uint32_t(start + 60000), 0) == Result::Waiting);
-    puts("Station recovery: stuck-running PCM, logging off, timeout, resumption, backoff, Wi-Fi wait, cancellation, source isolation and rollover passed.");
+    puts("Station recovery: playback timeout, PCM stall, stale events, failed-station replacement, backoff, Wi-Fi and rollover passed.");
+#if defined(RADIO_SPOTIFY_EXPERIMENT)
+    puts("Spotify handoff: release timeout, output restore failure, replacement and stop passed.");
+#endif
 }
 '''
 (out / 'recovery.cpp').write_text(fixture)
@@ -247,7 +348,7 @@ for spotify in (False, True):
     subprocess.run([
         'clang++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-g',
         *(['-DRADIO_SPOTIFY_EXPERIMENT=1'] if spotify else []),
-        '-fsanitize=address,undefined', '-I', str(root / 'include'),
+        '-fsanitize=address,undefined', '-I', str(root / 'include'), '-I', str(root / 'tools/native_programs'),
         str(out / 'recovery.cpp'), '-o', str(out / 'recovery')
     ], check=True)
     subprocess.run([str(out / 'recovery')], check=True)

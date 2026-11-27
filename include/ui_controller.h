@@ -4,6 +4,7 @@
 #include "media.h"
 
 constexpr int UI_LIST_ROWS = 4;
+constexpr int UI_AUDIO_BALANCE_CENTER_X = 160;
 
 // The controller deals only in semantic inputs and commands.  It deliberately
 // does not own the TFT, Audio, Preferences, or web server.
@@ -118,8 +119,9 @@ enum class UiTarget : uint8_t {
     ToneMidIncrease,
     ToneTrebleDecrease,
     ToneTrebleIncrease,
-    ToneSave,
-    ToneCancel,
+    AudioBalance,
+    AudioSave,
+    AudioCancel,
     DimDecrease,
     DimIncrease,
     DimSave,
@@ -155,7 +157,7 @@ enum class UiCommandKind : uint8_t {
     TogglePodcastShowFavorite,
     EnterStandby,
     PreviewTone,
-    ApplyTone,
+    ApplyAudio,
     ApplyAutoDim,
     RequestFirmwareUpdateCheck,
     RequestFirmwareUpdateInstall,
@@ -172,6 +174,7 @@ struct UiCommand {
     int value = 0;
     int secondary = 0;
     int tertiary = 0;
+    int balance = 0;
 };
 
 struct UiRenderState {
@@ -215,6 +218,7 @@ struct UiRenderState {
     int toneBassDraft = 0;
     int toneMidDraft = 0;
     int toneTrebleDraft = 0;
+    int balanceDraft = 0;
     uint16_t dimSecondsDraft = 30;
     // 0 is none, 1 is restart, 2 is factory reset.
     uint8_t settingsConfirmAction = 0;

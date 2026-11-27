@@ -2,6 +2,7 @@
 
 #include "media.h"
 #include "app_state.h"
+#include "audio_balance.h"
 #include "settings.h"
 
 #include <limits.h>
@@ -10,6 +11,7 @@ namespace {
 
 constexpr int kRowsPerPage = UI_LIST_ROWS;
 constexpr int kFavoriteRowsPerPage = 3;
+constexpr int kEncoderDetentsPerVolumeStep = 2;
 constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr unsigned long kMuteOverlayMs = 2500;
 constexpr int16_t kPodcastProgressX = 128;
@@ -25,19 +27,21 @@ bool pendingCommandWaitsForRender = false;
 // command can wait for a redraw across loops, so give the encoder its own slot.
 UiCommandKind pendingEncoderButton = UiCommandKind::None;
 int pendingVolumeDelta = 0;
+int encoderDetentRemainder = 0;
 unsigned long volumeOverlayUntil = 0;
 bool lastMuted = false;
 unsigned long muteOverlayStartedAt = 0;
-UiCommand pendingToneCommand;
-bool hasPendingToneCommand = false;
+UiCommand pendingAudioCommand;
+bool hasPendingAudioCommand = false;
 int committedBass = 0, committedMid = 0, committedTreble = 0;
+int committedBalance = 0;
 UiTarget repeatTarget = UiTarget::None;
 unsigned long repeatLastAt = 0;
 bool repeatStarted = false;
 constexpr unsigned long kToneHoldDelayMs = 450;
 constexpr unsigned long kToneRepeatMs = 120;
 
-void openToneSettings();
+void openAudioSettings();
 void openWiFiSettings(bool clearFailure = true);
 void openDisplaySettings();
 void openDeviceSettings(bool clearFailure);
@@ -70,26 +74,28 @@ void queueAfterRender(UiCommandKind kind, int value = 0) {
     }
 }
 
-void queueTone(UiCommandKind kind, int bass, int mid, int treble) {
+void queueAudio(UiCommandKind kind, int bass, int mid, int treble, int balance = 0) {
     // Keep previews independent of simultaneous encoder commands. Save/Cancel
     // replaces any unconsumed preview, so an old preview cannot run afterward.
-    pendingToneCommand = {kind, bass, mid, treble};
-    hasPendingToneCommand = true;
+    pendingAudioCommand = {kind, bass, mid, treble, balance};
+    hasPendingAudioCommand = true;
 }
 
-void loadCommittedTone() {
+void loadCommittedAudio() {
     state.toneBassDraft = committedBass = gB;
     state.toneMidDraft = committedMid = gM;
     state.toneTrebleDraft = committedTreble = gT;
+    state.balanceDraft = committedBalance = radioBalance();
 }
 
-void syncCommittedTone() {
+void syncCommittedAudio() {
     if (state.page != UiPage::SettingsAudio ||
-        (committedBass == gB && committedMid == gM && committedTreble == gT)) return;
+        (committedBass == gB && committedMid == gM && committedTreble == gT &&
+         committedBalance == radioBalance())) return;
     // A newer web edit supersedes the draft; neither Save nor Cancel may
     // overwrite it with the values that were present when the editor opened.
-    loadCommittedTone();
-    hasPendingToneCommand = false;
+    loadCommittedAudio();
+    hasPendingAudioCommand = false;
     repeatTarget = UiTarget::None;
     markDirty();
 }
@@ -239,15 +245,15 @@ void openSettingsItem(int item) {
     case 0: openSettingsWebHandoff(); break;
     case 1: openWiFiSettings(); break;
     case 2: openDisplaySettings(); break;
-    case 3: openToneSettings(); break;
+    case 3: openAudioSettings(); break;
     case 4: openDeviceSettings(true); break;
     default: break;
     }
 }
 
-void openToneSettings() {
+void openAudioSettings() {
     state.page = UiPage::SettingsAudio;
-    loadCommittedTone();
+    loadCommittedAudio();
     markDirty();
 }
 
@@ -539,8 +545,8 @@ void handleTarget(UiTarget target, int value = 0) {
         }
         break;
     case UiPage::SettingsAudio:
-        if (target == UiTarget::SettingsBack || target == UiTarget::ToneCancel) {
-            queueTone(UiCommandKind::PreviewTone, gB, gM, gT);
+        if (target == UiTarget::SettingsBack || target == UiTarget::AudioCancel) {
+            queueAudio(UiCommandKind::PreviewTone, gB, gM, gT);
             openSettings();
         } else if (isToneAdjustment(target)) {
             int* draft = target <= UiTarget::ToneBassIncrease ? &state.toneBassDraft :
@@ -552,13 +558,21 @@ void handleTarget(UiTarget target, int value = 0) {
             const int next = constrain(*draft + (decrease ? -1 : 1), -15, 15);
             if (*draft != next) {
                 *draft = next;
-                queueTone(UiCommandKind::PreviewTone, state.toneBassDraft,
-                          state.toneMidDraft, state.toneTrebleDraft);
+                queueAudio(UiCommandKind::PreviewTone, state.toneBassDraft,
+                           state.toneMidDraft, state.toneTrebleDraft);
                 markDirty();
             }
-        } else if (target == UiTarget::ToneSave) {
-            queueTone(UiCommandKind::ApplyTone, state.toneBassDraft,
-                      state.toneMidDraft, state.toneTrebleDraft);
+        } else if (target == UiTarget::AudioBalance) {
+            const int next = constrain(value, UI_AUDIO_BALANCE_CENTER_X - kAudioBalanceLimit,
+                                       UI_AUDIO_BALANCE_CENTER_X + kAudioBalanceLimit) -
+                             UI_AUDIO_BALANCE_CENTER_X;
+            if (next != state.balanceDraft) {
+                state.balanceDraft = next;
+                markDirty();
+            }
+        } else if (target == UiTarget::AudioSave) {
+            queueAudio(UiCommandKind::ApplyAudio, state.toneBassDraft,
+                       state.toneMidDraft, state.toneTrebleDraft, state.balanceDraft);
             openSettings();
         }
         break;
@@ -641,10 +655,11 @@ void uiControllerBegin() {
     pendingCommandWaitsForRender = false;
     pendingEncoderButton = UiCommandKind::None;
     pendingVolumeDelta = 0;
+    encoderDetentRemainder = 0;
     volumeOverlayUntil = 0;
     lastMuted = isStationMuted();
     state.muteOverlay = false;
-    hasPendingToneCommand = false;
+    hasPendingAudioCommand = false;
     repeatTarget = UiTarget::None;
 }
 
@@ -654,7 +669,12 @@ void uiControllerTurn(int detents, unsigned long now, bool displayWasDimmed) {
 
     // The encoder is deliberately device-wide. Touch owns navigation,
     // selection and confirmation, so a turn cannot change the page or focus.
-    queue(UiCommandKind::ChangeVolume, detents);
+    const int totalDetents = encoderDetentRemainder + detents;
+    const int volumeDelta = totalDetents / kEncoderDetentsPerVolumeStep;
+    encoderDetentRemainder = totalDetents % kEncoderDetentsPerVolumeStep;
+    if (volumeDelta == 0) return;
+
+    queue(UiCommandKind::ChangeVolume, volumeDelta);
     state.muteOverlay = false;
     volumeOverlayUntil = now + kVolumeOverlayMs;
     markDirty();
@@ -680,7 +700,7 @@ void uiControllerHold(unsigned long now, bool displayWasDimmed) {
 
 void uiControllerTap(UiTarget target, int value, unsigned long now, bool displayWasDimmed) {
     repeatTarget = UiTarget::None;
-    syncCommittedTone();
+    syncCommittedAudio();
     if (displayWasDimmed) {
         markDirty();
         return;
@@ -694,7 +714,7 @@ void uiControllerTap(UiTarget target, int value, unsigned long now, bool display
 }
 
 void uiControllerTouchContact(UiTarget target, unsigned long now) {
-    syncCommittedTone();
+    syncCommittedAudio();
     if (state.page != UiPage::SettingsAudio || target != repeatTarget) {
         repeatTarget = UiTarget::None;
         return;
@@ -786,7 +806,7 @@ void uiControllerProgramsChanged(int slot) {
 }
 
 void uiControllerTick(unsigned long now) {
-    syncCommittedTone();
+    syncCommittedAudio();
     // Observe the actual output state after commands/web requests. This gives
     // every mute source the same feedback without guessing a queued result.
     const bool muted = isStationMuted();
@@ -830,9 +850,9 @@ bool uiControllerTakeCommand(UiCommand& command) {
         return true;
     }
     if (!hasPendingCommand) {
-        if (!hasPendingToneCommand) return false;
-        command = pendingToneCommand;
-        hasPendingToneCommand = false;
+        if (!hasPendingAudioCommand) return false;
+        command = pendingAudioCommand;
+        hasPendingAudioCommand = false;
         return true;
     }
     if (pendingCommandWaitsForRender && state.dirty) return false;

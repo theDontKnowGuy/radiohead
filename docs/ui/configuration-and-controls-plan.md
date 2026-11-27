@@ -8,7 +8,7 @@ Use the [web ledger](web-configuration/progress.md) for implementation evidence.
 
 | Action | Behavior |
 | --- | --- |
-| Turn | Volume 0–21 through the existing curve, on every page |
+| Turn | One volume step per two encoder detents, through the existing 0–21 curve on every page |
 | Click/release | Mute/unmute; retain volume and stream position |
 | Hold 3 s | Current external-power behavior: light sleep; release then press to wake |
 | Held at power-on/reset | Wi-Fi recovery, not touch calibration |
@@ -16,7 +16,8 @@ Use the [web ledger](web-configuration/progress.md) for implementation evidence.
 Touch owns navigation and destructive confirmations. Encoder never selects a
 menu row. Turning while muted changes the stored volume without unmuting.
 A hold fires once and cannot also click on release. Dimmed touch wakes only and
-is consumed through release; encoder wakes and applies its explicit volume/mute action once.
+is consumed through release. Turning the encoder wakes the display and counts toward
+the next volume step. Clicking it wakes the display and toggles mute once.
 Consume both initiating and waking releases before normal startup resumes.
 
 Pins: A/B/SW 4/7/13; backlight 1; touch clock/MOSI share 12/11 (remove old 4/7 touch wiring).
@@ -29,7 +30,7 @@ preventing unsigned wrap from falsely dimming during rotation; host checks/build
 | On the radio | In the web interface |
 | --- | --- |
 | Browse/play stations and programs; favorites; confirmed station removal | Discover/add/edit stations and program sources |
-| Volume/mute feedback; custom bass/mid/treble | Remote volume/mute; Audio tone/filter settings |
+| Volume/mute feedback; custom bass/mid/treble and stereo balance | Remote volume/mute; Audio tone, stereo balance and filter settings |
 | Automatic dimming timeout; supported theme only if more than one exists | Weather key/location/units/visibility; timezone and 12/24-hour clock |
 | Wi-Fi state, Retry and actual setup address/QR handoff | Scan/network/password/forget; advanced diagnostics |
 | About; explicit touch calibration; confirmed restart/reset | OTA/restart/reset; calibration start (tap corners on TFT) |

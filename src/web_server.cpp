@@ -1759,6 +1759,10 @@ bool webUpdateInProgress() {
     return webMaintenanceBusy();
 }
 
+bool webRestartPending() {
+    return webRestartScheduled;
+}
+
 void startWebServer() {
     // Invalidate forms left open across a reboot as well as concurrent saves.
     spotifyCredentialsEpoch = esp_random();

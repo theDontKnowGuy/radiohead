@@ -28,8 +28,8 @@ def mandatory_configuration(defaults):
         if "=" not in line or not line.startswith("CONFIG_"):
             continue
         key, value = line.split("=", 1)
-        if (key.startswith("CONFIG_ESP_COREDUMP_") or
-                key == "CONFIG_APP_RETRIEVE_LEN_ELF_SHA" or key in WIFI_BUFFER_KEYS):
+        if (key.startswith("CONFIG_ESP_COREDUMP_") or key in WIFI_BUFFER_KEYS or
+                key in {"CONFIG_APP_RETRIEVE_LEN_ELF_SHA", "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL"}):
             mandatory[key] = value
     mandatory.update(CONFIG_ESP_COREDUMP_ENABLE_TO_NONE="n", CONFIG_ESP_COREDUMP_ENABLE_TO_UART="n",
                      CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER="n", CONFIG_ESP_WIFI_TX_BUFFER_TYPE="0")

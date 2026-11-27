@@ -1,6 +1,7 @@
 #include "ui_runtime.h"
 
 #include "app_state.h"
+#include "audio_balance.h"
 #include "device_control.h"
 #include "display.h"
 #include "firmware_updater.h"
@@ -150,11 +151,12 @@ void serviceUiCommands(unsigned long now) {
                           constrain(command.secondary, -15, 15),
                           constrain(command.tertiary, -15, 15));
             break;
-        case UiCommandKind::ApplyTone:
+        case UiCommandKind::ApplyAudio:
             gB = constrain(command.value, -15, 15);
             gM = constrain(command.secondary, -15, 15);
             gT = constrain(command.tertiary, -15, 15);
             mediaSetTone(gB, gM, gT);
+            radioSetBalance(command.balance);
             saveSettings();
             forceRedraw = true;
             break;

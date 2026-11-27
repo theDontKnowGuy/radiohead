@@ -11,3 +11,4 @@ void serviceWebNetworkRequests(unsigned long now);
 // True while firmware maintenance or a reserved web calibration is active.
 // Power/reset paths defer destructive transitions until maintenance finishes.
 bool webUpdateInProgress();
+bool webRestartPending();

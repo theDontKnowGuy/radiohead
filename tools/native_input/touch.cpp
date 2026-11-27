@@ -1,4 +1,5 @@
 #include "touch_gesture.h"
+#include "audio_balance.h"
 #include "xpt2046_sampling.h"
 #include "ui_controller.h"
 #include "ui_runtime.h"
@@ -193,10 +194,13 @@ void checkRawSampling() {
 void checkMuteFeedback() {
     fixtureMuted = false;
     uiControllerBegin();
-    uiControllerTurn(1, 100, false);
-    assert(uiControllerRenderState().volumeOverlay);
     UiCommand command;
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume);
+    uiControllerTurn(1, 100, false);
+    assert(!uiControllerTakeCommand(command) && !uiControllerRenderState().volumeOverlay);
+    uiControllerTurn(0, 110, false);
+    uiControllerTurn(1, 120, false);
+    assert(uiControllerRenderState().volumeOverlay);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 1);
     uiControllerPush(200, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
     // Feedback starts only when the actual mute state changes.
@@ -216,10 +220,13 @@ void checkMuteFeedback() {
     uiControllerTap(UiTarget::HomeSettings, 0, 3001, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
     assert(uiControllerRenderState().muteOverlay && !uiControllerTakeCommand(command));
-    // A turn replaces the mute notice immediately with actual volume feedback.
+    // Opposite partial turns cancel. A volume step replaces the mute notice.
     uiControllerTurn(-1, 3002, false);
+    uiControllerTurn(1, 3003, false);
+    assert(uiControllerRenderState().muteOverlay && !uiControllerTakeCommand(command));
+    uiControllerTurn(-2, 3004, false);
     assert(!uiControllerRenderState().muteOverlay && uiControllerRenderState().volumeOverlay);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == -1);
     // The transient timer survives unsigned clock rollover and rapid toggles.
     fixtureMuted = true;
     uiControllerTick(ULONG_MAX - 1000);
@@ -312,11 +319,13 @@ int main() {
 
     // The encoder is global volume/mute/power control. It must not move a
     // list focus, activate a selected item, or navigate away from this page.
-    uiControllerTurn(20, 0, false);
+    uiControllerTurn(21, 0, false);
     assert(uiControllerRenderState().page == UiPage::Stations);
     assert(uiControllerRenderState().stationFocus == 0);
     assert(uiControllerRenderState().stationOffset == 0);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 20);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 10);
+    uiControllerTurn(1, 1, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 1);
     uiControllerPush(0, false);
     assert(uiControllerRenderState().page == UiPage::Stations);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ToggleMute);
@@ -353,7 +362,7 @@ int main() {
     uiControllerBegin();
     uiControllerTap(UiTarget::HomeFavorites, 0, 0, false);
     const UiPage favoritePage = uiControllerRenderState().page;
-    uiControllerTurn(-1, 0, false);
+    uiControllerTurn(-2, 0, false);
     assert(uiControllerRenderState().page == favoritePage);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == -1);
     uiControllerPush(0, false);
@@ -378,16 +387,49 @@ int main() {
     assert(uiControllerRenderState().toneBassDraft == 1);
     assert(uiControllerRenderState().toneTrebleDraft == -1);
     assert(gB == 0 && gM == 0 && gT == 0);
-    uiControllerTap(UiTarget::ToneCancel, 0, 0, false);
+    uiControllerTap(UiTarget::AudioCancel, 0, 0, false);
     assert(uiControllerRenderState().page == UiPage::Settings);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
            command.value == 0 && command.secondary == 0 && command.tertiary == 0);
     assert(!uiControllerTakeCommand(command));
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneMidIncrease, 0, 0, false);
-    uiControllerTap(UiTarget::ToneSave, 0, 0, false);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone &&
+    uiControllerTap(UiTarget::AudioSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAudio &&
            command.value == 0 && command.secondary == 1 && command.tertiary == 0);
+
+    // TFT balance opens at the shared value. Tapping only updates the draft
+    // until Save, and a balance-only web commit supersedes a pending draft.
+    radioSetBalance(-35);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
+    assert(uiControllerRenderState().balanceDraft == -35);
+    uiControllerTap(UiTarget::AudioBalance, 0, 0, false);
+    assert(uiControllerRenderState().balanceDraft == -100);
+    uiControllerTouchContact(UiTarget::AudioBalance, 600);
+    assert(!uiControllerTakeCommand(command) && radioBalance() == -35);
+    uiControllerTap(UiTarget::AudioCancel, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone);
+    assert(radioBalance() == -35);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
+    uiControllerTap(UiTarget::AudioBalance, 319, 0, false);
+    assert(uiControllerRenderState().balanceDraft == 100);
+    radioSetBalance(42);
+    uiControllerTap(UiTarget::AudioSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAudio &&
+           command.balance == 42);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
+    uiControllerTap(UiTarget::AudioBalance, UI_AUDIO_BALANCE_CENTER_X - 27, 0, false);
+    uiControllerTap(UiTarget::AudioSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAudio &&
+           command.balance == -27);
+    uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
+    uiControllerTap(UiTarget::AudioBalance, UI_AUDIO_BALANCE_CENTER_X, 0, false);
+    assert(uiControllerRenderState().balanceDraft == 0);
+    uiControllerTap(UiTarget::AudioSave, 0, 0, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAudio &&
+           command.balance == 0);
+    radioSetBalance(0);
+
     uiControllerTap(UiTarget::SettingsRow2, 0, 0, false);
     assert(uiControllerRenderState().dimSecondsDraft == 30);
     uiControllerTap(UiTarget::DimIncrease, 0, 0, false);
@@ -433,7 +475,7 @@ int main() {
     uiControllerTap(UiTarget::DeviceRestart, 0, 0, false);
     uiControllerTap(UiTarget::SettingsConfirmAccept, 0, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::RestartDevice);
-    uiControllerTurn(1, 0, false);
+    uiControllerTurn(2, 0, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ChangeVolume && command.value == 1);
 
     // Hold-to-repeat starts after 450 ms, steps every 120 ms, and stops on
@@ -498,14 +540,14 @@ int main() {
     assert(!uiControllerTakeCommand(command));
     uiControllerTouchContact(UiTarget::ToneBassIncrease, 600);
     assert(!uiControllerTakeCommand(command));
-    uiControllerTap(UiTarget::ToneCancel, 0, 700, false);
+    uiControllerTap(UiTarget::AudioCancel, 0, 700, false);
     assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::PreviewTone &&
            command.value == 7 && command.secondary == -3 && command.tertiary == 4);
     uiControllerTap(UiTarget::SettingsRow3, 0, 0, false);
     uiControllerTap(UiTarget::ToneBassIncrease, 0, 0, false);
     gB = 8;
-    uiControllerTap(UiTarget::ToneSave, 0, 700, false);
-    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyTone && command.value == 8);
+    uiControllerTap(UiTarget::AudioSave, 0, 700, false);
+    assert(uiControllerTakeCommand(command) && command.kind == UiCommandKind::ApplyAudio && command.value == 8);
     assert(!uiControllerTakeCommand(command));
 
     // Timer wrap cannot manufacture another tap.
