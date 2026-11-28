@@ -36,31 +36,37 @@ constexpr int U_FLASH=0;
 enum {UPLOAD_FILE_START,UPLOAD_FILE_WRITE,UPLOAD_FILE_END,UPLOAD_FILE_ABORTED};
 struct HTTPUpload {int status=0;String name="firmware",filename="firmware.bin";size_t totalSize=0,currentSize=0;uint8_t buf[4096];};
 struct {size_t getFreeSketchSpace(){return 6553600;}} ESP;
+bool otaMuted=false;
+void mediaSetOtaMute(bool active){otaMuted=active;}
 struct {
  bool busy=false,allow=true;
  unsigned locks=0,unlocks=0;
  bool tryBeginLocalMaintenance(){++locks;if(busy||!allow)return false;return busy=true;}
- void endLocalMaintenance(){assert(busy);busy=false;++unlocks;}
+ void endLocalMaintenance(){assert(busy&&!otaMuted);busy=false;++unlocks;}
 } firmwareUpdater;
 struct {
  bool beginOk=true,writeOk=true,endOk=true,running=false;
  unsigned begins=0,ends=0,aborts=0;
  size_t expected=0;
  std::vector<uint8_t> written;
- bool begin(size_t size,int){assert(firmwareUpdater.busy);++begins;expected=size;written.clear();return running=beginOk;}
- size_t write(const uint8_t* p,size_t n){assert(running);if(!writeOk)return 0;written.insert(written.end(),p,p+n);return n;}
- void abort(){++aborts;running=false;}
- bool end(){++ends;assert(running&&written.size()==expected);running=false;return endOk;}
+ bool begin(size_t size,int){assert(firmwareUpdater.busy&&otaMuted);++begins;expected=size;written.clear();return running=beginOk;}
+ size_t write(const uint8_t* p,size_t n){assert(running&&otaMuted);if(!writeOk)return 0;written.insert(written.end(),p,p+n);return n;}
+ void abort(){assert(otaMuted);++aborts;running=false;}
+ bool end(){++ends;assert(running&&otaMuted&&written.size()==expected);running=false;return endOk;}
 } Update;
 struct {
  HTTPUpload data;
  String size="128",body;
  int code=0;
  HTTPUpload& upload(){return data;}
+ String uri(){return "/api/device/ota";}
+ int method(){return 2;}
  bool hasArg(const char*){return !size.empty();}
  String arg(const char*){return size;}
  void send(int c,const char*,const String& b){code=c;body=b;}
 } server;
+int radioWebRouteId(const char*){return 51;}
+void radioDiagnosticsWebBegin(int,uint32_t){}
 enum class WebRestartAction{None,FirmwareUpdate};
 WebRestartAction webRestartAction=WebRestartAction::None;
 bool webRestartScheduled=false;
@@ -93,24 +99,26 @@ void reset(){
  otaUploadStarted=otaUploadSucceeded=otaUploadReceived=otaFlashStarted=false;
  otaUploadBytes=otaUploadExpectedBytes=otaUploadHeaderBytes=0;
  otaUploadErrorStatus=400;otaUploadError="Choose one compiled firmware.bin application image.";
- firmwareUpdater={};Update={};server={};active=false;percent=0;paints=0;
+ firmwareUpdater={};Update={};server={};active=false;otaMuted=false;percent=0;paints=0;
  webRestartScheduled=false;webRestartAction=WebRestartAction::None;
 }
 int main(){
  auto v=image();
- reset();event(UPLOAD_FILE_START);assert(firmwareUpdater.busy&&active&&Update.begins==0);
+ reset();event(UPLOAD_FILE_START);assert(firmwareUpdater.busy&&otaMuted&&active&&Update.begins==0);
  // Header split across chunks must be buffered and written exactly once.
  event(UPLOAD_FILE_WRITE,{v.begin(),v.begin()+12});assert(Update.begins==0);
  event(UPLOAD_FILE_WRITE,{v.begin()+12,v.begin()+64});assert(percent==50&&Update.written.size()==64);
  event(UPLOAD_FILE_WRITE,{v.begin()+64,v.end()});assert(percent==99&&Update.written==v);
  event(UPLOAD_FILE_END);assert(Update.ends==0&&firmwareUpdater.busy);finishFirmwareUpload();
- assert(server.code==202&&Update.ends==1&&webRestartScheduled&&percent==100&&paints>=4&&firmwareUpdater.busy);
+ assert(server.code==202&&Update.ends==1&&webRestartScheduled&&percent==100&&paints>=4&&firmwareUpdater.busy&&otaMuted);
+ serviceWebNetworkRequests(0);assert(otaMuted); // response delay
+ event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==409&&otaMuted);
  // Validation rejects before flash begins, even if browser checks are bypassed.
  for(int mutation:{0,12,32}){reset();auto bad=v;bad[mutation]=0;event(UPLOAD_FILE_START);event(UPLOAD_FILE_WRITE,bad);event(UPLOAD_FILE_END);finishFirmwareUpload();assert(server.code==400&&Update.begins==0&&!webRestartScheduled&&!firmwareUpdater.busy);}
  for(const char* size:{"","0","-1","35","6553601","128oops","2147483648"}){reset();server.size=size;event(UPLOAD_FILE_START);event(UPLOAD_FILE_WRITE,v);finishFirmwareUpload();assert(server.code==400&&Update.begins==0&&!firmwareUpdater.busy);}
  for(const char* filename:{"firmware.elf","firmware",""}){reset();server.data.filename=filename;event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==400&&Update.begins==0);}
  reset();server.data.name="other";event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==400);
- reset();firmwareUpdater.busy=true;event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==409&&firmwareUpdater.busy&&Update.aborts==0&&firmwareUpdater.unlocks==0);
+ reset();firmwareUpdater.busy=true;otaMuted=true;event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==409&&firmwareUpdater.busy&&otaMuted&&Update.aborts==0&&firmwareUpdater.unlocks==0);
  reset();firmwareUpdater.allow=false;event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==409&&Update.begins==0);
  reset();webRestartScheduled=true;event(UPLOAD_FILE_START);finishFirmwareUpload();assert(server.code==409&&Update.begins==0);
  reset();event(UPLOAD_FILE_START);event(UPLOAD_FILE_WRITE,{v.begin(),v.begin()+64});event(UPLOAD_FILE_END);finishFirmwareUpload();assert(server.code==400&&Update.ends==0&&Update.aborts==1&&!firmwareUpdater.busy);
@@ -129,4 +137,4 @@ with tempfile.TemporaryDirectory(prefix='radiohead-ota-') as directory:
     subprocess.run(['clang++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                     '-fsanitize=address,undefined', str(path / 'check.cpp'), '-o', str(path / 'check')], check=True)
     subprocess.run([str(path / 'check')], check=True)
-print('Production firmware upload: validation, byte accounting, progress, exclusion, errors and retry passed')
+print('Production firmware upload: validation, byte accounting, progress, speaker mute, exclusion, errors and retry passed')

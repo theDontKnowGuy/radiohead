@@ -1,5 +1,18 @@
 # Web UI: current state and tests
 
+2026-11-28: W5 automatic Wi-Fi recovery silently reboots after 15 minutes in
+setup mode following a failed saved-network join. Manual setup and first-time
+setup have no recovery timer. Recovery defers to setup scans, power gestures,
+pending web restarts and maintenance. Host startup and roaming checks passed.
+`pio run -e esp32s3` passed with 26% of the app slot and 73,913 bytes of DIRAM
+free. The router power-recovery scenario still needs a device check.
+
+2026-11-28: Browser firmware uploads and GitHub release installs assert the
+GPIO2 speaker mute until reboot or failure cleanup. Release checks keep playing.
+Host checks passed for the speaker gate, browser upload, release install, and
+update display. `pio run -e esp32s3` passed with 26% of the app slot and 73,913
+bytes of DIRAM free. Physical OTA and speaker tests remain open.
+
 2026-11-24: The Audio tab adds Stereo balance with left/center/right positions
 and the existing revisioned Save/Cancel controls. Save applies to radio,
 podcasts and Spotify and queues persistence in `radio/balance`. Existing

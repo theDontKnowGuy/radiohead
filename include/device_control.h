@@ -15,9 +15,11 @@
 bool factoryReset();
 void goToSleep();
 // Restore the previous mute setting and report whether to skip the boot sound.
-bool restoreDailyRebootState();
+bool restoreScheduledRebootState();
 // Called with the same valid local time shown on the radio.
 void serviceDailyReboot(const tm& localTime);
+// Retry the saved network after 15 minutes in automatic setup mode.
+void serviceSetupWifiRecovery(uint32_t now);
 // Loads saved calibration during boot; otherwise retains the panel defaults.
 // Never starts interactive calibration or waits for a touchscreen.
 void initializeTouchCalibration();

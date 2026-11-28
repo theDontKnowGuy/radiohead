@@ -13,7 +13,7 @@ function firmware({name='firmware.bin',size=128,chip=9,magic=0xe9,app=0xabcd5432
 }
 async function fixture({down=false,busy=false}={}) {
  const nodes={},timers=[],events={},requests=[];let now=100000;
- const $=id=>nodes[id]||=({id,disabled:false,hidden:false,textContent:'',dataset:{},files:[],value:'',className:'',focus(){document.activeElement=this;}});
+ const $=id=>nodes[id]||=({id,disabled:false,hidden:false,textContent:'',dataset:{},files:[],value:'',className:'',setAttribute(){},focus(){document.activeElement=this;}});
  const actions=['firmware-start','device-restart','device-reset','device-calibration-start','release-check','release-install'].map($);
  const document={activeElement:null,getElementById:$,querySelectorAll:()=>actions,addEventListener(name,fn){events[name]=fn;},dispatchEvent(){}};
  let data={freeSketchBytes:1000,updateInProgress:busy,uptimeSeconds:80,firmwareVersion:'0.2.3',firmwareBuild:'esp32s3',touchCalibrationState:'idle'};

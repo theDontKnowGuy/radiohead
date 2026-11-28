@@ -1329,7 +1329,10 @@ void failFirmwareUpload(int status, const char* message) {
     if (otaFlashStarted) Update.abort();
     otaFlashStarted = false;
     otaUploadSucceeded = false;
-    if (otaUploadStarted) firmwareUpdater.endLocalMaintenance();
+    if (otaUploadStarted) {
+        mediaSetOtaMute(false);
+        firmwareUpdater.endLocalMaintenance();
+    }
     otaUploadStarted = false;
     otaUploadErrorStatus = status;
     otaUploadError = message;
@@ -1372,6 +1375,7 @@ void handleUpdateUpload() {
             return;
         }
         otaUploadExpectedBytes = static_cast<size_t>(size);
+        mediaSetOtaMute(true);
         showFirmwareUploadProgress(0);
     } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (!otaUploadStarted) return;
@@ -1446,8 +1450,8 @@ void finishFirmwareUpload() {
     otaFlashStarted = false;
     otaUploadStarted = false;
     otaUploadSucceeded = false;
-    // Keep the maintenance reservation until reboot, including the response
-    // delay. Releasing it here would admit a background install into Update.
+    // Keep the speaker mute and maintenance reservation through the response
+    // delay until reboot. Releasing the reservation would admit another install.
     webRestartAction = WebRestartAction::FirmwareUpdate;
     webRestartScheduled = true;
     webRestartAt = millis() + WEB_RESTART_DELAY_MS;

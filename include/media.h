@@ -113,6 +113,8 @@ bool mediaBootAudioReady();
 void mediaUpdateSpeakerMute(bool bootPlaying = false);
 // Immediately silence the external output before stopping/handoff/sleep.
 void mediaSilenceSpeakers();
+// Loop or updater task. Assert mute immediately; release through the normal speaker gate.
+void mediaSetOtaMute(bool active);
 // Configure local I2S before boot audio, keeping experiment output at zero.
 void mediaConfigureOutput();
 // Main-loop settings publication; PCM tasks keep independent filter histories.

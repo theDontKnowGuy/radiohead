@@ -10,6 +10,7 @@
 
 #include "FirmwareVersion.h"
 #include "UpdateRootCAs.h"
+#include "media.h"
 
 namespace {
 
@@ -228,6 +229,7 @@ void FirmwareUpdater::installPendingRelease() {
     const Release release = pendingReleaseCopy();
     if (release.url.isEmpty() || release.size == 0) return;
     busy.store(true);
+    mediaSetOtaMute(true);
     setStatus(Status::Downloading, "Downloading " + release.version);
 
     WiFiClientSecure client;
@@ -240,6 +242,7 @@ void FirmwareUpdater::installPendingRelease() {
     http.setTimeout(HTTP_TIMEOUT_MS);
     if (!http.begin(client, release.url)) {
         setStatus(Status::Failed, "could not open firmware download");
+        mediaSetOtaMute(false);
         busy.store(false);
         return;
     }
@@ -249,6 +252,7 @@ void FirmwareUpdater::installPendingRelease() {
         static_cast<size_t>(reportedSize) != release.size) {
         setStatus(Status::Failed, "firmware download length did not match manifest");
         http.end();
+        mediaSetOtaMute(false);
         busy.store(false);
         return;
     }
@@ -256,6 +260,7 @@ void FirmwareUpdater::installPendingRelease() {
         setStatus(Status::Failed, String("cannot start update: ") + Update.errorString());
         if (Update.isRunning()) Update.abort();
         http.end();
+        mediaSetOtaMute(false);
         busy.store(false);
         return;
     }
@@ -298,6 +303,7 @@ void FirmwareUpdater::installPendingRelease() {
         }
         if (Update.isRunning()) Update.abort();
         releaseAvailable.store(false);
+        mediaSetOtaMute(false);
         busy.store(false);
         return;
     }

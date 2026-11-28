@@ -14,8 +14,8 @@ control = (root / "src/device_control.cpp").read_text()
 web = (root / "src/web_server.cpp").read_text()
 wifi = (root / "src/wifi_network.cpp").read_text()
 setup = main[main.index("void setup() {"):main.index("\nvoid loop() {")]
-daily_state = control[control.index("constexpr int kDailyRebootHour"):control.index("portMUX_TYPE encoderMux")]
-daily_reboot = control[control.index("bool restoreDailyRebootState() {"):control.index("void goToSleep() {")]
+reboot_state = control[control.index("constexpr int kDailyRebootHour"):control.index("portMUX_TYPE encoderMux")]
+reboot_services = control[control.index("bool restoreScheduledRebootState() {"):control.index("void goToSleep() {")]
 mdns = web[web.index("void startWebMdns() {"):web.index("\nString networkMessage;")]
 connectivity = web[web.index("void serviceWebConnectivity() {"):]
 listener = web[web.index("    server.begin();\n    webStationConnected"):web.index("\nvoid serviceWebConnectivity() {")]
@@ -57,11 +57,14 @@ const char *ntpServer = "test.invalid";
 String st_ssid = "test-network", st_pass;
 unsigned long millis() { return tick; }
 void delay(unsigned long ms) { tick += ms; assert(tick < 40000); }
-constexpr int INPUT_PULLUP = 0, PIN_SW = 7, LOW = 0;
+constexpr int INPUT_PULLUP = 0, PIN_SW = 7, PIN_K0 = 6, LOW = 0;
 constexpr int WIFI_STA = 1, WIFI_AP_STA = 3, WL_CONNECTED = 3;
 constexpr int WIFI_ALL_CHANNEL_SCAN = 1, WIFI_CONNECT_AP_BY_SIGNAL = 1;
+constexpr int WIFI_SCAN_RUNNING = -1;
+bool scanning = false, powerPressed = false;
+int wifiBrowserScanComplete() { return scanning ? WIFI_SCAN_RUNNING : -2; }
 void pinMode(int, int) {}
-int digitalRead(int) { return requestedSetup ? LOW : 1; }
+int digitalRead(int pin) { return (pin == PIN_SW ? requestedSetup : powerPressed) ? LOW : 1; }
 struct SerialStub {
     void begin(int) {}
     void print(const char*) {}
@@ -145,13 +148,13 @@ enum esp_reset_reason_t { ESP_RST_POWERON, ESP_RST_SW, ESP_RST_BROWNOUT, ESP_RST
 esp_reset_reason_t resetReason = ESP_RST_POWERON;
 esp_reset_reason_t esp_reset_reason() { return resetReason; }
 #define RTC_NOINIT_ATTR
-unsigned speakerMutes = 0, flushes = 0, dailyRestarts = 0;
+unsigned speakerMutes = 0, flushes = 0, restarts = 0;
 void mediaSilenceSpeakers() { ++speakerMutes; }
 void flushSettingsSave() { assert(speakerMutes > flushes); ++flushes; }
 struct EspStub {
     void restart() {
-        assert(firmwareUpdater.busy && flushes > dailyRestarts);
-        ++dailyRestarts;
+        assert(firmwareUpdater.busy && flushes > restarts);
+        ++restarts;
     }
 } ESP;
 namespace BootScreen {
@@ -177,13 +180,14 @@ void mediaStartSavedPlayback() {
     if (radioStarted) assert(ntpStarted && MDNS.begins == 1 && MDNS.http == 1);
 }
 '''
-source += daily_state + "\n" + daily_reboot + "\n" + join + "\n" + mdns
+source += reboot_state + "\n" + reboot_services + "\n" + join + "\n" + mdns
 source += "\nvoid startWebServer() {\n" + listener
 source += "\n" + connectivity + "\n" + setup
 source += r'''
 int main(int argc, char** argv) {
     assert(argc == 2);
     const std::string scenario = argv[1];
+    constexpr uint32_t retryInterval = 900000;
     connectionDelay = 1000;
     if (scenario == "during-qr") connectionDelay = 8000;
     if (scenario == "after-qr") { bootDuration = 2000; connectionDelay = 14000; }
@@ -201,7 +205,7 @@ int main(int argc, char** argv) {
         local.tm_hour = 3;
         local.tm_min = 59;
         serviceDailyReboot(local);
-        assert(dailyRestarts == 0);
+        assert(restarts == 0);
 
         local.tm_hour = 4;
         local.tm_min = 0;
@@ -214,33 +218,77 @@ int main(int argc, char** argv) {
         firmwareUpdater.busy = true;
         serviceDailyReboot(local);
         firmwareUpdater.busy = false;
-        assert(dailyRestarts == 0 && speakerMutes == 0 && flushes == 0);
+        assert(restarts == 0 && speakerMutes == 0 && flushes == 0);
 
         radioMuted = true;
         local.tm_min = 1;
         serviceDailyReboot(local);
-        assert(dailyRestarts == 1);
+        assert(restarts == 1);
         resetReason = ESP_RST_SW;
         radioMuted = false;
         firmwareUpdater.busy = false;
         setup();
         assert(!bootSound && radioMuted && radioStarted);
-        assert(!restoreDailyRebootState()); // The next manual boot can play the sound.
+        assert(!restoreScheduledRebootState()); // The next manual boot can play the sound.
         serviceDailyReboot(local);
-        assert(dailyRestarts == 1 && !firmwareUpdater.busy);
+        assert(restarts == 1 && !firmwareUpdater.busy);
 
         ++local.tm_mday;
         local.tm_hour = 5;
         serviceDailyReboot(local);
-        assert(dailyRestarts == 1);
+        assert(restarts == 1);
         local.tm_hour = 4;
         serviceDailyReboot(local);
-        assert(dailyRestarts == 2);
+        assert(restarts == 2);
         resetReason = ESP_RST_PANIC;
-        assert(!restoreDailyRebootState());
+        assert(!restoreScheduledRebootState());
         resetReason = ESP_RST_SW;
-        assert(!restoreDailyRebootState());
+        assert(!restoreScheduledRebootState());
         puts("Daily reboot schedule, maintenance, one-shot silence and mute restore passed");
+        return 0;
+    }
+    if (scenario == "setup-recovery") {
+        connectionDelay = std::numeric_limits<unsigned long>::max();
+        setup();
+        assert(isAP && setupAccessReason == SetupAccessReason::ConnectionFailed);
+
+        // Exercise the retry deadline across the ESP32's 32-bit millis rollover.
+        const uint32_t startedAt = UINT32_MAX - 1000;
+        const uint32_t dueAt = startedAt + retryInterval;
+        serviceSetupWifiRecovery(startedAt);
+        serviceSetupWifiRecovery(dueAt - 1);
+        assert(restarts == 0);
+
+        scanning = true;
+        serviceSetupWifiRecovery(dueAt);
+        scanning = false;
+        requestedSetup = true;
+        serviceSetupWifiRecovery(dueAt);
+        requestedSetup = false;
+        powerPressed = true;
+        serviceSetupWifiRecovery(dueAt);
+        powerPressed = false;
+        webRestart = true;
+        serviceSetupWifiRecovery(dueAt);
+        webRestart = false;
+        webMaintenance = true;
+        serviceSetupWifiRecovery(dueAt);
+        webMaintenance = false;
+        assert(restarts == 0 && speakerMutes == 0 && flushes == 0);
+
+        serviceSetupWifiRecovery(dueAt + 1);
+        assert(restarts == 1);
+
+        // Simulate the software reboot after the router has come back.
+        tick = 0;
+        joined = isAP = networkJoinStarted = false;
+        qrStates.clear();
+        resetReason = ESP_RST_SW;
+        connectionDelay = 1000;
+        firmwareUpdater.busy = false;
+        setup();
+        assert(!bootSound && radioStarted && !isAP);
+        puts("Setup recovery timeout, deferral and silent return to playback passed");
         return 0;
     }
     setup();
@@ -276,6 +324,11 @@ int main(int argc, char** argv) {
 #endif
         }
     }
+    if (!isAP || setupAccessReason != SetupAccessReason::ConnectionFailed) {
+        serviceSetupWifiRecovery(tick);
+        serviceSetupWifiRecovery(tick + retryInterval);
+        assert(restarts == 0);
+    }
     printf("Startup passed: %s; QR at %lu ms, radio/fallback at %lu ms\n",
            argv[1], firstQrAt, playbackAt);
 }
@@ -292,5 +345,5 @@ for spotify in (False, True):
         str(out / "startup.cpp"), "-o", str(exe),
     ], check=True)
     for scenario in ("early", "during-qr", "after-qr", "missing", "short-boot-missing",
-                     "no-credentials", "requested-setup", "flap", "daily-reboot"):
+                     "no-credentials", "requested-setup", "flap", "daily-reboot", "setup-recovery"):
         subprocess.run([str(exe), scenario], check=True)

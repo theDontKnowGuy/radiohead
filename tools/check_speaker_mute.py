@@ -21,6 +21,10 @@ fixture = r"""
 #include <cassert>
 #include <cstdint>
 using gpio_num_t = int;
+struct portMUX_TYPE { bool locked = false; };
+#define portMUX_INITIALIZER_UNLOCKED {}
+void portENTER_CRITICAL(portMUX_TYPE* mux) { assert(!mux->locked); mux->locked = true; }
+void portEXIT_CRITICAL(portMUX_TYPE* mux) { assert(mux->locked); mux->locked = false; }
 constexpr int SPEAKER_MUTE = 2;
 uint32_t clockMs = 0;
 uint32_t millis() { return clockMs; }
@@ -37,9 +41,10 @@ int mainVal = 10;
 struct { bool running = false; bool isRunning() { return running; } } audio;
 """
 state_start = source.index("constexpr uint32_t kSpeakerBootMuteMs")
-state_end = source.index("\n", source.index("bool speakerBootHoldComplete", state_start))
+state_end = source.index("\n", source.index("bool otaMuteActive", state_start))
 fixture += source[state_start:state_end] + "\n"
 fixture += function("void mediaSilenceSpeakers()") + "\n"
+fixture += function("void mediaSetOtaMute(bool active)") + "\n"
 fixture += function("bool mediaBootAudioReady()") + "\n"
 fixture += function("void mediaUpdateSpeakerMute(bool bootPlaying)") + "\n"
 fixture += r"""
@@ -57,7 +62,12 @@ int main() {
     clockMs = 4499; assert(!mediaBootAudioReady());
     clockMs = 4500; assert(mediaBootAudioReady());
     clockMs = 7000; assert(mediaBootAudioReady()); // Slow initialization.
-    radioMuted = true; expect(MUTED); expect(MUTED, true);
+    mediaSetOtaMute(true); assert(outputLevel == MUTED);
+    expect(MUTED); expect(MUTED, true);
+    mediaSetOtaMute(false); assert(outputLevel == MUTED); expect(AUDIBLE);
+    mediaSetOtaMute(true); radioMuted = true;
+    mediaSetOtaMute(false); expect(MUTED); assert(radioMuted && mainVal == 10);
+    expect(MUTED, true);
     radioMuted = false; expect(AUDIBLE);
     mainVal = 0; expect(MUTED);
     expect(AUDIBLE, true); // firmware boot audio has its own fixed volume
@@ -84,6 +94,8 @@ int main() {
         spotifyStatus = state; expect(MUTED);
     }
     spotifyStatus = MediaStatus::Playing; audio.running = false; expect(AUDIBLE);
+    mediaSetOtaMute(true); expect(MUTED);
+    mediaSetOtaMute(false); expect(AUDIBLE);
     radioMuted = true; expect(MUTED); radioMuted = false;
     mainVal = 0; expect(MUTED); mainVal = 10;
     outputOwner = OutputOwner::Failed; expect(MUTED);
@@ -100,4 +112,4 @@ with tempfile.TemporaryDirectory(prefix="radiohead-speaker-") as folder:
         subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
                         *flags, str(cpp), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
-print("Speaker mute: boot boundary/rollover, volume, radio, podcast and Spotify checks passed.")
+print("Speaker mute: boot boundary/rollover, OTA, volume, radio, podcast and Spotify checks passed.")

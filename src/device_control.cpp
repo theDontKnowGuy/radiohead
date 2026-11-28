@@ -13,6 +13,7 @@
 #include "media.h"
 #include "settings.h"
 #include "web_server.h"
+#include "wifi_network.h"
 
 namespace {
 
@@ -22,15 +23,16 @@ constexpr uint8_t kButtonQueueSize = 8;
 constexpr unsigned long kTouchPollMs = 8;
 
 constexpr int kDailyRebootHour = 4;
-constexpr uint32_t kDailyRebootMarker = 0x52484452;
-struct DailyRebootState {
-    uint32_t date;
+constexpr uint32_t kSetupWifiRetryMs = 15UL * 60UL * 1000UL;
+constexpr uint32_t kScheduledRebootMarker = 0x52484452;
+struct ScheduledRebootState {
+    uint32_t dailyDate;
     uint32_t pendingBoot;
     uint32_t wasMuted;
 };
-// Retain the date across software resets to avoid repeating the reboot
-// within the same local hour. Consume the sound override on the next boot.
-RTC_NOINIT_ATTR DailyRebootState dailyReboot;
+// Keep the last daily reboot date across software resets and use the boot
+// marker once to restore mute and skip the startup sound.
+RTC_NOINIT_ATTR ScheduledRebootState scheduledReboot;
 
 portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
 // All shared encoder diagnostics use encoderMux, like encoderPos.
@@ -98,13 +100,22 @@ void recordTouchPoll(bool raw, bool onPanel, TouchEvent event,
 
 }  // namespace
 
-bool restoreDailyRebootState() {
+bool restoreScheduledRebootState() {
     const esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_POWERON || reason == ESP_RST_BROWNOUT) dailyReboot = {};
-    const bool scheduled = reason == ESP_RST_SW && dailyReboot.pendingBoot == kDailyRebootMarker;
-    dailyReboot.pendingBoot = 0;
-    if (scheduled) radioMuted = dailyReboot.wasMuted != 0;
+    if (reason == ESP_RST_POWERON || reason == ESP_RST_BROWNOUT) scheduledReboot = {};
+    const bool scheduled = reason == ESP_RST_SW && scheduledReboot.pendingBoot == kScheduledRebootMarker;
+    scheduledReboot.pendingBoot = 0;
+    if (scheduled) radioMuted = scheduledReboot.wasMuted != 0;
     return scheduled;
+}
+
+static void restartSilently(uint32_t dailyDate) {
+    if (webRestartPending() || webUpdateInProgress() || !firmwareUpdater.tryBeginLocalMaintenance()) return;
+
+    mediaSilenceSpeakers();
+    flushSettingsSave();
+    scheduledReboot = {dailyDate, kScheduledRebootMarker, radioMuted ? 1U : 0U};
+    ESP.restart();
 }
 
 void serviceDailyReboot(const tm& localTime) {
@@ -113,13 +124,18 @@ void serviceDailyReboot(const tm& localTime) {
     if (localTime.tm_hour != kDailyRebootHour) return;
     const uint32_t date = (localTime.tm_year + 1900) * 10000 +
         (localTime.tm_mon + 1) * 100 + localTime.tm_mday;
-    if (date == dailyReboot.date || webRestartPending() || webUpdateInProgress() ||
-        !firmwareUpdater.tryBeginLocalMaintenance()) return;
+    if (date != scheduledReboot.dailyDate) restartSilently(date);
+}
 
-    mediaSilenceSpeakers();
-    flushSettingsSave();
-    dailyReboot = {date, kDailyRebootMarker, radioMuted ? 1U : 0U};
-    ESP.restart();
+void serviceSetupWifiRecovery(uint32_t now) {
+    if (!isAP || setupAccessReason != SetupAccessReason::ConnectionFailed || st_ssid.isEmpty()) return;
+    // Setup AP is entered during boot. Each restart starts a fresh wait.
+    static const uint32_t setupStartedAt = now;
+    if (now - setupStartedAt < kSetupWifiRetryMs) return;
+    // Let a setup scan or a physical power gesture finish before restarting.
+    if (wifiBrowserScanComplete() == WIFI_SCAN_RUNNING ||
+        digitalRead(PIN_SW) == LOW || digitalRead(PIN_K0) == LOW) return;
+    restartSilently(scheduledReboot.dailyDate);
 }
 
 void goToSleep() {

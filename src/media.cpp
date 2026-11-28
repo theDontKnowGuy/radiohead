@@ -64,6 +64,8 @@ constexpr uint32_t kSpeakerBootMuteMs = 4000;
 constexpr uint32_t kBootAudioAfterMuteMs = 500;
 uint32_t speakerBootStartedAt = 0;
 bool speakerBootHoldComplete = false;
+portMUX_TYPE speakerMuteMux = portMUX_INITIALIZER_UNLOCKED;
+bool otaMuteActive = false;
 
 bool isHttpUrl(const String& url) {
     return url.length() <= 512 &&
@@ -1328,6 +1330,13 @@ void mediaSilenceSpeakers() {
     gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), 1);
 }
 
+void mediaSetOtaMute(bool active) {
+    portENTER_CRITICAL(&speakerMuteMux);
+    otaMuteActive = active;
+    if (active) mediaSilenceSpeakers();
+    portEXIT_CRITICAL(&speakerMuteMux);
+}
+
 bool mediaBootAudioReady() {
     return static_cast<uint32_t>(millis() - speakerBootStartedAt) >=
         kSpeakerBootMuteMs + kBootAudioAfterMuteMs;
@@ -1349,7 +1358,10 @@ void mediaUpdateSpeakerMute(bool bootPlaying) {
 #endif
     const bool enabled = speakerBootHoldComplete && !radioMuted &&
         (bootPlaying || mainVal > 0) && playing;
-    gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), enabled ? 0 : 1);
+    // Serialize the decision and GPIO write with the updater's mute assertion.
+    portENTER_CRITICAL(&speakerMuteMux);
+    gpio_set_level(static_cast<gpio_num_t>(SPEAKER_MUTE), enabled && !otaMuteActive ? 0 : 1);
+    portEXIT_CRITICAL(&speakerMuteMux);
 }
 
 void mediaConfigureOutput() {
