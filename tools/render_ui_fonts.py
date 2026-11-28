@@ -39,7 +39,8 @@ for index, path in enumerate(c + cpp):
     objects.append(str(obj))
     deps = [path, root / 'include/display_fonts.h', root / 'include/ui_controller.h', root / 'include/ui_text.h', root / '.pio/ui_assets/ui_font_assets.h']
     if path.name == 'home.cpp':
-        deps += [root / 'include/boot_mode.h']
+        deps += [root / 'include/boot_mode.h', root / 'include/FirmwareVersion.h',
+                 root / '.pio/ui_assets/ui_about_assets.h']
         deps += [out / 'home_layout.inc', root / '.pio/ui_assets/ui_background_asset.h', root / '.pio/ui_assets/ui_header_assets.h', root / '.pio/ui_assets/ui_home_assets.h', root / '.pio/ui_assets/ui_home_clock_atlas.h', root / '.pio/ui_assets/ui_home_temperature_atlas.h', root / '.pio/ui_assets/ui_podcast_assets.h', root / '.pio/ui_assets/ui_list_assets.h', root / '.pio/ui_assets/ui_player_assets.h', root / '.pio/ui_assets/ui_alpha_icons.h']
     if obj.exists() and all(obj.stat().st_mtime > dep.stat().st_mtime for dep in deps):
         continue

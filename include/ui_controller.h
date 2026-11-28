@@ -4,6 +4,7 @@
 #include "media.h"
 
 constexpr int UI_LIST_ROWS = 4;
+constexpr int UI_SETTINGS_ITEM_COUNT = 6;
 constexpr int UI_AUDIO_BALANCE_CENTER_X = 160;
 
 // The controller deals only in semantic inputs and commands.  It deliberately
@@ -27,6 +28,7 @@ enum class UiPage : uint8_t {
     SettingsDevice,
     SettingsFirmware,
     SettingsWebHandoff,
+    SettingsAbout,
     SettingsConfirm,
     Unavailable,
 };

@@ -12,6 +12,7 @@ Manifests beside assets record source/output hashes, dimensions, versions and li
 | Recorded player | `prepare_podcast_assets.py`: 14–20% veil and 115×115 generic show artwork until real artwork exists |
 | Transport/header | SVGs rasterized with `rasterize_svg.swift` at 58×58 side/72×72 central transport, 24×24 Back; supplied Wi-Fi PNGs |
 | Lists | `prepare_list_assets.py`: 248×46 paged cards, 304×42 compact cards, 50×44 pager, 57×190/142 rails, 44 px thumbs with 84/42/28 heights |
+| About QR | `prepare_ui_assets.py` packs the modules from `Hardware/radiohead-qr.svg` into `.pio/ui_assets/ui_about_assets.h`. The TFT draws a 123×123 badge at 3 px per module with a four-module quiet zone. |
 | Fonts | `prepare_ui_fonts.py`: committed VLW roles/metrics; Roboto 2.001101 Latin, DejaVu Sans 2.34 Hebrew fallback; clock uses separate atlas |
 
 Normal builds need Pillow, macOS `sips`, `xxd` and Swift for the asset pipeline,

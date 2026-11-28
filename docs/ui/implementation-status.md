@@ -1,5 +1,14 @@
 # TFT UI: current state
 
+2026-11-28: About is on the second Settings screen. It shows the installed
+firmware version and release date, hardware revision from `platformio.ini`,
+the Artisian Electronics credit, and the project's GitHub QR. The detail
+rows pair muted labels with cyan values, including the hardware revision.
+The host touch check verified Back restores the Settings offset. The full native render
+produces `settings-about-menu.png`, `settings-about-smooth.png`, and
+`settings-about-fallback.png` in `.pio/ui_native`. Both About renders decoded
+to the project repository. Physical touch and camera scans remain unverified.
+
 2026-11-27: Settings → Audio includes the shared stereo balance. Tap the
 track to set Left 100% through Center to Right 100%. Save applies the balance
 and persists it through the same setting as the web editor. The firmware build,
@@ -40,7 +49,7 @@ This is a short functional check, not full visual/timing/soak completion.
 | Lists | Four 46 px rows, rounded navy/blue surfaces, right Up/Down rail; page-position and identity checks; comfortable touch reliability remains unresolved |
 | Recorded programs | Omny/RSS mutable catalog skips deleted slots, keeps copied playing metadata and empty state; [focused native fixtures](../programs-catalog.md) pass, device catalog edits/reboot/favorites still to test |
 | Spotify | Source transition opens player; Back/Home reopens without stopping; source-aware bounded metadata and transport, vector art placeholder; [Spotify UI details](spotify-ui-plan.md) |
-| Settings | Audio, Display, Wi-Fi, Device; weather/time web-only. Tone preview and held repeat, stereo balance, Save/Cancel, explicit calibration; no retired alarm/timer/preset features |
+| Settings | Audio, Display, Wi-Fi, Device, and About; weather/time web-only. Tone preview and held repeat, stereo balance, Save/Cancel, explicit calibration; no retired alarm/timer/preset features |
 | Shared header | Back chevron/title target `[0,210)×[0,44)`, clock/Wi-Fi/mute regions; supplied white Wi-Fi icon, no opaque photo-blocking bar |
 | Volume | Centered 224×150 navy panel, 0–21, ~1.5 s; muted turns stay muted; low-memory fallback. Native variants pass; physical restoration/legibility open |
 | Mute | Shared actual-state feedback, 2.5 s Muted/Sound on; Home/header indicators, volume turn replaces notice. Host input/native cases pass; broader physical check open |

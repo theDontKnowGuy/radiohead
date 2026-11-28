@@ -943,9 +943,6 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
 <section class='rh-box' aria-labelledby='network-status'><h2 id='network-status'>Connection</h2><dl class='rh-data'>
 <dt>Status</dt><dd id='network-state'>Loading…</dd><dt>Network</dt><dd id='network-name'><bdi>—</bdi></dd><dt>Signal</dt><dd id='network-signal'>Not available</dd><dt>AP MAC address (BSSID)</dt><dd id='network-bssid' dir='ltr'>Not available</dd><dt>Address</dt><dd id='network-address' dir='ltr'>—</dd></dl>
 <div class='rh-row'><button class='rh-button rh-danger' type='button' id='network-forget'>Forget network</button></div><p class='rh-note rh-warning' id='network-recovery' hidden></p></section>
-<section class='rh-box' aria-labelledby='network-roaming-heading'><h2 id='network-roaming-heading'>Background Wi-Fi roaming</h2>
-<p id='network-roaming-help'>Automatically switch to a stronger access point using the same network name. Changes apply immediately and stay saved after restarting.</p>
-<div class='rh-footer'><span class='rh-formstatus' id='network-roaming-status' role='status'>Loading setting…</span><button class='rh-button' type='button' id='network-roaming-toggle' aria-pressed='false' aria-describedby='network-roaming-help' disabled>Loading…</button></div></section>
 <section class='rh-box' aria-labelledby='change-network'><h2 id='change-network'>Change Wi-Fi</h2><p>Scan results report the radio's observed security. Scanning does not replace your draft.</p>
 <div class='rh-row'><button class='rh-button' type='button' id='network-scan'>Scan networks</button><button class='rh-button rh-quiet' type='button' id='network-hidden'>Hidden network…</button></div><div id='network-results' class='rh-results' aria-live='polite'></div>
 <label class='rh-field'><span>Network name</span><input id='network-ssid' maxlength='32' autocomplete='off' required></label>
@@ -954,6 +951,9 @@ $('station-add').onclick=()=>openEditor(null);$('station-cancel').onclick=showLi
 <label class='rh-inlinecheck'><input id='network-show-password' type='checkbox'>Show password</label>
 <p class='rh-note rh-warning'>Changing Wi-Fi restarts the radio. This page will disconnect; join the new network and reopen the radio’s address.</p>
 <div class='rh-footer'><span class='rh-formstatus' id='network-form-status' role='status'>No changes yet</span><button class='rh-button rh-quiet' type='button' id='network-cancel'>Cancel</button><button class='rh-button rh-primary' type='button' id='network-connect'>Connect</button></div></section>
+<section class='rh-box' aria-labelledby='network-roaming-heading'><h2 id='network-roaming-heading'>Background Wi-Fi roaming</h2>
+<p id='network-roaming-help'>Automatically switch to a stronger access point using the same network name. Changes apply immediately and stay saved after restarting.</p>
+<div class='rh-footer'><span class='rh-formstatus' id='network-roaming-status' role='status'>Loading setting…</span><button class='rh-button' type='button' id='network-roaming-toggle' aria-pressed='false' aria-describedby='network-roaming-help' disabled>Loading…</button></div></section>
 <script>)HTML";
         html += R"JS((()=>{const $=id=>document.getElementById(id),api=(path,body={})=>fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}).then(async r=>{const data=await r.json().catch(()=>({error:'The radio returned an invalid response.'}));if(!r.ok)throw Object.assign(Error(data.error||'Request failed.'),{data});return data});let state=null,scanTimer=0,draftInitialized=false,restarting=false;
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

@@ -17,12 +17,14 @@
 #include "audio_balance.h"
 #include "ConfigQrCode.h"
 #include "display_fonts.h"
+#include "FirmwareVersion.h"
 #include "firmware_updater.h"
 #include "media.h"
 #include "settings.h"
 #include "SetupWifiQrCode.h"
 #include "ui_controller.h"
 #include "ui_text.h"
+#include "ui_about_assets.h"
 #include "ui_background_asset.h"
 #include "ui_home_assets.h"
 #include "ui_alpha_icons.h"
@@ -301,7 +303,6 @@ constexpr uint16_t kRecordedProgressTrack = 0x6B4D;
 constexpr int16_t kSettingsConfirmButtonTop = 160;
 constexpr int16_t kSettingsConfirmButtonHeight = 44;
 
-// NETWORK_QR_BEGIN
 struct QrGrid {
     const uint8_t* modules;
     int size;
@@ -309,6 +310,45 @@ struct QrGrid {
     int stride;
 };
 
+int qrBadgeSide(const QrGrid& qr, int maximum) {
+    const int modules = qr.size + 2 * qr.quietZone;
+    return (maximum / modules) * modules;
+}
+
+bool qrDark(const QrGrid& qr, int x, int y) {
+    const uint8_t packed = qr.modules[y * qr.stride + x / 8];
+    return (packed >> (7 - (x % 8))) & 1U;
+}
+
+void drawQrBadge(const QrGrid& qr, int x, int y, int maximum) {
+    const int side = qrBadgeSide(qr, maximum);
+    const int modules = qr.size + 2 * qr.quietZone;
+    const int scale = side / modules;
+    if (scale < 1) return;
+
+    // A QR is camera-readable, so use opaque black/white whole-pixel modules
+    // instead of the interface's translucent surfaces or antialiased scaling.
+    canvas().fillRoundRect(x, y, side, side, 2 * scale, kWhite);
+    const int codeX = x + qr.quietZone * scale;
+    const int codeY = y + qr.quietZone * scale;
+    canvas().startWrite();
+    for (int row = 0; row < qr.size; ++row) {
+        int runStart = -1;
+        for (int column = 0; column <= qr.size; ++column) {
+            const bool dark = column < qr.size && qrDark(qr, column, row);
+            if (dark && runStart < 0) {
+                runStart = column;
+            } else if (!dark && runStart >= 0) {
+                canvas().fillRect(codeX + runStart * scale, codeY + row * scale,
+                                  (column - runStart) * scale, scale, TFT_BLACK);
+                runStart = -1;
+            }
+        }
+    }
+    canvas().endWrite();
+}
+
+// NETWORK_QR_BEGIN
 constexpr bool sameText(const char* left, const char* right) {
     return *left == *right && (*left == '\0' || sameText(left + 1, right + 1));
 }
@@ -342,44 +382,6 @@ constexpr QrGrid kConfigQr = {ConfigQrCode::Modules, ConfigQrCode::Size,
                                ConfigQrCode::QuietZone, ConfigQrCode::Stride};
 constexpr QrGrid kSetupWifiQr = {SetupWifiQrCode::Modules, SetupWifiQrCode::Size,
                                   SetupWifiQrCode::QuietZone, SetupWifiQrCode::Stride};
-
-int qrBadgeSide(const QrGrid& qr, int maximum) {
-    const int modules = qr.size + 2 * qr.quietZone;
-    return (maximum / modules) * modules;
-}
-
-bool qrDark(const QrGrid& qr, int x, int y) {
-    const uint8_t packed = pgm_read_byte(&qr.modules[y * qr.stride + x / 8]);
-    return (packed >> (7 - (x % 8))) & 1U;
-}
-
-void drawQrBadge(const QrGrid& qr, int x, int y, int maximum) {
-    const int side = qrBadgeSide(qr, maximum);
-    const int modules = qr.size + 2 * qr.quietZone;
-    const int scale = side / modules;
-    if (scale < 1) return;
-
-    // A QR is camera-readable, so use opaque black/white whole-pixel modules
-    // instead of the interface's translucent surfaces or antialiased scaling.
-    canvas().fillRoundRect(x, y, side, side, 2 * scale, kWhite);
-    const int codeX = x + qr.quietZone * scale;
-    const int codeY = y + qr.quietZone * scale;
-    canvas().startWrite();
-    for (int row = 0; row < qr.size; ++row) {
-        int runStart = -1;
-        for (int column = 0; column <= qr.size; ++column) {
-            const bool dark = column < qr.size && qrDark(qr, column, row);
-            if (dark && runStart < 0) {
-                runStart = column;
-            } else if (!dark && runStart >= 0) {
-                canvas().fillRect(codeX + runStart * scale, codeY + row * scale,
-                                  (column - runStart) * scale, scale, TFT_BLACK);
-                runStart = -1;
-            }
-        }
-    }
-    canvas().endWrite();
-}
 
 void drawConfigurationQrBadge(int x, int y, int maximum) {
     drawQrBadge(kConfigQr, x, y, maximum);
@@ -871,6 +873,29 @@ void drawSettingsBackground() {
     }
 }
 
+void drawPhotoSurface(int16_t x, int16_t y, int16_t width, int16_t height) {
+    constexpr int16_t radius = 8;
+    if (uiFrameReady) {
+        // Blend against the freshly restored photo on the readable RGB565
+        // sprite. The eight short edge rows keep the corners transparent.
+        constexpr uint8_t insets[radius] = {4, 3, 2, 1, 1, 0, 0, 0};
+        constexpr uint8_t opacity = 184;
+        canvas().fillRectAlpha(x, y + radius, width, height - 2 * radius,
+                               opacity, kSurface);
+        for (int16_t row = 0; row < radius; ++row) {
+            const int16_t inset = insets[row];
+            canvas().fillRectAlpha(x + inset, y + row, width - 2 * inset, 1,
+                                   opacity, kSurface);
+            canvas().fillRectAlpha(x + inset, y + height - row - 1,
+                                   width - 2 * inset, 1, opacity, kSurface);
+        }
+    } else {
+        // Direct-TFT fallback has no readable backing pixels for alpha blend.
+        canvas().fillRoundRect(x, y, width, height, radius, kSurface);
+    }
+    canvas().drawRoundRect(x, y, width, height, radius, kBlueFocus);
+}
+
 void drawAlphaIcon(const UiAlphaIcon& icon, int16_t x, int16_t y) {
     // Predecoded flash runs avoid the PNG alpha callback's DMA allocation.
     // Use the same RGB888 blend/rounding as LovyanGFX, then quantize to RGB565.
@@ -930,19 +955,23 @@ void drawSpeakerIcon(int16_t x, int16_t y, int16_t size, bool muted,
     }
 }
 
+void drawRadioBrandMark(int16_t x, int16_t y) {
+    if (uiFrameReady) {
+        drawAlphaIcon(ui_alpha_home_brand_radio, x, y);
+    } else {
+        canvas().drawRoundRect(x + 2, y + 8, 15, 10, 3, kHomeText);
+        canvas().drawLine(x + 5, y + 6, x + 15, y + 2, kHomeText);
+        canvas().fillCircle(x + 7, y + 13, 2, kHomeText);
+        canvas().fillCircle(x + 13, y + 13, 2, kHomeText);
+    }
+}
+
 void drawHomeHeader(bool timeValid, const String& station, const char* source) {
     // Home intentionally has no opaque navigation bar: the top of the sunset
     // photo is part of this screen's composition. Other pages use the compact
     // shared page header below.
     constexpr int16_t centerY = 22;
-    if (uiFrameReady) {
-        drawAlphaIcon(ui_alpha_home_brand_radio, 12, 10);
-    } else {
-        canvas().drawRoundRect(14, 18, 15, 10, 3, kHomeText);
-        canvas().drawLine(17, 16, 27, 12, kHomeText);
-        canvas().fillCircle(19, 23, 2, kHomeText);
-        canvas().fillCircle(25, 23, 2, kHomeText);
-    }
+    drawRadioBrandMark(12, 10);
     canvas().setTextColor(kHomeText);
     canvas().setTextDatum(ML_DATUM);
     canvas().drawString(uiTextLayout(displayBrandName()).visual.c_str(),
@@ -1370,14 +1399,10 @@ void drawNetworkBootScreen(bool connected, const String& ipAddress) {
     // keeping all live values and the QR code native at 320 x 240.
     if (uiFrameReady) {
         canvas().fillRectAlpha(0, 0, 320, 240, 36, TFT_BLACK);
-        drawAlphaIcon(ui_alpha_home_brand_radio, 10, 7);
     } else {
         canvas().fillScreen(kNavy);
-        canvas().drawRoundRect(12, 15, 15, 10, 3, kHomeText);
-        canvas().drawLine(15, 13, 25, 9, kHomeText);
-        canvas().fillCircle(17, 20, 2, kHomeText);
-        canvas().fillCircle(23, 20, 2, kHomeText);
     }
+    drawRadioBrandMark(10, 7);
 
     canvas().setTextDatum(ML_DATUM);
     canvas().setTextColor(kHomeText);
@@ -1942,6 +1967,9 @@ void drawSettingsGlyph(uint8_t kind, int16_t x, int16_t y, uint16_t color = kWhi
             }
         }
         break;
+    case 6:  // About
+        drawRadioBrandMark(x - 10, y - 10);
+        break;
     default:
         break;
     }
@@ -2034,17 +2062,67 @@ void drawEditorFooter() {
 void renderSettings(const UiRenderState& state, const char* currentTime, bool timeValid) {
     drawSettingsBackground();
     static constexpr const char* kLabels[] = {
-        "Web configuration", "Wi-Fi", "Display", "Audio", "Device",
+        "Web configuration", "Wi-Fi", "Display", "Audio", "Device", "About",
     };
-    static constexpr uint8_t kIcons[] = {5, 0, 1, 2, 3};
+    static constexpr uint8_t kIcons[] = {5, 0, 1, 2, 3, 6};
+    static_assert(sizeof(kLabels) / sizeof(kLabels[0]) == UI_SETTINGS_ITEM_COUNT &&
+                  sizeof(kIcons) / sizeof(kIcons[0]) == UI_SETTINGS_ITEM_COUNT);
     for (int row = 0; row < kStationRowsPerPage; ++row) {
         const int item = state.settingsOffset + row;
-        if (item >= static_cast<int>(sizeof(kLabels) / sizeof(kLabels[0]))) break;
+        if (item >= UI_SETTINGS_ITEM_COUNT) break;
         drawSettingsListRow(kStationListTop + row * kStationListRowHeight,
                             kLabels[item], kIcons[item]);
     }
-    drawListPager(state.settingsOffset, sizeof(kLabels) / sizeof(kLabels[0]), kStationRowsPerPage);
+    drawListPager(state.settingsOffset, UI_SETTINGS_ITEM_COUNT, kStationRowsPerPage);
     drawPageHeader("Settings", currentTime, timeValid);
+}
+
+void renderAboutSettings(const char* currentTime, bool timeValid) {
+    constexpr QrGrid projectQr = {
+        kProjectQrModules, kProjectQrSize, kProjectQrQuietZone, kProjectQrStride,
+    };
+    constexpr int16_t qrSide = 3 * (kProjectQrSize + 2 * kProjectQrQuietZone);
+    constexpr int16_t qrCenterX = 235;
+    constexpr int16_t qrCenterY = 122;
+    static_assert(qrSide <= 132, "Project QR needs three pixels per module");
+
+    drawSettingsBackground();
+    drawPhotoSurface(8, 52, 304, 176);
+    canvas().fillRoundRect(20, 68, 28, 28, 6, kBlueDark);
+    canvas().drawRoundRect(20, 68, 28, 28, 6, kBlueFocus);
+    drawRadioBrandMark(24, 72);
+    const lgfx::IFont* title = uiFrameReady ? uiFont(&fonts::FreeSansBold12pt7b) : &fonts::FreeSansBold9pt7b;
+    text("Radiohead", 56, 70, title, kWhite, 109);
+    const lgfx::IFont* details = homeCaptionFont();
+    constexpr int16_t detailsLeft = 20;
+    constexpr int16_t detailsRight = 166;
+    constexpr int16_t labelGap = 8;
+    constexpr struct {
+        const char* label;
+        const char* value;
+    } rows[] = {
+        {"Firmware", FIRMWARE_VERSION},
+        {"Released", FIRMWARE_RELEASED},
+        {"Hardware revision", kHardwareRevision},
+    };
+    int16_t y = 108;
+    for (const auto& row : rows) {
+        text(row.label, detailsLeft, y, details, kTextMuted);
+        const int16_t valueWidth = detailsRight - detailsLeft - labelGap -
+                                   canvas().textWidth(row.label);
+        canvas().setTextDatum(TR_DATUM);
+        canvas().setTextColor(TFT_CYAN);
+        canvas().drawString(ellipsize(row.value, valueWidth).c_str(), detailsRight, y);
+        y += 25;
+    }
+
+    serviceUiAudio();
+    drawQrBadge(projectQr, qrCenterX - qrSide / 2, qrCenterY - qrSide / 2, qrSide);
+    canvas().drawFastHLine(20, 194, 280, kSlate);
+    canvas().setTextDatum(MC_DATUM);
+    canvas().setTextColor(kWhite);
+    canvas().drawString("Artisian Electronics", 160, 211, title);
+    drawPageHeader("About", currentTime, timeValid);
 }
 
 String wifiSignalLabel() {
@@ -2370,31 +2448,8 @@ void renderHome(const UiRenderState& state, const char* currentTime, bool timeVa
     }
 }
 
-void drawSpotifySurface(int16_t x, int16_t y, int16_t width, int16_t height) {
-    constexpr int16_t radius = 8;
-    if (uiFrameReady) {
-        // Blend against the freshly restored photo on the readable RGB565
-        // sprite. The eight short edge rows keep the corners transparent.
-        constexpr uint8_t insets[radius] = {4, 3, 2, 1, 1, 0, 0, 0};
-        constexpr uint8_t opacity = 184;
-        canvas().fillRectAlpha(x, y + radius, width, height - 2 * radius,
-                               opacity, kSurface);
-        for (int16_t row = 0; row < radius; ++row) {
-            const int16_t inset = insets[row];
-            canvas().fillRectAlpha(x + inset, y + row, width - 2 * inset, 1,
-                                   opacity, kSurface);
-            canvas().fillRectAlpha(x + inset, y + height - row - 1,
-                                   width - 2 * inset, 1, opacity, kSurface);
-        }
-    } else {
-        // Direct-TFT fallback has no readable backing pixels for alpha blend.
-        canvas().fillRoundRect(x, y, width, height, radius, kSurface);
-    }
-    canvas().drawRoundRect(x, y, width, height, radius, kBlueFocus);
-}
-
 void drawSpotifyArtwork(int16_t x, int16_t y) {
-    drawSpotifySurface(x, y, 94, 96);
+    drawPhotoSurface(x, y, 94, 96);
     const int16_t heights[] = {19, 34, 49, 37, 24};
     for (int i = 0; i < 5; ++i)
         canvas().fillRoundRect(x + 14 + i * 14, y + 48 - heights[i] / 2,
@@ -2411,7 +2466,7 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
     // centerline, directly over the coastal photo.
     drawPageHeader("Spotify", currentTime, timeValid);
     drawSpotifyArtwork(13, 55);
-    drawSpotifySurface(113, 55, 194, 96);
+    drawPhotoSurface(113, 55, 194, 96);
     const char* status = media.status == MediaStatus::Playing ? "PLAYING" :
         media.status == MediaStatus::Paused ? "PAUSED" :
         media.status == MediaStatus::Connecting ? "CONNECTING" :
@@ -2435,7 +2490,7 @@ void renderSpotifyPlayer(const UiRenderState& state, const char* currentTime,
             drawAlphaIcon(ui_alpha_player_pause, 124, 157);
         drawAlphaIcon(ui_alpha_player_next_track, 210, 164);
     } else {
-        drawSpotifySurface(13, 162, 294, 62);
+        drawPhotoSurface(13, 162, 294, 62);
         const char* heading = media.status == MediaStatus::Connecting ? "Connecting to Spotify" :
             media.status == MediaStatus::Failed ? "Spotify unavailable" : "Spotify stopped";
         text(heading, 27, 184, uiFont(&fonts::FreeSansBold9pt7b), kWhite, 235);
@@ -2639,6 +2694,8 @@ UiTarget uiHitTest(const UiRenderState& state, int16_t x, int16_t y) {
         if (contains(x, y, 8, 108, 304, 48)) return UiTarget::FirmwareToggleAutoInstall;
         if (contains(x, y, 8, 164, 304, 48) &&
             firmwareUpdater.snapshot().awaitingConfirmation) return UiTarget::FirmwareInstallNow;
+    } else if (state.page == UiPage::SettingsAbout) {
+        if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight)) return UiTarget::SettingsBack;
     } else if (state.page == UiPage::SettingsWebHandoff) {
         if (contains(x, y, 0, 0, kHeaderBackHitWidth, kHeaderBackHitHeight) ||
             contains(x, y, 0, 188, 320, 52)) return UiTarget::SettingsBack;
@@ -2718,6 +2775,9 @@ void renderRadioUi(const UiRenderState& state, const char* currentTime, bool tim
             break;
         case UiPage::SettingsWebHandoff:
             renderSettingsWebHandoff(state, currentTime, timeValid);
+            break;
+        case UiPage::SettingsAbout:
+            renderAboutSettings(currentTime, timeValid);
             break;
         case UiPage::SettingsConfirm:
             renderSettingsConfirmation(state, currentTime, timeValid);

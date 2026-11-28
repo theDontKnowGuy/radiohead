@@ -4,11 +4,14 @@ The generated header stays in .pio; only the source image and this reproducible
 conversion recipe belong in the repository.
 """
 
+from configparser import ConfigParser
 import hashlib
 import json
 from pathlib import Path
+import re
 from subprocess import run
 from itertools import groupby
+from xml.etree import ElementTree
 from PIL import Image
 
 project = Path(__file__).resolve().parents[1]
@@ -35,6 +38,52 @@ if not boot_audio_source.is_file():
     raise RuntimeError("Missing required boot sound: docs/audio/boot.aac")
 
 output.mkdir(parents=True, exist_ok=True)
+
+
+def prepare_about_assets():
+    config = ConfigParser()
+    config.read(project / "platformio.ini")
+    revision = config["env:esp32s3"]["custom_hardware_revision"]
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", revision):
+        raise ValueError("platformio.ini custom_hardware_revision must be a dotted numeric revision")
+
+    # The supplied SVG stores each black module as a unit square. Pack those
+    # coordinates directly to preserve the exact QR symbol and its quiet zone.
+    qr_source = "Hardware/radiohead-qr.svg"
+    svg = ElementTree.parse(project / qr_source).getroot()
+    origin_x, origin_y, width, height = map(int, svg.attrib["viewBox"].split())
+    quiet_zone = 4
+    size = width - 2 * quiet_zone
+    stride = (size + 7) // 8
+    path = svg.find("{http://www.w3.org/2000/svg}path").attrib["d"]
+    module = re.compile(r"M(\d+),(\d+)h1v1h-1z")
+    if (origin_x or origin_y or width != height or not 21 <= size <= 177
+            or (size - 21) % 4 or not path or module.sub("", path)):
+        raise ValueError(f"Unexpected QR grid format in {qr_source}")
+    packed = [bytearray(stride) for _ in range(size)]
+    for match in module.finditer(path):
+        x, y = (int(value) - quiet_zone for value in match.groups())
+        if not (0 <= x < size and 0 <= y < size):
+            raise ValueError(f"QR module outside the symbol grid in {qr_source}")
+        packed[y][x // 8] |= 0x80 >> (x % 8)
+    rows = ["    " + ", ".join(f"0x{value:02x}" for value in row) + "," for row in packed]
+    content = (
+        "#pragma once\n#include <stdint.h>\n\n"
+        f'constexpr char kHardwareRevision[] = "{revision}";\n\n'
+        f"// Packed from {qr_source} by tools/prepare_ui_assets.py.\n"
+        f"constexpr int kProjectQrSize = {size};\n"
+        f"constexpr int kProjectQrQuietZone = {quiet_zone};\n"
+        f"constexpr int kProjectQrStride = {stride};\n"
+        "constexpr uint8_t kProjectQrModules[] = {\n"
+        + "\n".join(rows) + "\n};\n"
+    )
+    destination = output / "ui_about_assets.h"
+    if not destination.exists() or destination.read_text() != content:
+        destination.write_text(content, encoding="utf-8")
+
+
+prepare_about_assets()
+
 header_is_current = header.exists() and "const unsigned char ui_background_png[]" in header.read_text(encoding="utf-8")
 if not header_is_current or header.stat().st_mtime < source.stat().st_mtime:
     run(["/usr/bin/sips", "--resampleHeightWidth", "240", "320", str(source), "--out", str(png)], check=True)

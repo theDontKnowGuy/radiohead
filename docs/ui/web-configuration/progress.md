@@ -1,5 +1,11 @@
 # Web UI: current state and tests
 
+2026-11-28: Background Wi-Fi roaming is the last section on the Network page,
+below Change Wi-Fi. A Chromium fixture using the firmware markup and stylesheet
+verified layout and toggle behavior at 320 px and 1440 px. The roaming web check
+and `pio run -e esp32s3` passed with 26% of the app slot and 73,913 bytes of DIRAM
+free. The build has yet to be flashed or checked on the radio.
+
 2026-11-28: W5 automatic Wi-Fi recovery silently reboots after 15 minutes in
 setup mode following a failed saved-network join. Manual setup and first-time
 setup have no recovery timer. Recovery defers to setup scans, power gestures,

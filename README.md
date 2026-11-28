@@ -1,16 +1,28 @@
 # Radiohead
 
-An ESP32-S3 internet radio with a touchscreen, physical volume control, and a
-local web interface for setup and playback control.
-
 <p align="center">
-  <a href="docs/images/radio_type1.png"><img src="docs/images/radio_type1.png" alt="Side view of the Radiohead enclosure" width="49%"></a>
-    <a href="docs/images/radio_type1_2.png"><img src="docs/images/radio_type1_2.png" alt="Radiohead radio with its touchscreen home screen" width="49%"></a>
-
+  <a href="docs/images/radio_type2_1.png"><img src="docs/images/radio_type2_1.png" alt="Angled front view of Radiohead with its touchscreen and top volume knob" width="100%"></a>
 </p>
+
+An ESP32-S3 internet radio with a touchscreen, physical volume control, 
+local and a web interface for setup and playback control. Supports Spotify, streaming radio stations and saved podcasts. 
+
+## Radio photos
+
+### Style 1
+
 <p align="center">
-  <a href="docs/images/radio_type1_3.png"><img src="docs/images/radio_type1_3.png" alt="Close-up of the touchscreen, speaker grille, and volume knob" width="49%"></a>
-  <a href="docs/images/radio_type1_4.png"><img src="docs/images/radio_type1_4.png" alt="Rear view of Radiohead with its label and power connection" width="49%"></a>
+  <a href="docs/images/radio_type1.png"><img src="docs/images/radio_type1.png" alt="Side view of the Style 1 enclosure" width="30%"></a>
+  <a href="docs/images/radio_type1_3.png"><img src="docs/images/radio_type1_3.png" alt="Close-up of the Style 1 touchscreen, speaker grille, and volume knob" width="30%"></a>
+  <a href="docs/images/radio_ui.jpg"><img src="docs/images/radio_ui.jpg" alt="Radiohead touchscreen home screen with playback, weather, and navigation controls" width="30%"></a>
+</p>
+
+### Style 2
+
+<p align="center">
+  <a href="docs/images/radio_type2_2.png"><img src="docs/images/radio_type2_2.png" alt="Front view of the Style 2 speaker grille and touchscreen" width="30%"></a>
+  <a href="docs/images/radio_type2_4.jpg"><img src="docs/images/radio_type2_4.jpg" alt="Side profile of the Style 2 enclosure" width="30%"></a>
+  <a href="docs/images/radio_type2_3.jpg"><img src="docs/images/radio_type2_3.jpg" alt="Close-up of the Style 2 rear USB-C port and Radiohead label" width="30%"></a>
 </p>
 
 ## Features
@@ -74,3 +86,12 @@ Spotify section.
 
 Development and hardware acceptance are tracked in the linked records. Build and
 host checks are recorded separately from on-device validation.
+
+## Credits
+
+- Internet radio streaming and audio decoding use
+  [ESP32-audioI2S by schreibfaul1](https://github.com/schreibfaul1/ESP32-audioI2S).
+- Native Spotify Connect playback was adapted from Vitali Borys’s ESP32-S3
+  player, which uses cspot.
+  [cspot-waveshare-esp32s3](https://github.com/VitaliBorys/cspot-waveshare-esp32s3) ·
+  [cspot](https://github.com/feelfreelinux/cspot)

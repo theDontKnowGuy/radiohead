@@ -11,8 +11,10 @@
 #include "ConfigQrCode.h"
 #include "boot_mode.h"
 #include "display_fonts.h"
+#include "FirmwareVersion.h"
 #include "ui_controller.h"
 #include "ui_text.h"
+#include "ui_about_assets.h"
 #include "ui_background_asset.h"
 #include "ui_header_assets.h"
 #include "ui_home_assets.h"
@@ -829,6 +831,11 @@ int main(int argc, char** argv) {
     assert(uiHitTest(settingsHitState, 160, 168) == UiTarget::SettingsRow2);
     assert(uiHitTest(settingsHitState, 160, 216) == UiTarget::SettingsRow3);
     assert(uiHitTest(settingsHitState, 289, 160) == UiTarget::SettingsNext);
+    UiRenderState aboutHitState;
+    aboutHitState.page = UiPage::SettingsAbout;
+    assert(uiHitTest(aboutHitState, 209, 43) == UiTarget::SettingsBack);
+    assert(uiHitTest(aboutHitState, 210, 43) == UiTarget::None);
+    assert(uiHitTest(aboutHitState, 235, 122) == UiTarget::None);
     UiRenderState toneHitState;
     toneHitState.page = UiPage::SettingsAudio;
     assert(uiHitTest(toneHitState, 209, 22) == UiTarget::SettingsBack);
@@ -1053,6 +1060,15 @@ int main(int argc, char** argv) {
     save((dir + "/confirm-smooth.ppm").c_str());
     renderSettings(settingsHitState, "15:01", true);
     save((dir + "/settings-smooth.ppm").c_str());
+    settingsHitState.settingsOffset = UI_SETTINGS_ITEM_COUNT - UI_LIST_ROWS;
+    renderSettings(settingsHitState, "15:01", true);
+    save((dir + "/settings-about-menu.ppm").c_str());
+    renderAboutSettings("15:01", true);
+    save((dir + "/settings-about-smooth.ppm").c_str());
+    antialias = false;
+    renderAboutSettings("15:01", true);
+    save((dir + "/settings-about-fallback.ppm").c_str());
+    antialias = true;
     toneHitState.toneBassDraft = -15;
     toneHitState.toneMidDraft = 0;
     toneHitState.toneTrebleDraft = 15;

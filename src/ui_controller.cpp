@@ -16,7 +16,6 @@ constexpr unsigned long kVolumeOverlayMs = 1500;
 constexpr unsigned long kMuteOverlayMs = 2500;
 constexpr int16_t kPodcastProgressX = 128;
 constexpr int16_t kPodcastProgressWidth = 166;
-constexpr int kSettingsItemCount = 5;
 
 UiRenderState state;
 MediaSource lastMediaSource = MediaSource::None;
@@ -247,6 +246,10 @@ void openSettingsItem(int item) {
     case 2: openDisplaySettings(); break;
     case 3: openAudioSettings(); break;
     case 4: openDeviceSettings(true); break;
+    case 5:
+        state.page = UiPage::SettingsAbout;
+        markDirty();
+        break;
     default: break;
     }
 }
@@ -519,7 +522,7 @@ void handleTarget(UiTarget target, int value = 0) {
         } else if (target >= UiTarget::SettingsRow0 && target <= UiTarget::SettingsRow3) {
             const int row = static_cast<int>(target) - static_cast<int>(UiTarget::SettingsRow0);
             const int item = state.settingsOffset + row;
-            if (item < kSettingsItemCount) openSettingsItem(item);
+            if (item < UI_SETTINGS_ITEM_COUNT) openSettingsItem(item);
         }
         break;
     case UiPage::SettingsWifi:
@@ -618,6 +621,7 @@ void handleTarget(UiTarget target, int value = 0) {
         }
         break;
     case UiPage::SettingsWebHandoff:
+    case UiPage::SettingsAbout:
         if (target == UiTarget::SettingsBack) openSettings();
         break;
     case UiPage::SettingsConfirm:
@@ -759,7 +763,7 @@ void uiControllerPage(int direction, unsigned long now, bool displayWasDimmed) {
         break;
     case UiPage::Settings:
         offset = &state.settingsOffset;
-        count = kSettingsItemCount;
+        count = UI_SETTINGS_ITEM_COUNT;
         break;
     case UiPage::SettingsWifi:
         offset = &state.wifiOffset;
